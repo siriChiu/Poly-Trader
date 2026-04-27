@@ -30,6 +30,13 @@ def test_check_db_uses_canonical_simulated_pyramid_win(tmp_path, monkeypatch):
     assert stats["raw_latest_age_min"] is not None
 
 
+def test_is_reference_only_patch_status_accepts_scope_mismatch_variant():
+    assert auto_propose_fixes._is_reference_only_patch_status("reference_only_until_exact_support_ready") is True
+    assert auto_propose_fixes._is_reference_only_patch_status("reference_only_non_current_live_scope") is True
+    assert auto_propose_fixes._is_reference_only_patch_status("reference_only_while_deployment_blocked") is True
+    assert auto_propose_fixes._is_reference_only_patch_status("deployable_patch_candidate") is False
+
+
 def test_check_db_prefers_canonical_1440m_streak_over_mixed_horizon_tail(tmp_path, monkeypatch):
     monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
     db_path = tmp_path / "poly_trader.db"
@@ -206,6 +213,36 @@ def test_load_recent_tw_history_prefers_numbered_heartbeats_over_fast_alias(tmp_
     assert history[1]["heartbeat"] == "664"
 
 
+def test_load_recent_tw_history_prefers_timestamped_cron_runs_over_legacy_numeric_ids(tmp_path, monkeypatch):
+    monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    (data_dir / "heartbeat_1024_summary.json").write_text(
+        '{"heartbeat":"1024","ic_diagnostics":{"tw_pass":27,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_20260424_2029_summary.json").write_text(
+        '{"heartbeat":"20260424_2029","ic_diagnostics":{"tw_pass":27,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_20260424_1955_summary.json").write_text(
+        '{"heartbeat":"20260424_1955","ic_diagnostics":{"tw_pass":26,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_fast_summary.json").write_text(
+        '{"heartbeat":"fast","ic_diagnostics":{"tw_pass":12,"total_features":30}}'
+    )
+
+    history = auto_propose_fixes.load_recent_tw_history(
+        limit=3,
+        current_entry={"heartbeat": "20260424_2049", "tw_pass": 28, "total_features": 30},
+    )
+
+    assert [row["heartbeat"] for row in history] == [
+        "20260424_2049",
+        "20260424_2029",
+        "20260424_1955",
+    ]
+
+
 def test_summarize_recent_drift_formats_primary_window():
     summary = auto_propose_fixes.summarize_recent_drift(
         {
@@ -306,6 +343,211 @@ def test_summarize_recent_drift_formats_primary_window():
     assert "compressed_examples=feat_nose(0.05/42)" in summary
     assert "expected_static_examples=feat_eye[weekend_macro_market_closed]" in summary
     assert "overlay_only_examples=feat_claw[research_sparse_source]" in summary
+
+
+def test_summarize_recent_drift_window_prefers_compact_summary_without_long_telemetry():
+    summary = auto_propose_fixes.summarize_recent_drift_window(
+        {
+            "window": "100",
+            "alerts": ["label_imbalance", "regime_concentration"],
+            "summary": {
+                "compact_summary": {
+                    "window": 100,
+                    "alerts": ["label_imbalance", "regime_concentration"],
+                    "severity": "medium",
+                    "interpretation": "distribution_pathology",
+                    "win_rate": 0.81,
+                    "avg_quality": 0.3429,
+                    "avg_pnl": 0.0046,
+                    "dominant_regime": "bull",
+                    "dominant_regime_share": 1.0,
+                    "tail_streak": {
+                        "target": 0,
+                        "count": 19,
+                        "start_timestamp": "2026-04-23 12:00:00",
+                        "end_timestamp": "2026-04-24 06:00:00",
+                    },
+                    "adverse_streak": {
+                        "target": 0,
+                        "count": 19,
+                        "start_timestamp": "2026-04-23 12:00:00",
+                        "end_timestamp": "2026-04-24 06:00:00",
+                    },
+                    "top_shift_features": ["feat_bb_pct_b", "feat_4h_dist_bb_lower", "feat_eye"],
+                    "actionable_summary": "distribution concentration with adverse tail risk; canonical quality remains positive",
+                },
+                "feature_diagnostics": {
+                    "frozen_examples": [{"feature": "feat_eye"}],
+                },
+                "target_path_diagnostics": {
+                    "recent_examples": [{"timestamp": "2026-04-24 06:00:00", "target": 0}],
+                },
+            },
+        }
+    )
+
+    assert "recent_window=100" in summary
+    assert "severity=medium" in summary
+    assert "win_rate=0.8100" in summary
+    assert "dominant_regime=bull(100.00%)" in summary
+    assert "tail_streak=19x0 since 2026-04-23 12:00:00 -> 2026-04-24 06:00:00" in summary
+    assert "top_shift=feat_bb_pct_b/feat_4h_dist_bb_lower/feat_eye" in summary
+    assert "distribution concentration with adverse tail risk" in summary
+    assert "feature_diag=" not in summary
+    assert "recent_examples=" not in summary
+
+
+def test_summarize_recent_drift_prefers_blocking_window_but_keeps_latest_context():
+    summary = auto_propose_fixes.summarize_recent_drift(
+        {
+            "primary_window": {
+                "window": "100",
+                "alerts": ["constant_target", "regime_concentration", "regime_shift"],
+                "summary": {
+                    "win_rate": 1.0,
+                    "win_rate_delta_vs_full": 0.3738,
+                    "dominant_regime": "chop",
+                    "dominant_regime_share": 0.94,
+                    "drift_interpretation": "supported_extreme_trend",
+                    "quality_metrics": {
+                        "avg_simulated_pnl": 0.0193,
+                        "avg_simulated_quality": 0.6393,
+                        "avg_drawdown_penalty": 0.1341,
+                        "spot_long_win_rate": 0.76,
+                    },
+                    "feature_diagnostics": {
+                        "feature_count": 56,
+                        "low_variance_count": 14,
+                        "frozen_count": 1,
+                        "compressed_count": 13,
+                        "expected_static_count": 3,
+                        "overlay_only_count": 1,
+                        "unexpected_frozen_count": 0,
+                        "low_distinct_count": 11,
+                        "null_heavy_count": 10,
+                    },
+                    "target_path_diagnostics": {
+                        "tail_target_streak": {
+                            "target": 1,
+                            "count": 100,
+                            "start_timestamp": "2026-04-19 15:30:25",
+                            "end_timestamp": "2026-04-20 09:12:33",
+                        },
+                        "longest_zero_target_streak": {
+                            "target": 0,
+                            "count": 0,
+                            "start_timestamp": None,
+                            "end_timestamp": None,
+                        },
+                    },
+                },
+            },
+            "blocking_window": {
+                "window": "500",
+                "alerts": ["regime_shift"],
+                "summary": {
+                    "win_rate": 0.254,
+                    "win_rate_delta_vs_full": -0.3722,
+                    "dominant_regime": "bull",
+                    "dominant_regime_share": 0.712,
+                    "drift_interpretation": "regime_concentration",
+                    "quality_metrics": {
+                        "avg_simulated_pnl": -0.0014,
+                        "avg_simulated_quality": -0.0296,
+                        "avg_drawdown_penalty": 0.2755,
+                        "spot_long_win_rate": 0.152,
+                    },
+                    "feature_diagnostics": {
+                        "feature_count": 56,
+                        "low_variance_count": 8,
+                        "frozen_count": 0,
+                        "compressed_count": 8,
+                        "expected_static_count": 2,
+                        "overlay_only_count": 1,
+                        "unexpected_frozen_count": 0,
+                        "low_distinct_count": 10,
+                        "null_heavy_count": 10,
+                    },
+                    "target_path_diagnostics": {
+                        "tail_target_streak": {
+                            "target": 1,
+                            "count": 121,
+                            "start_timestamp": "2026-04-19 10:13:18",
+                            "end_timestamp": "2026-04-20 09:12:33",
+                        },
+                        "longest_zero_target_streak": {
+                            "target": 0,
+                            "count": 191,
+                            "start_timestamp": "2026-04-18 14:33:06",
+                            "end_timestamp": "2026-04-19 01:10:17",
+                        },
+                    },
+                },
+            },
+        }
+    )
+
+    assert "recent_window=500" in summary
+    assert "interpretation=regime_concentration" in summary
+    assert "latest_window=100" in summary
+    assert "latest_interpretation=supported_extreme_trend" in summary
+    assert "latest_win_rate=1.0000" in summary
+
+
+def test_summarize_recent_drift_window_uses_loss_streak_as_adverse_even_for_all_win_window():
+    summary = auto_propose_fixes.summarize_recent_drift_window(
+        {
+            "window": "100",
+            "alerts": ["constant_target", "regime_concentration"],
+            "summary": {
+                "win_rate": 1.0,
+                "win_rate_delta_vs_full": 0.3738,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.94,
+                "drift_interpretation": "supported_extreme_trend",
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0193,
+                    "avg_simulated_quality": 0.6393,
+                    "avg_drawdown_penalty": 0.1341,
+                    "spot_long_win_rate": 0.76,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 14,
+                    "frozen_count": 1,
+                    "compressed_count": 13,
+                    "expected_static_count": 3,
+                    "overlay_only_count": 1,
+                    "unexpected_frozen_count": 0,
+                    "low_distinct_count": 11,
+                    "null_heavy_count": 10,
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {
+                        "target": 1,
+                        "count": 100,
+                        "start_timestamp": "2026-04-19 15:30:25",
+                        "end_timestamp": "2026-04-20 09:12:33",
+                    },
+                    "longest_zero_target_streak": {
+                        "target": 0,
+                        "count": 0,
+                        "start_timestamp": None,
+                        "end_timestamp": None,
+                    },
+                    "longest_one_target_streak": {
+                        "target": 1,
+                        "count": 100,
+                        "start_timestamp": "2026-04-19 15:30:25",
+                        "end_timestamp": "2026-04-20 09:12:33",
+                    },
+                },
+            },
+        }
+    )
+
+    assert "adverse_streak=0x0" in summary
+    assert "adverse_streak=100x1" not in summary
 
 
 def test_issue_action_text_falls_back_to_next_actions():
@@ -472,6 +714,7 @@ def test_main_resolves_tw_drift_and_streak_when_current_run_recovers(monkeypatch
             },
         }
     })
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {})
     monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.703, "cv_accuracy": 0.722})
     monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: DummyTracker())}))
 
@@ -567,6 +810,7 @@ def test_main_promotes_recent_distribution_pathology_even_when_tw_ic_recovers(mo
             },
         }
     })
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {})
     monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.703, "cv_accuracy": 0.722})
     monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: DummyTracker())}))
 
@@ -576,7 +820,8 @@ def test_main_promotes_recent_distribution_pathology_even_when_tw_ic_recovers(mo
     pathology_issue = next(item for item in added if item[1] == "#H_AUTO_RECENT_PATHOLOGY")
     assert pathology_issue[0] == "P0"
     assert "recent canonical window 100 rows = distribution_pathology" in pathology_issue[2]
-    assert "feature_diag=variance:28/49, frozen:5, compressed:23, expected_static:0, overlay_only:0, unexpected_frozen:0, distinct:15, null_heavy:10" in pathology_issue[3]
+    assert "machine-readable summary" in pathology_issue[3]
+    assert "feature_diag=variance:28/49" not in pathology_issue[3]
     assert "#H_AUTO_RECENT_PATHOLOGY" in out
 
 
@@ -667,7 +912,9 @@ def test_main_recent_distribution_pathology_issue_carries_machine_readable_summa
             },
         }
     })
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {})
     monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.703, "cv_accuracy": 0.722})
+
     monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: tracker)}))
 
     auto_propose_fixes.main()
@@ -676,17 +923,244 @@ def test_main_recent_distribution_pathology_issue_carries_machine_readable_summa
     pathology_issue = next(issue for issue in tracker.issues if issue["id"] == "#H_AUTO_RECENT_PATHOLOGY")
     assert pathology_issue["summary"] == {
         "window": "250",
+        "interpretation": "distribution_pathology",
         "win_rate": 0.016,
         "dominant_regime": "bull",
         "dominant_regime_share": 0.988,
         "avg_pnl": -0.0070,
         "avg_quality": -0.2188,
         "avg_drawdown_penalty": 0.2706,
+        "spot_long_win_rate": 0.0,
+        "avg_time_underwater": None,
         "alerts": ["label_imbalance", "regime_concentration", "regime_shift"],
         "top_shift_features": ["feat_4h_bb_pct_b", "feat_4h_bias20", "feat_4h_rsi14"],
         "new_compressed_feature": "feat_atr_pct",
         "tail_streak": "1x1",
+        "adverse_streak": "0x0",
+        "live_regime_label": None,
+        "current_live_scope": True,
+        "blocking_basis": ["avg_pnl<=0", "avg_quality<=0", "spot_long_win_rate<=0.20"],
     }
+
+
+def test_main_recent_distribution_pathology_uses_blocking_window_when_primary_is_supported_extreme_trend(monkeypatch, capsys):
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue.update({
+                        "priority": priority,
+                        "title": title,
+                        "action": action,
+                        "status": status,
+                    })
+                    return
+            self.issues.append({
+                "id": issue_id,
+                "priority": priority,
+                "title": title,
+                "action": action,
+                "status": status,
+            })
+
+        def resolve(self, issue_id):
+            return True
+
+        def save(self):
+            return None
+
+        def by_priority(self, priority):
+            return [issue for issue in self.issues if issue["priority"] == priority and issue["status"] == "open"]
+
+    tracker = DummyTracker()
+    monkeypatch.setattr(auto_propose_fixes, "check_db", lambda: {
+        "simulated_win_avg": 0.5725,
+        "losing_streak": 0,
+        "raw_latest_age_min": 1.0,
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_full_ic_data", lambda: {"global_pass": 13, "tw_pass": 30, "total_features": 30})
+    monkeypatch.setattr(auto_propose_fixes, "check_ic", lambda ic_data, full_ic_data=None: {
+        "global_pass": 13,
+        "tw_pass": 30,
+        "total_core": 15,
+        "total_features": 30,
+        "no_data": [],
+        "low_data": [],
+        "best_ic": ("feat_vix", 0.2),
+        "worst_ic": ("feat_ear", 0.01),
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_tw_history", lambda limit=3, current_entry=None: [
+        {"heartbeat": "1025", "tw_pass": 30, "total_features": 30},
+    ])
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_drift_report", lambda: {
+        "primary_window": {
+            "window": "100",
+            "alerts": ["constant_target", "regime_concentration", "regime_shift"],
+            "summary": {
+                "win_rate": 1.0,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.92,
+                "drift_interpretation": "supported_extreme_trend",
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0191,
+                    "avg_simulated_quality": 0.6332,
+                    "avg_drawdown_penalty": 0.1420,
+                    "spot_long_win_rate": 0.74,
+                },
+            },
+        },
+        "blocking_window": {
+            "window": "500",
+            "alerts": ["regime_shift"],
+            "summary": {
+                "win_rate": 0.25,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.716,
+                "drift_interpretation": "regime_concentration",
+                "quality_metrics": {
+                    "avg_simulated_pnl": -0.0015,
+                    "avg_simulated_quality": -0.0335,
+                    "avg_drawdown_penalty": 0.2771,
+                    "spot_long_win_rate": 0.14,
+                },
+                "reference_window_comparison": {
+                    "new_unexpected_compressed_features": ["feat_atr_pct"],
+                    "top_mean_shift_features": [
+                        {"feature": "feat_4h_bias20"},
+                        {"feature": "feat_4h_rsi14"},
+                        {"feature": "feat_4h_bias50"},
+                    ],
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 100, "target": 1},
+                },
+            },
+        },
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {})
+    monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.62, "cv_accuracy": 0.608})
+    monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: tracker)}))
+
+    auto_propose_fixes.main()
+    _ = capsys.readouterr().out
+
+    pathology_issue = next(issue for issue in tracker.issues if issue["id"] == "#H_AUTO_RECENT_PATHOLOGY")
+    assert pathology_issue["title"] == "recent canonical window 500 rows = regime_concentration"
+    assert pathology_issue["summary"] == {
+        "window": "500",
+        "interpretation": "regime_concentration",
+        "win_rate": 0.25,
+        "dominant_regime": "bull",
+        "dominant_regime_share": 0.716,
+        "avg_pnl": -0.0015,
+        "avg_quality": -0.0335,
+        "avg_drawdown_penalty": 0.2771,
+        "spot_long_win_rate": 0.14,
+        "avg_time_underwater": None,
+        "alerts": ["regime_shift"],
+        "top_shift_features": ["feat_4h_bias20", "feat_4h_rsi14", "feat_4h_bias50"],
+        "new_compressed_feature": "feat_atr_pct",
+        "tail_streak": "100x1",
+        "adverse_streak": "0x0",
+        "live_regime_label": None,
+        "current_live_scope": True,
+        "blocking_basis": ["avg_pnl<=0", "avg_quality<=0", "spot_long_win_rate<=0.20"],
+    }
+
+
+def test_main_demotes_recent_pathology_to_p1_when_current_live_scope_is_outside_blocker(monkeypatch, capsys):
+    class DummyTracker:
+        def __init__(self):
+            self.issues = [
+                {
+                    "id": "P0_recent_distribution_pathology",
+                    "priority": "P0",
+                    "title": "old recent blocker",
+                    "action": "old action",
+                    "status": "open",
+                }
+            ]
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue.update({"priority": priority, "title": title, "action": action, "status": status})
+                    return
+            self.issues.append({"id": issue_id, "priority": priority, "title": title, "action": action, "status": status})
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+        def save(self):
+            return None
+
+        def by_priority(self, priority):
+            return [issue for issue in self.issues if issue["priority"] == priority and issue["status"] == "open"]
+
+    tracker = DummyTracker()
+    monkeypatch.setattr(auto_propose_fixes, "check_db", lambda: {"simulated_win_avg": 0.5725, "losing_streak": 0, "raw_latest_age_min": 1.0})
+    monkeypatch.setattr(auto_propose_fixes, "load_full_ic_data", lambda: {"global_pass": 13, "tw_pass": 30, "total_features": 30})
+    monkeypatch.setattr(auto_propose_fixes, "check_ic", lambda ic_data, full_ic_data=None: {
+        "global_pass": 13, "tw_pass": 13, "total_core": 15, "total_features": 30, "no_data": [], "low_data": [], "best_ic": ("feat_vix", 0.2), "worst_ic": ("feat_ear", 0.01),
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_tw_history", lambda limit=3, current_entry=None: [{"heartbeat": "1025", "tw_pass": 13, "total_features": 30}])
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {
+        "signal": "HOLD",
+        "regime_label": "chop",
+        "decision_quality_recent_pathology_applied": False,
+        "deployment_blocker": "decision_quality_below_trade_floor",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "current_live_structure_bucket_rows": 123,
+        "minimum_support_rows": 50,
+        "support_route_verdict": "exact_bucket_supported",
+        "support_route_deployable": True,
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_drift_report", lambda: {
+        "primary_window": {
+            "window": "100",
+            "alerts": ["regime_concentration"],
+            "summary": {
+                "win_rate": 0.79,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 1.0,
+                "drift_interpretation": "regime_concentration",
+                "quality_metrics": {"avg_simulated_pnl": 0.0041, "avg_simulated_quality": 0.3403, "spot_long_win_rate": 0.0},
+            },
+        },
+        "blocking_window": {
+            "window": "500",
+            "alerts": ["regime_concentration", "regime_shift"],
+            "summary": {
+                "win_rate": 0.54,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.994,
+                "drift_interpretation": "regime_concentration",
+                "quality_metrics": {"avg_simulated_pnl": 0.0005, "avg_simulated_quality": 0.116, "spot_long_win_rate": 0.0, "avg_time_underwater": 0.7251},
+                "target_path_diagnostics": {"tail_target_streak": {"count": 3, "target": 1}},
+            },
+        },
+    })
+    monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.62, "cv_accuracy": 0.608, "cv_std": 0.05, "cv_worst": 0.66})
+    monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: tracker)}))
+
+    auto_propose_fixes.main()
+    _ = capsys.readouterr().out
+
+    p0_recent = next(issue for issue in tracker.issues if issue["id"] == "P0_recent_distribution_pathology")
+    p1_recent = next(issue for issue in tracker.issues if issue["id"] == "P1_recent_distribution_pathology_monitoring")
+    assert p0_recent["status"] == "resolved"
+    assert p1_recent["priority"] == "P1"
+    assert p1_recent["status"] == "open"
+    assert p1_recent["summary"]["current_live_scope"] is False
+    assert p1_recent["summary"]["live_regime_label"] == "chop"
+    assert p1_recent["summary"]["dominant_regime"] == "bull"
+    assert p1_recent["summary"]["spot_long_win_rate"] == 0.0
 
 
 def test_main_escalates_tw_drift_on_consecutive_low_history(monkeypatch, capsys):
@@ -1537,6 +2011,10 @@ def test_sync_current_state_governance_issues_refreshes_leaderboard_recent_windo
         tracker,
         {
             "leaderboard_count": 6,
+            "leaderboard_payload_source": "latest_persisted_snapshot",
+            "leaderboard_payload_stale": True,
+            "leaderboard_payload_cache_age_sec": 4001,
+            "leaderboard_payload_updated_at": "2026-04-25T00:49:46.260944Z",
             "top_model": {
                 "model_name": "random_forest",
                 "selected_feature_profile": "core_only",
@@ -1569,6 +2047,10 @@ def test_sync_current_state_governance_issues_refreshes_leaderboard_recent_windo
     assert issue["summary"]["top_profile"] == "core_only"
     assert issue["summary"]["top_deployment_profile"] == "stable_turning_point_all_regimes_relaxed_v1"
     assert issue["summary"]["governance_contract"] == "dual_role_governance_active"
+    assert issue["summary"]["leaderboard_payload_source"] == "latest_persisted_snapshot"
+    assert issue["summary"]["leaderboard_payload_stale"] is True
+    assert issue["summary"]["leaderboard_payload_cache_age_sec"] == 4001
+    assert issue["summary"]["leaderboard_payload_updated_at"] == "2026-04-25T00:49:46.260944Z"
 
 
 def test_sync_current_state_governance_issues_reads_comparable_rows_from_top_model_probe_shape():
@@ -1771,7 +2253,8 @@ def test_sync_current_state_governance_issues_resolves_stale_q15_issue_when_circ
     assert ("resolve", "#H_AUTO_CURRENT_BUCKET_SUPPORT") in events
     breaker_add = next(event for event in events if event[0] == "add" and event[1] == "#H_AUTO_CIRCUIT_BREAKER")
     assert "5/15" in breaker_add[2]
-    assert "recent 50" in breaker_add[2]
+    assert "最近 50" in breaker_add[2]
+    assert "recent 50" not in breaker_add[2]
     assert "還差 10 勝" in breaker_add[3]
     assert not any(event[0] == "add" and event[1] == "#H_AUTO_CURRENT_BUCKET_SUPPORT" for event in events)
 
@@ -1949,6 +2432,215 @@ def test_sync_current_state_governance_issues_refreshes_canonical_q15_and_patch_
     assert legacy_patch_issue["status"] == "resolved"
 
 
+
+def test_sync_current_state_governance_issues_marks_persistent_q15_support_regression():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "selected_feature_profile": "core_only",
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "verdict": "dual_role_governance_active",
+                    "production_profile": "core_plus_macro_plus_all_4h",
+                    "support_governance_route": "exact_live_bucket_proxy_available",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 0,
+                    "support_progress": {
+                        "status": "regressed_under_minimum",
+                        "regression_basis": "same_identity_same_semantic_signature",
+                        "support_identity": {
+                            "target_col": "simulated_pyramid_win",
+                            "horizon_minutes": 1440,
+                            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                            "regime_label": "bull",
+                            "regime_gate": "BLOCK",
+                            "entry_quality_label": "D",
+                            "calibration_window": 600,
+                            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+                        },
+                        "current_rows": 0,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 50,
+                        "delta_vs_previous": 0,
+                        "previous_rows": 0,
+                        "regressed_from_supported": True,
+                        "recent_supported_rows": 199,
+                        "recent_supported_heartbeat": "20260423i",
+                        "delta_vs_recent_supported": -199,
+                        "history": [
+                            {
+                                "heartbeat": "current",
+                                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                                "live_current_structure_bucket_rows": 0,
+                            },
+                            {
+                                "heartbeat": "20260423m",
+                                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                                "live_current_structure_bucket_rows": 0,
+                            },
+                            {
+                                "heartbeat": "20260423i",
+                                "live_current_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                                "live_current_structure_bucket_rows": 199,
+                            },
+                        ],
+                    },
+                },
+            }
+        },
+        {
+            "signal": "HOLD",
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "runtime_closure_state": "patch_inactive_or_blocked",
+            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "allowed_layers_reason": "unsupported_exact_live_structure_bucket_blocks_trade",
+            "decision_quality_scope_pathology_summary": {
+                "recommended_patch": {
+                    "recommended_profile": "core_plus_macro_plus_all_4h",
+                    "status": "reference_only_non_current_live_scope",
+                    "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+                    "reference_patch_scope": "bull|CAUTION",
+                    "reference_source": "live_scope_spillover",
+                }
+            },
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    q15_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q15_exact_support_stalled_under_breaker")
+    assert "regressed" in q15_issue["title"]
+    assert "breaker is clear" in q15_issue["title"]
+    assert "under breaker" not in q15_issue["title"]
+    assert q15_issue["summary"]["breaker_context"] == "breaker_clear"
+    assert q15_issue["summary"]["circuit_breaker_active"] is False
+    assert q15_issue["summary"]["support_progress_status"] == "regressed_under_minimum"
+    assert q15_issue["summary"]["support_regression_basis"] == "same_identity_same_semantic_signature"
+    assert q15_issue["summary"]["support_identity"]["regime_gate"] == "BLOCK"
+    assert q15_issue["summary"]["recent_supported_rows"] == 199
+    assert q15_issue["summary"]["delta_vs_recent_supported"] == -199
+    assert "breaker context" in q15_issue["action"]
+
+
+def test_sync_current_state_governance_issues_uses_semantic_rebaseline_title_for_legacy_support_reference():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue.update({"priority": priority, "title": title, "action": action, "status": status})
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    identity = {
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "regime_label": "bull",
+        "regime_gate": "BLOCK",
+        "entry_quality_label": "D",
+        "calibration_window": 600,
+        "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+    }
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "governance_contract": {
+                    "verdict": "dual_role_governance_active",
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 10,
+                    "support_progress": {
+                        "status": "semantic_rebaseline_under_minimum",
+                        "regression_basis": "legacy_or_different_semantic_signature",
+                        "support_identity": identity,
+                        "current_rows": 10,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 40,
+                        "legacy_supported_reference": {
+                            "heartbeat": "20260423i",
+                            "live_current_structure_bucket_rows": 199,
+                            "reference_only_reason": "missing_or_different_support_identity_or_bucket_semantic_signature",
+                        },
+                    },
+                }
+            }
+        },
+        {
+            "signal": "HOLD",
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "runtime_closure_state": "patch_inactive_or_blocked",
+            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "current_live_structure_bucket_rows": 10,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "allowed_layers_reason": "under_minimum_exact_live_structure_bucket",
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    q15_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q15_exact_support_stalled_under_breaker")
+    assert "semantic rebaseline" in q15_issue["title"]
+    assert "regressed" not in q15_issue["title"]
+    assert q15_issue["summary"]["support_regression_basis"] == "legacy_or_different_semantic_signature"
+    assert q15_issue["summary"]["legacy_supported_reference"]["live_current_structure_bucket_rows"] == 199
+    assert "same-identity" in q15_issue["action"]
+
+
+
 def test_sync_current_state_governance_issues_prefers_live_support_route_and_refreshes_breaker_context():
     class DummyTracker:
         def __init__(self):
@@ -2045,6 +2737,9 @@ def test_sync_current_state_governance_issues_prefers_live_support_route_and_ref
     )
 
     q15_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q15_exact_support_stalled_under_breaker")
+    assert "breaker is active" in q15_issue["title"]
+    assert q15_issue["summary"]["breaker_context"] == "circuit_breaker_active"
+    assert q15_issue["summary"]["circuit_breaker_active"] is True
     assert q15_issue["summary"]["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
     assert q15_issue["summary"]["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
     assert q15_issue["summary"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
@@ -2052,9 +2747,16 @@ def test_sync_current_state_governance_issues_prefers_live_support_route_and_ref
     assert q15_issue["summary"]["gap_to_minimum"] == 50
 
     breaker_issue = next(issue for issue in tracker.issues if issue["id"] == "#H_AUTO_CIRCUIT_BREAKER")
+    assert breaker_issue["title"] == "熔斷解除條件未達（最近 50 筆 0/15 勝）"
+    assert "即時部署阻塞語義切回熔斷解除條件" in breaker_issue["action"]
+    assert "canonical circuit breaker" not in breaker_issue["title"]
+    assert "current-live blocker" not in breaker_issue["action"]
     assert breaker_issue["summary"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
     assert breaker_issue["summary"]["runtime_closure_state"] == "circuit_breaker_active"
     assert breaker_issue["summary"]["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
+    assert breaker_issue["summary"]["api_trade_buy_guardrail"] == "current_live_deployment_blocker_409"
+    assert breaker_issue["summary"]["api_trade_allowed_risk_off_sides"] == ["reduce", "sell"]
+    assert "ExecutionService.submit_order" in breaker_issue["summary"]["api_trade_guardrail_context"]
 
 
 
@@ -2164,6 +2866,75 @@ def test_sync_current_state_governance_issues_replaces_breaker_p0_when_exact_sup
 
     auto_breaker = next((issue for issue in tracker.issues if issue["id"] == "#H_AUTO_CIRCUIT_BREAKER"), None)
     assert auto_breaker is None or auto_breaker["status"] == "resolved"
+
+
+def test_sync_current_state_governance_demotes_exact_supported_trade_floor_hold_to_p1():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = [
+                {
+                    "id": auto_propose_fixes.CURRENT_LIVE_BLOCKER_ISSUE_ID,
+                    "priority": "P0",
+                    "title": "current-live deployment blocker is decision_quality_below_trade_floor",
+                    "action": "old P0 action",
+                    "status": "open",
+                }
+            ]
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append({"id": issue_id, "priority": priority, "title": title, "action": action, "status": status})
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {"alignment": {"current_alignment_inputs_stale": False, "governance_contract": {"treat_as_parity_blocker": False}}},
+        {
+            "signal": "HOLD",
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "runtime_closure_state": "support_closed_but_trade_floor_blocked",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 123,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_route_deployable": True,
+            "support_governance_route": "exact_live_bucket_supported",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "entry_quality": 0.3874,
+            "decision_quality_label": "C",
+            "deployment_blocker_details": {
+                "entry_quality": 0.3874,
+                "trade_floor": 0.55,
+                "trade_floor_gap": -0.1626,
+                "decision_quality_label": "C",
+                "support_route_deployable": True,
+                "support_route_verdict": "exact_bucket_supported",
+            },
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    current = next(issue for issue in tracker.issues if issue["id"] == auto_propose_fixes.CURRENT_LIVE_BLOCKER_ISSUE_ID)
+    monitor = next(issue for issue in tracker.issues if issue["id"] == "P1_current_live_trade_floor_no_deploy")
+    assert current["status"] == "resolved"
+    assert monitor["priority"] == "P1"
+    assert monitor["status"] == "open"
+    assert monitor["summary"]["deployment_blocker"] == "decision_quality_below_trade_floor"
+    assert monitor["summary"]["gap_to_minimum"] == 0
+    assert monitor["summary"]["allowed_layers"] == 0
 
 
 
@@ -2312,3 +3083,155 @@ def test_sync_current_state_governance_issues_resolves_legacy_alignment_issue_wh
         event[0] == "add" and event[1] == "#H_AUTO_ALIGNMENT_GOVERNANCE"
         for event in events
     )
+
+
+def test_sync_current_state_governance_issues_creates_q35_scaling_no_deploy_issue():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "selected_feature_profile": "core_only",
+                "governance_contract": {
+                    "verdict": "dual_role_governance_active",
+                    "production_profile": "core_plus_macro_plus_all_4h",
+                    "support_progress": {
+                        "current_rows": 0,
+                        "minimum_support_rows": 50,
+                    },
+                },
+            }
+        },
+        {
+            "signal": "HOLD",
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "runtime_closure_state": "patch_inactive_or_blocked",
+            "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "no_support_proxy",
+            "allowed_layers_reason": "unsupported_exact_live_structure_bucket",
+        },
+        {"cv_accuracy": 0.582, "cv_std": 0.0671, "cv_worst": 0.4912},
+        {
+            "overall_verdict": "bias50_formula_may_be_too_harsh",
+            "structure_scaling_verdict": "q35_structure_caution_not_root_cause",
+            "recommended_action": "base-mix experiment 已證明 bias50 + pulse (+ nose) uplift 仍未跨過 trade floor；下一輪必須升級成 base-stack redesign blocker。",
+            "scope_applicability": {"status": "current_live_q35_lane_active"},
+            "current_live": {
+                "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+                "entry_quality": 0.3605,
+            },
+            "deployment_grade_component_experiment": {
+                "runtime_remaining_gap_to_floor": 0.1895,
+            },
+            "base_stack_redesign_experiment": {
+                "verdict": "base_stack_redesign_candidate_grid_empty",
+            },
+        },
+    )
+
+    q35_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q35_scaling_no_deploy")
+    assert q35_issue["status"] == "open"
+    assert "formula review" in q35_issue["title"]
+    assert "base-stack redesign" in q35_issue["title"]
+    assert q35_issue["summary"]["current_live_structure_bucket"] == "BLOCK|bull_high_bias200_overheat_block|q35"
+    assert q35_issue["summary"]["support_route_verdict"] == "exact_bucket_unsupported_block"
+    assert q35_issue["summary"]["overall_verdict"] == "bias50_formula_may_be_too_harsh"
+    assert q35_issue["summary"]["redesign_verdict"] == "base_stack_redesign_candidate_grid_empty"
+    assert q35_issue["summary"]["remaining_gap_to_floor"] == 0.1895
+
+
+def test_q35_scaling_no_deploy_action_keeps_recommended_action_out_of_operator_action():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            return True
+
+    recommended_action = (
+        "discriminative base-stack redesign 只能讓 entry_quality 跨過 scoring floor，"
+        "runtime gate/support 仍讓 allowed_layers=0；下一輪必須把它治理成 score-only / execution-blocked。"
+    )
+    tracker = DummyTracker()
+
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {"alignment": {"governance_contract": {"verdict": "dual_role_governance_active"}}},
+        {
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "runtime_closure_state": "patch_inactive_or_blocked",
+            "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+            "current_live_structure_bucket_rows": 3,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        },
+        {"cv_accuracy": 0.582, "cv_std": 0.0671, "cv_worst": 0.4912},
+        {
+            "overall_verdict": "bias50_formula_may_be_too_harsh",
+            "recommended_action": recommended_action,
+            "scope_applicability": {"status": "current_live_q35_lane_active"},
+            "current_live": {
+                "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+                "entry_quality": 0.4061,
+            },
+            "deployment_grade_component_experiment": {"runtime_remaining_gap_to_floor": 0.1439},
+            "base_stack_redesign_experiment": {
+                "verdict": "base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked",
+                "machine_read_answer": {
+                    "positive_discriminative_gap": True,
+                    "execution_blocked_after_floor_cross": True,
+                },
+                "best_discriminative_candidate": {
+                    "current_entry_quality_after": 0.5622,
+                    "allowed_layers_after": 0,
+                },
+            },
+        },
+    )
+
+    q35_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q35_scaling_no_deploy")
+    assert q35_issue["action"].count("下一輪必須") <= 1
+    assert recommended_action not in q35_issue["action"]
+    assert q35_issue["summary"]["audit_recommended_action"] == recommended_action

@@ -9,6 +9,15 @@ assert spec.loader is not None
 spec.loader.exec_module(hb_model_leaderboard_api_probe)
 
 
+def test_default_wait_budget_leaves_heartbeat_subprocess_headroom():
+    common_heartbeat_timeout_sec = 180.0
+    required_headroom_sec = 30.0
+
+    assert hb_model_leaderboard_api_probe.DEFAULT_MAX_WAIT_SEC <= (
+        common_heartbeat_timeout_sec - required_headroom_sec
+    )
+
+
 class _FakeClock:
     def __init__(self):
         self.now = 0.0

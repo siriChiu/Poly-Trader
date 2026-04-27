@@ -112,7 +112,7 @@ function formatCoverageReason(meta?: FeatureCoverageMeta | null): string {
   const statusText = meta.raw_snapshot_latest_status && meta.raw_snapshot_latest_status !== "ok"
     ? ` · latest ${meta.raw_snapshot_latest_status}${meta.raw_snapshot_latest_message ? ` (${meta.raw_snapshot_latest_message})` : ""}`
     : "";
-  const blockerText = meta.backfill_blocker ? ` · blocker: ${meta.backfill_blocker}` : "";
+  const blockerText = meta.backfill_blocker ? ` · 阻塞原因: ${meta.backfill_blocker}` : "";
   return `${qualityText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}${archiveText}${freshnessText}${archiveWindowText}${statusText}${blockerText}`;
 }
 

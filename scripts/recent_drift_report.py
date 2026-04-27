@@ -695,6 +695,32 @@ def _target_path_diagnostics(rows: list[sqlite3.Row]) -> dict[str, Any]:
     }
 
 
+def _select_adverse_target_streak(path_diag: dict[str, Any] | None) -> dict[str, Any]:
+    streak = dict((path_diag or {}).get("longest_zero_target_streak") or {})
+    if streak.get("target") is None:
+        streak["target"] = 0
+    streak.setdefault("count", 0)
+    streak.setdefault("start_timestamp", None)
+    streak.setdefault("end_timestamp", None)
+    streak.setdefault("examples", [])
+    return streak
+
+
+def _format_streak_text(name: str, streak: dict[str, Any] | None, *, default_target: int | None = None) -> str:
+    streak = dict(streak or {})
+    target = streak.get("target")
+    if target is None:
+        target = default_target
+    count = int(streak.get("count") or 0)
+    target_text = "n/a" if target is None else str(target)
+    start = streak.get("start_timestamp")
+    end = streak.get("end_timestamp")
+    text = f"{name}={count}x{target_text}"
+    if start and end:
+        text += f" since {start} -> {end}"
+    return text
+
+
 def _classify_window(alerts: list[str], metrics: dict[str, Any]) -> str:
     """Distinguish truly suspicious drift from an extreme-but-supported trend pocket.
 
@@ -735,7 +761,20 @@ def _classify_window(alerts: list[str], metrics: dict[str, Any]) -> str:
         and isinstance(avg_dd_penalty, (int, float)) and avg_dd_penalty <= 0.20
         and tuw_supported
     )
-    if strong_positive_extreme:
+    # Heartbeat #20260422c: non-constant label-imbalance windows can still be a
+    # healthy canonical extreme-trend pocket even when win_rate is below the old
+    # 95% cutoff. Keep the classifier conservative by requiring strong positive pnl,
+    # quality, and especially low drawdown before downgrading such slices away from
+    # distribution_pathology.
+    robust_positive_label_imbalance = (
+        "label_imbalance" in alerts
+        and isinstance(win_rate, (int, float)) and win_rate >= 0.85
+        and isinstance(avg_pnl, (int, float)) and avg_pnl >= 0.01
+        and isinstance(avg_quality, (int, float)) and avg_quality >= 0.50
+        and isinstance(avg_dd_penalty, (int, float)) and avg_dd_penalty <= 0.10
+        and tuw_supported
+    )
+    if strong_positive_extreme or robust_positive_label_imbalance:
         return "supported_extreme_trend"
 
     if "constant_target" in alerts or "label_imbalance" in alerts:
@@ -826,6 +865,78 @@ def _reference_window_comparison(
     }
 
 
+def _compact_window_summary(
+    *,
+    window_rows: int,
+    alerts: list[str],
+    interpretation: str,
+    win_rate: float | None,
+    dominant_regime: str | None,
+    dominant_share: float | None,
+    quality_metrics: dict[str, Any],
+    target_path_diagnostics: dict[str, Any],
+    reference_comparison: dict[str, Any],
+) -> dict[str, Any]:
+    avg_pnl = _safe_float(quality_metrics.get("avg_simulated_pnl"))
+    avg_quality = _safe_float(quality_metrics.get("avg_simulated_quality"))
+    avg_dd_penalty = _safe_float(quality_metrics.get("avg_drawdown_penalty"))
+    tail_streak = target_path_diagnostics.get("tail_target_streak") or {}
+    adverse_streak = _select_adverse_target_streak(target_path_diagnostics)
+    adverse_count = int(adverse_streak.get("count") or 0)
+    positive_quality = bool(
+        isinstance(win_rate, (int, float))
+        and win_rate >= 0.5
+        and isinstance(avg_quality, float)
+        and avg_quality > 0
+        and (avg_pnl is None or avg_pnl >= 0)
+    )
+
+    if positive_quality and any(alert in alerts for alert in ("label_imbalance", "constant_target", "regime_concentration")):
+        severity = "medium"
+        action_summary = "distribution concentration with adverse tail risk; canonical quality remains positive"
+    elif "constant_target" in alerts or adverse_count >= 20 or (avg_quality is not None and avg_quality <= 0) or (avg_pnl is not None and avg_pnl < 0):
+        severity = "high"
+        action_summary = "negative distribution pathology requires current-window validation"
+    elif alerts:
+        severity = "medium"
+        action_summary = "distribution concentration needs monitoring"
+    else:
+        severity = "low"
+        action_summary = "no actionable recent distribution pathology"
+
+    top_shift = [
+        row.get("feature")
+        for row in (reference_comparison.get("top_mean_shift_features") or [])[:5]
+        if row.get("feature")
+    ]
+    return {
+        "window": window_rows,
+        "alerts": list(alerts),
+        "severity": severity,
+        "interpretation": interpretation,
+        "win_rate": _round(win_rate),
+        "avg_quality": _round(avg_quality),
+        "avg_pnl": _round(avg_pnl),
+        "avg_drawdown_penalty": _round(avg_dd_penalty),
+        "dominant_regime": dominant_regime,
+        "dominant_regime_share": _round(dominant_share),
+        "tail_streak": {
+            "target": tail_streak.get("target"),
+            "count": int(tail_streak.get("count") or 0),
+            "start_timestamp": tail_streak.get("start_timestamp"),
+            "end_timestamp": tail_streak.get("end_timestamp"),
+        },
+        "adverse_streak": {
+            "target": adverse_streak.get("target"),
+            "count": adverse_count,
+            "start_timestamp": adverse_streak.get("start_timestamp"),
+            "end_timestamp": adverse_streak.get("end_timestamp"),
+        },
+        "top_shift_features": top_shift,
+        "actionable_summary": action_summary,
+    }
+
+
 def _window_summary(
     rows: list[sqlite3.Row],
     baseline_win_rate: float,
@@ -873,6 +984,17 @@ def _window_summary(
     reference_comparison = {}
     if reference_rows:
         reference_comparison = _reference_window_comparison(rows, reference_rows, feature_cols, baseline_feature_stats)
+    compact_summary = _compact_window_summary(
+        window_rows=total,
+        alerts=alerts,
+        interpretation=interpretation,
+        win_rate=_round(win_rate),
+        dominant_regime=dominant_regime,
+        dominant_share=_round(dominant_share),
+        quality_metrics=quality_metrics,
+        target_path_diagnostics=target_path_diagnostics,
+        reference_comparison=reference_comparison,
+    )
 
     return {
         "rows": total,
@@ -891,6 +1013,7 @@ def _window_summary(
         "feature_diagnostics": feature_diagnostics,
         "target_path_diagnostics": target_path_diagnostics,
         "reference_window_comparison": reference_comparison,
+        "compact_summary": compact_summary,
         "drift_interpretation": interpretation,
         "alerts": alerts,
     }
@@ -899,16 +1022,7 @@ def _window_summary(
 def _find_primary_window(window_summaries: dict[str, dict[str, Any]]) -> tuple[str | None, dict[str, Any] | None]:
     def score(item: tuple[str, dict[str, Any]]) -> tuple[int, float, int]:
         _, summary = item
-        alerts = summary.get("alerts", [])
-        severity = 0
-        if "constant_target" in alerts:
-            severity += 4
-        if "label_imbalance" in alerts:
-            severity += 3
-        if "regime_concentration" in alerts:
-            severity += 2
-        if "regime_shift" in alerts:
-            severity += 1
+        severity = _alert_severity(summary.get("alerts", []))
         delta = abs(summary.get("win_rate_delta_vs_full") or 0.0)
         rows = int(summary.get("rows") or 0)
         return (severity, delta, rows)
@@ -916,6 +1030,57 @@ def _find_primary_window(window_summaries: dict[str, dict[str, Any]]) -> tuple[s
     if not window_summaries:
         return None, None
     label, summary = max(window_summaries.items(), key=score)
+    return label, summary
+
+
+def _alert_severity(alerts: list[str] | tuple[str, ...] | None) -> int:
+    alerts = list(alerts or [])
+    severity = 0
+    if "constant_target" in alerts:
+        severity += 4
+    if "label_imbalance" in alerts:
+        severity += 3
+    if "regime_concentration" in alerts:
+        severity += 2
+    if "regime_shift" in alerts:
+        severity += 1
+    return severity
+
+
+def _is_negative_blocking_window(summary: dict[str, Any]) -> bool:
+    interpretation = summary.get("drift_interpretation")
+    if interpretation not in {"distribution_pathology", "regime_concentration"}:
+        return False
+    quality = summary.get("quality_metrics") or {}
+    win_rate = _safe_float(summary.get("win_rate"))
+    avg_pnl = _safe_float(quality.get("avg_simulated_pnl"))
+    avg_quality = _safe_float(quality.get("avg_simulated_quality"))
+    spot_long_win = _safe_float(quality.get("spot_long_win_rate"))
+    return any(
+        [
+            isinstance(win_rate, float) and win_rate <= 0.25,
+            isinstance(avg_pnl, float) and avg_pnl <= 0.0,
+            isinstance(avg_quality, float) and avg_quality <= 0.0,
+            isinstance(spot_long_win, float) and spot_long_win <= 0.20,
+        ]
+    )
+
+
+def _find_blocking_window(window_summaries: dict[str, dict[str, Any]]) -> tuple[str | None, dict[str, Any] | None]:
+    def score(item: tuple[str, dict[str, Any]]) -> tuple[int, float, int]:
+        _, summary = item
+        quality = summary.get("quality_metrics") or {}
+        win_rate = _safe_float(summary.get("win_rate")) or 0.5
+        avg_pnl = _safe_float(quality.get("avg_simulated_pnl")) or 0.0
+        avg_quality = _safe_float(quality.get("avg_simulated_quality")) or 0.0
+        negativity = max(0.0, 0.5 - win_rate) + max(0.0, -avg_pnl) + max(0.0, -avg_quality)
+        rows = int(summary.get("rows") or 0)
+        return (_alert_severity(summary.get("alerts", [])), negativity, rows)
+
+    candidates = [item for item in window_summaries.items() if _is_negative_blocking_window(item[1])]
+    if not candidates:
+        return None, None
+    label, summary = max(candidates, key=score)
     return label, summary
 
 
@@ -999,6 +1164,8 @@ def build_report() -> dict[str, Any]:
 
     primary_window, primary_summary = _find_primary_window(window_summaries)
     primary_alerts = list((primary_summary or {}).get("alerts", []))
+    blocking_window, blocking_summary = _find_blocking_window(window_summaries)
+    blocking_alerts = list((blocking_summary or {}).get("alerts", []))
 
     latest_label_timestamp = rows[-1]["timestamp"] if rows else None
     report = {
@@ -1022,6 +1189,11 @@ def build_report() -> dict[str, Any]:
             "alerts": primary_alerts,
             "summary": primary_summary or {},
         },
+        "blocking_window": {
+            "window": blocking_window,
+            "alerts": blocking_alerts,
+            "summary": blocking_summary or {},
+        },
     }
     return report
 
@@ -1035,6 +1207,10 @@ def main() -> int:
     primary_window = primary.get("window")
     summary = primary.get("summary", {})
     alerts = primary.get("alerts", [])
+    blocking = report.get("blocking_window", {})
+    blocking_window = blocking.get("window")
+    blocking_summary = blocking.get("summary", {})
+    blocking_alerts = blocking.get("alerts", [])
 
     print("近期漂移報告")
     print("=" * 70)
@@ -1064,12 +1240,7 @@ def main() -> int:
         feature_diag = summary.get("feature_diagnostics") or {}
         path_diag = summary.get("target_path_diagnostics") or {}
         tail_streak = path_diag.get("tail_target_streak") or {}
-        streak_target = tail_streak.get("target")
-        streak_target_text = "n/a" if streak_target is None else str(streak_target)
-        adverse_streak = path_diag.get("longest_zero_target_streak") if (summary.get("win_rate") or 0) <= 0.5 else path_diag.get("longest_one_target_streak")
-        adverse_streak = adverse_streak or {}
-        adverse_target = adverse_streak.get("target")
-        adverse_target_text = "n/a" if adverse_target is None else str(adverse_target)
+        adverse_streak = _select_adverse_target_streak(path_diag)
         print(
             f"主要漂移視窗：最近 {primary_window} 筆 | win_rate={summary.get('win_rate', 0):.4f} "
             f"dominant_regime={summary.get('dominant_regime')} ({(summary.get('dominant_regime_share') or 0):.2%}) "
@@ -1082,8 +1253,8 @@ def main() -> int:
             f"overlay_only:{feature_diag.get('overlay_only_count', 0)} "
             f"unexpected_frozen:{feature_diag.get('unexpected_frozen_count', 0)} "
             f"distinct:{feature_diag.get('low_distinct_count', 0)} null_heavy:{feature_diag.get('null_heavy_count', 0)} "
-            f"tail_streak={tail_streak.get('count', 0)}x{streak_target_text} since {tail_streak.get('start_timestamp')} "
-            f"adverse_streak={adverse_streak.get('count', 0)}x{adverse_target_text} since {adverse_streak.get('start_timestamp')}"
+            f"{_format_streak_text('tail_streak', tail_streak)} "
+            f"{_format_streak_text('adverse_streak', adverse_streak, default_target=0)}"
         )
         reference = summary.get("reference_window_comparison") or {}
         if reference:
@@ -1131,6 +1302,14 @@ def main() -> int:
                 for row in adverse_examples[-3:]
             )
             print(f"  ↳ adverse-streak examples: {adverse_preview}")
+    if blocking_window and blocking_window != primary_window:
+        blocking_quality = blocking_summary.get("quality_metrics") or {}
+        print(
+            f"阻塞病態視窗：最近 {blocking_window} 筆 | win_rate={blocking_summary.get('win_rate', 0):.4f} "
+            f"dominant_regime={blocking_summary.get('dominant_regime')} ({(blocking_summary.get('dominant_regime_share') or 0):.2%}) "
+            f"alerts={blocking_alerts} interpretation={blocking_summary.get('drift_interpretation')} "
+            f"avg_pnl={blocking_quality.get('avg_simulated_pnl')} avg_quality={blocking_quality.get('avg_simulated_quality')}"
+        )
     print(f"已儲存至 {OUT_PATH}")
 
     return 0

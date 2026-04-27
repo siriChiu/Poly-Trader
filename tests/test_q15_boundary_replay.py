@@ -71,7 +71,7 @@ def test_build_report_marks_boundary_as_relabel_when_support_is_preexisting_q35(
     assert report["component_counterfactual"]["allowed_layers_after"] == 0
 
 
-def test_build_report_marks_same_lane_counterfactual_as_bucket_proxy_only():
+def test_build_report_marks_same_lane_counterfactual_non_applicable_for_current_context():
     probe = {
         "feature_timestamp": "2026-04-16 10:49:08",
         "target_col": "simulated_pyramid_win",
@@ -126,11 +126,134 @@ def test_build_report_marks_same_lane_counterfactual_as_bucket_proxy_only():
 
     report = q15_boundary_replay.build_report(probe, support_audit, root_cause)
 
-    assert report["verdict"] == "same_lane_counterfactual_bucket_proxy_only"
-    assert report["component_counterfactual"]["verdict"] == "bucket_proxy_only_not_trade_floor_fix"
+    assert report["verdict"] == "boundary_replay_not_applicable_for_current_context"
+    assert report["component_counterfactual"]["verdict"] == "counterfactual_not_evaluated"
     assert report["component_counterfactual"]["bucket_after"] == "CAUTION|structure_quality_caution|q35"
     assert report["component_counterfactual"]["allowed_layers_after"] == 0
-    assert "bias50" in report["next_action"]
+    assert "non-applicable" in report["next_action"]
+
+
+def test_build_report_rejects_stale_boundary_context_when_probe_bucket_changes():
+    probe = {
+        "feature_timestamp": "2026-04-24 08:02:34",
+        "target_col": "simulated_pyramid_win",
+        "signal": "HOLD",
+        "regime_label": "bull",
+        "regime_gate": "BLOCK",
+        "entry_quality": 0.3269,
+        "entry_quality_label": "D",
+        "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "entry_quality_components": {
+            "base_quality": 0.36,
+            "structure_quality": 0.22,
+            "trade_floor_gap": -0.2231,
+            "structure_components": [
+                {"feature": "feat_4h_bb_pct_b", "raw_value": 0.31},
+            ],
+        },
+    }
+    support_audit = {
+        "target_col": "simulated_pyramid_win",
+        "current_live": {
+            "feature_timestamp": "2026-04-23 01:00:00",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 4,
+        },
+        "support_route": {"verdict": "exact_bucket_present_but_below_minimum"},
+    }
+    root_cause = {
+        "generated_at": "2026-04-23 01:00:00",
+        "target_col": "simulated_pyramid_win",
+        "current_live": {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "D",
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "structure_quality": 0.3384,
+            "q35_threshold": 0.35,
+        },
+        "exact_live_lane": {
+            "dominant_neighbor_bucket": "CAUTION|structure_quality_caution|q35",
+            "dominant_neighbor_rows": 158,
+            "near_boundary_rows": 2,
+        },
+        "verdict": "boundary_sensitivity_candidate",
+        "candidate_patch": {"needed_raw_delta_to_cross_q35": 0.0341},
+    }
+
+    report = q15_boundary_replay.build_report(probe, support_audit, root_cause)
+
+    assert report["verdict"] == "stale_or_non_current_context"
+    assert report["artifact_context_freshness"]["verdict"] == "stale_or_non_current_context"
+    assert "support_audit_bucket" in report["artifact_context_freshness"]["mismatched_fields"]
+    assert "root_cause_bucket" in report["artifact_context_freshness"]["mismatched_fields"]
+    assert report["component_counterfactual"]["verdict"] == "counterfactual_not_evaluated"
+
+
+def test_build_report_caps_generated_row_share_when_boundary_candidates_exceed_replay_bucket():
+    probe = {
+        "feature_timestamp": "2026-04-24 04:31:53",
+        "target_col": "simulated_pyramid_win",
+        "signal": "HOLD",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.3832,
+        "entry_quality_label": "D",
+        "decision_quality_calibration_scope": "regime_gate+entry_quality_label",
+        "decision_quality_scope_diagnostics": {
+            "regime_gate+entry_quality_label": {
+                "recent500_structure_bucket_counts": {
+                    "CAUTION|structure_quality_caution|q35": 27,
+                }
+            }
+        },
+        "entry_quality_components": {
+            "base_quality": 0.4106,
+            "structure_quality": 0.301,
+            "trade_floor_gap": -0.1668,
+            "structure_components": [
+                {"feature": "feat_4h_bb_pct_b", "raw_value": 0.3851},
+            ],
+        },
+    }
+    support_audit = {
+        "target_col": "simulated_pyramid_win",
+        "current_live": {
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 4,
+        },
+        "support_route": {"verdict": "exact_bucket_present_but_below_minimum"},
+        "floor_cross_legality": {"verdict": "math_cross_possible_but_illegal_without_exact_support"},
+    }
+    root_cause = {
+        "target_col": "simulated_pyramid_win",
+        "current_live": {
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "structure_quality": 0.301,
+            "q35_threshold": 0.35,
+        },
+        "exact_live_lane": {
+            "dominant_neighbor_bucket": "CAUTION|structure_quality_caution|q35",
+            "dominant_neighbor_rows": 691,
+            "near_boundary_rows": 38,
+        },
+        "verdict": "same_lane_neighbor_bucket_dominates",
+        "candidate_patch": {
+            "needed_raw_delta_to_cross_q35": 0.1441,
+        },
+    }
+
+    report = q15_boundary_replay.build_report(probe, support_audit, root_cause)
+    replay = report["boundary_replay"]
+
+    assert replay["replay_scope_bucket_rows"] == 27
+    assert replay["generated_rows_via_boundary_only"] == 38
+    assert replay["generated_row_share"] == 1.0
+    assert replay["generated_rows_exceed_replay_scope"] is True
+    assert replay["generated_rows_excess_over_scope"] == 11
 
 
 def test_build_report_handles_missing_inputs():

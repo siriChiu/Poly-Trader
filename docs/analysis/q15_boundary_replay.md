@@ -1,38 +1,41 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-04-21 04:23:23.782550**
+- generated_at: **2026-04-27 05:59:12.849264**
 - target_col: **simulated_pyramid_win**
-- verdict: **boundary_replay_has_no_supported_target_bucket**
-- reason: 就算把 q15↔q35 邊界向下回放，chosen scope 仍找不到可承接的 current bucket rows；boundary review 無法形成可部署支持。
+- verdict: **boundary_replay_not_applicable_for_current_context**
+- artifact_context_freshness: **current_context** (`[]`)
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q15', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- reason: q15 root-cause verdict=same_lane_neighbor_bucket_dominates，不是 boundary_sensitivity_candidate；boundary replay 本輪不適用，舊 boundary counterfactual 不可當 current truth。
 
 ## Current live row
-- signal: **HOLD**
+- signal: **ABSTAIN**
 - regime/gate: **chop / CAUTION**
 - structure bucket: **CAUTION|base_caution_regime_or_bias|q15**
-- structure_quality: **0.32**
-- entry_quality: **0.4331** (trade_floor_gap=-0.1169)
+- structure_quality: **0.1695**
+- entry_quality: **0.4843** (trade_floor_gap=-0.0657)
 - support_route: **exact_bucket_supported**
 - floor_cross_legality: **legal_component_experiment_after_support_ready**
 
 ## Boundary replay
-- legacy bucket rows: **97**
-- replay bucket: **CAUTION|base_caution_regime_or_bias|q35**
+- legacy bucket rows: **121**
+- replay bucket: **CAUTION|base_caution_regime_or_bias|q65**
 - replay bucket rows: **0**
-- generated_rows_via_boundary_only: **12**
+- generated_rows_via_boundary_only: **389**
 - preexisting_rows_in_replay_bucket: **0**
 - generated_row_share: **None**
-- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q35** rows=1117
+- generated_rows_exceed_replay_scope: **True** (excess=389)
+- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** rows=572
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.5073 → 0.5955**
-- structure_quality: **0.32 → 0.35**
-- bucket_after: **CAUTION|base_caution_regime_or_bias|q35**
-- entry_quality: **0.4331 → 0.4406**
-- trade_floor_gap_after: **-0.1094**
+- raw before/after: **0.3045 → 0.8354**
+- structure_quality: **0.1695 → 0.35**
+- bucket_after: **CAUTION|base_caution_regime_or_bias|q65**
+- entry_quality: **0.4843 → 0.5295**
+- trade_floor_gap_after: **-0.0205**
 - allowed_layers_after: **0** (entry_quality_below_trade_floor)
-- counterfactual verdict: **bucket_proxy_only_not_trade_floor_fix**
-- counterfactual reason: 只把 feat_4h_bb_pct_b 補到剛好跨 q35，只會把結構 bucket 從 q15 改成 q35；entry_quality 仍低於 trade floor，allowed_layers 仍是 0，表示它更像 bucket proxy，而不是 deployable floor fix。
+- counterfactual verdict: **counterfactual_not_evaluated**
+- counterfactual reason: boundary replay 不適用於目前 RCA verdict，因此不消費舊 q15 counterfactual。
 
 ## Next
-- next_action: 停止把 boundary review 當主假設，回到 structure component 與 support accumulation。
-- verify_next: 改查 structure component scoring / support accumulation，不再延長 boundary review。
+- next_action: 維持 boundary replay 為 non-applicable，直到 RCA 重新輸出 boundary_sensitivity_candidate。
+- verify_next: 比較 current row 與 dominant neighbor bucket 的 4H component 差值，再做最小 counterfactual。

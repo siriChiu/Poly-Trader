@@ -1,17 +1,19 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-21 04:23:23.782550**
+- feature_timestamp: **2026-04-27 05:59:12.849264**
 - target: `simulated_pyramid_win`
 - live path: **chop / CAUTION / D**
-- signal: **HOLD** @ confidence **0.1930**
+- signal: **ABSTAIN** @ confidence **0.5000**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: `entry_quality_below_trade_floor`
-- allowed_layers_reason: `decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade`
-- execution_guardrail_reason: `decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade`
+- allowed_layers_reason: `decision_quality_below_trade_floor`
+- execution_guardrail_reason: `decision_quality_below_trade_floor`
 - runtime_blocker: `None` | reason: `None`
-- deployment_blocker: `exact_live_lane_toxic_sub_bucket_current_bucket` | reason: `exact live lane current bucket `CAUTION|base_caution_regime_or_bias|q15` 已被標記為 toxic sub-bucket (rows=97, win_rate=0.6907, quality=0.3099)`
+- deployment_blocker: `decision_quality_below_trade_floor` | reason: `current live structure bucket `CAUTION|base_caution_regime_or_bias|q15` 已完成 exact support closure（121/50），但 top-level live baseline 仍停在 entry_quality=0.4843，低於 trade floor 0.55；目前只能維持明確 no-deploy governance，不可把 support closure 或 component-experiment readiness 誤讀成 deployment closure。`
 - q15 exact-supported patch: **inactive** | support_route `exact_bucket_supported` | floor_cross `legal_component_experiment_after_support_ready`
-- runtime closure summary: **current live bucket CAUTION|base_caution_regime_or_bias|q15 已具 exact support，但 runtime 仍被 exact_live_lane_toxic_sub_bucket_current_bucket 擋住；exact live lane current bucket `CAUTION|base_caution_regime_or_bias|q15` 已被標記為 toxic sub-bucket (rows=97, win_rate=0.6907, quality=0.3099)。目前保持 hold-only，不可把 support closure 誤讀成 deployment closure。 exact-vs-spillover=同 quality 寬 scope 出現 bull|BLOCK spillover，84 rows / WR 0.0% / 品質 -0.252，明顯劣於 exact live lane WR 73.9% / 品質 0.368。**
+- runtime closure summary: **current live bucket CAUTION|base_caution_regime_or_bias|q15 已完成 exact support closure（121/50），但 top-level live baseline 仍停在 entry_quality=0.4843 (D) < trade floor 0.55；目前維持明確 no-deploy governance。 不可把 support closure 誤讀成 deployment closure。 exact-vs-spillover=同 quality 寬 scope 出現 bull|BLOCK spillover，79 rows / WR 6.5% / 品質 -0.164，明顯劣於 exact live lane WR 79.3% / 品質 0.381。**
+- q35 scaling audit: overall=`None` / redesign=`None` / runtime_gap=`None` / mode=`None` / next_patch=`None`
+- q35 audit action: None
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
 - recommended_patch: **None** / status `None` / support_route `None` / gap `None` / reference_scope `None` / source `None`
 - recommended_patch_features: None
@@ -20,18 +22,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.4331** / trade_floor **0.55** / gap **-0.1169**
-- base_quality: **0.4708** × weight **0.75**
-- structure_quality: **0.32** × weight **0.25**
-- base components: feat_4h_bias50=0.286 (w=0.4, contrib=0.1144), feat_nose=0.7442 (w=0.18, contrib=0.134), feat_pulse=0.2794 (w=0.27, contrib=0.0754), feat_ear=0.9796 (w=0.15, contrib=0.1469)
-- structure components: feat_4h_bb_pct_b=0.5073 (w=0.34, contrib=0.1725), feat_4h_dist_bb_lower=0.1967 (w=0.33, contrib=0.0649), feat_4h_dist_swing_low=0.2504 (w=0.33, contrib=0.0826)
+- final entry_quality: **0.4843** / trade_floor **0.55** / gap **-0.0657**
+- base_quality: **0.5893** × weight **0.75**
+- structure_quality: **0.1695** × weight **0.25**
+- base components: feat_4h_bias50=0.2924 (w=0.4, contrib=0.117), feat_nose=0.9199 (w=0.18, contrib=0.1656), feat_pulse=0.6093 (w=0.27, contrib=0.1645), feat_ear=0.9482 (w=0.15, contrib=0.1422)
+- structure components: feat_4h_bb_pct_b=0.3045 (w=0.34, contrib=0.1035), feat_4h_dist_bb_lower=0.1141 (w=0.33, contrib=0.0377), feat_4h_dist_swing_low=0.0859 (w=0.33, contrib=0.0283)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.1169**
-- base_group_max_entry_gain: **0.3969** | structure_group_max_entry_gain: **0.17**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.3897, max_gain≈0.2142）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.3897), feat_pulse (Δscore≈0.5773)
+- remaining_gap_to_floor: **0.0657**
+- base_group_max_entry_gain: **0.308** | structure_group_max_entry_gain: **0.2076**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.219, max_gain≈0.2123）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.219), feat_pulse (Δscore≈0.3244), feat_4h_dist_bb_lower (Δscore≈0.7964), feat_4h_dist_swing_low (Δscore≈0.7964)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -39,10 +41,10 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label+regime_gate+entry_quality_label` | 115 | 0.7391 | 0.368 | 0.2506 | 0.4657 | 97 | False |
-| exact `regime_label+regime_gate+entry_quality_label` | 115 | 0.7391 | 0.368 | 0.2506 | 0.4657 | 97 | False |
-| narrow `regime_label+entry_quality_label` | 115 | 0.7391 | 0.368 | 0.2506 | 0.4657 | 97 | False |
-| broad `regime_gate+entry_quality_label` | 127 | 0.7638 | 0.3728 | 0.2625 | 0.4911 | 97 | False |
+| chosen `regime_label+regime_gate+entry_quality_label` | 121 | 0.7934 | 0.3809 | 0.0697 | 0.4223 | 121 | False |
+| exact `regime_label+regime_gate+entry_quality_label` | 121 | 0.7934 | 0.3809 | 0.0697 | 0.4223 | 121 | False |
+| narrow `regime_label+entry_quality_label` | 121 | 0.7934 | 0.3809 | 0.0697 | 0.4223 | 121 | False |
+| broad `regime_gate+entry_quality_label` | 138 | 0.7391 | 0.3432 | 0.0717 | 0.4457 | 121 | False |
 
 ## Shared shifts
 

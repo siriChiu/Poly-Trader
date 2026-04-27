@@ -159,7 +159,7 @@ const getEquityModeMeta = (mode: EquityDisplayMode) => {
   }
   return {
     label: "絕對資產($)",
-    detail: "總權益 / 現金 / 持倉都用實際金額顯示，Y 軸會依目前資料動態縮放",
+    detail: "總權益 / 現金 / 持倉市值都用實際金額顯示，Y 軸會依目前資料動態縮放",
     priceFormat: { type: "price" as const, precision: 0, minMove: 1 },
     transform: (amount: number, base: number) => amount,
     titleSuffix: "($)",
@@ -505,7 +505,7 @@ export default function CandlestickChart({
       topColor: "rgba(168, 85, 247, 0.32)",
       bottomColor: "rgba(168, 85, 247, 0.04)",
       lineWidth: 2,
-      title: "持倉水位",
+      title: "持倉市值",
       priceFormat: { type: "price", precision: 1, minMove: 0.1 },
     });
     const syncAnchorSeries = equityChart.addLineSeries({
@@ -796,7 +796,7 @@ export default function CandlestickChart({
         priceFormat: equityModeMeta.priceFormat,
       });
       investedSeriesRef.current?.applyOptions({
-        title: `持倉 ${equityModeMeta.titleSuffix}`,
+        title: `持倉市值 ${equityModeMeta.titleSuffix}`,
         priceFormat: equityModeMeta.priceFormat,
       });
       const equityData = baseEquity > 0 && equityCurve.length > 0
@@ -1050,7 +1050,7 @@ export default function CandlestickChart({
           </div>
           <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 px-3 py-2 text-cyan-100">
             <div className="text-cyan-300">權益圖</div>
-            <div>顯示總權益、現金水位、持倉水位與下圖買賣 markers</div>
+            <div>顯示總權益、現金水位、持倉市值與下圖買賣 markers</div>
           </div>
           <div className="rounded-lg border border-slate-700/50 bg-slate-950/50 px-3 py-2 text-slate-300 sm:col-span-2 xl:col-span-1">
             <div className="text-slate-500">同步檢視</div>
@@ -1079,10 +1079,10 @@ export default function CandlestickChart({
             <div className="mt-1 text-[10px] text-emerald-300/80">模型信心 {hover?.confidenceText || "—"}</div>
           </div>
           <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 px-3 py-2 xl:col-span-2">
-            <div className="text-cyan-300">總權益 / 現金 / 持倉</div>
+            <div className="text-cyan-300">總權益 / 現金 / 持倉市值</div>
             <div className="font-medium text-cyan-100">總權益 {hover?.equityText || "—"}</div>
             <div className="mt-1 text-[10px] text-emerald-300/80">現金 {hover?.cashText || "—"}</div>
-            <div className="mt-1 text-[10px] text-fuchsia-300/80">持倉 {hover?.investedText || "—"}</div>
+            <div className="mt-1 text-[10px] text-fuchsia-300/80">持倉市值 {hover?.investedText || "—"}</div>
           </div>
         </div>
       </div>
@@ -1098,7 +1098,7 @@ export default function CandlestickChart({
       <div className="px-4 pb-4 pt-2 border-t border-slate-800/60">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
           <div className="space-y-1">
-            <div>下圖：總權益 / 現金水位 / 持倉水位 / 買賣點</div>
+            <div>下圖：總權益 / 現金水位 / 持倉市值 / 買賣點</div>
             <div className="text-[11px] text-cyan-300">{equityModeMeta.label} · {equityModeMeta.detail}</div>
           </div>
           <div className="flex items-center gap-2">

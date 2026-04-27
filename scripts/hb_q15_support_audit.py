@@ -37,6 +37,7 @@ BULL_POCKET_PATH = PROJECT_ROOT / "data" / "bull_4h_pocket_ablation.json"
 LEADERBOARD_PROBE_PATH = PROJECT_ROOT / "data" / "leaderboard_feature_profile_probe.json"
 OUT_JSON = PROJECT_ROOT / "data" / "q15_support_audit.json"
 OUT_MD = PROJECT_ROOT / "docs" / "analysis" / "q15_support_audit.md"
+BUCKET_SEMANTIC_SIGNATURE = "live_structure_bucket:q15_support_identity:v2"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -119,6 +120,110 @@ def _extract_q15_support_diag(payload: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _identity_value(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _build_support_identity(
+    *,
+    target_col: Any,
+    horizon_minutes: Any,
+    current_bucket: Any,
+    live_context: dict[str, Any],
+    calibration_window: Any = None,
+) -> dict[str, Any]:
+    return {
+        "target_col": _identity_value(target_col),
+        "horizon_minutes": _as_int(horizon_minutes, 1440),
+        "current_live_structure_bucket": _identity_value(current_bucket),
+        "regime_label": _identity_value(live_context.get("regime_label")),
+        "regime_gate": _identity_value(live_context.get("regime_gate")),
+        "entry_quality_label": _identity_value(live_context.get("entry_quality_label")),
+        "calibration_window": _as_int(calibration_window, 0) if calibration_window is not None else None,
+        "bucket_semantic_signature": BUCKET_SEMANTIC_SIGNATURE,
+    }
+
+
+def _support_identity_matches(left: Any, right: Any) -> bool:
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return False
+    if not left.get("bucket_semantic_signature") or not right.get("bucket_semantic_signature"):
+        return False
+    if left.get("bucket_semantic_signature") != right.get("bucket_semantic_signature"):
+        return False
+    for key in (
+        "target_col",
+        "horizon_minutes",
+        "current_live_structure_bucket",
+        "regime_label",
+        "regime_gate",
+        "entry_quality_label",
+        "calibration_window",
+    ):
+        if _identity_value(left.get(key)) != _identity_value(right.get(key)):
+            return False
+    return True
+
+
+def _history_item_supported(item: dict[str, Any], minimum: int) -> bool:
+    rows = int(item.get("live_current_structure_bucket_rows") or 0)
+    return (
+        rows >= minimum
+        or item.get("support_route_verdict") == "exact_bucket_supported"
+        or item.get("support_governance_route") == "exact_live_bucket_supported"
+    )
+
+
+def _probe_bucket(probe: dict[str, Any]) -> Any:
+    scope_name = probe.get("decision_quality_calibration_scope") or "regime_label+regime_gate+entry_quality_label"
+    scope_diag = (probe.get("decision_quality_scope_diagnostics") or {}).get(scope_name) or {}
+    exact_scope = (probe.get("decision_quality_scope_diagnostics") or {}).get("regime_label+regime_gate+entry_quality_label") or {}
+    return (
+        scope_diag.get("current_live_structure_bucket")
+        or exact_scope.get("current_live_structure_bucket")
+        or probe.get("current_live_structure_bucket")
+        or probe.get("structure_bucket")
+    )
+
+
+def _artifact_context_freshness(
+    *,
+    probe: dict[str, Any],
+    drilldown: dict[str, Any],
+    live_context: dict[str, Any],
+    support_identity: dict[str, Any],
+) -> dict[str, Any]:
+    mismatches: list[str] = []
+    probe_bucket = _probe_bucket(probe)
+    audit_bucket = live_context.get("current_live_structure_bucket")
+    if probe_bucket and audit_bucket and str(probe_bucket) != str(audit_bucket):
+        mismatches.append("current_live_structure_bucket")
+    for key in ("regime_label", "regime_gate", "entry_quality_label"):
+        probe_value = probe.get(key)
+        audit_value = live_context.get(key)
+        if probe_value is not None and audit_value is not None and str(probe_value) != str(audit_value):
+            mismatches.append(key)
+
+    probe_ts = probe.get("feature_timestamp")
+    drilldown_ts = drilldown.get("generated_at")
+    if probe_ts and drilldown_ts and not _probe_and_drilldown_in_sync(probe, drilldown):
+        mismatches.append("feature_timestamp")
+
+    return {
+        "verdict": "current_context" if not mismatches else "stale_or_non_current_context",
+        "mismatched_fields": sorted(set(mismatches)),
+        "latest_live_probe_feature_timestamp": probe_ts,
+        "drilldown_generated_at": drilldown_ts,
+        "artifact_feature_timestamp": live_context.get("feature_timestamp") or probe_ts,
+        "probe_current_live_structure_bucket": probe_bucket,
+        "artifact_current_live_structure_bucket": audit_bucket,
+        "support_identity": support_identity,
+    }
+
+
 
 def _load_recent_q15_support_history(
     *,
@@ -146,6 +251,12 @@ def _load_recent_q15_support_history(
         diag = _extract_q15_support_diag(payload)
         current_live = diag.get("current_live") or {}
         support_route = diag.get("support_route") or {}
+        support_progress = support_route.get("support_progress") or diag.get("support_progress") or {}
+        support_identity = (
+            diag.get("support_identity")
+            or support_route.get("support_identity")
+            or support_progress.get("support_identity")
+        )
         payload_timestamp = payload.get("timestamp") or diag.get("generated_at")
         payload_dt = None
         if payload_timestamp:
@@ -169,6 +280,8 @@ def _load_recent_q15_support_history(
             "minimum_support_rows": int(support_route.get("minimum_support_rows") or 0),
             "support_route_verdict": support_route.get("verdict"),
             "support_governance_route": support_route.get("support_governance_route"),
+            "support_identity": support_identity if isinstance(support_identity, dict) else None,
+            "regression_basis": support_progress.get("regression_basis"),
         }
         if not candidate["live_current_structure_bucket"]:
             continue
@@ -179,6 +292,24 @@ def _load_recent_q15_support_history(
     ]
 
 
+def _support_copy_labels(current_bucket: Any) -> dict[str, str]:
+    bucket = str(current_bucket or "")
+    if "q15" in bucket:
+        return {
+            "bucket_label": "current q15 exact bucket",
+            "support_label": "current q15 exact support",
+            "path_label": "current q15 live path",
+            "compare_label": "同一 q15 bucket",
+        }
+    return {
+        "bucket_label": "current live exact bucket",
+        "support_label": "current live exact support",
+        "path_label": "current live path",
+        "compare_label": "同一 current live structure bucket",
+    }
+
+
+
 def _summarize_support_progress(
     *,
     current_bucket: Any,
@@ -187,8 +318,13 @@ def _summarize_support_progress(
     live_bucket_rows: Any,
     minimum_support_rows: int,
     current_label: str | None,
+    support_identity: dict[str, Any] | None = None,
     data_dir: Path | None = None,
 ) -> dict[str, Any]:
+    labels = _support_copy_labels(current_bucket)
+    bucket_label = labels["bucket_label"]
+    support_label = labels["support_label"]
+    compare_label = labels["compare_label"]
     current_rows = int(live_bucket_rows or 0)
     observed_at = datetime.now(timezone.utc)
     current_entry = {
@@ -200,15 +336,26 @@ def _summarize_support_progress(
         "minimum_support_rows": int(minimum_support_rows or 0),
         "support_route_verdict": support_route_verdict,
         "support_governance_route": support_governance_route,
+        "support_identity": support_identity,
     }
     history = _load_recent_q15_support_history(current_entry=current_entry, data_dir=data_dir)
-    same_bucket_history = [
+
+    def _same_support_identity_or_legacy_bucket(item: dict[str, Any]) -> bool:
+        return _support_identity_matches(item.get("support_identity"), support_identity)
+
+    same_identity_history = [history[0]] + [
         item
-        for item in history
-        if item.get("live_current_structure_bucket") == current_bucket
+        for item in history[1:]
+        if _same_support_identity_or_legacy_bucket(item)
     ]
-    relevant = same_bucket_history[:5]
-    previous = relevant[1] if len(relevant) > 1 else None
+    legacy_reference_history = [
+        item
+        for item in history[1:]
+        if item.get("live_current_structure_bucket") == current_bucket
+        and not _same_support_identity_or_legacy_bucket(item)
+    ]
+    recent_history = same_identity_history[:5]
+    previous = recent_history[1] if len(recent_history) > 1 else None
     delta_vs_previous = None
     previous_route_changed = False
     if previous is not None:
@@ -222,34 +369,126 @@ def _summarize_support_progress(
     stagnant_run_count = 0
     if previous is not None and int(previous.get("live_current_structure_bucket_rows") or 0) == current_rows:
         stagnant_run_count = 1
-        for item in relevant[1:]:
+        for item in recent_history[1:]:
             if int(item.get("live_current_structure_bucket_rows") or 0) == current_rows:
                 stagnant_run_count += 1
                 continue
             break
 
     minimum = int(minimum_support_rows or 0)
+    recent_supported = next(
+        (
+            item
+            for item in same_identity_history[1:]
+            if _history_item_supported(item, minimum)
+        ),
+        None,
+    )
+    legacy_supported_reference = next(
+        (
+            item
+            for item in legacy_reference_history
+            if _history_item_supported(item, minimum)
+        ),
+        None,
+    )
+    recent_supported_rows = None if recent_supported is None else int(recent_supported.get("live_current_structure_bucket_rows") or 0)
+    delta_vs_recent_supported = (
+        None if recent_supported_rows is None else current_rows - recent_supported_rows
+    )
+    regressed_from_supported = recent_supported is not None and current_rows < minimum
+    regression_basis = (
+        "same_identity_same_semantic_signature"
+        if support_identity and len(same_identity_history) > 1
+        else "no_same_identity_same_semantic_signature_history"
+    )
+
     if current_rows >= minimum:
         status = "exact_supported"
-        reason = "current q15 exact bucket 已達 minimum support，可轉向 exact-supported deployment verify。"
+        regression_basis = "current_identity"
+        reason = f"{bucket_label} 已達 minimum support，可轉向 exact-supported deployment verify。"
+    elif regressed_from_supported:
+        status = "regressed_under_minimum"
+        regression_basis = "same_identity_same_semantic_signature"
+        supported_ref = f"{recent_supported_rows}/{minimum}"
+        heartbeat_ref = recent_supported.get("heartbeat") if isinstance(recent_supported, dict) else None
+        if delta_vs_previous is not None and delta_vs_previous > 0:
+            reason = (
+                f"{support_label} 最近曾達 minimum support（最近一次 {supported_ref}"
+                f"{f'，heartbeat {heartbeat_ref}' if heartbeat_ref else ''}），目前雖較上一輪回補，但仍低於門檻。"
+            )
+        elif delta_vs_previous == 0:
+            reason = (
+                f"{support_label} 最近曾達 minimum support（最近一次 {supported_ref}"
+                f"{f'，heartbeat {heartbeat_ref}' if heartbeat_ref else ''}），但目前仍停在 {current_rows}/{minimum}；"
+                "這不是一般停滯，而是 support regression。"
+            )
+        else:
+            reason = (
+                f"{support_label} 自最近一次已就緒 {supported_ref}"
+                f"{f'（heartbeat {heartbeat_ref}）' if heartbeat_ref else ''} 回落；"
+                "需優先檢查 current bucket / support artifact 是否退化。"
+            )
+    elif legacy_supported_reference is not None:
+        status = "semantic_rebaseline_under_minimum"
+        regression_basis = "legacy_or_different_semantic_signature"
+        legacy_rows = int(legacy_supported_reference.get("live_current_structure_bucket_rows") or 0)
+        legacy_heartbeat = legacy_supported_reference.get("heartbeat")
+        reason = (
+            f"{support_label} 目前是 {current_rows}/{minimum}，仍低於 minimum；"
+            f"歷史上同 bucket 曾有 {legacy_rows}/{minimum}"
+            f"{f'（heartbeat {legacy_heartbeat}）' if legacy_heartbeat else ''}，"
+            "但該 artifact 缺少相同 support_identity / bucket_semantic_signature，只能當 legacy reference，"
+            "不能宣稱為 same-identity regression。"
+        )
     elif previous is None:
         status = "no_recent_comparable_history"
-        reason = "目前找不到同一 q15 bucket 的最近 heartbeat 可比較；先持續累積 exact support。"
+        regression_basis = "no_same_identity_same_semantic_signature_history"
+        reason = f"目前找不到{compare_label}且同 support_identity / semantic signature 的最近 heartbeat 可比較；先持續累積 exact support。"
     elif delta_vs_previous and delta_vs_previous > 0:
         status = "accumulating"
-        reason = "current q15 exact support 仍低於 minimum，但同 bucket rows 較上一輪增加。"
+        regression_basis = "same_identity_same_semantic_signature"
+        reason = f"{support_label} 仍低於 minimum，但同 bucket rows 較上一輪增加。"
         if previous_route_changed:
             reason += " route 已切換，代表 support pathology 正在從缺樣本轉向 exact rows 累積。"
     elif delta_vs_previous == 0:
         status = "stalled_under_minimum"
-        reason = "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。"
+        regression_basis = "same_identity_same_semantic_signature"
+        reason = f"{support_label} 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。"
     else:
         status = "regressed_under_minimum"
-        reason = "current q15 exact support 較上一輪回落，需檢查 current bucket / support artifact 是否切換或退化。"
+        regression_basis = "same_identity_same_semantic_signature"
+        reason = f"{support_label} 較上一輪回落，需檢查 current bucket / support artifact 是否切換或退化。"
+
+    history_for_display = list(recent_history)
+    if recent_supported is not None and all(
+        item.get("heartbeat") != recent_supported.get("heartbeat")
+        for item in history_for_display
+    ):
+        if len(history_for_display) >= 5:
+            history_for_display = [*history_for_display[:4], recent_supported]
+        else:
+            history_for_display.append(recent_supported)
+
+    legacy_reference_for_display = None
+    if legacy_supported_reference is not None:
+        legacy_reference_for_display = {
+            "heartbeat": legacy_supported_reference.get("heartbeat"),
+            "timestamp": legacy_supported_reference.get("timestamp"),
+            "live_current_structure_bucket": legacy_supported_reference.get("live_current_structure_bucket"),
+            "live_current_structure_bucket_rows": int(legacy_supported_reference.get("live_current_structure_bucket_rows") or 0),
+            "minimum_support_rows": int(legacy_supported_reference.get("minimum_support_rows") or 0),
+            "support_route_verdict": legacy_supported_reference.get("support_route_verdict"),
+            "support_governance_route": legacy_supported_reference.get("support_governance_route"),
+            "support_identity": legacy_supported_reference.get("support_identity"),
+            "reference_only_reason": "missing_or_different_support_identity_or_bucket_semantic_signature",
+        }
 
     return {
         "status": status,
         "reason": reason,
+        "regression_basis": regression_basis,
+        "support_identity": support_identity,
         "current_rows": current_rows,
         "minimum_support_rows": minimum,
         "gap_to_minimum": max(minimum - current_rows, 0),
@@ -258,10 +497,18 @@ def _summarize_support_progress(
         "previous_route_changed": previous_route_changed,
         "previous_support_route_verdict": None if previous is None else previous.get("support_route_verdict"),
         "previous_support_governance_route": None if previous is None else previous.get("support_governance_route"),
+        "regressed_from_supported": regressed_from_supported,
+        "recent_supported_rows": recent_supported_rows,
+        "recent_supported_heartbeat": None if recent_supported is None else recent_supported.get("heartbeat"),
+        "recent_supported_timestamp": None if recent_supported is None else recent_supported.get("timestamp"),
+        "delta_vs_recent_supported": delta_vs_recent_supported,
+        "legacy_supported_reference": legacy_reference_for_display,
+        "comparable_history_count": max(len(same_identity_history) - 1, 0),
+        "legacy_reference_history_count": len(legacy_reference_history),
         "stagnant_run_count": stagnant_run_count,
         "stalled_support_accumulation": status == "stalled_under_minimum",
-        "escalate_to_blocker": status == "stalled_under_minimum" and stagnant_run_count >= 3,
-        "history": relevant,
+        "escalate_to_blocker": status in {"regressed_under_minimum", "semantic_rebaseline_under_minimum"} or (status == "stalled_under_minimum" and stagnant_run_count >= 3),
+        "history": history_for_display,
     }
 
 
@@ -274,14 +521,18 @@ def _support_route_decision(
     exact_bucket_root_cause: str,
     preferred_support_cohort: str | None,
     support_governance_route: str | None,
+    current_bucket: Any | None = None,
 ) -> dict[str, Any]:
+    labels = _support_copy_labels(current_bucket)
+    bucket_label = labels["bucket_label"]
+    path_label = labels["path_label"]
     if current_bucket_rows >= minimum_support_rows:
         return {
             "verdict": "exact_bucket_supported",
             "deployable": True,
             "governance_reference_only": False,
             "preferred_support_cohort": "exact_live_bucket",
-            "reason": "current q15 exact bucket 已達 minimum support，可直接用 exact bucket 做 deployment 級驗證。",
+            "reason": f"{bucket_label} 已達 minimum support，可直接用 exact bucket 做 deployment 級驗證。",
             "release_condition": "保持 current_live_structure_bucket_rows >= minimum_support_rows，且 live row 仍通過 entry-quality / execution guardrail。",
         }
 
@@ -300,11 +551,11 @@ def _support_route_decision(
                 "governance_reference_only": True,
                 "preferred_support_cohort": exact_bucket_preferred,
                 "reason": (
-                    "current q15 exact bucket 仍為 0 rows；即使已有 exact-bucket proxy，也只能作治理參考，"
+                    f"{bucket_label} 仍為 0 rows；即使已有 exact-bucket proxy，也只能作治理參考，"
                     "不能作 deployment 放行證據。"
                 ),
                 "release_condition": (
-                    "先把 current q15 exact bucket 補到 minimum support，再重查 entry floor；"
+                    f"先把 {bucket_label} 補到 minimum support，再重查 entry floor；"
                     "proxy / neighbor 只能保留為比較與校準參考。"
                 ),
                 "route_hint": route or "exact_live_bucket_proxy_available",
@@ -315,8 +566,8 @@ def _support_route_decision(
                 "deployable": False,
                 "governance_reference_only": True,
                 "preferred_support_cohort": preferred or "bull_exact_live_lane_proxy",
-                "reason": "current q15 exact bucket 缺樣本，只剩 same-lane proxy；這仍不足以解除 runtime blocker。",
-                "release_condition": "必須先生成 current q15 exact bucket 真樣本，proxy 不可直接轉成 deployment allowance。",
+                "reason": f"{bucket_label} 缺樣本，只剩 same-lane proxy；這仍不足以解除 runtime blocker。",
+                "release_condition": f"必須先生成 {bucket_label} 真樣本，proxy 不可直接轉成 deployment allowance。",
                 "route_hint": route or "exact_live_lane_proxy_only",
             }
         if supported_neighbor_rows >= minimum_support_rows:
@@ -325,8 +576,8 @@ def _support_route_decision(
                 "deployable": False,
                 "governance_reference_only": True,
                 "preferred_support_cohort": preferred or "bull_supported_neighbor_buckets_proxy",
-                "reason": "只有 neighbor bucket 有足夠支持；neighbor 只能當背景治理參考，不能替代 current q15 exact bucket。",
-                "release_condition": "先補 current q15 exact bucket 真樣本，不能用 neighbor 直接解除 blocker。",
+                "reason": f"只有 neighbor bucket 有足夠支持；neighbor 只能當背景治理參考，不能替代 {bucket_label}。",
+                "release_condition": f"先補 {bucket_label} 真樣本，不能用 neighbor 直接解除 blocker。",
                 "route_hint": route or "supported_neighbor_only",
             }
 
@@ -336,7 +587,7 @@ def _support_route_decision(
             "deployable": False,
             "governance_reference_only": True,
             "preferred_support_cohort": preferred,
-            "reason": "current q15 exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。",
+            "reason": f"{bucket_label} 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。",
             "release_condition": "exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。",
             "route_hint": route or root or "exact_bucket_present_but_below_minimum",
         }
@@ -346,7 +597,7 @@ def _support_route_decision(
         "deployable": False,
         "governance_reference_only": True,
         "preferred_support_cohort": preferred,
-        "reason": "current q15 live path 在 exact bucket / proxy / neighbor 都沒有 deployment 級支撐。",
+        "reason": f"{path_label} 在 exact bucket / proxy / neighbor 都沒有 deployment 級支撐。",
         "release_condition": "先擴充 exact bucket 或縮小治理範圍，否則不得調整 runtime gate。",
         "route_hint": route or root or "insufficient_support_everywhere",
     }
@@ -435,17 +686,27 @@ def _resolve_current_live_context(
     exact_rows = _as_int(exact_scope.get("current_live_structure_bucket_rows"), None)
     chosen_rows = _as_int(chosen_scope.get("current_live_structure_bucket_rows"), None)
     bull_rows = _as_int(bull_live.get("current_live_structure_bucket_rows"), 0)
+    probe_exact_diag = (probe.get("decision_quality_exact_live_lane_bucket_diagnostics") or {}) if isinstance(probe, dict) else {}
+    exact_diag = exact_scope.get("exact_lane_bucket_diagnostics") or {}
+    if not (exact_diag.get("buckets") or {}):
+        exact_diag = probe_exact_diag or drilldown.get("exact_live_lane_bucket_diagnostics") or {}
+    exact_bucket_metrics = ((exact_diag.get("buckets") or {}).get(current_bucket) or {}) if current_bucket else {}
+    exact_diag_rows = _as_int(exact_bucket_metrics.get("rows"), None)
+
     chosen_bucket = chosen_scope.get("current_live_structure_bucket")
-    if (
-        current_bucket
-        and chosen_bucket
-        and str(current_bucket) == str(chosen_bucket)
-        and exact_rows in (None, 0)
-        and chosen_rows not in (None, 0)
-    ):
-        current_bucket_rows = chosen_rows
+    # exact support must come from exact-scope rows or exact-lane bucket diagnostics.
+    # Keep an explicit 0 when the exact scope says there is no support yet; only fall
+    # back to broader chosen-scope rows when exact rows are genuinely missing.
+    if exact_rows not in (None, 0):
+        current_bucket_rows = exact_rows
+    elif exact_diag_rows not in (None, 0):
+        current_bucket_rows = exact_diag_rows
+    elif exact_rows is not None:
+        current_bucket_rows = exact_rows
+    elif current_bucket and chosen_bucket and str(current_bucket) == str(chosen_bucket):
+        current_bucket_rows = _as_int(chosen_rows, bull_rows)
     else:
-        current_bucket_rows = _as_int(exact_rows, _as_int(chosen_rows, bull_rows))
+        current_bucket_rows = _as_int(chosen_rows, bull_rows)
     if "execution_guardrail_reason" in probe:
         execution_guardrail_reason = probe.get("execution_guardrail_reason")
     else:
@@ -719,6 +980,14 @@ def build_report(
     leaderboard_probe: dict[str, Any],
 ) -> dict[str, Any]:
     live_context = _resolve_current_live_context(probe, drilldown, bull_pocket)
+    target_col = probe.get("target_col") or bull_pocket.get("target_col")
+    horizon_minutes = (
+        probe.get("decision_quality_horizon_minutes")
+        or probe.get("horizon_minutes")
+        or bull_pocket.get("horizon_minutes")
+        or 1440
+    )
+    calibration_window = probe.get("decision_quality_calibration_window")
     support_summary = bull_pocket.get("support_pathology_summary") or {}
     alignment = leaderboard_probe.get("alignment") or {}
     component_gap = drilldown.get("component_gap_attribution") or {}
@@ -737,10 +1006,35 @@ def build_report(
         exact_bucket_root_cause=str(support_summary.get("exact_bucket_root_cause") or ""),
         preferred_support_cohort=support_summary.get("preferred_support_cohort"),
         support_governance_route=alignment.get("support_governance_route"),
+        current_bucket=live_context.get("current_live_structure_bucket"),
     )
     effective_support_governance_route = alignment.get("support_governance_route")
     if support_route.get("deployable"):
         effective_support_governance_route = "exact_live_bucket_supported"
+    support_identity = _build_support_identity(
+        target_col=target_col,
+        horizon_minutes=horizon_minutes,
+        current_bucket=live_context.get("current_live_structure_bucket"),
+        live_context={
+            **live_context,
+            "regime_label": probe.get("regime_label") or live_context.get("regime_label"),
+            "regime_gate": probe.get("regime_gate") or live_context.get("regime_gate"),
+            "entry_quality_label": probe.get("entry_quality_label") or live_context.get("entry_quality_label"),
+        },
+        calibration_window=calibration_window,
+    )
+    artifact_context_freshness = _artifact_context_freshness(
+        probe=probe,
+        drilldown=drilldown,
+        live_context={
+            **live_context,
+            "feature_timestamp": probe.get("feature_timestamp") or drilldown.get("generated_at"),
+            "regime_label": probe.get("regime_label") or live_context.get("regime_label"),
+            "regime_gate": probe.get("regime_gate") or live_context.get("regime_gate"),
+            "entry_quality_label": probe.get("entry_quality_label") or live_context.get("entry_quality_label"),
+        },
+        support_identity=support_identity,
+    )
     support_progress = _summarize_support_progress(
         current_bucket=live_context.get("current_live_structure_bucket"),
         support_route_verdict=support_route.get("verdict"),
@@ -748,6 +1042,7 @@ def build_report(
         live_bucket_rows=current_bucket_rows,
         minimum_support_rows=minimum_support_rows,
         current_label=os.getenv("HB_RUN_LABEL"),
+        support_identity=support_identity,
     )
     floor_legality = _floor_cross_legality(
         support_route=support_route,
@@ -790,7 +1085,9 @@ def build_report(
 
     return {
         "generated_at": probe.get("feature_timestamp") or drilldown.get("generated_at"),
-        "target_col": probe.get("target_col") or bull_pocket.get("target_col"),
+        "target_col": target_col,
+        "support_identity": support_identity,
+        "artifact_context_freshness": artifact_context_freshness,
         "current_live": {
             "feature_timestamp": probe.get("feature_timestamp") or drilldown.get("generated_at"),
             "signal": probe.get("signal"),
@@ -799,6 +1096,9 @@ def build_report(
             "entry_quality": probe.get("entry_quality"),
             "entry_quality_label": probe.get("entry_quality_label") or live_context.get("entry_quality_label"),
             "decision_quality_label": probe.get("decision_quality_label"),
+            "decision_quality_horizon_minutes": horizon_minutes,
+            "decision_quality_calibration_scope": probe.get("decision_quality_calibration_scope"),
+            "decision_quality_calibration_window": calibration_window,
             "allowed_layers": probe.get("allowed_layers"),
             "allowed_layers_reason": probe.get("allowed_layers_reason"),
             "execution_guardrail_reason": probe.get("execution_guardrail_reason") if "execution_guardrail_reason" in probe else live_context.get("execution_guardrail_reason"),
@@ -812,6 +1112,7 @@ def build_report(
         },
         "scope_applicability": scope_applicability,
         "support_route": {
+            "support_identity": support_identity,
             "support_governance_route": effective_support_governance_route,
             "preferred_support_cohort": support_route.get("preferred_support_cohort"),
             "verdict": support_route.get("verdict"),
@@ -858,6 +1159,8 @@ def _markdown(report: dict[str, Any]) -> str:
     scope = report.get("scope_applicability") or {}
     support = report.get("support_route") or {}
     support_progress = support.get("support_progress") or {}
+    support_identity = report.get("support_identity") or support.get("support_identity") or {}
+    freshness = report.get("artifact_context_freshness") or {}
     floor = report.get("floor_cross_legality") or {}
     experiment = report.get("component_experiment") or {}
     experiment_answer = experiment.get("machine_read_answer") or {}
@@ -867,6 +1170,7 @@ def _markdown(report: dict[str, Any]) -> str:
             "",
             f"- generated_at: **{report.get('generated_at')}**",
             f"- target_col: **{report.get('target_col')}**",
+            f"- artifact_context_freshness: **{freshness.get('verdict')}** (`{freshness.get('mismatched_fields')}`)",
             "",
             "## Current live row",
             f"- signal: **{current.get('signal')}**",
@@ -896,11 +1200,14 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- reason: {support.get('reason')}",
             f"- release_condition: {support.get('release_condition')}",
             f"- support_progress.status: **{support_progress.get('status')}**",
+            f"- support_progress.regression_basis: **{support_progress.get('regression_basis')}**",
             f"- support_progress.current_rows / minimum: **{support_progress.get('current_rows')} / {support_progress.get('minimum_support_rows')}**",
             f"- support_progress.previous_rows: **{support_progress.get('previous_rows')}**",
             f"- support_progress.delta_vs_previous: **{support_progress.get('delta_vs_previous')}**",
             f"- support_progress.stagnant_run_count: **{support_progress.get('stagnant_run_count')}**",
             f"- support_progress.escalate_to_blocker: **{support_progress.get('escalate_to_blocker')}**",
+            f"- support_identity: `{support_identity}`",
+            f"- legacy_supported_reference: `{support_progress.get('legacy_supported_reference')}`",
             f"- support_progress.reason: {support_progress.get('reason')}",
             "",
             "## Floor-cross legality",

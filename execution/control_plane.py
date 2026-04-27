@@ -12,13 +12,13 @@ from sqlalchemy import text
 CONTROL_MODE = "stateful_run_control_beta"
 RUNTIME_BINDING_STATUS = "control_plane_only"
 CONTROL_PLANE_OPERATOR_MESSAGE = (
-    "Execution Console 現在已具備 stateful /api/execution/runs control plane；"
-    "start/pause/stop 與 per-run event log 會持久化，且 run 已可鏡像 symbol-scoped runtime / reconciliation 摘要，"
-    "但 per-bot capital / position / order ledger 仍未接上。"
+    "Bot 營運現在已具備可持久化的運行控制；"
+    "啟動 / 暫停 / 停止都會保留事件紀錄，且每條運行已可鏡像同商品的執行期 / 對帳摘要，"
+    "但每個 Bot 的資金 / 持倉 / 委託帳本仍未完全接上。"
 )
 CONTROL_PLANE_UPGRADE_PREREQUISITE = (
-    "下一步必須把 per-bot capital / position attribution 與 ExecutionService 綁到 run，"
-    "否則這仍是 stateful control plane beta，不是完整 bot runtime。"
+    "下一步必須把每個 Bot 的資金 / 持倉 / 委託歸因綁到各自運行，"
+    "否則這仍只是可持久化的運行控制測試版，不是完整的 Bot 執行期。"
 )
 
 PRIMARY_SLEEVE_ORDER = ("trend", "pullback", "rebound", "selective")

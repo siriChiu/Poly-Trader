@@ -53,7 +53,7 @@ export function ExecutionWorkspaceMetric({
 }: ExecutionWorkspaceMetricProps) {
   return (
     <div className="execution-card-muted h-full text-xs">
-      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="text-[10px] tracking-wide text-slate-500">{label}</div>
       <div className={`mt-1 text-base font-semibold ${toneClass}`}>{value}</div>
       {detail ? <div className="mt-1 text-[11px] leading-5 text-slate-300">{detail}</div> : null}
       {extra ? <div className="mt-2">{extra}</div> : null}

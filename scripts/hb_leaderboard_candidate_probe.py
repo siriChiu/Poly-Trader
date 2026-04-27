@@ -290,7 +290,7 @@ def _production_profile_role(train_profile_source: Any) -> str:
 def _load_recent_support_history(
     *,
     current_entry: dict[str, Any] | None = None,
-    limit: int = 5,
+    limit: int | None = 5,
     data_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
     history: list[dict[str, Any]] = []
@@ -313,8 +313,18 @@ def _load_recent_support_history(
         except Exception:
             continue
         diag = payload.get("leaderboard_candidate_diagnostics") or {}
-        if not isinstance(diag, dict):
-            continue
+        if not isinstance(diag, dict) or not diag:
+            legacy_probe = payload.get("leaderboard_candidate_probe") or {}
+            legacy_alignment = legacy_probe.get("alignment") if isinstance(legacy_probe, dict) else {}
+            if isinstance(legacy_alignment, dict) and legacy_alignment:
+                diag = {
+                    "live_current_structure_bucket": legacy_alignment.get("live_current_structure_bucket"),
+                    "live_current_structure_bucket_rows": legacy_alignment.get("live_current_structure_bucket_rows"),
+                    "minimum_support_rows": legacy_alignment.get("minimum_support_rows"),
+                    "support_governance_route": legacy_alignment.get("support_governance_route"),
+                }
+            else:
+                continue
         heartbeat = str(payload.get("heartbeat") or path.stem)
         payload_timestamp = payload.get("timestamp")
         payload_dt = _parse_iso_datetime(payload_timestamp)
@@ -338,7 +348,7 @@ def _load_recent_support_history(
         if not candidate["live_current_structure_bucket"]:
             continue
         history.append(candidate)
-        if len(history) >= limit:
+        if limit is not None and len(history) >= limit:
             break
     return history
 
@@ -351,6 +361,9 @@ def _load_q15_support_progress_hint(
     minimum_support_rows: int,
 ) -> dict[str, Any] | None:
     q15_audit = _load_json(Q15_SUPPORT_AUDIT_PATH)
+    scope_applicability = q15_audit.get("scope_applicability") or {}
+    if scope_applicability and scope_applicability.get("active_for_current_live_row") is False:
+        return None
     current_live = q15_audit.get("current_live") or {}
     support_route = q15_audit.get("support_route") or {}
     support_progress = support_route.get("support_progress") or {}
@@ -399,13 +412,14 @@ def _summarize_support_progress(
         "support_governance_route": current_route,
         "governance_verdict": None,
     }
-    history = _load_recent_support_history(current_entry=current_entry, limit=5, data_dir=data_dir)
-    relevant = [
+    history = _load_recent_support_history(current_entry=current_entry, limit=None, data_dir=data_dir)
+    same_bucket_history = [
         item for item in history
         if item.get("live_current_structure_bucket") == current_bucket
     ]
+    recent_history = same_bucket_history[:5]
 
-    previous = relevant[1] if len(relevant) > 1 else None
+    previous = recent_history[1] if len(recent_history) > 1 else None
     delta_vs_previous = None
     previous_route_changed = False
     if previous is not None:
@@ -416,16 +430,53 @@ def _summarize_support_progress(
     stagnant_run_count = 0
     if previous is not None and int(previous.get("live_current_structure_bucket_rows") or 0) == current_rows:
         stagnant_run_count = 1
-        for item in relevant[1:]:
+        for item in recent_history[1:]:
             if int(item.get("live_current_structure_bucket_rows") or 0) == current_rows:
                 stagnant_run_count += 1
                 continue
             break
 
     minimum = int(minimum_support_rows or 0)
+    recent_supported = next(
+        (
+            item
+            for item in same_bucket_history[1:]
+            if int(item.get("live_current_structure_bucket_rows") or 0) >= minimum
+            or item.get("support_governance_route") == "exact_live_bucket_supported"
+        ),
+        None,
+    )
+    recent_supported_rows = None if recent_supported is None else int(recent_supported.get("live_current_structure_bucket_rows") or 0)
+    delta_vs_recent_supported = (
+        None if recent_supported_rows is None else current_rows - recent_supported_rows
+    )
+    regressed_from_supported = recent_supported is not None and current_rows < minimum
+
     if current_route == "exact_live_bucket_supported" or current_rows >= minimum:
         status = "exact_supported"
         reason = "current live exact bucket 已達 minimum support，治理焦點可轉向 post-threshold leaderboard sync。"
+    elif regressed_from_supported:
+        status = "regressed_under_minimum"
+        supported_ref = f"{recent_supported_rows}/{minimum}"
+        heartbeat_ref = recent_supported.get("heartbeat") if isinstance(recent_supported, dict) else None
+        if delta_vs_previous is not None and delta_vs_previous > 0:
+            reason = (
+                "current live exact support 最近曾達 minimum support"
+                f"（最近一次 {supported_ref}{f'，heartbeat {heartbeat_ref}' if heartbeat_ref else ''}），"
+                "目前雖較上一輪回補，但仍低於門檻。"
+            )
+        elif delta_vs_previous == 0:
+            reason = (
+                "current live exact support 最近曾達 minimum support"
+                f"（最近一次 {supported_ref}{f'，heartbeat {heartbeat_ref}' if heartbeat_ref else ''}），"
+                f"但目前仍停在 {current_rows}/{minimum}；這不是一般停滯，而是 support regression。"
+            )
+        else:
+            reason = (
+                f"current live exact support 自最近一次已就緒 {supported_ref}"
+                f"{f'（heartbeat {heartbeat_ref}）' if heartbeat_ref else ''} 回落，"
+                "需檢查 lane/bucket 是否切換或 support artifact 是否退化。"
+            )
     elif previous is None:
         status = "no_recent_comparable_history"
         reason = "目前找不到同一 current live structure bucket 的最近 heartbeat 可比對；先持續累積 support。"
@@ -441,6 +492,16 @@ def _summarize_support_progress(
         status = "regressed_under_minimum"
         reason = "current live exact support 較上一輪回落，需檢查 lane/bucket 是否切換或 support artifact 是否退化。"
 
+    history_for_display = list(recent_history)
+    if recent_supported is not None and all(
+        item.get("heartbeat") != recent_supported.get("heartbeat")
+        for item in history_for_display
+    ):
+        if len(history_for_display) >= 5:
+            history_for_display = [*history_for_display[:4], recent_supported]
+        else:
+            history_for_display.append(recent_supported)
+
     return {
         "status": status,
         "reason": reason,
@@ -451,10 +512,15 @@ def _summarize_support_progress(
         "previous_rows": None if previous is None else int(previous.get("live_current_structure_bucket_rows") or 0),
         "previous_route_changed": previous_route_changed,
         "previous_support_governance_route": None if previous is None else previous.get("support_governance_route"),
+        "regressed_from_supported": regressed_from_supported,
+        "recent_supported_rows": recent_supported_rows,
+        "recent_supported_heartbeat": None if recent_supported is None else recent_supported.get("heartbeat"),
+        "recent_supported_timestamp": None if recent_supported is None else recent_supported.get("timestamp"),
+        "delta_vs_recent_supported": delta_vs_recent_supported,
         "stagnant_run_count": stagnant_run_count,
         "stalled_support_accumulation": status == "stalled_under_minimum",
-        "escalate_to_blocker": status == "stalled_under_minimum" and stagnant_run_count >= 3,
-        "history": relevant,
+        "escalate_to_blocker": status == "regressed_under_minimum" or (status == "stalled_under_minimum" and stagnant_run_count >= 3),
+        "history": history_for_display,
     }
 
 

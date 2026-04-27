@@ -316,7 +316,7 @@ def build_execution_overview(
         "allocation_rule": "equal_split_active_sleeves",
         "symbol_scoped_position_count": len(symbol_positions),
         "symbol_scoped_open_order_count": len(symbol_open_orders),
-        "operator_message": "deployable capital 仍先依 risk_control.check_position_size() 計算，再由 active sleeves 等分；run control 已 stateful 化，但 per-bot capital ledger 仍未落地。",
+        "operator_message": "可部署資金目前仍先依風險控管頭寸公式估算，再由啟用倉位腿均分；運行控制雖已可持久化，但每個 Bot 的資金帳本仍未落地。",
     }
 
     return {

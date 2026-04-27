@@ -1,6 +1,8 @@
 /**
  * BacktestSummary — Dashboard backtest card with canonical decision-quality context.
  */
+import { humanizeRegimeGateLabel } from "../utils/runtimeCopy";
+
 const formatPct = (value?: number | null) => (
   typeof value === "number" && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : "—"
 );
@@ -48,7 +50,7 @@ export default function BacktestSummary({
         <div>
           <h3 className="text-sm font-semibold text-slate-300">📊 回測摘要</h3>
           <div className="mt-1 text-xs text-slate-500">
-            Dashboard 回測卡現已補上 canonical decision-quality 語義，不再只有 ROI / 勝率 / PF。
+            Dashboard 回測卡現已補上正式決策品質語義，不再只剩 ROI / 勝率 / PF。
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
@@ -56,10 +58,10 @@ export default function BacktestSummary({
             {decisionContract?.target_col || "simulated_pyramid_win"}
           </span>
           <span className="rounded-full border border-cyan-700/40 bg-cyan-950/30 px-2 py-0.5 text-cyan-300">
-            Horizon {decisionContract?.decision_quality_horizon_minutes || 1440}m
+            決策視窗 {decisionContract?.decision_quality_horizon_minutes || 1440}m
           </span>
           <span className="rounded-full border border-emerald-700/40 bg-emerald-950/30 px-2 py-0.5 text-emerald-300">
-            Gate {dominantRegimeGate || "—"}
+            主閘門 {humanizeRegimeGateLabel(dominantRegimeGate || null)}
           </span>
         </div>
       </div>
@@ -84,9 +86,9 @@ export default function BacktestSummary({
       <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 p-3 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-xs font-semibold text-slate-300">Canonical Decision Quality</div>
+            <div className="text-xs font-semibold text-slate-300">正式決策品質</div>
             <div className="mt-1 text-[11px] text-slate-500">
-              {decisionContract?.target_label || "Canonical Decision Quality"}
+              {decisionContract?.target_label || "正式決策品質"}
               {decisionContract?.sort_semantics ? ` · ${decisionContract.sort_semantics}` : ""}
             </div>
           </div>
@@ -104,8 +106,8 @@ export default function BacktestSummary({
             { label: "預期品質", value: formatDecimal(avgExpectedPyramidQuality), color: "text-sky-300" },
             { label: "回撤懲罰", value: formatPct(avgExpectedDrawdownPenalty), color: "text-amber-300" },
             { label: "深套時間", value: formatPct(avgExpectedTimeUnderwater), color: "text-orange-300" },
-            { label: "平均 Entry", value: formatDecimal(avgEntryQuality, 2), color: "text-slate-200" },
-            { label: "平均 Layers", value: typeof avgAllowedLayers === "number" ? avgAllowedLayers.toFixed(2) : "—", color: "text-slate-200" },
+            { label: "平均進場品質", value: formatDecimal(avgEntryQuality, 2), color: "text-slate-200" },
+            { label: "平均允許層數", value: typeof avgAllowedLayers === "number" ? avgAllowedLayers.toFixed(2) : "—", color: "text-slate-200" },
           ].map((stat) => (
             <div key={stat.label} className="rounded-lg border border-slate-800/80 bg-slate-950/30 px-3 py-2">
               <div className="text-[11px] text-slate-500">{stat.label}</div>
@@ -116,7 +118,7 @@ export default function BacktestSummary({
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
           <span>DQ 樣本: {typeof decisionQualitySampleSize === "number" ? decisionQualitySampleSize : "—"}</span>
-          <span>Dominant gate: {dominantRegimeGate || "—"}</span>
+          <span>主導閘門：{humanizeRegimeGateLabel(dominantRegimeGate || null)}</span>
         </div>
       </div>
     </div>

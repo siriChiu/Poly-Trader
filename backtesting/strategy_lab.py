@@ -24,7 +24,7 @@ STRATEGIES_DIR.mkdir(parents=True, exist_ok=True)
 
 STRATEGY_SCHEMA_VERSION = 2
 INTERNAL_STRATEGY_PREFIXES = ("tmp_", "debug_", "scratch_", "auto_leaderboard_")
-INTERNAL_STRATEGY_NAMES = {"test", "unnamed", "unnamed_strategy"}
+INTERNAL_STRATEGY_NAMES = {"unnamed", "unnamed_strategy"}
 AUTO_STRATEGY_NAME_PREFIX = "Auto Leaderboard · "
 MANUAL_COPY_STRATEGY_PREFIX = "Manual Copy · "
 
@@ -99,6 +99,11 @@ def derive_editable_strategy_name(name: str) -> str:
     return raw_name
 
 
+def strategy_definition_signature(strategy_def: Optional[Dict[str, Any]]) -> str:
+    sanitized = _sanitize_definition(strategy_def)
+    return json.dumps(sanitized, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
 def _sanitize_definition(strategy_def: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     strategy_def = strategy_def or {}
     params = strategy_def.get("params") if isinstance(strategy_def, dict) else {}
@@ -156,7 +161,7 @@ STRATEGY_SLEEVE_LIBRARY: Dict[str, Dict[str, Any]] = {
     },
     "turning_point_exit": {
         "label": "轉折出場",
-        "summary": "以 local-top / turning-point 作為主要出場與節奏收斂模組。",
+        "summary": "以區域頂部 / 轉折點作為主要出場與節奏收斂模組。",
     },
     "storm_recovery": {
         "label": "風暴解套",
@@ -281,7 +286,7 @@ def build_regime_aware_sleeve_routing(
     inactive_entries: List[Dict[str, Any]] = []
 
     if global_blocker_reason:
-        blocker_text = f"目前 {global_blocker_reason}，先凍結所有 primary sleeves。"
+        blocker_text = f"目前 {global_blocker_reason}，先凍結所有主要倉位腿。"
         inactive_entries = [_entry(key, False, blocker_text) for key in primary_sleeves]
     else:
         routing_rules = {
@@ -319,12 +324,12 @@ def build_regime_aware_sleeve_routing(
     if active_entries:
         summary = (
             f"目前 regime={regime} / gate={gate} / bucket={normalized_structure_bucket or '—'}；"
-            f"active sleeves {active_ratio_text}：{'、'.join(item['label'] for item in active_entries)}。"
+            f"啟用倉位腿 {active_ratio_text}：{'、'.join(item['label'] for item in active_entries)}。"
         )
     else:
         summary = (
             f"目前 regime={regime} / gate={gate} / bucket={normalized_structure_bucket or '—'}；"
-            f"active sleeves {active_ratio_text}，暫無可部署 primary sleeves。"
+            f"啟用倉位腿 {active_ratio_text}，暫無可部署主要倉位腿。"
         )
 
     return {
@@ -455,7 +460,13 @@ def _backfill_strategy_backtest_range(last_results: Optional[Dict[str, Any]], de
     existing = _sanitize_backtest_range_meta(last_results.get("backtest_range"))
     requested = _merge_backtest_range_bounds(existing.get("requested"), definition_requested)
     effective = _merge_backtest_range_bounds(existing.get("effective"), requested, chart_bounds)
-    available = _merge_backtest_range_bounds(existing.get("available"), chart_bounds, effective)
+
+    # Do not let a trade-focused chart window rewrite the operator-facing
+    # available/effective range. Older saved strategies often persisted only the
+    # active trade window in chart_context, which made a 2-year backtest look like
+    # it only had ~1 year of usable history. Prefer the explicit/requested/effective
+    # bounds first; only fall back to chart_context if nothing else exists.
+    available = _merge_backtest_range_bounds(effective, requested, existing.get("available"), chart_bounds)
 
     if not (requested or effective or available):
         return last_results
@@ -632,7 +643,7 @@ def _sanitize_strategy_record(data: Dict[str, Any], fallback_name: str = "") -> 
         "definition": definition,
         "last_results": last_results,
         "run_count": run_count,
-        "is_internal": bool(data.get("is_internal")) or _is_internal_strategy(name),
+        "is_internal": _is_internal_strategy(name),
         "metadata": _merge_strategy_metadata(name, definition, data.get("metadata")),
     }
 
@@ -867,11 +878,13 @@ def _normalize_allowed_regimes(value: Any) -> Optional[set]:
     else:
         return None
     allowed = {item for item in items if item}
-    return allowed or None
+    if not allowed or "all" in allowed:
+        return None
+    return allowed
 
 
 def _regime_allowed(regime: str, allowed_regimes: Optional[set]) -> bool:
-    if not allowed_regimes:
+    if not allowed_regimes or "all" in allowed_regimes:
         return True
     return (regime or "unknown").lower() in allowed_regimes
 
@@ -1854,7 +1867,7 @@ def save_strategy(name: str, strategy_def: Dict, results: Optional[Dict] = None)
             data["run_count"] = prev_runs + 1 if results is not None else prev_runs
             if results is None and existing.get("last_results") is not None:
                 data["last_results"] = existing.get("last_results")
-            data["is_internal"] = existing.get("is_internal", False) or data.get("is_internal", False)
+            data["is_internal"] = _is_internal_strategy(name)
             if results is None and existing.get("metadata"):
                 data["metadata"] = existing.get("metadata")
         except Exception:

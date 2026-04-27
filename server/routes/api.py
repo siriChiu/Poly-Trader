@@ -26,7 +26,7 @@ from server.dependencies import (
     set_automation_enabled,
     set_runtime_status,
 )
-from server.features_engine import get_engine, normalize_feature
+from server.features_engine import ecdf_normalize, get_engine, normalize_feature
 from server.live_pathology_summary import (
     build_live_pathology_patch_summary as shared_build_live_pathology_patch_summary,
     build_live_pathology_scope_summary as shared_build_live_pathology_scope_summary,
@@ -51,7 +51,7 @@ from execution.control_plane import (
     start_execution_profile_run,
     stop_execution_run,
 )
-from execution.execution_service import ExecutionService
+from execution.execution_service import ExecutionRejectError, ExecutionService
 from execution.metadata_smoke import run_metadata_smoke
 from utils.logger import setup_logger
 
@@ -64,6 +64,8 @@ DB_PATH = str(PROJECT_ROOT / "poly_trader.db")
 MODEL_LB_CACHE_PATH = PROJECT_ROOT / "data" / "model_leaderboard_cache.json"
 _LEADERBOARD_GOVERNANCE_PROBE_PATH = PROJECT_ROOT / "data" / "leaderboard_feature_profile_probe.json"
 _LIVE_PREDICT_PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
+_RECENT_DRIFT_REPORT_PATH = PROJECT_ROOT / "data" / "recent_drift_report.json"
+_ISSUES_JSON_PATH = PROJECT_ROOT / "issues.json"
 _STRATEGY_PARAM_SCAN_PATH = PROJECT_ROOT / "data" / "model_strategy_param_scan_latest.json"
 _MODEL_LB_STALE_AFTER_SEC = 900
 _MODEL_LB_REFRESH_COOLDOWN_SEC = 300
@@ -92,6 +94,8 @@ _EXECUTION_METADATA_EXTERNAL_MONITOR_INSTALL_CONTRACT_PATH = (
     Path(__file__).resolve().parents[2] / "data" / "execution_metadata_external_monitor_install_contract.json"
 )
 _Q15_SUPPORT_AUDIT_PATH = Path(__file__).resolve().parents[2] / "data" / "q15_support_audit.json"
+_Q15_BUCKET_ROOT_CAUSE_PATH = Path(__file__).resolve().parents[2] / "data" / "q15_bucket_root_cause.json"
+_Q35_SCALING_AUDIT_PATH = Path(__file__).resolve().parents[2] / "data" / "q35_scaling_audit.json"
 _BULL_4H_POCKET_ABLATION_PATH = Path(__file__).resolve().parents[2] / "data" / "bull_4h_pocket_ablation.json"
 _EXECUTION_METADATA_EXTERNAL_MONITOR_COMMAND = (
     f"cd {Path(__file__).resolve().parents[2]} && "
@@ -187,6 +191,19 @@ def _normalize_result_timestamps(payload: Any) -> Any:
                 normalized[key] = _iso_utc_timestamp(normalized.get(key))
         return {k: _normalize_result_timestamps(v) for k, v in normalized.items()}
     return payload
+
+
+def _strategy_confidence_lookup_key(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        dt = _parse_backtest_timestamp(text)
+    except Exception:
+        dt = None
+    if dt is None:
+        return text.split(".", 1)[0]
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _build_cache_key(*parts: Any) -> str:
@@ -669,6 +686,46 @@ def _build_execution_metadata_smoke_freshness(
     })
     return freshness
 
+def _build_venue_runtime_proof_contract(venue: str, item: Dict[str, Any]) -> Dict[str, Any]:
+    """Expose venue readiness as a proof contract, not just public metadata OK/FAIL."""
+    enabled = bool(item.get("enabled_in_config"))
+    credentials_configured = bool(item.get("credentials_configured"))
+    metadata_ok = bool(item.get("ok"))
+
+    blockers: List[str] = []
+    if not metadata_ok:
+        blockers.append("元資料契約尚未通過")
+    if not enabled:
+        blockers.append("場館設定停用")
+    if not credentials_configured:
+        blockers.append("live exchange credential 尚未驗證")
+    blockers.extend([
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+    ])
+
+    if not metadata_ok:
+        proof_state = "metadata_contract_failed"
+        operator_next_action = f"先修復 {venue} 元資料檢查，再評估憑證與實單生命週期。"
+    elif not enabled:
+        proof_state = "config_disabled_metadata_only"
+        operator_next_action = f"若要啟用 {venue}，先開啟場館設定並配置憑證；目前只能作公開元資料觀測。"
+    elif not credentials_configured:
+        proof_state = "public_metadata_only"
+        operator_next_action = f"先配置 {venue} 交易憑證，再用沙盒或極小額委託捕捉委託確認 / 成交 / 取消生命週期。"
+    else:
+        proof_state = "credentials_configured_missing_runtime_lifecycle"
+        operator_next_action = f"使用 {venue} 沙盒或極小額實單捕捉交易所回傳的委託確認 / 成交 / 取消生命週期。"
+
+    return {
+        "proof_state": proof_state,
+        "blockers": blockers,
+        "operator_next_action": operator_next_action,
+        "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。",
+        "readiness_scope": "venue_runtime_proof_required",
+    }
+
+
 def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
     if not _EXECUTION_METADATA_SMOKE_PATH.exists():
         return None
@@ -696,12 +753,14 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
     for venue, item in results.items():
         item = item if isinstance(item, dict) else {}
         contract = item.get("contract") if isinstance(item.get("contract"), dict) else {}
+        proof_contract = _build_venue_runtime_proof_contract(str(venue), item)
         venues.append({
             "venue": venue,
             "ok": bool(item.get("ok")),
             "enabled_in_config": bool(item.get("enabled_in_config")),
             "credentials_configured": bool(item.get("credentials_configured")),
             "error": item.get("error"),
+            **proof_contract,
             "contract": {
                 "symbol": contract.get("symbol"),
                 "min_qty": contract.get("min_qty"),
@@ -744,6 +803,11 @@ def _load_q15_support_audit_summary(current_structure_bucket: Optional[str] = No
     floor_cross = payload.get("floor_cross_legality") if isinstance(payload.get("floor_cross_legality"), dict) else {}
     component_experiment = payload.get("component_experiment") if isinstance(payload.get("component_experiment"), dict) else {}
     support_progress = support_route.get("support_progress") if isinstance(support_route.get("support_progress"), dict) else {}
+    support_identity = (
+        payload.get("support_identity")
+        or support_route.get("support_identity")
+        or support_progress.get("support_identity")
+    )
 
     active_for_current_live_row = bool(applicability.get("active_for_current_live_row"))
     audit_bucket = (
@@ -770,6 +834,8 @@ def _load_q15_support_audit_summary(current_structure_bucket: Optional[str] = No
         "minimum_support_rows": support_route.get("minimum_support_rows"),
         "current_live_structure_bucket_gap_to_minimum": support_route.get("current_live_structure_bucket_gap_to_minimum"),
         "support_progress": support_progress,
+        "support_identity": support_identity if isinstance(support_identity, dict) else None,
+        "artifact_context_freshness": payload.get("artifact_context_freshness"),
         "floor_cross_legality": floor_cross,
         "component_experiment": component_experiment,
         "current_live": current_live,
@@ -805,6 +871,10 @@ def _enrich_confidence_with_q15_support_audit(result: Dict[str, Any]) -> Dict[st
         details["current_live_structure_bucket_rows"] = support_progress.get("current_rows")
         details["minimum_support_rows"] = support_progress.get("minimum_support_rows")
         details["current_live_structure_bucket_gap_to_minimum"] = support_progress.get("gap_to_minimum")
+    if audit_summary.get("support_identity"):
+        details["support_identity"] = audit_summary.get("support_identity")
+    if audit_summary.get("artifact_context_freshness"):
+        details["artifact_context_freshness"] = audit_summary.get("artifact_context_freshness")
     if audit_summary.get("support_route_verdict") is not None:
         details["support_route_verdict"] = audit_summary.get("support_route_verdict")
     if audit_summary.get("support_route_deployable") is not None:
@@ -819,6 +889,8 @@ def _enrich_confidence_with_q15_support_audit(result: Dict[str, Any]) -> Dict[st
     enriched["deployment_blocker_details"] = details
     enriched["q15_support_audit"] = audit_summary
     enriched["support_progress"] = support_progress or enriched.get("support_progress")
+    enriched["support_identity"] = audit_summary.get("support_identity") or enriched.get("support_identity")
+    enriched["artifact_context_freshness"] = audit_summary.get("artifact_context_freshness") or enriched.get("artifact_context_freshness")
     enriched["support_route_verdict"] = audit_summary.get("support_route_verdict")
     enriched["support_route_deployable"] = audit_summary.get("support_route_deployable")
     enriched["support_governance_route"] = audit_summary.get("support_governance_route")
@@ -830,6 +902,168 @@ def _enrich_confidence_with_q15_support_audit(result: Dict[str, Any]) -> Dict[st
     enriched["best_single_component"] = floor_cross.get("best_single_component")
     enriched["best_single_component_required_score_delta"] = floor_cross.get("best_single_component_required_score_delta")
     enriched["component_experiment_verdict"] = component_experiment.get("verdict")
+    return enriched
+
+
+def _load_q15_bucket_root_cause_summary(current_structure_bucket: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    if not _Q15_BUCKET_ROOT_CAUSE_PATH.exists():
+        return None
+    try:
+        payload = json.loads(_Q15_BUCKET_ROOT_CAUSE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    current_live = payload.get("current_live") if isinstance(payload.get("current_live"), dict) else {}
+    exact_live_lane = payload.get("exact_live_lane") if isinstance(payload.get("exact_live_lane"), dict) else {}
+    candidate_patch = payload.get("candidate_patch") if isinstance(payload.get("candidate_patch"), dict) else {}
+
+    bucket = current_live.get("structure_bucket")
+    if current_structure_bucket and bucket and str(current_structure_bucket) != str(bucket):
+        return None
+
+    artifact_context_freshness = (
+        payload.get("artifact_context_freshness")
+        if isinstance(payload.get("artifact_context_freshness"), dict)
+        else {}
+    )
+
+    return {
+        "generated_at": payload.get("generated_at"),
+        "current_live_structure_bucket": bucket or current_structure_bucket,
+        "verdict": payload.get("verdict"),
+        "candidate_patch_type": payload.get("candidate_patch_type"),
+        "candidate_patch_feature": payload.get("candidate_patch_feature"),
+        "reason": payload.get("reason"),
+        "verify_next": payload.get("verify_next"),
+        "gap_to_q35_boundary": current_live.get("gap_to_q35_boundary"),
+        "dominant_neighbor_bucket": exact_live_lane.get("dominant_neighbor_bucket"),
+        "dominant_neighbor_rows": exact_live_lane.get("dominant_neighbor_rows"),
+        "near_boundary_rows": exact_live_lane.get("near_boundary_rows"),
+        "candidate_patch": candidate_patch or None,
+        "artifact_context_freshness_verdict": artifact_context_freshness.get("verdict"),
+        "artifact_context_freshness_mismatched_fields": artifact_context_freshness.get("mismatched_fields") or [],
+        "reference_mismatched_fields": artifact_context_freshness.get("reference_mismatched_fields") or [],
+        "reference_artifact_warning": artifact_context_freshness.get("reference_artifact_warning"),
+    }
+
+
+def _load_q35_scaling_audit_summary(current_structure_bucket: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    if not current_structure_bucket or "q35" not in str(current_structure_bucket):
+        return None
+    if not _Q35_SCALING_AUDIT_PATH.exists():
+        return None
+    try:
+        payload = json.loads(_Q35_SCALING_AUDIT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    applicability = payload.get("scope_applicability") if isinstance(payload.get("scope_applicability"), dict) else {}
+    if not applicability.get("active_for_current_live_row"):
+        return None
+
+    audit_bucket = (
+        applicability.get("current_structure_bucket")
+        or ((payload.get("current_live") or {}).get("structure_bucket"))
+        or current_structure_bucket
+    )
+    if audit_bucket and str(audit_bucket) != str(current_structure_bucket):
+        return None
+
+    segmented_calibration = payload.get("segmented_calibration") if isinstance(payload.get("segmented_calibration"), dict) else {}
+    deployment_grade = payload.get("deployment_grade_component_experiment") if isinstance(payload.get("deployment_grade_component_experiment"), dict) else {}
+    redesign = payload.get("base_stack_redesign_experiment") if isinstance(payload.get("base_stack_redesign_experiment"), dict) else {}
+    recommended_mode = segmented_calibration.get("recommended_mode")
+    next_patch_target = deployment_grade.get("next_patch_target")
+    root_cause_action = recommended_mode or ("base_stack_redesign" if redesign.get("verdict") else None)
+    return {
+        "generated_at": payload.get("generated_at"),
+        "current_live_structure_bucket": audit_bucket or current_structure_bucket,
+        "target_structure_bucket": applicability.get("target_structure_bucket"),
+        "scope_applicability_status": applicability.get("status"),
+        "overall_verdict": payload.get("overall_verdict"),
+        "verdict": payload.get("overall_verdict"),
+        "verdict_reason": payload.get("verdict_reason"),
+        "reason": payload.get("recommended_action") or payload.get("verdict_reason"),
+        "recommended_action": payload.get("recommended_action"),
+        "segmented_calibration_status": segmented_calibration.get("status"),
+        "recommended_mode": recommended_mode,
+        "candidate_patch_type": root_cause_action,
+        "candidate_patch_feature": next_patch_target,
+        "runtime_contract_status": segmented_calibration.get("runtime_contract_status"),
+        "redesign_verdict": redesign.get("verdict"),
+        "runtime_remaining_gap_to_floor": deployment_grade.get("runtime_remaining_gap_to_floor"),
+        "remaining_gap_to_floor": deployment_grade.get("runtime_remaining_gap_to_floor"),
+        "next_patch_target": next_patch_target,
+        "verify_next": payload.get("verify_next") or deployment_grade.get("verify_next") or redesign.get("verify_next"),
+        "q35_discriminative_redesign_applied": deployment_grade.get("q35_discriminative_redesign_applied"),
+    }
+
+
+def _enrich_confidence_with_q35_scaling_audit(result: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return result
+
+    blocker_details = result.get("deployment_blocker_details") if isinstance(result.get("deployment_blocker_details"), dict) else {}
+    current_structure_bucket = (
+        result.get("current_live_structure_bucket")
+        or result.get("decision_quality_live_structure_bucket")
+        or blocker_details.get("current_live_structure_bucket")
+        or result.get("structure_bucket")
+    )
+    q35_summary = _load_q35_scaling_audit_summary(
+        str(current_structure_bucket) if current_structure_bucket is not None else None
+    )
+    if not q35_summary:
+        return result
+
+    enriched = dict(result)
+    details = dict(blocker_details)
+    details["q35_scaling_audit"] = q35_summary
+    enriched["deployment_blocker_details"] = details
+    enriched["q35_scaling_audit"] = q35_summary
+    enriched["q35_overall_verdict"] = q35_summary.get("overall_verdict")
+    enriched["q35_redesign_verdict"] = q35_summary.get("redesign_verdict")
+    enriched["q35_runtime_remaining_gap_to_floor"] = q35_summary.get("runtime_remaining_gap_to_floor")
+    enriched["q35_recommended_mode"] = q35_summary.get("recommended_mode")
+    enriched["q35_recommended_action"] = q35_summary.get("recommended_action")
+    enriched["q35_next_patch_target"] = q35_summary.get("next_patch_target")
+    if not enriched.get("current_bucket_root_cause"):
+        enriched["current_bucket_root_cause"] = q35_summary
+    return enriched
+
+
+def _enrich_confidence_with_q15_bucket_root_cause(result: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return result
+
+    blocker_details = result.get("deployment_blocker_details") if isinstance(result.get("deployment_blocker_details"), dict) else {}
+    current_structure_bucket = (
+        result.get("current_live_structure_bucket")
+        or result.get("decision_quality_live_structure_bucket")
+        or blocker_details.get("current_live_structure_bucket")
+        or result.get("structure_bucket")
+    )
+    root_cause_summary = _load_q15_bucket_root_cause_summary(
+        str(current_structure_bucket) if current_structure_bucket is not None else None
+    )
+    if not root_cause_summary:
+        return result
+
+    enriched = dict(result)
+    details = dict(blocker_details)
+    details["q15_bucket_root_cause"] = root_cause_summary
+    if not details.get("current_bucket_root_cause"):
+        details["current_bucket_root_cause"] = root_cause_summary
+    enriched["deployment_blocker_details"] = details
+    enriched["q15_bucket_root_cause"] = root_cause_summary
+    if not enriched.get("current_bucket_root_cause"):
+        enriched["current_bucket_root_cause"] = root_cause_summary
     return enriched
 
 
@@ -1025,8 +1259,8 @@ def _build_execution_surface_contract() -> Dict[str, Any]:
             "name": "signal_banner",
             "role": "shortcut-only",
             "status": "not-upgraded",
-            "message": "SignalBanner 目前只提供快捷下單 / 自動交易切換；完整 Execution 狀態、Guardrail context 與 stale governance 必須回 Dashboard 檢查。",
-            "upgrade_prerequisite": "必須先完整消費 /api/status 的 ticking_state、stale governance、guardrail context，才能升級第二 execution route。",
+            "message": "快捷面板目前只提供受阻塞點保護的下單入口 / 自動交易切換；完整執行狀態、保護欄脈絡與治理新鮮度必須回執行狀態頁檢查。",
+            "upgrade_prerequisite": "必須先完整消費 /api/status 的監控跳動狀態、治理新鮮度與保護欄脈絡，才能升級第二執行路由。",
         },
         "readiness_scope": "runtime_governance_visibility_only",
         "live_ready": False,
@@ -1148,6 +1382,35 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
                 "需檢查 runtime current-live row / support bucket 是否切換。"
             )
 
+    recommended_patch_summary = spillover_patch_summary if isinstance(spillover_patch_summary, dict) else None
+    recommended_patch_profile = payload.get("recommended_patch_profile")
+    if recommended_patch_profile is None and recommended_patch_summary is not None:
+        recommended_patch_profile = recommended_patch_summary.get("recommended_profile")
+    recommended_patch_status = payload.get("recommended_patch_status")
+    if recommended_patch_status is None and recommended_patch_summary is not None:
+        recommended_patch_status = recommended_patch_summary.get("status")
+    recommended_patch_reference_scope = payload.get("recommended_patch_reference_scope")
+    if recommended_patch_reference_scope is None and recommended_patch_summary is not None:
+        recommended_patch_reference_scope = recommended_patch_summary.get("reference_patch_scope")
+    recommended_patch_reference_source = payload.get("recommended_patch_reference_source")
+    if recommended_patch_reference_source is None and recommended_patch_summary is not None:
+        recommended_patch_reference_source = recommended_patch_summary.get("reference_source")
+    recommended_patch_reason = payload.get("recommended_patch_reason")
+    if recommended_patch_reason is None and recommended_patch_summary is not None:
+        recommended_patch_reason = recommended_patch_summary.get("reason")
+    recommended_patch_support_route = payload.get("recommended_patch_support_route")
+    if recommended_patch_support_route is None and recommended_patch_summary is not None:
+        recommended_patch_support_route = recommended_patch_summary.get("support_route_verdict")
+    recommended_patch_gap_to_minimum = payload.get("recommended_patch_gap_to_minimum")
+    if recommended_patch_gap_to_minimum is None and recommended_patch_summary is not None:
+        recommended_patch_gap_to_minimum = recommended_patch_summary.get("gap_to_minimum")
+    recommended_patch_current_rows = payload.get("recommended_patch_current_live_structure_bucket_rows")
+    if recommended_patch_current_rows is None and recommended_patch_summary is not None:
+        recommended_patch_current_rows = recommended_patch_summary.get("current_live_structure_bucket_rows")
+    recommended_patch_minimum_rows = payload.get("recommended_patch_minimum_support_rows")
+    if recommended_patch_minimum_rows is None and recommended_patch_summary is not None:
+        recommended_patch_minimum_rows = recommended_patch_summary.get("minimum_support_rows")
+
     breaker_release = blocker_details.get("release_condition") if isinstance(blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = blocker_details.get("recent_window") if isinstance(blocker_details.get("recent_window"), dict) else {}
     release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
@@ -1235,7 +1498,26 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "calibration_exact_lane_alerts": calibration_exact_lane_alerts,
         "support_alignment_status": support_alignment_status,
         "support_alignment_summary": support_alignment_summary,
+        "recommended_patch": recommended_patch_summary,
+        "recommended_patch_profile": recommended_patch_profile,
+        "recommended_patch_status": recommended_patch_status,
+        "recommended_patch_reference_scope": recommended_patch_reference_scope,
+        "recommended_patch_reference_source": recommended_patch_reference_source,
+        "recommended_patch_reason": recommended_patch_reason,
+        "recommended_patch_support_route": recommended_patch_support_route,
+        "recommended_patch_gap_to_minimum": recommended_patch_gap_to_minimum,
+        "recommended_patch_current_live_structure_bucket_rows": recommended_patch_current_rows,
+        "recommended_patch_minimum_support_rows": recommended_patch_minimum_rows,
         "sleeve_routing": sleeve_routing,
+        "q35_scaling_audit": payload.get("q35_scaling_audit"),
+        "q35_overall_verdict": payload.get("q35_overall_verdict"),
+        "q35_redesign_verdict": payload.get("q35_redesign_verdict"),
+        "q35_runtime_remaining_gap_to_floor": payload.get("q35_runtime_remaining_gap_to_floor"),
+        "q35_recommended_mode": payload.get("q35_recommended_mode"),
+        "q35_recommended_action": payload.get("q35_recommended_action"),
+        "q35_next_patch_target": payload.get("q35_next_patch_target"),
+        "q15_bucket_root_cause": payload.get("q15_bucket_root_cause"),
+        "current_bucket_root_cause": payload.get("current_bucket_root_cause") or payload.get("q15_bucket_root_cause"),
         "decision_quality_recent_pathology_applied": payload.get("decision_quality_recent_pathology_applied"),
         "decision_quality_recent_pathology_reason": payload.get("decision_quality_recent_pathology_reason"),
         "decision_quality_recent_pathology_window": payload.get("decision_quality_recent_pathology_window"),
@@ -2605,7 +2887,9 @@ async def get_confidence_prediction() -> Dict[str, Any]:
         result = predictor_module.predict(session, predictor, regime_models)
         result = result if isinstance(result, dict) else {}
         result = _enrich_confidence_with_q15_support_audit(dict(result))
-        return _overlay_confidence_with_live_predict_probe(result)
+        result = _overlay_confidence_with_live_predict_probe(result)
+        result = _enrich_confidence_with_q35_scaling_audit(dict(result))
+        return _enrich_confidence_with_q15_bucket_root_cause(dict(result))
     finally:
         close = getattr(session, "close", None)
         if callable(close):
@@ -2633,12 +2917,15 @@ async def api_status() -> Dict[str, Any]:
     maybe_confidence_payload = get_confidence_prediction()
     confidence_payload = await maybe_confidence_payload if hasattr(maybe_confidence_payload, "__await__") else maybe_confidence_payload
     live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload)
+    recent_canonical_drift = _load_recent_canonical_drift_summary()
     execution_summary["live_runtime_truth"] = live_runtime_truth
+    execution_summary["recent_canonical_drift"] = recent_canonical_drift
 
     execution_reconciliation = _build_execution_reconciliation_summary(db, symbol, account_snapshot, execution_summary)
     metadata_smoke = _ensure_execution_metadata_smoke_governance(cfg, symbol)
     execution_surface_contract = _build_execution_surface_contract()
     execution_surface_contract["live_runtime_truth"] = live_runtime_truth
+    execution_surface_contract["recent_canonical_drift"] = recent_canonical_drift
     operator_message = execution_surface_contract.get("operator_message") or ""
     if live_runtime_truth.get("runtime_closure_state") == "capacity_opened_signal_hold":
         operator_message = f"{operator_message} 目前 runtime 已開出 1 層 deployment capacity，但 signal 仍是 HOLD。".strip()
@@ -2656,6 +2943,7 @@ async def api_status() -> Dict[str, Any]:
         "execution_reconciliation": execution_reconciliation,
         "execution_metadata_smoke": metadata_smoke,
         "execution_surface_contract": execution_surface_contract,
+        "recent_canonical_drift": recent_canonical_drift,
     }
 
 
@@ -3093,6 +3381,10 @@ def _normalize_model_leaderboard_payload(payload: Dict[str, Any]) -> Dict[str, A
     resolved_warning = leaderboard_warning or normalized.get("leaderboard_warning") or normalized.get("data_warning")
     normalized["leaderboard_warning"] = resolved_warning
     normalized["data_warning"] = resolved_warning
+    # Background refresh now skips expensive target-candidate rescoring. Normalize any
+    # stale cached/snapshotted payloads to the same contract so live API consumers do
+    # not keep seeing legacy candidate rows until the next full rebuild.
+    normalized["target_candidates"] = []
     return normalized
 
 
@@ -3137,7 +3429,7 @@ def _summarize_target_candidates(
         target_df = data_df[data_df[target_col].notna()].copy()
         if target_df.empty:
             continue
-        leaderboard = ModelLeaderboard(target_df, target_col=target_col)
+        leaderboard = ModelLeaderboard(target_df, target_col=target_col, background_refresh=True)
         refresh_models = list(getattr(leaderboard, "REFRESH_MODELS", getattr(leaderboard, "SUPPORTED_MODELS", []) or []))
         scores = leaderboard.run_all_models(refresh_models)
         serialized = _serialize_model_scores(scores, leaderboard)
@@ -3312,6 +3604,235 @@ def _load_live_predict_probe_payload(
 
 
 
+def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    artifact_path = path or _RECENT_DRIFT_REPORT_PATH
+    try:
+        if not artifact_path.exists():
+            return None
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Failed to load recent canonical drift report: %s", exc)
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    def _has_recent_drift_window_truth(window_payload: Any) -> bool:
+        if not isinstance(window_payload, dict):
+            return False
+        summary = window_payload.get("summary") if isinstance(window_payload.get("summary"), dict) else {}
+        if window_payload.get("window") not in {None, ""}:
+            return True
+        alerts = window_payload.get("alerts")
+        if isinstance(alerts, list) and alerts:
+            return True
+        return any(
+            summary.get(key) is not None
+            for key in ("rows", "win_rate", "drift_interpretation", "dominant_regime")
+        )
+
+    def _compact_feature_names(items: Any, limit: int = 3) -> List[str]:
+        if not isinstance(items, list):
+            return []
+        names: List[str] = []
+        for item in items:
+            feature = None
+            if isinstance(item, dict):
+                feature = item.get("feature")
+            elif isinstance(item, str):
+                feature = item
+            if isinstance(feature, str) and feature and feature not in names:
+                names.append(feature)
+            if len(names) >= limit:
+                break
+        return names
+
+    def _compact_target_streak(streak: Any) -> Any:
+        if not isinstance(streak, dict):
+            return streak
+        return {
+            "target": streak.get("target"),
+            "count": streak.get("count"),
+            "start_timestamp": streak.get("start_timestamp"),
+            "end_timestamp": streak.get("end_timestamp"),
+        }
+
+    def _normalize_recent_drift_window(window_payload: Any) -> Optional[Dict[str, Any]]:
+        window = window_payload if isinstance(window_payload, dict) else {}
+        summary = window.get("summary") if isinstance(window.get("summary"), dict) else {}
+        quality = summary.get("quality_metrics") if isinstance(summary.get("quality_metrics"), dict) else {}
+        feature_diag = summary.get("feature_diagnostics") if isinstance(summary.get("feature_diagnostics"), dict) else {}
+        target_path = summary.get("target_path_diagnostics") if isinstance(summary.get("target_path_diagnostics"), dict) else {}
+        reference = summary.get("reference_window_comparison") if isinstance(summary.get("reference_window_comparison"), dict) else {}
+        reference_quality = reference.get("reference_quality") if isinstance(reference.get("reference_quality"), dict) else {}
+
+        if not window and not summary:
+            return None
+
+        return {
+            "window": window.get("window"),
+            "alerts": window.get("alerts") if isinstance(window.get("alerts"), list) else [],
+            "summary": {
+                "rows": summary.get("rows"),
+                "win_rate": summary.get("win_rate"),
+                "drift_interpretation": summary.get("drift_interpretation"),
+                "dominant_regime": summary.get("dominant_regime"),
+                "dominant_regime_share": summary.get("dominant_regime_share"),
+                "quality_metrics": {
+                    "avg_simulated_pnl": quality.get("avg_simulated_pnl"),
+                    "avg_simulated_quality": quality.get("avg_simulated_quality"),
+                    "avg_drawdown_penalty": quality.get("avg_drawdown_penalty"),
+                    "spot_long_win_rate": quality.get("spot_long_win_rate"),
+                },
+                "feature_diagnostics": {
+                    "feature_count": feature_diag.get("feature_count"),
+                    "low_variance_count": feature_diag.get("low_variance_count"),
+                    "frozen_count": feature_diag.get("frozen_count"),
+                    "compressed_count": feature_diag.get("compressed_count"),
+                    "expected_static_count": feature_diag.get("expected_static_count"),
+                    "expected_compressed_count": feature_diag.get("expected_compressed_count"),
+                    "overlay_only_count": feature_diag.get("overlay_only_count"),
+                    "unexpected_frozen_count": feature_diag.get("unexpected_frozen_count"),
+                    "unexpected_compressed_count": feature_diag.get("unexpected_compressed_count"),
+                    "null_heavy_count": feature_diag.get("null_heavy_count"),
+                    "low_distinct_count": feature_diag.get("low_distinct_count"),
+                    "low_distinct_features": _compact_feature_names(feature_diag.get("low_distinct_examples")),
+                    "expected_compressed_features": _compact_feature_names(feature_diag.get("expected_compressed_examples")),
+                    "unexpected_frozen_features": _compact_feature_names(feature_diag.get("unexpected_frozen_examples")),
+                    "unexpected_compressed_features": _compact_feature_names(feature_diag.get("unexpected_compressed_examples")),
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": _compact_target_streak(target_path.get("tail_target_streak")),
+                    "longest_target_streak": _compact_target_streak(target_path.get("longest_target_streak")),
+                    "longest_zero_target_streak": _compact_target_streak(target_path.get("longest_zero_target_streak")),
+                    "longest_one_target_streak": _compact_target_streak(target_path.get("longest_one_target_streak")),
+                },
+                "reference_window_comparison": {
+                    "prev_win_rate": reference.get("prev_win_rate", reference_quality.get("win_rate")),
+                    "prev_quality": reference.get("prev_quality", reference_quality.get("avg_simulated_quality")),
+                    "prev_pnl": reference.get("prev_pnl", reference_quality.get("avg_simulated_pnl")),
+                    "win_rate_delta": reference.get("win_rate_delta", reference.get("win_rate_delta_vs_reference")),
+                    "quality_delta": reference.get("quality_delta", reference.get("avg_simulated_quality_delta_vs_reference")),
+                    "pnl_delta": reference.get("pnl_delta", reference.get("avg_simulated_pnl_delta_vs_reference")),
+                    "top_mean_shift_features": reference.get("top_mean_shift_features") if isinstance(reference.get("top_mean_shift_features"), list) else [],
+                    "new_unexpected_frozen_features": reference.get("new_unexpected_frozen_features") if isinstance(reference.get("new_unexpected_frozen_features"), list) else [],
+                    "new_unexpected_compressed_features": reference.get("new_unexpected_compressed_features") if isinstance(reference.get("new_unexpected_compressed_features"), list) else [],
+                },
+            },
+        }
+
+    def _normalize_recent_distribution_issue_fallback() -> Optional[Dict[str, Any]]:
+        try:
+            if not _ISSUES_JSON_PATH.exists():
+                return None
+            issues_payload = json.loads(_ISSUES_JSON_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        if not isinstance(issues_payload, dict):
+            return None
+        issues = issues_payload.get("issues")
+        if not isinstance(issues, list):
+            return None
+
+        issue_summary: Optional[Dict[str, Any]] = None
+        for issue in issues:
+            if not isinstance(issue, dict):
+                continue
+            if issue.get("id") != "P0_recent_distribution_pathology":
+                continue
+            summary = issue.get("summary")
+            if isinstance(summary, dict):
+                issue_summary = summary
+                break
+        if not issue_summary:
+            return None
+
+        issue_window = issue_summary.get("window")
+        issue_alerts = issue_summary.get("alerts") if isinstance(issue_summary.get("alerts"), list) else []
+
+        windows = payload.get("windows") if isinstance(payload.get("windows"), dict) else {}
+        report_window_summary = windows.get(str(issue_window)) if issue_window is not None else None
+        if isinstance(report_window_summary, dict) and report_window_summary:
+            report_alerts = report_window_summary.get("alerts") if isinstance(report_window_summary.get("alerts"), list) else issue_alerts
+            return _normalize_recent_drift_window(
+                {
+                    "window": issue_window,
+                    "alerts": report_alerts,
+                    "summary": report_window_summary,
+                }
+            )
+
+        fallback_reference_features = issue_summary.get("top_shift_features")
+        if not isinstance(fallback_reference_features, list):
+            fallback_reference_features = []
+        fallback_target_path: Dict[str, Any] = {}
+        fallback_tail = issue_summary.get("tail_streak")
+        if isinstance(fallback_tail, str) and "x" in fallback_tail:
+            count_text, _, target_text = fallback_tail.partition("x")
+            try:
+                fallback_target_path = {
+                    "tail_target_streak": {
+                        "count": int(count_text),
+                        "target": target_text,
+                    }
+                }
+            except ValueError:
+                fallback_target_path = {}
+
+        return _normalize_recent_drift_window(
+            {
+                "window": issue_window,
+                "alerts": issue_alerts,
+                "summary": {
+                    "rows": issue_summary.get("rows", issue_window),
+                    "win_rate": issue_summary.get("win_rate"),
+                    "drift_interpretation": issue_summary.get("interpretation"),
+                    "dominant_regime": issue_summary.get("dominant_regime"),
+                    "dominant_regime_share": issue_summary.get("dominant_regime_share"),
+                    "quality_metrics": {
+                        "avg_simulated_pnl": issue_summary.get("avg_pnl"),
+                        "avg_simulated_quality": issue_summary.get("avg_quality"),
+                        "avg_drawdown_penalty": issue_summary.get("avg_drawdown_penalty"),
+                        "spot_long_win_rate": issue_summary.get("spot_long_win_rate"),
+                    },
+                    "target_path_diagnostics": fallback_target_path,
+                    "reference_window_comparison": {
+                        "prev_win_rate": issue_summary.get("prev_win_rate"),
+                        "prev_quality": issue_summary.get("prev_quality"),
+                        "prev_pnl": issue_summary.get("prev_pnl"),
+                        "win_rate_delta": issue_summary.get("delta_vs_prev"),
+                        "top_mean_shift_features": [
+                            {"feature": feature}
+                            for feature in fallback_reference_features
+                            if isinstance(feature, str) and feature
+                        ],
+                    },
+                },
+            }
+        )
+
+    primary = _normalize_recent_drift_window(payload.get("primary_window"))
+    blocking = _normalize_recent_drift_window(payload.get("blocking_window"))
+    if not _has_recent_drift_window_truth(blocking):
+        issue_fallback = _normalize_recent_distribution_issue_fallback()
+        if issue_fallback is not None:
+            blocking = issue_fallback
+    if primary is None and blocking is None:
+        return None
+
+    result = {
+        "generated_at": payload.get("generated_at"),
+        "source_artifact": str(artifact_path),
+        "target_col": payload.get("target_col"),
+        "horizon_minutes": payload.get("horizon_minutes"),
+    }
+    if primary is not None:
+        result["primary_window"] = primary
+    if blocking is not None:
+        result["blocking_window"] = blocking
+    return result
+
+
+
 def _overlay_confidence_with_live_predict_probe(
     payload: Dict[str, Any],
     path: Optional[Path] = None,
@@ -3374,6 +3895,11 @@ def _load_leaderboard_live_truth_overlay(path: Optional[Path] = None) -> Optiona
     support_progress = payload.get("support_progress") if isinstance(payload.get("support_progress"), dict) else {}
     if not support_progress:
         support_progress = blocker_details.get("support_progress") if isinstance(blocker_details.get("support_progress"), dict) else {}
+    support_identity = (
+        payload.get("support_identity")
+        or blocker_details.get("support_identity")
+        or support_progress.get("support_identity")
+    )
 
     current_bucket = (
         payload.get("current_live_structure_bucket")
@@ -3414,6 +3940,7 @@ def _load_leaderboard_live_truth_overlay(path: Optional[Path] = None) -> Optiona
         "support_route_verdict": payload.get("support_route_verdict") or blocker_details.get("support_route_verdict"),
         "support_governance_route": payload.get("support_governance_route") or blocker_details.get("support_governance_route"),
         "support_progress": support_progress or None,
+        "support_identity": support_identity if isinstance(support_identity, dict) else None,
         "live_regime_gate": payload.get("regime_gate"),
         "live_entry_quality_label": payload.get("entry_quality_label"),
         "live_execution_guardrail_reason": payload.get("execution_guardrail_reason") or payload.get("allowed_layers_reason"),
@@ -3441,6 +3968,7 @@ def _overlay_leaderboard_governance_live_truth(
         "support_route_verdict",
         "support_governance_route",
         "support_progress",
+        "support_identity",
         "live_regime_gate",
         "live_entry_quality_label",
         "live_execution_guardrail_reason",
@@ -3460,6 +3988,8 @@ def _overlay_leaderboard_governance_live_truth(
         governance_contract["live_current_structure_bucket_gap_to_minimum"] = live_truth.get("live_current_structure_bucket_gap_to_minimum")
     if isinstance(live_truth.get("support_progress"), dict):
         governance_contract["support_progress"] = live_truth.get("support_progress")
+    if isinstance(live_truth.get("support_identity"), dict):
+        governance_contract["support_identity"] = live_truth.get("support_identity")
     if governance_contract:
         merged["governance_contract"] = governance_contract
 
@@ -3519,7 +4049,7 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
         }
 
     target_col = "simulated_pyramid_win" if "simulated_pyramid_win" in data_df.columns else "label_spot_long_win"
-    leaderboard = ModelLeaderboard(data_df, target_col=target_col)
+    leaderboard = ModelLeaderboard(data_df, target_col=target_col, background_refresh=True)
     refresh_models = list(getattr(leaderboard, "REFRESH_MODELS", getattr(leaderboard, "SUPPORTED_MODELS", []) or []))
     scores = leaderboard.run_all_models(refresh_models)
     serialized_rows = _serialize_model_scores(scores, leaderboard)
@@ -3560,7 +4090,7 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
         "storage": {"canonical_store": f"sqlite:///{db_path}"},
         "overfit_gap_threshold": _OVERFIT_GAP_THRESHOLD,
         "overfit_accuracy_threshold": _OVERFIT_ACCURACY_THRESHOLD,
-        "target_candidates": _summarize_target_candidates(data_df, _OVERFIT_GAP_THRESHOLD, _OVERFIT_ACCURACY_THRESHOLD),
+        "target_candidates": [],
         "evaluation_fold_window": "latest_bounded_walk_forward",
         "evaluation_max_folds": getattr(leaderboard, "EVALUATION_MAX_FOLDS", None),
         "data_warning": leaderboard_warning,
@@ -4633,41 +5163,28 @@ def _select_strategy_chart_payload(
     equity_curve: List[Dict[str, Any]],
     trades: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    if not equity_curve:
-        return {
-            "equity_curve": [],
-            "chart_context": _build_strategy_chart_context(timestamps),
-        }
+    """Build chart payload from the full executed backtest window.
 
-    trade_starts = [
-        _parse_backtest_timestamp(trade.get("entry_timestamp") or trade.get("timestamp"))
-        for trade in trades
-    ]
-    trade_ends = [
-        _parse_backtest_timestamp(trade.get("timestamp") or trade.get("entry_timestamp"))
-        for trade in trades
-    ]
-    trade_starts = [value for value in trade_starts if value is not None]
-    trade_ends = [value for value in trade_ends if value is not None]
-    if trade_starts and trade_ends:
-        start_dt = min(trade_starts)
-        end_dt = max(trade_ends)
-        selected_curve = []
-        for point in equity_curve:
-            point_dt = _parse_backtest_timestamp(point.get("timestamp"))
-            if point_dt is None:
-                continue
-            if start_dt <= point_dt <= end_dt:
-                selected_curve.append(point)
-        if not selected_curve:
-            selected_curve = list(equity_curve[-300:])
-    else:
-        selected_curve = list(equity_curve[-300:])
+    Earlier versions cropped the persisted equity curve / chart context down to the
+    first→last trade window. That made a real 2-year backtest *look* like a 1-year
+    run whenever the strategy stayed flat for a long warm-up period before its first
+    trade. Keep the full window so operators can distinguish:
+    - no trades yet / flat equity in the first segment
+    - versus a genuinely shorter backtest range.
 
-    selected_timestamps = [str(point.get("timestamp")) for point in selected_curve if point.get("timestamp")]
+    Productization follow-up: keeping the *entire* 2-year 4h equity curve in every
+    Strategy Lab payload bloats `/api/strategies/{name}` into multi-megabyte
+    responses. The chart itself already renders a bounded window (`chart_context`
+    max 1000 points), so return a downsampled equity curve while preserving the
+    full time span in `chart_context.start/end`.
+    """
+    full_timestamps = [str(point.get("timestamp")) for point in equity_curve if point.get("timestamp")]
+    chart_timestamps = timestamps or full_timestamps
+    chart_context = _build_strategy_chart_context(chart_timestamps)
+    chart_limit = int(chart_context.get("limit") or 1000)
     return {
-        "equity_curve": selected_curve,
-        "chart_context": _build_strategy_chart_context(selected_timestamps or timestamps),
+        "equity_curve": _downsample_strategy_series_points(equity_curve, limit=chart_limit),
+        "chart_context": chart_context,
     }
 
 
@@ -4807,6 +5324,45 @@ def _build_strategy_score_series(
     return points
 
 
+def _align_strategy_results_to_backtest_window(last_results: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(last_results, dict):
+        return last_results
+
+    backtest_range = last_results.get("backtest_range") if isinstance(last_results.get("backtest_range"), dict) else {}
+    effective = backtest_range.get("effective") if isinstance(backtest_range.get("effective"), dict) else {}
+    requested = backtest_range.get("requested") if isinstance(backtest_range.get("requested"), dict) else {}
+    display_start = effective.get("start") or requested.get("start")
+    display_end = effective.get("end") or requested.get("end")
+
+    if display_start or display_end:
+        chart_context = dict(last_results.get("chart_context") or {})
+        if chart_context:
+            current_start = _parse_backtest_timestamp(chart_context.get("start"))
+            current_end = _parse_backtest_timestamp(chart_context.get("end"))
+            target_start = _parse_backtest_timestamp(display_start) if display_start else None
+            target_end = _parse_backtest_timestamp(display_end) if display_end else None
+            if target_start and (current_start is None or target_start < current_start):
+                chart_context["start"] = display_start
+            if target_end and (current_end is None or target_end > current_end):
+                chart_context["end"] = display_end
+            last_results["chart_context"] = chart_context
+
+        equity_curve = last_results.get("equity_curve")
+        if isinstance(equity_curve, list) and equity_curve and display_start:
+            first_point = equity_curve[0] if isinstance(equity_curve[0], dict) else None
+            first_ts = _parse_backtest_timestamp(first_point.get("timestamp")) if first_point else None
+            target_start = _parse_backtest_timestamp(display_start)
+            if first_point and target_start and first_ts and target_start < first_ts:
+                prefix_point = dict(first_point)
+                prefix_point["timestamp"] = display_start
+                prefix_point["position_pct"] = 0.0
+                prefix_point["position_layers"] = 0
+                last_results["equity_curve"] = [prefix_point, *equity_curve]
+
+    return last_results
+
+
+
 def _decorate_strategy_entry(entry: Dict[str, Any], db=None) -> Dict[str, Any]:
     enriched = dict(entry)
     last_results = dict(entry.get("last_results") or {})
@@ -4848,6 +5404,7 @@ def _decorate_strategy_entry(entry: Dict[str, Any], db=None) -> Dict[str, Any]:
         effective_scorecard[key] = last_results.get(key)
 
     last_results["sort_semantics"] = STRATEGY_LB_SORT_SEMANTICS_V2
+    last_results = _align_strategy_results_to_backtest_window(last_results)
     last_results = _normalize_result_timestamps(last_results)
     enriched["last_results"] = last_results or None
     enriched["decision_contract"] = {
@@ -4889,20 +5446,37 @@ def _ensure_auto_generated_strategy_leaderboard(force: bool = False) -> Dict[str
 
 def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None) -> Dict[str, Any]:
     from backtesting.strategy_lab import (
-        derive_editable_strategy_name,
+        AUTO_STRATEGY_NAME_PREFIX,
+        MANUAL_COPY_STRATEGY_PREFIX,
+        _is_auto_leaderboard_strategy,
+        load_strategy,
         run_hybrid_backtest,
         run_rule_backtest,
         save_strategy,
     )
     from scripts import backfill_backtest_range as backfill_module
 
-    name = body.get("name", "unnamed_strategy")
+    name = str(body.get("name", "unnamed_strategy") or "").strip()
+    source_strategy_name = str(body.get("source_strategy_name") or "").strip()
     stype = body.get("type", "rule_based")
     params = body.get("params", {}) if isinstance(body.get("params"), dict) else {}
     initial = float(body.get("initial_capital", 10000.0) or 10000.0)
     auto_backfill = bool(body.get("auto_backfill", params.get("auto_backfill", False)))
     allow_internal_overwrite = bool(body.get("allow_internal_overwrite"))
-    save_name = name if allow_internal_overwrite else derive_editable_strategy_name(name)
+    save_name = name
+    if not allow_internal_overwrite:
+        if not save_name:
+            return {"error": "請先輸入策略名稱。"}
+        source_is_system_generated = _is_auto_leaderboard_strategy(source_strategy_name) if source_strategy_name else False
+        if source_is_system_generated and (
+            save_name == source_strategy_name
+            or save_name.startswith(AUTO_STRATEGY_NAME_PREFIX)
+            or save_name.startswith(MANUAL_COPY_STRATEGY_PREFIX)
+        ):
+            return {"error": "系統生成策略不能直接儲存；請先輸入新的策略名稱。"}
+        existing = load_strategy(save_name)
+        if existing is not None and save_name != source_strategy_name:
+            return {"error": "策略名稱已存在；請使用唯一名稱。"}
     requested_range = body.get("backtest_range") if isinstance(body.get("backtest_range"), dict) else {}
     requested_start = requested_range.get("start")
     requested_end = requested_range.get("end")
@@ -5047,7 +5621,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
                 if model is None:
                     return {"error": f"{model_name} 目前不可用"}
                 confidence_map = {
-                    str(ts): float(conf)
+                    _strategy_confidence_lookup_key(ts): float(conf)
                     for ts, conf in zip(
                         train_df["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S").values,
                         lb._get_confidence(model, train_df[feature_cols].fillna(0).values, model_name),
@@ -5058,7 +5632,10 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
                         "confidence_map": confidence_map,
                         "updated_at": time.time(),
                     }
-            conf = [confidence_map.get(ts, max(0.0, min(1.0, 1.0 - b / 20.0))) for ts, b in zip(timestamps, bias50)]
+            conf = [
+                confidence_map.get(_strategy_confidence_lookup_key(ts), max(0.0, min(1.0, 1.0 - b / 20.0)))
+                for ts, b in zip(timestamps, bias50)
+            ]
             _set_strategy_job_progress(job_id, 58, f"Hybrid 模式：{model_name} 已就緒，正在執行回測。", stage_key="run_backtest")
             with ThreadPoolExecutor(max_workers=2) as executor:
                 score_future = executor.submit(
@@ -5103,7 +5680,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
         )
         chart_context = chart_payload.get("chart_context") or _build_strategy_chart_context(timestamps)
         selected_equity_curve = chart_payload.get("equity_curve") or []
-        recent_trades = list((result.trades or [])[-80:])
+        full_trades = list(result.trades or [])
         strat_def = {"type": stype, "params": params}
         with ThreadPoolExecutor(max_workers=3) as executor:
             benchmarks_future = executor.submit(
@@ -5149,7 +5726,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
             "regime_breakdown": _compute_regime_breakdown(result.trades, initial),
             "benchmarks": benchmarks,
             "equity_curve": selected_equity_curve,
-            "trades": recent_trades,
+            "trades": full_trades,
             "score_series": score_series[-300:] if score_series else [],
             "chart_context": chart_context,
             "run_at": datetime.utcnow().isoformat() + "Z",
@@ -5265,6 +5842,58 @@ _HEAVY_STRATEGY_RESULT_KEYS = {
     "score_series",
 }
 
+_STRATEGY_DETAIL_EQUITY_CURVE_LIMIT = 1000
+_STRATEGY_DETAIL_SCORE_SERIES_LIMIT = 300
+
+
+def _downsample_strategy_series_points(points: Any, *, limit: int) -> List[Dict[str, Any]]:
+    if not isinstance(points, list):
+        return []
+    normalized = [point for point in points if isinstance(point, dict)]
+    if limit <= 0 or len(normalized) <= limit:
+        return list(normalized)
+    if limit == 1:
+        return [normalized[-1]]
+
+    max_index = len(normalized) - 1
+    step = max_index / max(limit - 1, 1)
+    selected_indices = {0, max_index}
+    for slot in range(1, max(limit - 1, 1)):
+        selected_indices.add(min(max_index, int(round(slot * step))))
+    return [normalized[idx] for idx in sorted(selected_indices)]
+
+
+def _prepare_strategy_detail_last_results(last_results: Any) -> Dict[str, Any]:
+    if not isinstance(last_results, dict):
+        return {}
+
+    detail = dict(last_results)
+    chart_context = detail.get("chart_context")
+    chart_limit = _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT
+    if isinstance(chart_context, dict):
+        raw_limit = chart_context.get("limit")
+        try:
+            parsed_limit = int(raw_limit)
+        except (TypeError, ValueError):
+            parsed_limit = _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT
+        chart_limit = max(2, min(parsed_limit or _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT, _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT))
+        detail["chart_context"] = {
+            **chart_context,
+            "limit": chart_limit,
+        }
+
+    detail["equity_curve"] = _downsample_strategy_series_points(detail.get("equity_curve"), limit=chart_limit)
+    score_series = detail.get("score_series")
+    if isinstance(score_series, list):
+        detail["score_series"] = list(score_series[-_STRATEGY_DETAIL_SCORE_SERIES_LIMIT:])
+    return detail
+
+
+def _prepare_strategy_detail_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+    detail = dict(entry or {})
+    detail["last_results"] = _prepare_strategy_detail_last_results(entry.get("last_results"))
+    return detail
+
 
 def _compact_strategy_last_results(last_results: Any) -> Dict[str, Any]:
     if not isinstance(last_results, dict):
@@ -5286,6 +5915,45 @@ def _compact_strategy_leaderboard_entry(entry: Dict[str, Any]) -> Dict[str, Any]
     compact = dict(entry or {})
     compact["last_results"] = _compact_strategy_last_results(entry.get("last_results"))
     return compact
+
+
+
+def _dedupe_strategy_leaderboard_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    from backtesting.strategy_lab import AUTO_STRATEGY_NAME_PREFIX, strategy_definition_signature
+
+    deduped: List[Dict[str, Any]] = []
+    seen_signatures: set[str] = set()
+    for entry in entries:
+        metadata = entry.get("metadata") if isinstance(entry, dict) else {}
+        metadata = metadata if isinstance(metadata, dict) else {}
+        last_results = entry.get("last_results") if isinstance(entry, dict) else {}
+        last_results = last_results if isinstance(last_results, dict) else {}
+        definition = entry.get("definition") if isinstance(entry, dict) else {}
+        definition = definition if isinstance(definition, dict) else {}
+        definition_params = definition.get("params") if isinstance(definition.get("params"), dict) else {}
+        name = str((entry or {}).get("name") or "").strip()
+        model_name = str(definition_params.get("model_name") or metadata.get("model_name") or "")
+        is_auto = bool(metadata.get("source") == "auto_leaderboard") or name.startswith(AUTO_STRATEGY_NAME_PREFIX)
+        if is_auto:
+            signature = json.dumps({
+                "scope": "auto-result",
+                "type": definition.get("type"),
+                "roi": round(float(last_results.get("roi") or 0.0), 4),
+                "win_rate": round(float(last_results.get("win_rate") or 0.0), 4),
+                "total_trades": int(last_results.get("total_trades") or 0),
+                "profit_factor": round(float(last_results.get("profit_factor") or 0.0), 4),
+                "max_drawdown": round(float(last_results.get("max_drawdown") or 0.0), 4),
+            }, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        else:
+            if definition:
+                signature = strategy_definition_signature(definition)
+            else:
+                signature = f"name::{name}"
+        if signature in seen_signatures:
+            continue
+        seen_signatures.add(signature)
+        deduped.append(entry)
+    return deduped
 
 
 @lru_cache(maxsize=4)
@@ -5538,8 +6206,8 @@ async def api_klines(
 
 @router.get("/strategies/leaderboard")
 async def api_strategy_leaderboard() -> Dict[str, Any]:
-    """回傳策略排行榜；若 auto leaderboard 候選存在，優先顯示 auto 候選。"""
-    from backtesting.strategy_lab import AUTO_STRATEGY_NAME_PREFIX, load_all_strategies
+    """回傳策略排行榜；顯示所有非系統產生的策略，並保留 system-generated 列供比較。"""
+    from backtesting.strategy_lab import load_all_strategies
 
     _ensure_auto_generated_strategy_leaderboard()
     db = get_db()
@@ -5550,17 +6218,14 @@ async def api_strategy_leaderboard() -> Dict[str, Any]:
         if hasattr(db, "close"):
             db.close()
 
-    auto_candidates = [
-        entry for entry in strategies
-        if str(entry.get("name") or "").startswith(AUTO_STRATEGY_NAME_PREFIX)
-    ]
-    if auto_candidates:
-        strategies = auto_candidates
-    else:
-        visible = [entry for entry in strategies if not bool(entry.get("is_internal"))]
+    visible = [entry for entry in strategies if not bool(entry.get("is_internal"))]
+    auto_rows = [entry for entry in strategies if bool((entry.get("metadata") or {}).get("source") == "auto_leaderboard")]
+    strategies = visible + [entry for entry in auto_rows if entry not in visible]
+    if not strategies:
         strategies = visible or strategies
 
     strategies.sort(key=_strategy_leaderboard_sort_key, reverse=True)
+    strategies = _dedupe_strategy_leaderboard_entries(strategies)
     compact_strategies = [_compact_strategy_leaderboard_entry(entry) for entry in strategies]
     snapshot_history = _load_recent_strategy_leaderboard_snapshots(limit=12, db_path=DB_PATH)
     rank_deltas = _compute_strategy_rank_deltas_against_latest_snapshot(compact_strategies, db_path=DB_PATH)
@@ -5614,7 +6279,7 @@ async def api_get_strategy(name: str) -> Dict[str, Any]:
 
     db = get_db()
     try:
-        return _decorate_strategy_entry(strategy, db=db)
+        return _prepare_strategy_detail_entry(_decorate_strategy_entry(strategy, db=db))
     finally:
         if hasattr(db, "close"):
             db.close()
@@ -5623,6 +6288,96 @@ async def api_get_strategy(name: str) -> Dict[str, Any]:
 @router.get("/strategy_data_range")
 async def api_strategy_data_range() -> Dict[str, Any]:
     return _strategy_data_range_summary(_load_strategy_data())
+
+
+_NO_DEPLOY_RUNTIME_CLOSURE_STATES = {
+    "circuit_breaker_active",
+    "decision_quality_below_trade_floor",
+    "patch_active_but_execution_blocked",
+    "support_closed_but_trade_floor_blocked",
+    "unsupported_exact_live_structure_bucket",
+    "under_minimum_exact_live_structure_bucket",
+    "exact_bucket_unsupported_block",
+    "exact_live_lane_toxic_sub_bucket_current_bucket",
+    "exact_live_lane_toxic_allow_lane",
+}
+
+
+def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Return a structured reject payload when current-live truth forbids adding exposure."""
+    payload = live_runtime_truth if isinstance(live_runtime_truth, dict) else {}
+    deployment_blocker = payload.get("deployment_blocker")
+    runtime_closure_state = payload.get("runtime_closure_state")
+    signal = str(payload.get("signal") or "").upper()
+    allowed_layers = payload.get("allowed_layers")
+    allowed_layers_reason = payload.get("allowed_layers_reason")
+    deployment_blocker_reason = payload.get("deployment_blocker_reason")
+    execution_guardrail_reason = payload.get("execution_guardrail_reason")
+    blocker_reason = (
+        deployment_blocker_reason
+        or execution_guardrail_reason
+        or allowed_layers_reason
+        or runtime_closure_state
+        or deployment_blocker
+        or "目前即時風控阻止買入 / 加倉訂單"
+    )
+
+    try:
+        numeric_allowed_layers = int(allowed_layers) if allowed_layers is not None else None
+    except (TypeError, ValueError):
+        numeric_allowed_layers = None
+
+    should_reject = bool(deployment_blocker) or signal == "CIRCUIT_BREAKER"
+    should_reject = should_reject or runtime_closure_state in _NO_DEPLOY_RUNTIME_CLOSURE_STATES
+    should_reject = should_reject or (numeric_allowed_layers is not None and numeric_allowed_layers <= 0 and bool(allowed_layers_reason))
+    if not should_reject:
+        return None
+
+    blocker_details = payload.get("deployment_blocker_details") if isinstance(payload.get("deployment_blocker_details"), dict) else {}
+    return {
+        "code": "current_live_deployment_blocker",
+        "message": "目前即時部署阻塞啟用：買入 / 加倉已暫停；減倉 / 賣出風險降低路徑仍允許。",
+        "context": {
+            "blocked_side": "buy",
+            "allowed_sides": ["reduce", "sell"],
+            "reduce_only_allowed": True,
+            "deployment_blocker": deployment_blocker,
+            "deployment_blocker_reason": deployment_blocker_reason,
+            "runtime_closure_state": runtime_closure_state,
+            "runtime_closure_summary": payload.get("runtime_closure_summary"),
+            "execution_guardrail_reason": execution_guardrail_reason,
+            "signal": payload.get("signal"),
+            "allowed_layers": allowed_layers,
+            "allowed_layers_reason": allowed_layers_reason,
+            "current_live_structure_bucket": payload.get("current_live_structure_bucket"),
+            "current_live_structure_bucket_rows": payload.get("current_live_structure_bucket_rows"),
+            "minimum_support_rows": payload.get("minimum_support_rows"),
+            "support_route_verdict": payload.get("support_route_verdict"),
+            "release_condition": blocker_details.get("release_condition"),
+            "operator_action": "前往 /execution/status，確認熔斷解除條件與即時部署阻塞點已解除後，再重試買入 / 加倉。",
+            "reason": blocker_reason,
+        },
+    }
+
+
+async def _load_current_live_buy_reject_payload() -> Optional[Dict[str, Any]]:
+    try:
+        maybe_confidence_payload = get_confidence_prediction()
+        confidence_payload = await maybe_confidence_payload if hasattr(maybe_confidence_payload, "__await__") else maybe_confidence_payload
+        live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload)
+    except Exception as exc:
+        return {
+            "code": "current_live_guardrail_unavailable",
+            "message": "目前即時風控無法取得：買入 / 加倉以失敗關閉暫停；減倉 / 賣出風險降低路徑仍允許。",
+            "context": {
+                "blocked_side": "buy",
+                "allowed_sides": ["reduce", "sell"],
+                "reduce_only_allowed": True,
+                "error": str(exc),
+                "operator_action": "重新整理 /execution/status 並恢復 /predict/confidence 後，再重試買入 / 加倉。",
+            },
+        }
+    return _current_live_buy_reject_payload(live_runtime_truth)
 
 
 @router.post("/trade")
@@ -5634,17 +6389,25 @@ async def api_trade(req: "TradeRequest", request: Request = None) -> Dict[str, A
 
     submit_side = "buy" if side == "buy" else "sell"
     reduce_only = side in {"reduce", "sell"}
+    if not reduce_only:
+        buy_reject = await _load_current_live_buy_reject_payload()
+        if buy_reject is not None:
+            raise HTTPException(status_code=409, detail=buy_reject)
+
     cfg = get_config() or {}
     db = get_db()
     try:
         service = ExecutionService(cfg, db_session=db)
-        result = service.submit_order(
-            side=submit_side,
-            symbol=req.symbol,
-            qty=req.qty,
-            order_type="market",
-            reduce_only=reduce_only,
-        )
+        try:
+            result = service.submit_order(
+                side=submit_side,
+                symbol=req.symbol,
+                qty=req.qty,
+                order_type="market",
+                reduce_only=reduce_only,
+            )
+        except ExecutionRejectError as exc:
+            raise HTTPException(status_code=409, detail=exc.to_payload()) from exc
     finally:
         if hasattr(db, "close"):
             db.close()
@@ -5804,10 +6567,13 @@ _ECDF_ANCHORS = {
     'feat_nw_slope': (-0.03, 0.03), 'feat_adx': (0.0, 0.8),
     'feat_choppiness': (0.25, 0.75), 'feat_donchian_pos': (0.0, 1.0),
     'feat_nq_return_1h': (-0.03, 0.03), 'feat_nq_return_24h': (-0.08, 0.08),
-    'feat_claw': (0.0, 1.0), 'feat_claw_intensity': (0.0, 1.5),
-    'feat_fang_pcr': (0.5, 1.5), 'feat_fang_skew': (-0.5, 0.5),
-    'feat_fin_netflow': (-1.0, 1.0), 'feat_web_whale': (-1.0, 1.0),
-    'feat_scales_ssr': (0.5, 1.5), 'feat_nest_pred': (-1.0, 1.0),
+    # Sparse-source features below use transformed feature-space ranges (tanh / centered)
+    # rather than raw upstream ratios, so API history charts retain separation instead of
+    # hard-clipping everything to the 0.02 floor.
+    'feat_claw': (-0.91, 0.70), 'feat_claw_intensity': (0.02, 0.96),
+    'feat_fang_pcr': (-0.563, -0.531), 'feat_fang_skew': (-0.00001, 0.00001),
+    'feat_fin_netflow': (-1.0, 1.0), 'feat_web_whale': (0.0, 1.0),
+    'feat_scales_ssr': (-0.137, -0.134), 'feat_nest_pred': (0.005, 0.0115),
     'feat_4h_bias50': (-15.0, 10.0), 'feat_4h_bias20': (-10.0, 10.0),
     'feat_4h_bias200': (-20.0, 20.0),
     'feat_4h_rsi14': (10.0, 90.0), 'feat_4h_macd_hist': (-1500.0, 1500.0),
@@ -5825,11 +6591,4 @@ def normalize_for_api(raw_val, db_key):
     if not anchors:
         return max(0.0, min(1.0, (raw_val + 1) / 2))
     p5, p95 = anchors
-    span = p95 - p5
-    if span < 1e-10:
-        return 0.5
-    soft_margin = span * 0.5
-    soft_lo = p5 - soft_margin
-    soft_hi = p95 + soft_margin
-    if raw_val <= p5:
-        v = max(soft_lo, raw_val)
+    return float(ecdf_normalize(float(raw_val), float(p5), float(p95)))

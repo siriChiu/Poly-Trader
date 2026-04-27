@@ -10,10 +10,21 @@ const ACTIVE_API_BASE_STORAGE_KEY = "poly_trader.active_api_base";
 const DEV_LOCAL_API_CANDIDATE_PORTS = [8000, 8001] as const;
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 const CHART_REQUEST_TIMEOUT_MS = 15000;
+const LEADERBOARD_REQUEST_TIMEOUT_MS = 20000;
+const EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS = 20000;
 const DEV_API_DISCOVERY_TIMEOUT_MS = 1200;
+const DEV_API_STATUS_DISCOVERY_TIMEOUT_MS = 2000;
 
 let activeApiBaseMemo: string | null = null;
 let prewarmActiveApiBasePromise: Promise<void> | null = null;
+
+type ApiBaseHealthProbe = {
+  base: string;
+  healthy: boolean;
+  headSyncStatus: string | null;
+  processStartedAt: string | null;
+  gitHeadCommit: string | null;
+};
 
 function getStoredActiveApiBase(): string | null {
   if (activeApiBaseMemo) return activeApiBaseMemo;
@@ -75,8 +86,16 @@ function getApiRequestCandidates(): string[] {
   return [preferred ?? ""];
 }
 
-async function probeApiBaseHealth(base: string): Promise<boolean> {
-  if (typeof window === "undefined") return false;
+async function probeApiBaseHealth(base: string): Promise<ApiBaseHealthProbe> {
+  if (typeof window === "undefined") {
+    return {
+      base,
+      healthy: false,
+      headSyncStatus: null,
+      processStartedAt: null,
+      gitHeadCommit: null,
+    };
+  }
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), DEV_API_DISCOVERY_TIMEOUT_MS);
   try {
@@ -84,9 +103,82 @@ async function probeApiBaseHealth(base: string): Promise<boolean> {
       cache: "no-store",
       signal: controller.signal,
     });
-    return resp.ok;
+    const payload = await resp.json().catch(() => null);
+    const runtimeBuild = payload?.runtime_build && typeof payload.runtime_build === "object"
+      ? payload.runtime_build as Record<string, any>
+      : null;
+    return {
+      base,
+      healthy: resp.ok,
+      headSyncStatus: typeof runtimeBuild?.head_sync_status === "string" ? runtimeBuild.head_sync_status : null,
+      processStartedAt: typeof runtimeBuild?.process_started_at === "string" ? runtimeBuild.process_started_at : null,
+      gitHeadCommit: typeof runtimeBuild?.git_head_commit === "string" ? runtimeBuild.git_head_commit : null,
+    };
   } catch {
-    return false;
+    return {
+      base,
+      healthy: false,
+      headSyncStatus: null,
+      processStartedAt: null,
+      gitHeadCommit: null,
+    };
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function scoreApiBaseHealthProbe(probe: ApiBaseHealthProbe): number {
+  if (!probe.healthy) return -999;
+  let score = 0;
+  if (probe.headSyncStatus === "current_head_commit") score += 5;
+  if (probe.headSyncStatus === "stale_head_commit") score -= 5;
+  if (probe.processStartedAt) score += 1;
+  if (probe.gitHeadCommit) score += 1;
+  return score;
+}
+
+function scoreApiBaseRuntimeContract(payload: unknown): number {
+  if (!payload || typeof payload !== "object") return 0;
+  const root = payload as Record<string, any>;
+  const execution = root.execution && typeof root.execution === "object"
+    ? root.execution as Record<string, any>
+    : null;
+  const executionSurfaceContract = root.execution_surface_contract && typeof root.execution_surface_contract === "object"
+    ? root.execution_surface_contract as Record<string, any>
+    : null;
+  const liveRuntimeTruth = execution?.live_runtime_truth ?? executionSurfaceContract?.live_runtime_truth ?? null;
+  const recentCanonicalDrift = execution?.recent_canonical_drift
+    ?? executionSurfaceContract?.recent_canonical_drift
+    ?? root.recent_canonical_drift
+    ?? null;
+  const driftSummary = recentCanonicalDrift?.primary_window?.summary ?? null;
+  const livePathology = liveRuntimeTruth?.decision_quality_scope_pathology_summary ?? null;
+
+  let score = 0;
+  if (liveRuntimeTruth?.deployment_blocker) score += 2;
+  if (liveRuntimeTruth?.current_live_structure_bucket) score += 2;
+  if (liveRuntimeTruth?.support_route_verdict) score += 1;
+  if (livePathology?.summary) score += 1;
+  if (driftSummary) score += 3;
+  if (typeof driftSummary?.win_rate === "number") score += 1;
+  if (Array.isArray(recentCanonicalDrift?.primary_window?.alerts)) score += 1;
+  return score;
+}
+
+async function probeApiBaseRuntimeContractScore(base: string): Promise<number> {
+  if (typeof window === "undefined") return 0;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), DEV_API_STATUS_DISCOVERY_TIMEOUT_MS);
+  try {
+    const resp = await fetch(buildApiUrlForBase("/api/status", base), {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!resp.ok) return 0;
+    const payload = await resp.json().catch(() => null);
+    return scoreApiBaseRuntimeContract(payload);
+  } catch {
+    return 0;
   } finally {
     window.clearTimeout(timeoutId);
   }
@@ -101,25 +193,45 @@ async function prewarmDevApiBase(): Promise<void> {
 
   prewarmActiveApiBasePromise = (async () => {
     const preferred = getStoredActiveApiBase();
-    if (preferred) {
-      const preferredHealthy = await probeApiBaseHealth(preferred);
-      if (preferredHealthy) {
-        persistActiveApiBase(preferred);
-        return;
-      }
+    const probeCandidates = getDevApiCandidateBases();
+    const healthChecks = await Promise.all(probeCandidates.map(async (base) => probeApiBaseHealth(base)));
+    const healthyCandidates = healthChecks.filter((probe) => probe.healthy);
+
+    if (!healthyCandidates.length) {
       persistActiveApiBase(null);
+      return;
     }
 
-    const probeCandidates = getDevApiCandidateBases();
-    let resolved = false;
-
-    await Promise.all(probeCandidates.map(async (base) => {
-      const healthy = await probeApiBaseHealth(base);
-      if (healthy && !resolved) {
-        resolved = true;
-        persistActiveApiBase(base);
-      }
+    const capabilityResults = await Promise.all(healthyCandidates.map(async (probe) => {
+      const healthScore = scoreApiBaseHealthProbe(probe);
+      const runtimeContractScore = await probeApiBaseRuntimeContractScore(probe.base);
+      return {
+        ...probe,
+        healthScore,
+        runtimeContractScore,
+        totalScore: healthScore + runtimeContractScore,
+      };
     }));
+    const bestCapability = capabilityResults.reduce<{
+      base: string;
+      healthy: boolean;
+      headSyncStatus: string | null;
+      processStartedAt: string | null;
+      gitHeadCommit: string | null;
+      healthScore: number;
+      runtimeContractScore: number;
+      totalScore: number;
+    } | null>((best, probe) => {
+      if (!best) return probe;
+      if (probe.totalScore > best.totalScore) return probe;
+      if (probe.totalScore < best.totalScore) return best;
+      if (probe.runtimeContractScore > best.runtimeContractScore) return probe;
+      if (probe.runtimeContractScore < best.runtimeContractScore) return best;
+      if (preferred && probe.base === preferred && best.base !== preferred) return probe;
+      return best;
+    }, null);
+
+    persistActiveApiBase(bestCapability?.base ?? healthyCandidates[0]?.base ?? null);
   })().finally(() => {
     prewarmActiveApiBasePromise = null;
   });
@@ -133,6 +245,10 @@ export async function prewarmActiveApiBase(): Promise<string | null> {
 }
 
 function getRequestTimeoutMs(endpoint: string): number {
+  if (endpoint.startsWith("/api/strategies/leaderboard")) return LEADERBOARD_REQUEST_TIMEOUT_MS;
+  if (endpoint.startsWith("/api/models/leaderboard")) return LEADERBOARD_REQUEST_TIMEOUT_MS;
+  if (endpoint.startsWith("/api/execution/overview")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;
+  if (endpoint.startsWith("/api/execution/runs")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;
   return endpoint.startsWith("/api/chart/klines")
     ? CHART_REQUEST_TIMEOUT_MS
     : DEFAULT_REQUEST_TIMEOUT_MS;

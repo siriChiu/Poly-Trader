@@ -44,7 +44,7 @@ class AccountSyncService:
                 "open_order_count": len(open_orders),
                 "health": adapter.health(),
                 "degraded": False,
-                "operator_message": "account snapshot 已刷新，可直接用來核對目前 venue 的餘額 / 倉位 / 掛單真相。",
+                "operator_message": "account snapshot 已刷新，可直接用來核對目前場館的餘額 / 倉位 / 掛單真相。",
                 "recovery_hint": None,
                 **meta,
             }

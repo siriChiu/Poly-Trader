@@ -157,6 +157,144 @@ def test_summarize_support_progress_detects_stalled_exact_support(tmp_path):
     assert progress["history"][0]["heartbeat"] == "fast"
 
 
+
+def test_summarize_support_progress_keeps_regression_visible_until_exact_support_recovers(tmp_path):
+    (tmp_path / "heartbeat_720_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "720",
+                "timestamp": "2026-04-23T04:31:17+00:00",
+                "leaderboard_candidate_diagnostics": {
+                    "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "live_current_structure_bucket_rows": 77,
+                    "minimum_support_rows": 50,
+                    "support_governance_route": "exact_live_bucket_supported",
+                    "governance_contract": {"verdict": "dual_role_governance_active"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "heartbeat_721_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "721",
+                "timestamp": "2026-04-23T08:35:32+00:00",
+                "leaderboard_candidate_diagnostics": {
+                    "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "live_current_structure_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "support_governance_route": "exact_live_bucket_proxy_available",
+                    "governance_contract": {"verdict": "dual_role_governance_active"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    progress = hb_leaderboard_candidate_probe._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q35",
+        current_route="exact_live_bucket_proxy_available",
+        live_bucket_rows=0,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "regressed_under_minimum"
+    assert progress["previous_rows"] == 0
+    assert progress["delta_vs_previous"] == 0
+    assert progress["regressed_from_supported"] is True
+    assert progress["recent_supported_rows"] == 77
+    assert progress["recent_supported_heartbeat"] == "720"
+    assert progress["delta_vs_recent_supported"] == -77
+    assert progress["escalate_to_blocker"] is True
+    assert "曾達 minimum support" in progress["reason"]
+
+
+
+def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_stalled_heartbeats(tmp_path, monkeypatch):
+    full_history = [
+        {
+            "heartbeat": "735",
+            "timestamp": "2026-04-23T08:00:00+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "governance_verdict": "dual_role_governance_active",
+        },
+        {
+            "heartbeat": "734",
+            "timestamp": "2026-04-23T07:00:00+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "governance_verdict": "dual_role_governance_active",
+        },
+        {
+            "heartbeat": "733",
+            "timestamp": "2026-04-23T06:00:00+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "governance_verdict": "dual_role_governance_active",
+        },
+        {
+            "heartbeat": "732",
+            "timestamp": "2026-04-23T05:00:00+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "governance_verdict": "dual_role_governance_active",
+        },
+        {
+            "heartbeat": "731",
+            "timestamp": "2026-04-23T04:40:00+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "governance_verdict": "dual_role_governance_active",
+        },
+        {
+            "heartbeat": "730",
+            "timestamp": "2026-04-23T04:31:17+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 77,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_supported",
+            "governance_verdict": "post_threshold_profile_governance_stalled",
+        },
+    ]
+
+    def fake_history(*, current_entry=None, limit=5, data_dir=None):
+        base = {k: v for k, v in (current_entry or {}).items() if k != "observed_at"}
+        history = [base, *full_history]
+        return history[:limit] if limit is not None else history
+
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "_load_recent_support_history", fake_history)
+
+    progress = hb_leaderboard_candidate_probe._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q35",
+        current_route="exact_live_bucket_proxy_available",
+        live_bucket_rows=0,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "regressed_under_minimum"
+    assert progress["recent_supported_rows"] == 77
+    assert progress["recent_supported_heartbeat"] == "730"
+    assert progress["delta_vs_recent_supported"] == -77
+    assert any(item["heartbeat"] == "730" for item in progress["history"])
+
+
+
 def test_summarize_support_progress_reuses_previous_fast_summary(tmp_path):
     (tmp_path / "heartbeat_fast_summary.json").write_text(
         json.dumps(
@@ -292,6 +430,80 @@ def test_summarize_support_progress_prefers_q15_audit_truth(tmp_path, monkeypatc
     assert progress["previous_rows"] == 0
     assert progress["reason"] == "from q15 audit"
     assert progress["history"][1]["heartbeat"] == "1014"
+
+
+
+def test_summarize_support_progress_ignores_standby_q15_hint_for_non_q15_current_bucket(tmp_path, monkeypatch):
+    q15_audit = tmp_path / "q15_support_audit.json"
+    q15_audit.write_text(
+        json.dumps(
+            {
+                "scope_applicability": {
+                    "status": "current_live_not_q15_lane",
+                    "active_for_current_live_row": False,
+                    "current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "target_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                },
+                "current_live": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 12,
+                },
+                "support_route": {
+                    "minimum_support_rows": 50,
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "support_progress": {
+                        "status": "stalled_under_minimum",
+                        "reason": "from standby q15 audit",
+                        "current_rows": 12,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 38,
+                        "delta_vs_previous": 0,
+                        "previous_rows": 12,
+                        "previous_route_changed": False,
+                        "previous_support_route_verdict": "exact_bucket_present_but_below_minimum",
+                        "previous_support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                        "stagnant_run_count": 5,
+                        "stalled_support_accumulation": True,
+                        "escalate_to_blocker": True,
+                        "history": [],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit)
+    (tmp_path / "heartbeat_1024_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "1024",
+                "timestamp": "2026-04-21T12:00:19.772471+00:00",
+                "leaderboard_candidate_probe": {
+                    "alignment": {
+                        "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                        "live_current_structure_bucket_rows": 11,
+                        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    progress = hb_leaderboard_candidate_probe._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q35",
+        current_route="exact_live_bucket_present_but_below_minimum",
+        live_bucket_rows=12,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "accumulating"
+    assert progress["delta_vs_previous"] == 1
+    assert progress["reason"].startswith("current live exact support")
+    assert progress["reason"] != "from standby q15 audit"
+
 
 
 def test_build_alignment_marks_under_supported_exact_bucket(tmp_path, monkeypatch):

@@ -1,5 +1,6 @@
 import asyncio
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -156,10 +157,60 @@ def test_save_strategy_reconstructs_backtest_range_when_legacy_results_dropped_i
     assert recovered_range["requested"]["end"] == "2026-04-19T22:40:00.000Z"
     assert recovered_range["effective"]["start"] == "2024-04-19T22:40:00.000Z"
     assert recovered_range["effective"]["end"] == "2026-04-19T22:40:00.000Z"
-    assert recovered_range["available"]["start"] == "2025-04-06T17:00:00Z"
-    assert recovered_range["available"]["end"] == "2026-04-19T22:34:02.344375Z"
+    assert recovered_range["available"]["start"] == "2024-04-19T22:40:00.000Z"
+    assert recovered_range["available"]["end"] == "2026-04-19T22:40:00.000Z"
     assert recovered_range["coverage_ok"] is True
     assert recovered_range["backfill_required"] is False
+
+
+def test_save_strategy_backtest_range_does_not_keep_narrow_trade_window_as_available(isolated_strategies_dir: Path):
+    strategy_lab.save_strategy(
+        "Backtest Range Available Repair",
+        {
+            "type": "hybrid",
+            "params": {
+                "model_name": "logistic_regression",
+                "backtest_range": {
+                    "start": "2024-04-21T12:22:00.000Z",
+                    "end": "2026-04-21T12:22:00.000Z",
+                },
+            },
+        },
+        {
+            "total_trades": 28,
+            "chart_context": {
+                "symbol": "BTCUSDT",
+                "interval": "4h",
+                "start": "2025-04-06T18:00:00Z",
+                "end": "2026-04-20T07:10:51.963755Z",
+            },
+            "backtest_range": {
+                "requested": {
+                    "start": "2024-04-21T12:22:00Z",
+                    "end": "2026-04-21T12:22:00Z",
+                },
+                "effective": {
+                    "start": "2024-04-21T13:00:00Z",
+                    "end": "2026-04-21T12:21:26.249498Z",
+                },
+                "available": {
+                    "start": "2025-04-06T18:00:00Z",
+                    "end": "2026-04-20T07:10:51.963755Z",
+                },
+                "coverage_ok": True,
+                "backfill_required": False,
+            },
+        },
+    )
+
+    loaded = strategy_lab.load_strategy("Backtest Range Available Repair")
+
+    assert loaded is not None
+    repaired_range = loaded["last_results"]["backtest_range"]
+    assert repaired_range["effective"]["start"] == "2024-04-21T13:00:00Z"
+    assert repaired_range["effective"]["end"] == "2026-04-21T12:21:26.249498Z"
+    assert repaired_range["available"]["start"] == "2024-04-21T13:00:00Z"
+    assert repaired_range["available"]["end"] == "2026-04-21T12:21:26.249498Z"
 
 
 def test_save_strategy_persists_decision_profile_fields(isolated_strategies_dir: Path):
@@ -296,6 +347,15 @@ def test_top_k_rolling_gate_uses_past_only_history():
     assert strategy_lab._passes_rolling_top_k_gate(0.92, [0.91, 0.87, 0.84, 0.81], 25) is True
 
 
+
+def test_allowed_regimes_all_behaves_like_no_regime_filter():
+    assert strategy_lab._normalize_allowed_regimes(["all"]) is None
+    assert strategy_lab._normalize_allowed_regimes("all") is None
+    assert strategy_lab._regime_allowed("bull", {"all"}) is True
+    assert strategy_lab._regime_allowed("chop", {"all"}) is True
+
+
+
 def test_turning_point_gate_requires_local_bottom_signal_for_entry():
     prices = [100.0, 99.0, 98.0, 101.0]
     timestamps = [f"2026-01-01T00:0{i}:00Z" for i in range(len(prices))]
@@ -383,7 +443,7 @@ def test_compute_regime_breakdown_groups_by_entry_regime():
     assert breakdown[1]["profit_factor"] == pytest.approx(3000.0)
 
 
-def test_select_strategy_chart_payload_aligns_equity_with_trade_window():
+def test_select_strategy_chart_payload_keeps_full_backtest_window_visible():
     equity_curve = [
         {"timestamp": f"2025-01-01T00:{idx:02d}:00Z", "equity": 10000 + idx}
         for idx in range(10)
@@ -403,10 +463,103 @@ def test_select_strategy_chart_payload_aligns_equity_with_trade_window():
     )
 
     selected_times = [row["timestamp"] for row in payload["equity_curve"]]
-    assert selected_times[0].startswith("2025-01-01T00:02")
-    assert selected_times[-1].startswith("2025-01-01T00:07")
-    assert payload["chart_context"]["start"].startswith("2025-01-01T00:02")
-    assert payload["chart_context"]["end"].startswith("2025-01-01T00:07")
+    assert selected_times[0].startswith("2025-01-01T00:00")
+    assert selected_times[-1].startswith("2026-01-01T00:09")
+    assert payload["chart_context"]["start"].startswith("2025-01-01T00:00")
+    assert payload["chart_context"]["end"].startswith("2026-01-01T00:09")
+
+
+
+def test_select_strategy_chart_payload_downsamples_oversized_equity_curve_without_hiding_full_window():
+    base = datetime(2024, 4, 21, 13, 0, tzinfo=timezone.utc)
+    equity_curve = [
+        {
+            "timestamp": (base + timedelta(hours=4 * idx)).isoformat().replace("+00:00", "Z"),
+            "equity": 10000.0 + idx,
+            "position_pct": 0.0,
+            "position_layers": 0,
+        }
+        for idx in range(2305)
+    ]
+
+    payload = api_module._select_strategy_chart_payload(
+        timestamps=[point["timestamp"] for point in equity_curve],
+        equity_curve=equity_curve,
+        trades=[],
+    )
+
+    assert len(payload["equity_curve"]) <= 1000
+    assert payload["equity_curve"][0]["timestamp"] == equity_curve[0]["timestamp"]
+    assert payload["equity_curve"][-1]["timestamp"] == equity_curve[-1]["timestamp"]
+    assert payload["chart_context"]["start"] == equity_curve[0]["timestamp"]
+    assert payload["chart_context"]["end"] == equity_curve[-1]["timestamp"]
+    assert payload["chart_context"]["limit"] == 1000
+
+
+
+def test_decorate_strategy_entry_expands_legacy_equity_curve_to_backtest_start():
+    entry = {
+        "name": "Legacy Truncated Equity",
+        "definition": {
+            "type": "hybrid",
+            "params": {
+                "backtest_range": {
+                    "start": "2024-04-21T12:22:00Z",
+                    "end": "2026-04-21T12:22:00Z",
+                },
+            },
+        },
+        "last_results": {
+            "roi": 0.027,
+            "win_rate": 0.5,
+            "total_trades": 28,
+            "chart_context": {
+                "symbol": "BTCUSDT",
+                "interval": "4h",
+                "start": "2025-04-06T18:00:00Z",
+                "end": "2026-04-20T07:10:51.963755Z",
+            },
+            "backtest_range": {
+                "requested": {
+                    "start": "2024-04-21T12:22:00Z",
+                    "end": "2026-04-21T12:22:00Z",
+                },
+                "effective": {
+                    "start": "2024-04-21T13:00:00Z",
+                    "end": "2026-04-21T12:21:26.249498Z",
+                },
+                "available": {
+                    "start": "2024-04-21T13:00:00Z",
+                    "end": "2026-04-21T12:21:26.249498Z",
+                },
+            },
+            "equity_curve": [
+                {
+                    "timestamp": "2025-04-06T18:00:00Z",
+                    "equity": 10000.0,
+                    "position_pct": 0.1,
+                    "position_layers": 1,
+                },
+                {
+                    "timestamp": "2025-04-06T19:00:00Z",
+                    "equity": 10002.0,
+                    "position_pct": 0.1,
+                    "position_layers": 1,
+                },
+            ],
+            "trades": [],
+        },
+    }
+
+    decorated = _decorate_strategy_entry(entry)
+    results = decorated["last_results"]
+
+    assert results["chart_context"]["start"] == "2024-04-21T13:00:00Z"
+    assert results["chart_context"]["end"] == "2026-04-21T12:21:26.249498Z"
+    assert results["equity_curve"][0]["timestamp"] == "2024-04-21T13:00:00Z"
+    assert results["equity_curve"][0]["equity"] == pytest.approx(10000.0)
+    assert results["equity_curve"][0]["position_pct"] == pytest.approx(0.0)
+    assert results["equity_curve"][1]["timestamp"] == "2025-04-06T18:00:00Z"
 
 
 def test_filter_strategy_rows_by_backtest_range_reports_missing_history():
@@ -687,7 +840,7 @@ def test_strategy_async_job_status_exposes_segmented_steps(monkeypatch):
 
 
 
-def test_api_trade_uses_execution_service(monkeypatch):
+def test_api_trade_uses_execution_service_when_buy_path_has_no_live_blocker(monkeypatch):
     class DummyService:
         def __init__(self, cfg, db_session=None):
             self.cfg = cfg
@@ -700,9 +853,13 @@ def test_api_trade_uses_execution_service(monkeypatch):
                 "order": {"id": "abc123", "symbol": symbol, "side": side, "qty": qty, "type": order_type, "reduce_only": reduce_only},
             }
 
+    async def no_current_live_buy_reject():
+        return None
+
     monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "binance"}, "trading": {"venue": "binance"}})
     monkeypatch.setattr(api_module, "get_db", lambda: object())
     monkeypatch.setattr(api_module, "ExecutionService", DummyService)
+    monkeypatch.setattr(api_module, "_load_current_live_buy_reject_payload", no_current_live_buy_reject)
 
     payload = asyncio.run(api_module.api_trade(api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.01), request=_local_request()))
 
@@ -711,6 +868,36 @@ def test_api_trade_uses_execution_service(monkeypatch):
     assert payload["order_id"] == "abc123"
     assert payload["guardrails"]["consecutive_failures"] == 0
     assert payload["order"]["type"] == "market"
+
+
+
+def test_api_trade_maps_execution_rejects_to_http_409_when_buy_path_has_no_live_blocker(monkeypatch):
+    from execution.execution_service import ExecutionRejectError
+
+    class DummyService:
+        def __init__(self, cfg, db_session=None):
+            self.cfg = cfg
+
+        def submit_order(self, **kwargs):
+            raise ExecutionRejectError("kill_switch_active", "Kill switch active", context={"kill_switch": True})
+
+    async def no_current_live_buy_reject():
+        return None
+
+    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "binance"}, "trading": {"venue": "binance"}})
+    monkeypatch.setattr(api_module, "get_db", lambda: object())
+    monkeypatch.setattr(api_module, "ExecutionService", DummyService)
+    monkeypatch.setattr(api_module, "_load_current_live_buy_reject_payload", no_current_live_buy_reject)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(api_module.api_trade(api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.01), request=_local_request()))
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == {
+        "code": "kill_switch_active",
+        "message": "Kill switch active",
+        "context": {"kill_switch": True},
+    }
 
 
 
@@ -969,6 +1156,63 @@ def test_api_get_strategy_decorates_detail_payload(monkeypatch):
     assert db.closed is True
 
 
+
+def test_api_get_strategy_bounds_detail_payload_series_for_workspace(monkeypatch):
+    class DummyDB:
+        def close(self):
+            return None
+
+    base = datetime(2024, 4, 21, 13, 0, tzinfo=timezone.utc)
+    equity_curve = [
+        {
+            "timestamp": (base + timedelta(hours=4 * idx)).isoformat().replace("+00:00", "Z"),
+            "equity": 10000.0 + idx,
+        }
+        for idx in range(2305)
+    ]
+    score_series = [
+        {
+            "timestamp": (base + timedelta(hours=4 * idx)).isoformat().replace("+00:00", "Z"),
+            "score": 0.5,
+            "entry_quality": 0.5,
+            "model_confidence": 0.5,
+        }
+        for idx in range(420)
+    ]
+    strategy_entry = {
+        "name": "Auto Leaderboard · 大型 payload 測試",
+        "definition": {"type": "hybrid", "params": {"model_name": "xgboost"}},
+        "last_results": {
+            "roi": 0.18,
+            "win_rate": 0.62,
+            "decision_quality_horizon_minutes": 1440,
+            "chart_context": {
+                "symbol": "BTCUSDT",
+                "interval": "4h",
+                "start": equity_curve[0]["timestamp"],
+                "end": equity_curve[-1]["timestamp"],
+                "limit": 5000,
+            },
+            "equity_curve": equity_curve,
+            "score_series": score_series,
+            "trades": [{"timestamp": "2026-04-01T00:00:00Z", "reason": "tp_roi"}],
+        },
+    }
+
+    monkeypatch.setattr(strategy_lab, "load_strategy", lambda name: strategy_entry if name == strategy_entry["name"] else None)
+    monkeypatch.setattr(api_module, "get_db", lambda: DummyDB())
+
+    payload = asyncio.run(api_module.api_get_strategy(strategy_entry["name"]))
+
+    assert len(payload["last_results"]["equity_curve"]) <= 1000
+    assert payload["last_results"]["equity_curve"][0]["timestamp"] == equity_curve[0]["timestamp"]
+    assert payload["last_results"]["equity_curve"][-1]["timestamp"] == equity_curve[-1]["timestamp"]
+    assert len(payload["last_results"]["score_series"]) == 300
+    assert payload["last_results"]["chart_context"]["limit"] == 1000
+    assert payload["last_results"]["trades"][0]["reason"] == "tp_roi"
+
+
+
 def test_compute_decision_profile_returns_gate_summary():
     profile = api_module._compute_decision_profile(
         [
@@ -1002,7 +1246,7 @@ def test_decorate_strategy_entry_backfills_gate_summary_from_complete_trades():
     assert enriched["last_results"]["regime_gate_summary"] == {"ALLOW": 1, "CAUTION": 2, "BLOCK": 0}
 
 
-def test_api_strategy_leaderboard_prefers_auto_generated_candidates(monkeypatch):
+def test_api_strategy_leaderboard_keeps_manual_rows_visible_when_auto_candidates_exist(monkeypatch):
     class DummyDB:
         def close(self):
             return None
@@ -1018,15 +1262,15 @@ def test_api_strategy_leaderboard_prefers_auto_generated_candidates(monkeypatch)
         strategy_lab,
         "load_all_strategies",
         lambda include_internal=False: [
-            {"name": f"{strategy_lab.AUTO_STRATEGY_NAME_PREFIX}平衡承接 #01", "last_results": {"overall_score": 0.8}},
-            {"name": "Manual Scratch", "last_results": {"overall_score": 0.1}},
+            {"name": f"{strategy_lab.AUTO_STRATEGY_NAME_PREFIX}平衡承接 #01", "is_internal": True, "metadata": {"source": "auto_leaderboard"}, "last_results": {"overall_score": 0.8}},
+            {"name": "Manual Scratch", "is_internal": False, "metadata": {"source": "user_saved"}, "last_results": {"overall_score": 0.9}},
         ],
     )
 
     payload = asyncio.run(api_module.api_strategy_leaderboard())
 
     assert called["ensure"] == 1
-    assert [row["name"] for row in payload["strategies"]] == [f"{strategy_lab.AUTO_STRATEGY_NAME_PREFIX}平衡承接 #01"]
+    assert [row["name"] for row in payload["strategies"]] == ["Manual Scratch", f"{strategy_lab.AUTO_STRATEGY_NAME_PREFIX}平衡承接 #01"]
 
 
 def test_api_strategy_leaderboard_rank_delta_uses_fresh_snapshot(monkeypatch, tmp_path: Path):

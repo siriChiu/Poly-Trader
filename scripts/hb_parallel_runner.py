@@ -51,15 +51,49 @@ FAST_SERIAL_TIMEOUTS = {
     "hb_q15_bucket_root_cause": 20,
     "hb_q15_boundary_replay": 20,
 }
+FULL_SERIAL_TIMEOUTS = {
+    # Candidate-evaluation lanes can become silent for many minutes when the
+    # training set grows. Full heartbeat runs still need to finish inside the
+    # 10-minute cron/tool budget, so fail closed and reuse the latest bounded
+    # governance artifact instead of letting one lane consume the whole run.
+    "feature_group_ablation": 90,
+    "bull_4h_pocket_ablation": 45,
+    "hb_leaderboard_candidate_probe": 45,
+}
+FAST_PARALLEL_TASK_TIMEOUTS = {
+    "full_ic": 90,
+    "regime_ic": 90,
+}
+FULL_PARALLEL_TASK_TIMEOUTS = {
+    "full_ic": 120,
+    "regime_ic": 120,
+    "dynamic_window": 180,
+    # Global train + rolling CV is the deployable artifact refresh path and now
+    # skips optional regime grid search; current dataset still needs >180s on
+    # slower cron lanes, so keep an explicit budget that remains within the
+    # 10-minute full-heartbeat envelope.
+    "train": 300,
+    "tests": 180,
+}
+COLLECT_TIMEOUT_SECONDS = 180
 FAST_CACHE_REUSE_MAX_LABEL_DELTA = 12
 FAST_CACHE_REUSE_MAX_LABEL_TIME_DRIFT_SECONDS = 6 * 3600
 FAST_HEARTBEAT_CRON_BUDGET_SECONDS = 240
+CANDIDATE_REFRESH_LANES = (
+    "feature_group_ablation",
+    "bull_4h_pocket_ablation",
+    "hb_leaderboard_candidate_probe",
+)
+CANDIDATE_ARTIFACT_STALE_FALLBACK_ISSUE_ID = "P1_candidate_governance_artifact_stale_fallback"
+PARALLEL_TASK_FAILURE_ISSUE_ID = "P1_heartbeat_parallel_task_failure"
 
 TASKS = [
     {"name": "full_ic", "label": "🔍 Full IC", "cmd": [PYTHON, "scripts/full_ic.py"]},
     {"name": "regime_ic", "label": "🏛️ Regime IC", "cmd": [PYTHON, "scripts/regime_aware_ic.py"]},
     {"name": "dynamic_window", "label": "📏 Dynamic Window", "cmd": [PYTHON, "scripts/dynamic_window_train.py"]},
-    {"name": "train", "label": "🔨 Model Train", "cmd": [PYTHON, "model/train.py"]},
+    # Cron heartbeat must refresh the deployable global model/metrics without letting
+    # optional per-regime grid search consume the 10-minute heartbeat budget.
+    {"name": "train", "label": "🔨 Model Train", "cmd": [PYTHON, "model/train.py", "--skip-regime-models", "--max-cv-folds", "2"]},
     {"name": "tests", "label": "🧪 Comprehensive Tests", "cmd": [PYTHON, "tests/comprehensive_test.py"]},
 ]
 COLLECT_CMD = [PYTHON, "scripts/hb_collect.py"]
@@ -72,7 +106,7 @@ Q15_SUPPORT_AUDIT_CMD = [PYTHON, "scripts/hb_q15_support_audit.py"]
 Q15_BUCKET_ROOT_CAUSE_CMD = [PYTHON, "scripts/hb_q15_bucket_root_cause.py"]
 Q15_BOUNDARY_REPLAY_CMD = [PYTHON, "scripts/hb_q15_boundary_replay.py"]
 CIRCUIT_BREAKER_AUDIT_CMD = [PYTHON, "scripts/hb_circuit_breaker_audit.py"]
-FEATURE_ABLATION_CMD = [PYTHON, "scripts/feature_group_ablation.py"]
+FEATURE_ABLATION_CMD = [PYTHON, "scripts/feature_group_ablation.py", "--bounded-refresh"]
 BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
 BULL_4H_POCKET_ABLATION_REFRESH_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py", "--refresh-live-context"]
 LEADERBOARD_CANDIDATE_PROBE_CMD = [PYTHON, "scripts/hb_leaderboard_candidate_probe.py"]
@@ -152,6 +186,66 @@ def collect_current_state_docs_sync_status() -> Dict[str, Any]:
         },
         "docs": docs,
     }
+
+
+def collect_historical_coverage_confirmation(
+    db_path: str | Path | None = None,
+    *,
+    symbol: str = "BTCUSDT",
+    lookback_days: int = 730,
+) -> Dict[str, Any]:
+    target_db = str(db_path or DB_PATH)
+    summary: Dict[str, Any] = {
+        "symbol": symbol,
+        "db_path": target_db,
+        "lookback_days": int(lookback_days),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "tables": {},
+    }
+
+    now = datetime.now(timezone.utc)
+    cutoff = now.timestamp() - max(int(lookback_days), 1) * 86400
+    cutoff_dt = datetime.fromtimestamp(cutoff, tz=timezone.utc)
+    table_specs = {
+        "raw_market_data": "SELECT MIN(timestamp), MAX(timestamp), COUNT(*) FROM raw_market_data WHERE symbol = ?",
+        "features_normalized": "SELECT MIN(timestamp), MAX(timestamp), COUNT(*) FROM features_normalized WHERE symbol = ?",
+        "labels": "SELECT MIN(timestamp), MAX(timestamp), COUNT(*) FROM labels WHERE symbol = ?",
+    }
+
+    try:
+        conn = sqlite3.connect(target_db)
+    except Exception as exc:
+        summary["error"] = str(exc)
+        summary["ok"] = False
+        summary["covers_two_years"] = False
+        return summary
+
+    try:
+        covers_two_years = True
+        for table_name, query in table_specs.items():
+            row = conn.execute(query, (symbol,)).fetchone() or (None, None, 0)
+            start_dt = _safe_parse_datetime(row[0])
+            end_dt = _safe_parse_datetime(row[1])
+            count = int(row[2] or 0)
+            span_days = None
+            if start_dt and end_dt:
+                span_days = round((end_dt - start_dt).total_seconds() / 86400.0, 2)
+            older_than_cutoff = bool(start_dt and start_dt <= cutoff_dt)
+            summary["tables"][table_name] = {
+                "start": start_dt.isoformat() if start_dt else None,
+                "end": end_dt.isoformat() if end_dt else None,
+                "count": count,
+                "span_days": span_days,
+                "older_than_two_year_cutoff": older_than_cutoff,
+            }
+            if not older_than_cutoff:
+                covers_two_years = False
+        summary["cutoff_timestamp"] = cutoff_dt.isoformat()
+        summary["covers_two_years"] = covers_two_years
+        summary["ok"] = True
+        return summary
+    finally:
+        conn.close()
 
 
 def _format_local_timestamp_for_docs(value: datetime | None = None) -> str:
@@ -261,6 +355,12 @@ def _support_truth_context(
             context["support_route_verdict"] = support_route.get("verdict")
         if support_route.get("support_governance_route") is not None:
             context["support_governance_route"] = support_route.get("support_governance_route")
+        if support_progress.get("status") is not None:
+            context["support_progress_status"] = support_progress.get("status")
+        if support_progress.get("regression_basis") is not None:
+            context["support_progress_regression_basis"] = support_progress.get("regression_basis")
+        if support_progress.get("legacy_supported_reference") is not None:
+            context["legacy_supported_reference"] = support_progress.get("legacy_supported_reference")
         context["source"] = "q15_support_audit"
 
     if context.get("gap_to_minimum") in (None, ""):
@@ -322,6 +422,72 @@ def _support_goal_success_line(
     )
 
 
+def _format_legacy_supported_reference(reference: Any) -> str:
+    if not isinstance(reference, dict) or not reference:
+        return "—"
+    rows = reference.get("live_current_structure_bucket_rows")
+    minimum = reference.get("minimum_support_rows")
+    heartbeat = reference.get("heartbeat") or reference.get("timestamp") or "unknown"
+    if rows is None and minimum is None:
+        return str(heartbeat)
+    return f"{rows if rows is not None else '—'}/{minimum if minimum is not None else '—'}@{heartbeat}"
+
+
+def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
+    support_context = support_context or {}
+    status = support_context.get("support_progress_status")
+    regression_basis = support_context.get("support_progress_regression_basis")
+    legacy_ref = support_context.get("legacy_supported_reference")
+    if status in (None, "") and regression_basis in (None, "") and not legacy_ref:
+        return ""
+    return (
+        f"support progress：`status={status or '—'}` / "
+        f"`regression_basis={regression_basis or '—'}` / "
+        f"`legacy_supported_reference={_format_legacy_supported_reference(legacy_ref)}`"
+    )
+
+
+_PATCH_EMPTY_DOC_MARKERS = {"", "-", "—", "none", "null", "n/a", "na"}
+
+
+def _normalize_patch_truth_value(value: Any) -> str:
+    if value is None:
+        return "—"
+    text = str(value).strip()
+    if not text:
+        return "—"
+    if text.lower() in _PATCH_EMPTY_DOC_MARKERS:
+        return "—"
+    return text
+
+
+def _patch_truth_doc_context(
+    patch_profile: Any,
+    patch_status: Any,
+    patch_reference_scope: Any,
+) -> Dict[str, Any]:
+    profile = _normalize_patch_truth_value(patch_profile)
+    status = _normalize_patch_truth_value(patch_status)
+    reference_scope = _normalize_patch_truth_value(patch_reference_scope)
+    has_patch = any(item != "—" for item in (profile, status, reference_scope))
+    reference_only = has_patch and status.startswith("reference_only_")
+    patch_label = "reference-only patch" if reference_only else ("recommended patch" if has_patch else "")
+    docs_line = f"`recommended_patch={profile}` / `status={status}` / `reference_scope={reference_scope}`"
+    if not has_patch:
+        docs_line += "（本輪無 active recommended patch）"
+    return {
+        "profile": profile,
+        "status": status,
+        "reference_scope": reference_scope,
+        "has_patch": has_patch,
+        "reference_only": reference_only,
+        "patch_label": patch_label,
+        "priority_focus_phrase": f"support / {patch_label}" if has_patch else "support truth / blocker truth",
+        "goal_title_suffix": f"support + {patch_label} 真相" if has_patch else "support truth 與 deployment closure 邊界",
+        "docs_line": docs_line,
+    }
+
+
 def _find_source_blocker(source_blockers: Dict[str, Any] | None, blocker_key: str) -> Dict[str, Any] | None:
     for blocker in (source_blockers or {}).get("blocked_features") or []:
         if isinstance(blocker, dict) and blocker.get("key") == blocker_key:
@@ -365,10 +531,24 @@ def _save_open_current_state_issues(issues: list[Dict[str, Any]]) -> None:
     )
 
 
+def _current_state_suppressed_auto_issue_ids() -> set[str]:
+    # Only hide auto-proposed IDs that are known duplicate aliases of curated
+    # current-state issues. Non-duplicate auto issues (for example model
+    # stability / regime-drift findings from auto_propose_fixes.py) must remain
+    # in issues.json and markdown docs; otherwise the runner prints them during
+    # auto-propose and then silently deletes them during docs overwrite sync.
+    return {
+        "#H_AUTO_CIRCUIT_BREAKER",
+        "#H_AUTO_RECENT_PATHOLOGY",
+        "#H_AUTO_CURRENT_BUCKET_SUPPORT",
+    }
+
+
 def _load_open_current_state_issues() -> list[Dict[str, Any]]:
     issues_path = Path(PROJECT_ROOT) / "issues.json"
     payload = _read_json_file(issues_path) or {}
     issues = payload.get("issues") or []
+    suppressed_auto_ids = _current_state_suppressed_auto_issue_ids()
     filtered: list[Dict[str, Any]] = []
     for issue in issues:
         if not isinstance(issue, dict):
@@ -376,10 +556,9 @@ def _load_open_current_state_issues() -> list[Dict[str, Any]]:
         if issue.get("status", "open") != "open":
             continue
         issue_id = str(issue.get("id") or "")
-        if issue_id.startswith("#H_AUTO_"):
+        if issue_id in suppressed_auto_ids:
             continue
         filtered.append(issue)
-
     priority_rank = {"P0": 0, "P1": 1, "P2": 2}
     filtered.sort(
         key=lambda item: (
@@ -388,6 +567,253 @@ def _load_open_current_state_issues() -> list[Dict[str, Any]]:
         )
     )
     return filtered
+
+
+def _normalize_serial_result_for_docs(
+    name: str,
+    payload: Dict[str, Any] | None,
+    *,
+    now: datetime | None = None,
+) -> Dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    if isinstance(payload.get("result"), dict):
+        return _build_serial_result_summary(
+            name,
+            payload.get("result") or {},
+            diagnostics=payload.get("diagnostics") if isinstance(payload.get("diagnostics"), dict) else {},
+            artifact_path=payload.get("artifact_path"),
+            now=now,
+        )
+    if payload.get("name") or any(
+        key in payload
+        for key in (
+            "attempted",
+            "success",
+            "returncode",
+            "timed_out",
+            "fallback_artifact_used",
+            "cached",
+        )
+    ):
+        return {"name": name, **payload}
+    return {}
+
+
+def _format_candidate_lane_status_for_docs(lane: Dict[str, Any]) -> str:
+    name = lane.get("name") or "unknown"
+    if lane.get("cached"):
+        status = "cached"
+    elif lane.get("skipped"):
+        status = "skipped"
+    elif lane.get("timed_out"):
+        status = "timeout"
+    elif lane.get("success"):
+        status = "fresh"
+    else:
+        status = "failed"
+    if lane.get("fallback_artifact_used"):
+        status += "→fallback"
+    age_seconds = lane.get("artifact_age_seconds")
+    if isinstance(age_seconds, (int, float)):
+        status += f"({round(age_seconds / 3600, 1)}h)"
+    return f"{name}={status}"
+
+
+def _candidate_artifact_refresh_context(
+    serial_results: Dict[str, Dict[str, Any]] | None,
+    *,
+    now: datetime | None = None,
+) -> Dict[str, Any]:
+    lane_summaries: list[Dict[str, Any]] = []
+    timed_out_lanes: list[str] = []
+    stale_fallback_lanes: list[str] = []
+    artifact_age_hours_by_lane: Dict[str, float] = {}
+    for name in CANDIDATE_REFRESH_LANES:
+        summary = _normalize_serial_result_for_docs(name, (serial_results or {}).get(name), now=now)
+        if not summary:
+            continue
+        timed_out = bool(summary.get("timed_out")) or (
+            summary.get("returncode") == -1
+            and "TIMEOUT after" in str(summary.get("stderr_preview") or summary.get("stderr") or "")
+        )
+        fallback_used = bool(summary.get("fallback_artifact_used"))
+        lane = {
+            **summary,
+            "name": name,
+            "timed_out": timed_out,
+            "fallback_artifact_used": fallback_used,
+        }
+        lane_summaries.append(lane)
+        if timed_out:
+            timed_out_lanes.append(name)
+        if timed_out and fallback_used:
+            stale_fallback_lanes.append(name)
+            age_seconds = lane.get("artifact_age_seconds")
+            if isinstance(age_seconds, (int, float)):
+                artifact_age_hours_by_lane[name] = round(age_seconds / 3600, 2)
+    return {
+        "candidate_lanes": lane_summaries,
+        "timed_out_lanes": timed_out_lanes,
+        "stale_fallback_lanes": stale_fallback_lanes,
+        "artifact_age_hours_by_lane": artifact_age_hours_by_lane,
+        "has_stale_fallback": bool(stale_fallback_lanes),
+        "docs_line": " / ".join(_format_candidate_lane_status_for_docs(lane) for lane in lane_summaries),
+    }
+
+
+def _sync_candidate_artifact_refresh_issue(
+    issues: list[Dict[str, Any]],
+    context: Dict[str, Any],
+    *,
+    run_label: str,
+) -> bool:
+    issue_id = CANDIDATE_ARTIFACT_STALE_FALLBACK_ISSUE_ID
+    stale_lanes = context.get("stale_fallback_lanes") or []
+    now_iso = datetime.utcnow().isoformat()
+    existing_index = next((idx for idx, issue in enumerate(issues) if issue.get("id") == issue_id), None)
+    if not stale_lanes:
+        if existing_index is not None:
+            del issues[existing_index]
+            return True
+        return False
+
+    summary = {
+        "heartbeat": run_label,
+        "timed_out_lanes": context.get("timed_out_lanes") or [],
+        "stale_fallback_lanes": stale_lanes,
+        "artifact_age_hours_by_lane": context.get("artifact_age_hours_by_lane") or {},
+        "refresh_required": True,
+    }
+    issue = {
+        "id": issue_id,
+        "priority": "P1",
+        "status": "open",
+        "title": "candidate governance artifacts fell back after refresh timeouts",
+        "summary": summary,
+        "action": (
+            "把 feature shrinkage / bull pocket candidate refresh 從 silent full rebuild 改成可完成的 bounded/live-context-only lane；"
+            "在刷新完成前，leaderboard / training governance 必須把 stale fallback 標成 reference-only，不可當成 fresh production truth。"
+        ),
+        "next_action": (
+            "先讓下一輪 full heartbeat 的 feature_group_ablation 與 bull_4h_pocket_ablation 不再 timeout；"
+            "若仍超時，必須在 docs/API summary 明確標示 fallback artifact age 與 non-authoritative status。"
+        ),
+        "verify": [
+            "source venv/bin/activate && python -m pytest tests/test_hb_parallel_runner.py -q",
+            "python scripts/hb_parallel_runner.py --hb <next_full_run>",
+            "check data/heartbeat_<run>_summary.json serial_results candidate lanes",
+        ],
+        "updated_at": now_iso,
+    }
+    if existing_index is None:
+        issue["created_at"] = now_iso
+        issues.append(issue)
+    else:
+        existing = issues[existing_index]
+        issue["created_at"] = existing.get("created_at") or now_iso
+        issues[existing_index] = {**existing, **issue}
+    return True
+
+
+def _parallel_task_failure_context(
+    parallel_results: Dict[str, Dict[str, Any]] | None,
+    *,
+    run_label: str,
+    run_mode: str | None = None,
+) -> Dict[str, Any]:
+    failed_lanes: list[Dict[str, Any]] = []
+    timed_out_lanes: list[str] = []
+    for name, result in sorted((parallel_results or {}).items()):
+        if not isinstance(result, dict) or result.get("success") is not False:
+            continue
+        stderr_text = str(result.get("stderr_preview") or result.get("stderr") or "")
+        timed_out = bool(result.get("timed_out")) or (
+            result.get("returncode") == -1 and "TIMEOUT after" in stderr_text
+        )
+        timeout_seconds = None
+        timeout_match = re.search(r"TIMEOUT after\s+(\d+)s", stderr_text)
+        if timeout_match:
+            timeout_seconds = int(timeout_match.group(1))
+        lane = {
+            "name": name,
+            "status": "timeout" if timed_out else "failed",
+            "returncode": result.get("returncode"),
+            "timed_out": timed_out,
+            "timeout_seconds": timeout_seconds,
+        }
+        failed_lanes.append(lane)
+        if timed_out:
+            timed_out_lanes.append(name)
+
+    def _format_lane(lane: Dict[str, Any]) -> str:
+        if lane.get("timed_out") and lane.get("timeout_seconds"):
+            return f"{lane.get('name')}=timeout({lane.get('timeout_seconds')}s)"
+        if lane.get("timed_out"):
+            return f"{lane.get('name')}=timeout"
+        return f"{lane.get('name')}=failed(rc={lane.get('returncode')})"
+
+    return {
+        "heartbeat": run_label,
+        "mode": str(run_mode or "heartbeat"),
+        "failed_lanes": failed_lanes,
+        "timed_out_lanes": timed_out_lanes,
+        "has_failures": bool(failed_lanes),
+        "docs_line": " / ".join(_format_lane(lane) for lane in failed_lanes),
+    }
+
+
+def _sync_parallel_task_failure_issue(
+    issues: list[Dict[str, Any]],
+    context: Dict[str, Any],
+    *,
+    run_label: str,
+) -> bool:
+    issue_id = PARALLEL_TASK_FAILURE_ISSUE_ID
+    now_iso = datetime.utcnow().isoformat()
+    existing_index = next((idx for idx, issue in enumerate(issues) if issue.get("id") == issue_id), None)
+    if not context.get("has_failures"):
+        if existing_index is not None:
+            del issues[existing_index]
+            return True
+        return False
+
+    summary = {
+        "heartbeat": run_label,
+        "mode": context.get("mode"),
+        "failed_lanes": context.get("failed_lanes") or [],
+        "timed_out_lanes": context.get("timed_out_lanes") or [],
+        "docs_line": context.get("docs_line") or "—",
+    }
+    issue = {
+        "id": issue_id,
+        "priority": "P1",
+        "status": "open",
+        "title": "heartbeat parallel verification did not finish cleanly",
+        "summary": summary,
+        "action": (
+            "修正 heartbeat parallel verification lane，讓 full heartbeat 不再把 train/test/IC task failure "
+            "藏在 summary JSON 裡；若 train timeout 持續，需降低 cron 訓練成本或調整 bounded train budget，並保留 clear failure issue。"
+        ),
+        "next_action": (
+            "先讓下一輪 full heartbeat 的 parallel results 達到 5/5；若 train 仍 timeout，必須把 train artifact refresh "
+            "降成本或拆成獨立長任務，不得讓 docs 宣稱 clean completion。"
+        ),
+        "verify": [
+            "source venv/bin/activate && python -m pytest tests/test_hb_parallel_runner.py -q -k parallel_task_failure",
+            "source venv/bin/activate && python scripts/hb_parallel_runner.py --hb <next_full_run>",
+            "check data/heartbeat_<run>_summary.json stats.passed == stats.total",
+        ],
+        "updated_at": now_iso,
+    }
+    if existing_index is None:
+        issue["created_at"] = now_iso
+        issues.append(issue)
+    else:
+        existing = issues[existing_index]
+        issue["created_at"] = existing.get("created_at") or now_iso
+        issues[existing_index] = {**existing, **issue}
+    return True
 
 
 def _verification_lines(issue: Dict[str, Any]) -> list[str]:
@@ -426,6 +852,48 @@ def _generic_issue_current_lines(issue: Dict[str, Any]) -> list[str]:
     return ["目前真相：" + " / ".join(parts)]
 
 
+def _has_recent_pathology_truth(summary: Dict[str, Any] | None, *, window: Any = None, alerts: Any = None) -> bool:
+    if not isinstance(summary, dict):
+        summary = {}
+    checks = [
+        window,
+        alerts,
+        summary.get("window"),
+        summary.get("rows"),
+        summary.get("win_rate"),
+        summary.get("dominant_regime"),
+        summary.get("dominant_regime_share"),
+        summary.get("avg_quality"),
+        summary.get("avg_pnl"),
+        summary.get("avg_drawdown_penalty"),
+        summary.get("top_shift_features"),
+        summary.get("new_compressed_feature"),
+        summary.get("tail_streak"),
+        summary.get("target_path_diagnostics"),
+        summary.get("interpretation"),
+    ]
+    return any(value not in (None, "", [], {}, ()) for value in checks)
+
+
+def _format_target_tail_streak_for_docs(summary: Dict[str, Any] | None) -> str:
+    if not isinstance(summary, dict):
+        return "—"
+    flat_tail = summary.get("tail_streak")
+    if flat_tail not in (None, "", [], {}, ()):
+        return str(flat_tail)
+    target_path = summary.get("target_path_diagnostics") or {}
+    if not isinstance(target_path, dict):
+        return "—"
+    tail_streak = target_path.get("tail_target_streak") or {}
+    if not isinstance(tail_streak, dict):
+        return "—"
+    count = tail_streak.get("count")
+    target = tail_streak.get("target")
+    if count is None or target is None:
+        return "—"
+    return f"{count}x{target}"
+
+
 def _issue_current_lines(
     issue: Dict[str, Any],
     *,
@@ -459,6 +927,8 @@ def _issue_current_lines(
     support_gap = support_context.get("gap_to_minimum", "—")
     support_route_verdict = support_context.get("support_route_verdict") or "—"
     support_governance_route = support_context.get("support_governance_route") or "—"
+    support_progress_line = _support_progress_docs_line(support_context)
+    support_progress_lines = [support_progress_line] if support_progress_line else []
     support_aware_profile = (
         leaderboard_candidate_diagnostics.get("support_aware_production_profile")
         or leaderboard_candidate_diagnostics.get("train_selected_profile")
@@ -482,15 +952,16 @@ def _issue_current_lines(
                 f"`support={support_current_rows}/{support_minimum_rows}` / "
                 f"`support_route_verdict={support_route_verdict}` / "
                 f"`support_governance_route={support_governance_route}`",
+                *support_progress_lines,
+                "runtime/API guardrail：`POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑。",
             ]
         summary = issue.get("summary") if isinstance(issue.get("summary"), dict) else {}
-        patch_profile = summary.get("recommended_patch") or live_decision_drilldown.get("recommended_patch_profile") or "—"
-        patch_status = summary.get("recommended_patch_status") or live_decision_drilldown.get("recommended_patch_status") or "—"
-        patch_reference_scope = (
+        patch_context = _patch_truth_doc_context(
+            summary.get("recommended_patch") or live_decision_drilldown.get("recommended_patch_profile"),
+            summary.get("recommended_patch_status") or live_decision_drilldown.get("recommended_patch_status"),
             summary.get("reference_patch_scope")
             or summary.get("recommended_patch_reference_scope")
-            or live_decision_drilldown.get("recommended_patch_reference_scope")
-            or "—"
+            or live_decision_drilldown.get("recommended_patch_reference_scope"),
         )
         return [
             "目前真相："
@@ -502,37 +973,101 @@ def _issue_current_lines(
             "same-bucket truth："
             f"`support_route_verdict={support_route_verdict}` / "
             f"`support_governance_route={support_governance_route}` / "
-            f"`recommended_patch={patch_profile}` / "
-            f"`recommended_patch_status={patch_status}` / "
-            f"`reference_scope={patch_reference_scope}`",
+            f"`recommended_patch={patch_context['profile']}` / "
+            f"`recommended_patch_status={patch_context['status']}` / "
+            f"`reference_scope={patch_context['reference_scope']}`",
+            *support_progress_lines,
+            "runtime/API guardrail：`POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑。",
         ]
 
     if issue_id == "P0_recent_distribution_pathology":
-        primary_summary = drift_diagnostics.get("primary_summary") or {}
-        primary_window = drift_diagnostics.get("primary_window") or primary_summary.get("window") or "—"
-        feature_diag = primary_summary.get("feature_diagnostics") or {}
-        return [
+        latest_summary = drift_diagnostics.get("primary_summary") or {}
+        latest_window = drift_diagnostics.get("primary_window") or latest_summary.get("window") or "—"
+        latest_alerts = drift_diagnostics.get("primary_alerts") or []
+        drift_blocking_summary = drift_diagnostics.get("blocking_summary") or {}
+        drift_blocking_window = drift_diagnostics.get("blocking_window")
+        drift_blocking_alerts = drift_diagnostics.get("blocking_alerts") or []
+        if not _has_recent_pathology_truth(
+            drift_blocking_summary,
+            window=drift_blocking_window,
+            alerts=drift_blocking_alerts,
+        ):
+            drift_blocking_summary = {}
+            drift_blocking_window = None
+            drift_blocking_alerts = []
+        issue_summary = issue.get("summary") if isinstance(issue.get("summary"), dict) else {}
+        blocker_summary = drift_blocking_summary or issue_summary
+        blocker_window = drift_blocking_window or blocker_summary.get("window") or latest_window
+        blocker_alerts = drift_blocking_alerts or blocker_summary.get("alerts") or latest_alerts
+        latest_signature = (
+            str(latest_window),
+            latest_summary.get("win_rate"),
+            latest_summary.get("dominant_regime"),
+            latest_summary.get("dominant_regime_share"),
+            latest_summary.get("avg_quality"),
+            latest_summary.get("avg_pnl"),
+            tuple(str(item) for item in latest_alerts),
+        )
+        blocker_signature = (
+            str(blocker_window),
+            blocker_summary.get("win_rate", latest_summary.get("win_rate")),
+            blocker_summary.get("dominant_regime", latest_summary.get("dominant_regime")),
+            blocker_summary.get("dominant_regime_share", latest_summary.get("dominant_regime_share")),
+            blocker_summary.get("avg_quality", latest_summary.get("avg_quality")),
+            blocker_summary.get("avg_pnl", latest_summary.get("avg_pnl")),
+            tuple(str(item) for item in blocker_alerts),
+        )
+        blocker_top_shifts = blocker_summary.get("top_shift_features") or []
+        if isinstance(blocker_top_shifts, list):
+            blocker_top_shift_text = ",".join(str(item) for item in blocker_top_shifts[:3]) or "—"
+        else:
+            blocker_top_shift_text = str(blocker_top_shifts)
+        lines = [
             "目前真相："
-            f"`window={primary_window}` / `win_rate={_format_pct_for_docs(primary_summary.get('win_rate'), 1)}` / "
-            f"`dominant_regime={primary_summary.get('dominant_regime') or '—'}({_format_pct_for_docs(primary_summary.get('dominant_regime_share'), 1)})` / "
-            f"`avg_quality={_format_number_for_docs(primary_summary.get('avg_quality'), 4, signed=True)}` / "
-            f"`avg_pnl={_format_number_for_docs(primary_summary.get('avg_pnl'), 4, signed=True)}`",
-            "病態切片："
-            f"`alerts={','.join(drift_diagnostics.get('primary_alerts') or []) or '—'}` / "
-            f"`tail_streak={(primary_summary.get('target_path_diagnostics') or {}).get('tail_target_streak', {}).get('count', '—')}` / "
-            f"`low_variance={feature_diag.get('low_variance_count', '—')}` / "
-            f"`low_distinct={feature_diag.get('low_distinct_count', '—')}` / "
-            f"`null_heavy={feature_diag.get('null_heavy_count', '—')}`",
+            + _format_recent_pathology_docs_line(
+                "window",
+                window=blocker_window,
+                win_rate=blocker_summary.get("win_rate", latest_summary.get("win_rate")),
+                dominant_regime=blocker_summary.get("dominant_regime", latest_summary.get("dominant_regime")),
+                dominant_regime_share=blocker_summary.get("dominant_regime_share", latest_summary.get("dominant_regime_share")),
+                avg_quality=blocker_summary.get("avg_quality", latest_summary.get("avg_quality")),
+                avg_pnl=blocker_summary.get("avg_pnl", latest_summary.get("avg_pnl")),
+                alerts=blocker_alerts,
+            )
         ]
+        if blocker_signature != latest_signature:
+            lines.append(
+                "latest diagnostics："
+                + _format_recent_pathology_docs_line(
+                    "latest_window",
+                    window=latest_window,
+                    win_rate=latest_summary.get("win_rate"),
+                    dominant_regime=latest_summary.get("dominant_regime"),
+                    dominant_regime_share=latest_summary.get("dominant_regime_share"),
+                    avg_quality=latest_summary.get("avg_quality"),
+                    avg_pnl=latest_summary.get("avg_pnl"),
+                    alerts=latest_alerts,
+                )
+            )
+        lines.append(
+            "病態切片："
+            f"`alerts={','.join(str(item) for item in blocker_alerts) or '—'}` / "
+            f"`tail_streak={_format_target_tail_streak_for_docs(blocker_summary)}` / "
+            f"`top_shift={blocker_top_shift_text or '—'}` / "
+            f"`new_compressed={blocker_summary.get('new_compressed_feature', '—')}`"
+        )
+        return lines
 
     if issue_id == "P1_leaderboard_recent_window_contract":
+        payload_state_line = _format_leaderboard_payload_state_for_docs(leaderboard_candidate_diagnostics)
         return [
             "目前真相："
             f"`leaderboard_count={leaderboard_candidate_diagnostics.get('leaderboard_count', '—')}` / "
             f"`selected_feature_profile={leaderboard_candidate_diagnostics.get('selected_feature_profile') or '—'}` / "
             f"`support_aware_profile={support_aware_profile or '—'}` / "
             f"`governance_contract={governance_verdict or '—'}` / "
-            f"`current_closure={governance_current_closure or '—'}`",
+            f"`current_closure={governance_current_closure or '—'}` / "
+            f"{payload_state_line}",
         ]
 
     if issue_id == "P1_execution_venue_readiness_unverified":
@@ -541,6 +1076,7 @@ def _issue_current_lines(
             "`binance=config enabled + public-only + metadata OK` / "
             "`okx=config disabled + public-only + metadata OK` / "
             "`missing_runtime_proof=live exchange credential, order ack lifecycle, fill lifecycle`",
+            "API/UI contract：`execution_metadata_smoke.venues[]` 已帶 `proof_state / blockers / operator_next_action / verify_next`，Dashboard、`/execution/status`、`/execution`、`/lab` 可直接顯示每個場館的實單證據缺口，不再只靠 metadata OK/FAIL 猜測 readiness。",
         ]
 
     if issue_id == "P1_fin_netflow_auth_blocked":
@@ -559,13 +1095,17 @@ def _issue_current_lines(
             ]
 
     if issue_id == "P1_q15_exact_support_stalled_under_breaker":
+        summary = issue.get("summary") or {}
+        breaker_context = summary.get("breaker_context") or ("circuit_breaker_active" if live_predictor_diagnostics.get("deployment_blocker") == "circuit_breaker_active" else "breaker_clear")
         return [
             "目前真相："
             f"`bucket={support_context.get('current_bucket') or live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
             f"`support={support_current_rows}/{support_minimum_rows}` / "
             f"`gap={support_gap}` / "
             f"`support_route_verdict={support_route_verdict}` / "
-            f"`governance_route={support_governance_route}`",
+            f"`governance_route={support_governance_route}` / "
+            f"`breaker_context={breaker_context}`",
+            *support_progress_lines,
         ]
 
     if issue_id == "P1_bull_caution_spillover_patch_reference_only":
@@ -583,9 +1123,190 @@ def _issue_current_lines(
             f"`gap={summary_gap}` / "
             f"`support_route_verdict={summary_verdict}` / "
             f"`governance_route={summary_governance}`",
+            *support_progress_lines,
         ]
 
+    if issue_id == "P1_q35_scaling_no_deploy":
+        summary = issue.get("summary") or {}
+        summary_bucket = summary.get("current_live_structure_bucket") or live_predictor_diagnostics.get("current_live_structure_bucket") or "—"
+        summary_rows = summary.get("current_live_structure_bucket_rows", support_current_rows)
+        summary_minimum = summary.get("minimum_support_rows", support_minimum_rows)
+        summary_gap = summary.get("gap_to_minimum", support_gap)
+        summary_verdict = summary.get("support_route_verdict") or support_route_verdict
+        q35_doc_line = _q35_scaling_doc_line(issue)
+        lines = [
+            "目前真相："
+            f"`bucket={summary_bucket}` / "
+            f"`support={summary_rows}/{summary_minimum}` / "
+            f"`gap={summary_gap}` / "
+            f"`support_route_verdict={summary_verdict}` / "
+            f"`overall_verdict={summary.get('overall_verdict') or '—'}` / "
+            f"`redesign_verdict={summary.get('redesign_verdict') or '—'}` / "
+            f"`runtime_gap_to_floor={summary.get('runtime_remaining_gap_to_floor', summary.get('remaining_gap_to_floor', '—'))}`",
+        ]
+        if q35_doc_line:
+            lines.append(q35_doc_line)
+        return lines
+
     return _generic_issue_current_lines(issue)
+
+
+def _find_open_issue(issues: list[Dict[str, Any]], issue_id: str) -> Dict[str, Any] | None:
+    for issue in issues:
+        if issue.get("id") == issue_id and issue.get("status", "open") == "open":
+            return issue
+    return None
+
+
+def _q35_scaling_doc_line(issue: Dict[str, Any] | None) -> str | None:
+    if not isinstance(issue, dict):
+        return None
+    summary = issue.get("summary") or {}
+    if not isinstance(summary, dict) or not summary:
+        return None
+    runtime_gap = summary.get("runtime_remaining_gap_to_floor", summary.get("remaining_gap_to_floor"))
+    intro = "q35 scaling audit 已指出目前不是單點 bias50 closure："
+    parts = [
+        f"`overall_verdict={summary.get('overall_verdict') or '—'}`",
+        f"`redesign_verdict={summary.get('redesign_verdict') or '—'}`",
+        f"`runtime_gap_to_floor={runtime_gap if runtime_gap is not None else '—'}`",
+    ]
+    if summary.get("redesign_entry_quality") is not None:
+        parts.append(f"`redesign_entry_quality={summary.get('redesign_entry_quality')}`")
+    if summary.get("redesign_allowed_layers_after") is not None:
+        parts.append(f"`redesign_allowed_layers={summary.get('redesign_allowed_layers_after')}`")
+    if summary.get("redesign_positive_discriminative_gap") is not None:
+        parts.append(f"`positive_discriminative_gap={summary.get('redesign_positive_discriminative_gap')}`")
+    if summary.get("redesign_execution_blocked_after_floor_cross") is not None:
+        parts.append(
+            f"`execution_blocked_after_floor_cross={summary.get('redesign_execution_blocked_after_floor_cross')}`"
+        )
+    return f"{intro} " + " / ".join(parts)
+
+
+
+def _format_recent_pathology_docs_line(
+    window_label: str,
+    *,
+    window: Any,
+    win_rate: Any,
+    dominant_regime: Any,
+    dominant_regime_share: Any,
+    avg_quality: Any,
+    avg_pnl: Any,
+    alerts: list[Any] | None,
+) -> str:
+    return (
+        f"`{window_label}={window if window not in (None, '') else '—'}` / "
+        f"`win_rate={_format_pct_for_docs(win_rate, 1)}` / "
+        f"`dominant_regime={dominant_regime or '—'}({_format_pct_for_docs(dominant_regime_share, 1)})` / "
+        f"`avg_quality={_format_number_for_docs(avg_quality, 4, signed=True)}` / "
+        f"`avg_pnl={_format_number_for_docs(avg_pnl, 4, signed=True)}` / "
+        f"`alerts={','.join(str(item) for item in (alerts or [])) or '—'}`"
+    )
+
+
+
+def _format_duration_seconds_for_docs(value: Any) -> str:
+    if not isinstance(value, (int, float)):
+        return "—"
+    if value < 0:
+        return "—"
+    if value < 3600:
+        return f"{round(value / 60, 1)}m"
+    return f"{round(value / 3600, 1)}h"
+
+
+
+def _format_bool_for_docs(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value in (None, ""):
+        return "—"
+    return str(value)
+
+
+
+def _format_leaderboard_payload_state_for_docs(
+    leaderboard_candidate_diagnostics: Dict[str, Any] | None,
+) -> str:
+    """Compactly expose leaderboard payload recency in current-state docs.
+
+    A leaderboard can be governance-aligned while still backed by an older
+    persisted payload. Surfacing source/staleness next to the profile verdict
+    prevents Strategy Lab readiness from being read as fresher than the
+    machine-readable probe artifact says it is.
+    """
+
+    context = leaderboard_candidate_diagnostics or {}
+    source = context.get("leaderboard_payload_source") or "—"
+    stale = _format_bool_for_docs(context.get("leaderboard_payload_stale"))
+    age = _format_duration_seconds_for_docs(context.get("leaderboard_payload_cache_age_sec"))
+    return f"`payload_source={source}` / `payload_stale={stale}` / `payload_age={age}`"
+
+
+
+def _docs_value_missing(value: Any) -> bool:
+    return value is None or value == "" or value == [] or value == {} or value == ()
+
+
+
+def _leaderboard_docs_context(
+    leaderboard_candidate_diagnostics: Dict[str, Any] | None,
+    issues: list[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Return docs-ready leaderboard governance truth.
+
+    Docs overwrite can be called by focused verification/debug lanes that do not
+    rerun the leaderboard candidate probe. In that case, keep current-state docs
+    productized by falling back to the latest persisted probe artifact and then
+    to the machine-readable issue summary instead of writing misleading `—`
+    placeholders for the P1 leaderboard contract.
+    """
+
+    context: Dict[str, Any] = dict(leaderboard_candidate_diagnostics or {})
+    needs_fallback = any(
+        _docs_value_missing(context.get(key))
+        for key in ("leaderboard_count", "selected_feature_profile")
+    ) or (
+        _docs_value_missing(context.get("governance_contract"))
+        and _docs_value_missing(context.get("governance_current_closure"))
+    )
+    if needs_fallback and not context:
+        try:
+            artifact_context = collect_leaderboard_candidate_diagnostics()
+        except Exception:
+            artifact_context = {}
+        if isinstance(artifact_context, dict):
+            for key, value in artifact_context.items():
+                if _docs_value_missing(context.get(key)) and not _docs_value_missing(value):
+                    context[key] = value
+
+    issue = _find_open_issue(issues, "P1_leaderboard_recent_window_contract")
+    summary = issue.get("summary") if isinstance(issue, dict) else None
+    if isinstance(summary, dict):
+        fallback_fields = {
+            "leaderboard_count": summary.get("leaderboard_count"),
+            "selected_feature_profile": summary.get("selected_feature_profile") or summary.get("top_profile"),
+            "support_aware_production_profile": summary.get("support_aware_profile")
+            or summary.get("support_aware_production_profile")
+            or summary.get("train_selected_profile"),
+            "train_selected_profile": summary.get("train_selected_profile"),
+            "governance_contract": summary.get("governance_contract"),
+            "governance_current_closure": summary.get("current_closure")
+            or summary.get("governance_current_closure"),
+            "dual_profile_state": summary.get("dual_profile_state"),
+            "leaderboard_payload_source": summary.get("leaderboard_payload_source"),
+            "leaderboard_payload_stale": summary.get("leaderboard_payload_stale"),
+            "leaderboard_payload_cache_age_sec": summary.get("leaderboard_payload_cache_age_sec"),
+            "leaderboard_payload_updated_at": summary.get("leaderboard_payload_updated_at"),
+        }
+        for key, value in fallback_fields.items():
+            if _docs_value_missing(context.get(key)) and not _docs_value_missing(value):
+                context[key] = value
+
+    return context
+
 
 
 def overwrite_current_state_docs(
@@ -598,6 +1319,11 @@ def overwrite_current_state_docs(
     q15_support_audit: Dict[str, Any] | None,
     circuit_breaker_audit: Dict[str, Any] | None,
     leaderboard_candidate_diagnostics: Dict[str, Any] | None,
+    *,
+    run_mode: str | None = None,
+    collect_attempted: bool = True,
+    serial_results: Dict[str, Dict[str, Any]] | None = None,
+    parallel_results: Dict[str, Dict[str, Any]] | None = None,
 ) -> Dict[str, Any]:
     counts = counts or {}
     source_blockers = source_blockers or {}
@@ -608,10 +1334,39 @@ def overwrite_current_state_docs(
     circuit_breaker_audit = circuit_breaker_audit or {}
     leaderboard_candidate_diagnostics = leaderboard_candidate_diagnostics or {}
     issues = _load_open_current_state_issues()
+    leaderboard_candidate_diagnostics = _leaderboard_docs_context(leaderboard_candidate_diagnostics, issues)
+    candidate_refresh_context = _candidate_artifact_refresh_context(serial_results)
+    parallel_failure_context = _parallel_task_failure_context(
+        parallel_results,
+        run_label=run_label,
+        run_mode=run_mode,
+    )
+    issues_changed = False
     if _sync_live_issue_summaries(issues, source_blockers):
+        issues_changed = True
+    if _sync_candidate_artifact_refresh_issue(issues, candidate_refresh_context, run_label=run_label):
+        issues_changed = True
+    if _sync_parallel_task_failure_issue(issues, parallel_failure_context, run_label=run_label):
+        issues_changed = True
+    if issues_changed:
         _save_open_current_state_issues(issues)
 
     updated_at = _format_local_timestamp_for_docs()
+    normalized_run_mode = str(run_mode or "fast").strip().lower()
+    heartbeat_mode_label = {
+        "fast": "fast heartbeat",
+        "full": "full heartbeat",
+    }.get(normalized_run_mode, "heartbeat")
+    completion_phrase = (
+        "已完成 collect + diagnostics refresh"
+        if collect_attempted
+        else "已完成 diagnostics refresh（collect skipped）"
+    )
+    orid_completion_phrase = (
+        "collect + diagnostics refresh 完成"
+        if collect_attempted
+        else "diagnostics refresh 完成（collect skipped）"
+    )
     release = (live_predictor_diagnostics.get("deployment_blocker_details") or {}).get("release_condition") or {}
     primary_summary = drift_diagnostics.get("primary_summary") or {}
     primary_window = drift_diagnostics.get("primary_window") or primary_summary.get("window") or "—"
@@ -626,6 +1381,8 @@ def overwrite_current_state_docs(
         or leaderboard_candidate_diagnostics.get("train_selected_profile")
         or (governance_contract.get("production_profile") if isinstance(governance_contract, dict) else None)
     )
+    q35_scaling_issue = _find_open_issue(issues, "P1_q35_scaling_no_deploy")
+    q35_scaling_doc_line = _q35_scaling_doc_line(q35_scaling_issue)
     current_support_bucket = _current_support_bucket(live_predictor_diagnostics, q15_support_audit)
     support_scope_label = _support_scope_label(current_support_bucket)
     support_truth_label = _support_truth_label(current_support_bucket)
@@ -643,18 +1400,40 @@ def overwrite_current_state_docs(
         live_predictor_diagnostics.get("current_live_structure_bucket_gap_to_minimum", "—"),
     )
     support_route_verdict = support_context.get("support_route_verdict") or "—"
+    support_progress_line = _support_progress_docs_line(support_context)
+    support_progress_doc_lines = [support_progress_line] if support_progress_line else []
 
     counts_line = (
         f"`Raw={counts.get('raw_market_data', '—')} / "
         f"Features={counts.get('features_normalized', '—')} / "
         f"Labels={counts.get('labels', '—')}`"
     )
+    history_confirmation = collect_historical_coverage_confirmation(DB_PATH)
+    history_tables = history_confirmation.get("tables") if isinstance(history_confirmation, dict) else {}
+    raw_history = history_tables.get("raw_market_data") if isinstance(history_tables, dict) else {}
+    feature_history = history_tables.get("features_normalized") if isinstance(history_tables, dict) else {}
+    label_history = history_tables.get("labels") if isinstance(history_tables, dict) else {}
+    history_line = (
+        f"`2y_backfill_ok={history_confirmation.get('covers_two_years')}` / "
+        f"`raw_start={raw_history.get('start') or '—'}` / "
+        f"`features_start={feature_history.get('start') or '—'}` / "
+        f"`labels_start={label_history.get('start') or '—'}`"
+    )
+    release_window = release.get("recent_window", live_predictor_diagnostics.get("window_size", "—"))
+    release_wins = release.get(
+        "current_recent_window_wins",
+        live_predictor_diagnostics.get("recent_window_wins", "—"),
+    )
+    release_gap = release.get("additional_recent_window_wins_needed", "—")
     blocker_line = (
         f"`deployment_blocker={live_predictor_diagnostics.get('deployment_blocker') or '—'}` / "
         f"`streak={live_predictor_diagnostics.get('streak', '—')}` / "
-        f"`recent_window_wins={release.get('current_recent_window_wins', live_predictor_diagnostics.get('recent_window_wins', '—'))}/"
-        f"{release.get('recent_window', live_predictor_diagnostics.get('window_size', '—'))}` / "
-        f"`additional_recent_window_wins_needed={release.get('additional_recent_window_wins_needed', '—')}`"
+        f"`recent_window_wins={release_wins}/"
+        f"{release_window}` / "
+        f"`additional_recent_window_wins_needed={release_gap}`"
+    )
+    breaker_release_ui_line = (
+        f"`最近 {release_window} 筆目前 {release_wins}/{release_window}，還差 {release_gap} 勝；支持樣本 / q15 修補不可取代熔斷解除條件`"
     )
     support_line = (
         f"`current_live_structure_bucket={live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
@@ -662,21 +1441,84 @@ def overwrite_current_state_docs(
         f"`gap={support_gap}` / "
         f"`support_route_verdict={support_route_verdict}`"
     )
-    pathology_line = (
-        f"`window={primary_window}` / "
-        f"`win_rate={_format_pct_for_docs(primary_summary.get('win_rate'), 1)}` / "
-        f"`dominant_regime={primary_summary.get('dominant_regime') or '—'}({_format_pct_for_docs(primary_summary.get('dominant_regime_share'), 1)})` / "
-        f"`avg_quality={_format_number_for_docs(primary_summary.get('avg_quality'), 4, signed=True)}` / "
-        f"`avg_pnl={_format_number_for_docs(primary_summary.get('avg_pnl'), 4, signed=True)}` / "
-        f"`alerts={','.join(drift_diagnostics.get('primary_alerts') or []) or '—'}`"
+    primary_alerts = drift_diagnostics.get("primary_alerts") or []
+    pathology_line = _format_recent_pathology_docs_line(
+        "latest_window",
+        window=primary_window,
+        win_rate=primary_summary.get("win_rate"),
+        dominant_regime=primary_summary.get("dominant_regime"),
+        dominant_regime_share=primary_summary.get("dominant_regime_share"),
+        avg_quality=primary_summary.get("avg_quality"),
+        avg_pnl=primary_summary.get("avg_pnl"),
+        alerts=primary_alerts,
     )
+    blocking_pathology_line = None
+    recent_pathology_issue = _find_open_issue(issues, "P0_recent_distribution_pathology")
+    drift_blocking_summary = drift_diagnostics.get("blocking_summary") or {}
+    drift_blocking_window = drift_diagnostics.get("blocking_window")
+    drift_blocking_alerts = drift_diagnostics.get("blocking_alerts") or []
+    if not _has_recent_pathology_truth(
+        drift_blocking_summary,
+        window=drift_blocking_window,
+        alerts=drift_blocking_alerts,
+    ):
+        drift_blocking_summary = {}
+        drift_blocking_window = None
+        drift_blocking_alerts = []
+    recent_pathology_summary = drift_blocking_summary
+    if not recent_pathology_summary and recent_pathology_issue:
+        recent_pathology_summary = recent_pathology_issue.get("summary") or {}
+    blocker_alerts = drift_blocking_alerts or recent_pathology_summary.get("alerts") or []
+    blocker_window = drift_blocking_window or recent_pathology_summary.get("window")
+    if recent_pathology_summary:
+        latest_signature = (
+            str(primary_window),
+            primary_summary.get("win_rate"),
+            primary_summary.get("dominant_regime"),
+            primary_summary.get("dominant_regime_share"),
+            primary_summary.get("avg_quality"),
+            primary_summary.get("avg_pnl"),
+            tuple(str(item) for item in primary_alerts),
+        )
+        blocker_signature = (
+            str(blocker_window or "—"),
+            recent_pathology_summary.get("win_rate"),
+            recent_pathology_summary.get("dominant_regime"),
+            recent_pathology_summary.get("dominant_regime_share"),
+            recent_pathology_summary.get("avg_quality"),
+            recent_pathology_summary.get("avg_pnl"),
+            tuple(str(item) for item in blocker_alerts),
+        )
+        if blocker_signature != latest_signature:
+            blocking_pathology_line = _format_recent_pathology_docs_line(
+                "blocking_window",
+                window=blocker_window,
+                win_rate=recent_pathology_summary.get("win_rate"),
+                dominant_regime=recent_pathology_summary.get("dominant_regime"),
+                dominant_regime_share=recent_pathology_summary.get("dominant_regime_share"),
+                avg_quality=recent_pathology_summary.get("avg_quality"),
+                avg_pnl=recent_pathology_summary.get("avg_pnl"),
+                alerts=blocker_alerts,
+            )
+    leaderboard_payload_state_line = _format_leaderboard_payload_state_for_docs(leaderboard_candidate_diagnostics)
     leaderboard_line = (
         f"`leaderboard_count={leaderboard_candidate_diagnostics.get('leaderboard_count', '—')}` / "
         f"`selected_feature_profile={leaderboard_candidate_diagnostics.get('selected_feature_profile') or '—'}` / "
         f"`support_aware_profile={support_aware_profile or '—'}` / "
         f"`governance_contract={governance_verdict or '—'}` / "
-        f"`current_closure={governance_current_closure or '—'}`"
+        f"`current_closure={governance_current_closure or '—'}` / "
+        f"{leaderboard_payload_state_line}"
     )
+    governance_text = f"{governance_verdict or ''} {governance_current_closure or ''}".lower()
+    if "single" in governance_text:
+        leaderboard_fact_heading = "- **leaderboard / governance 已收斂為 single-role alignment**"
+        leaderboard_governance_label = "leaderboard single-role governance"
+    elif "dual" in governance_text or "split" in governance_text:
+        leaderboard_fact_heading = "- **leaderboard / governance 仍維持 dual-role contract**"
+        leaderboard_governance_label = "leaderboard dual-role governance"
+    else:
+        leaderboard_fact_heading = "- **leaderboard / governance current-state 已刷新**"
+        leaderboard_governance_label = "leaderboard governance"
     fin_blocker = None
     for blocker in source_blockers.get("blocked_features") or []:
         if isinstance(blocker, dict) and blocker.get("key") == "fin_netflow":
@@ -690,9 +1532,76 @@ def overwrite_current_state_docs(
         if fin_blocker
         else "`fin_netflow` blocker 資訊暫缺"
     )
-    patch_profile = live_decision_drilldown.get("recommended_patch_profile") or "—"
-    patch_status = live_decision_drilldown.get("recommended_patch_status") or "—"
-    patch_reference_scope = live_decision_drilldown.get("recommended_patch_reference_scope") or "—"
+    candidate_refresh_line = candidate_refresh_context.get("docs_line") or "—"
+    candidate_refresh_fact_lines = []
+    candidate_refresh_goal_lines = []
+    if candidate_refresh_context.get("has_stale_fallback"):
+        candidate_refresh_fact_lines = [
+            "- **candidate governance refresh 仍有 stale fallback 風險**",
+            f"  - `{candidate_refresh_line}`",
+        ]
+        candidate_refresh_goal_lines = [
+            "- candidate refresh："
+            f"`{candidate_refresh_line}`（fallback artifact 只能作 reference-only governance，不可當成 fresh production truth）"
+        ]
+    parallel_failure_line = parallel_failure_context.get("docs_line") or "—"
+    parallel_failure_fact_lines = []
+    parallel_failure_roadmap_lines = []
+    parallel_failure_orid_lines = []
+    if parallel_failure_context.get("has_failures"):
+        parallel_failure_fact_lines = [
+            "- **heartbeat verification incomplete：parallel task failure 已 machine-read**",
+            f"  - `{parallel_failure_line}`；本輪不得被解讀為 clean 5/5 heartbeat",
+        ]
+        parallel_failure_roadmap_lines = [
+            "- **本輪 verification 有未完成 parallel lane（已寫入 current-state issue）**",
+            f"  - `{parallel_failure_line}`；下一輪必須證明 full heartbeat parallel results 恢復 5/5，否則 train/verify lane 持續視為 runner blocker",
+        ]
+        parallel_failure_orid_lines = [
+            f"- parallel verification：`{parallel_failure_line}`，因此本輪不是 clean 5/5；docs/issue 已同步 P1 追蹤。"
+        ]
+    patch_context = _patch_truth_doc_context(
+        live_decision_drilldown.get("recommended_patch_profile"),
+        live_decision_drilldown.get("recommended_patch_status"),
+        live_decision_drilldown.get("recommended_patch_reference_scope"),
+    )
+    patch_profile = patch_context["profile"]
+    patch_status = patch_context["status"]
+    patch_reference_scope = patch_context["reference_scope"]
+    current_priority_line3 = (
+        f"3. **守住 {support_scope_label} {patch_context['priority_focus_phrase']}、"
+        f"{leaderboard_governance_label}、venue/source blockers 可見性**"
+    )
+    goal_c_title = f"### 目標 C：守住 {support_scope_label} {patch_context['goal_title_suffix']}"
+    next_gate_line3 = (
+        f"3. **守住 {support_scope_label} {patch_context['priority_focus_phrase']}、"
+        "leaderboard governance、venue/source blockers 與 docs automation 閉環**"
+    )
+    next_gate_line3_blocker = (
+        "   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts"
+        if patch_context["has_patch"]
+        else "   - 升級 blocker：若 support closure 被誤讀成 deployment closure、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts"
+    )
+    if patch_context["has_patch"]:
+        orid_support_action_clause = f"並把 {support_scope_label} support 與 {patch_context['patch_label']} 持續顯示清楚"
+        orid_support_fail_clause = f"或把 {patch_context['patch_label']} 誤包裝成可部署 truth"
+        if patch_context["reference_only"]:
+            support_orid_insight_line = (
+                f"1. **support truth ≠ deployment closure**：`support={support_current_rows}/{support_minimum_rows}` 且 "
+                f"`support_route_verdict={support_route_verdict}` 只代表治理前進，還不能把 {patch_context['patch_label']} 升級成 runtime patch。"
+            )
+        else:
+            support_orid_insight_line = (
+                f"1. **support truth ≠ deployment closure**：`support={support_current_rows}/{support_minimum_rows}` 且 "
+                f"`support_route_verdict={support_route_verdict}` 只代表 same-bucket support / patch 治理真相，不能跳過 runtime verify。"
+            )
+    else:
+        orid_support_action_clause = f"並把 {support_scope_label} support truth 與 deployment closure 邊界持續顯示清楚"
+        orid_support_fail_clause = "或把 support closure 誤讀成 deployment closure"
+        support_orid_insight_line = (
+            f"1. **support truth ≠ deployment closure**：`support={support_current_rows}/{support_minimum_rows}` 且 "
+            f"`support_route_verdict={support_route_verdict}` 只代表 same-bucket support 狀態，真正 deployment blocker 仍由 latest runtime truth 決定。"
+        )
     deployment_blocker = str(live_predictor_diagnostics.get("deployment_blocker") or "—")
     breaker_root_cause = str(((circuit_breaker_audit.get("root_cause") or {}).get("verdict")) or "")
     breaker_is_primary = deployment_blocker == "circuit_breaker_active" or breaker_root_cause in {
@@ -700,25 +1609,25 @@ def overwrite_current_state_docs(
         "breaker_active",
     }
     if breaker_is_primary:
-        facts_blocker_heading = "- **canonical current-live blocker 仍是 breaker-first truth**"
-        current_priority_line1 = f"1. **維持 breaker-first truth，同時保留 {support_scope_label} support rows 可 machine-read**"
-        goal_a_title = "### 目標 A：維持 breaker release math 作為唯一 current-live blocker"
-        goal_a_success = "- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 breaker release math 視為唯一 current-live deployment blocker。"
-        next_gate_line1 = f"1. **維持 breaker-first truth + {support_scope_label} visibility across API / UI / docs**"
-        next_gate_line1_blocker = f"   - 升級 blocker：若 breaker release math 被 support / floor-gap / venue 話題覆蓋，或 {support_scope_label} rows 再次從 top-level surfaces 消失"
-        success_primary_line = "- current-live blocker 清楚且唯一：**breaker release math**"
+        facts_blocker_heading = "- **canonical 即時部署阻塞仍是熔斷優先真相**"
+        current_priority_line1 = f"1. **維持熔斷優先真相，同時保留 {support_scope_label} support rows 可 machine-read**"
+        goal_a_title = "### 目標 A：維持熔斷解除條件作為唯一即時部署阻塞點"
+        goal_a_success = "- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把熔斷解除條件視為唯一即時部署阻塞點；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式；直接呼叫 `POST /api/trade` 的買入 / 加倉也必須依即時部署阻塞點以 409 暫停，且只保留減倉 / 賣出風險降低路徑。"
+        next_gate_line1 = f"1. **維持熔斷優先真相 + {support_scope_label} visibility across API / UI / docs**"
+        next_gate_line1_blocker = f"   - 升級 blocker：若熔斷解除條件被 support / floor-gap / venue 話題覆蓋，或 {support_scope_label} rows 再次從 top-level surfaces 消失"
+        success_primary_line = "- 即時部署阻塞點清楚且唯一：**熔斷解除條件**"
         orid_reflection_line = (
-            f"- 這輪最需要防止的誤讀，是把 `{support_current_rows}/{support_minimum_rows}` 的 same-bucket support 或 `{patch_reference_scope}` 參考 patch 誤讀成已可部署；breaker 仍是唯一 current-live blocker。"
+            f"- 這輪最需要防止的誤讀，是把 `{support_current_rows}/{support_minimum_rows}` 的 same-bucket support 或 `{patch_reference_scope}` 參考 patch 誤讀成已可部署；熔斷解除條件仍是唯一即時部署阻塞點。"
         )
-        orid_insight2 = "2. **真正主 blocker 仍是 breaker + recent pathological slice**：目前該追的是 release math 與 recent canonical pathology，不是把 q15/q35 support 或 venue 話題誤升級成唯一根因。"
-        orid_action_line = f"- **Action**：維持 breaker-first truth，並把 {support_scope_label} support 與 recommended patch 持續顯示為 `reference_only`；下一步沿 recent pathological slice 與 release math 繼續追根因。"
-        orid_fail_line = f"- **If fail**：只要 docs / UI 再次隱藏 breaker-first truth、漏掉 {support_scope_label} rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。"
+        orid_insight2 = "2. **真正主阻塞仍是熔斷 + recent pathological slice**：目前該追的是解除條件與 recent canonical pathology，不是把 q15/q35 support 或 venue 話題誤升級成唯一根因。"
+        orid_action_line = f"- **Action**：維持熔斷優先真相，{orid_support_action_clause}；下一步沿 recent pathological slice 與解除條件繼續追根因。"
+        orid_fail_line = f"- **If fail**：只要 docs / UI 再次隱藏熔斷優先真相、漏掉 {support_scope_label} rows，{orid_support_fail_clause}，就把 heartbeat 升級回 current-state governance blocker。"
     elif deployment_blocker in {"unsupported_exact_live_structure_bucket", "under_minimum_exact_live_structure_bucket"}:
         facts_blocker_heading = "- **canonical current-live blocker 已切到 current-live exact-support truth**"
         current_priority_line1 = f"1. **維持 current-live exact-support blocker truth，同時保留 {support_scope_label} support rows 可 machine-read**"
         goal_a_title = "### 目標 A：維持 current-live exact-support blocker 作為唯一 current-live blocker"
         goal_a_success = (
-            f"- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `{deployment_blocker}` 視為唯一 current-live deployment blocker，且不再誤回退成 breaker-first 舊敘事。"
+            f"- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `{deployment_blocker}` 視為唯一 current-live deployment blocker，且不再誤回退成 breaker-first 舊敘事；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式；直接呼叫 `POST /api/trade` 的買入 / 加倉也必須依即時部署阻塞點以 409 暫停，且只保留減倉 / 賣出風險降低路徑。"
         )
         next_gate_line1 = f"1. **維持 current-live exact-support blocker + {support_scope_label} visibility across API / UI / docs**"
         next_gate_line1_blocker = (
@@ -731,16 +1640,16 @@ def overwrite_current_state_docs(
         orid_insight2 = (
             f"2. **真正主 blocker 已切到 {support_scope_label} exact-support shortage**：recent pathological slice 仍是造成 `{deployment_blocker}` 的根因切片，不能再沿用 breaker-first 舊敘事。"
         )
-        orid_action_line = f"- **Action**：維持 current-live exact-support truth，並把 {support_scope_label} support 與 recommended patch 持續顯示為 `reference_only`；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。"
+        orid_action_line = f"- **Action**：維持 current-live exact-support truth，{orid_support_action_clause}；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。"
         orid_fail_line = (
-            f"- **If fail**：只要 docs / UI 再次把 `{deployment_blocker}` 誤寫成 breaker-first、漏掉 {support_scope_label} rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。"
+            f"- **If fail**：只要 docs / UI 再次把 `{deployment_blocker}` 誤寫成 breaker-first、漏掉 {support_scope_label} rows，{orid_support_fail_clause}，就把 heartbeat 升級回 current-state governance blocker。"
         )
     else:
         facts_blocker_heading = "- **canonical current-live blocker 以 latest runtime truth 為主**"
         current_priority_line1 = f"1. **維持 current-live blocker truth（{deployment_blocker}），同時保留 {support_scope_label} support rows 可 machine-read**"
         goal_a_title = "### 目標 A：維持 latest runtime blocker 作為唯一 current-live blocker"
         goal_a_success = (
-            f"- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `{deployment_blocker}` 視為唯一 current-live deployment blocker。"
+            f"- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `{deployment_blocker}` 視為唯一 current-live deployment blocker；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式；直接呼叫 `POST /api/trade` 的買入 / 加倉也必須依即時部署阻塞點以 409 暫停，且只保留減倉 / 賣出風險降低路徑。"
         )
         next_gate_line1 = f"1. **維持 latest runtime blocker（{deployment_blocker}）+ {support_scope_label} visibility across API / UI / docs**"
         next_gate_line1_blocker = (
@@ -749,8 +1658,8 @@ def overwrite_current_state_docs(
         success_primary_line = f"- current-live blocker 清楚且唯一：**{deployment_blocker}**"
         orid_reflection_line = f"- 這輪最需要防止的誤讀，是讓舊 blocker 敘事覆蓋最新 `{deployment_blocker}` runtime truth。"
         orid_insight2 = f"2. **真正主 blocker 以 latest runtime truth 為準**：目前 deployment blocker 是 `{deployment_blocker}`，後續 root-cause 與 docs 必須跟著這條 lane 收斂。"
-        orid_action_line = f"- **Action**：維持 latest runtime blocker truth，並把 {support_scope_label} support 與 recommended patch 持續顯示為 `reference_only`；下一步沿對應 runtime lane 繼續追根因。"
-        orid_fail_line = f"- **If fail**：只要 docs / UI 再次把 `{deployment_blocker}` 蓋回舊 blocker 敘事、漏掉 {support_scope_label} rows，或把 reference patch 誤包裝成可部署 truth，就把 heartbeat 升級回 current-state governance blocker。"
+        orid_action_line = f"- **Action**：維持 latest runtime blocker truth，{orid_support_action_clause}；下一步沿對應 runtime lane 繼續追根因。"
+        orid_fail_line = f"- **If fail**：只要 docs / UI 再次把 `{deployment_blocker}` 蓋回舊 blocker 敘事、漏掉 {support_scope_label} rows，{orid_support_fail_clause}，就把 heartbeat 升級回 current-state governance blocker。"
 
     issues_lines = [
         "# ISSUES.md — Current State Only",
@@ -762,20 +1671,29 @@ def overwrite_current_state_docs(
         "---",
         "",
         "## 當前主線事實",
-        f"- **最新 fast heartbeat #{run_label} 已完成 collect + diagnostics refresh**",
+        f"- **最新 {heartbeat_mode_label} #{run_label} {completion_phrase}**",
         f"  - {counts_line}",
+        f"  - 歷史覆蓋確認：{history_line}",
         f"  - `simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`",
         facts_blocker_heading,
         f"  - {blocker_line}",
         f"  - {support_line}",
-        "- **recent canonical window 仍是 distribution pathology**",
+        *[f"  - {line}" for line in support_progress_doc_lines],
+        "- **recent canonical diagnostics 已刷新**",
         f"  - {pathology_line}",
-        "- **leaderboard / governance 仍維持 dual-role contract**",
+        *([f"  - {blocking_pathology_line}"] if blocking_pathology_line else []),
+        leaderboard_fact_heading,
         f"  - {leaderboard_line}",
+        *candidate_refresh_fact_lines,
+        *parallel_failure_fact_lines,
         "- **source / venue blockers 仍開啟**",
         f"  - `blocked_sparse_features={source_blockers.get('blocked_count', '—')}` / `{source_blockers.get('counts_by_history_class', {})}`",
         f"  - fin_netflow：{fin_line}",
-        "  - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof",
+        "  - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof；`execution_metadata_smoke.venues[]` 已提供 per-venue `proof_state / blockers / operator_next_action / verify_next` 給 Dashboard / Execution / Lab 直接顯示證據缺口",
+        "- **Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）**",
+        "  - 前端快捷：`manual_trade=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間都只保留查看阻塞原因與重新整理入口。`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`。後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑",
+        "- **Execution Status / Bot 營運 已顯示熔斷解除條件**",
+        f"  - {breaker_release_ui_line}；`/execution/status` 與 `/execution` 會先顯示熔斷解除條件，再顯示 support / q15 治理背景",
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
@@ -814,13 +1732,13 @@ def overwrite_current_state_docs(
             "## Current Priority",
             current_priority_line1,
             "2. **持續沿 recent canonical pathological slice 追根因，不要 generic 化 blocker**",
-            f"3. **守住 {support_scope_label} support / reference-only patch、leaderboard dual-role governance、venue/source blockers 可見性**",
+            current_priority_line3,
             "4. **讓 heartbeat 自動 overwrite sync current-state docs，不再把 docs drift 留給人工補寫**",
             "",
         ]
     )
 
-    support_success_status = live_decision_drilldown.get('recommended_patch_status') or '—'
+    support_success_status = patch_status
     support_success_verdict = support_route_verdict
     support_truth_ratio = f"{support_current_rows}/{support_minimum_rows}"
 
@@ -834,15 +1752,22 @@ def overwrite_current_state_docs(
         "---",
         "",
         "## 已完成",
-        f"- **fast heartbeat #{run_label} 已完成 collect + diagnostics refresh**",
+        f"- **{heartbeat_mode_label} #{run_label} {completion_phrase}**",
         f"  - {counts_line}",
+        f"  - 歷史覆蓋確認：{history_line}",
         f"  - {blocker_line}",
         f"  - {pathology_line}",
+        *([f"  - {blocking_pathology_line}"] if blocking_pathology_line else []),
         "- **current-state docs overwrite sync 已自動化**",
         "  - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫",
+        "- **Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）**",
+        "  - `/api/status` 初次同步前或部署阻塞存在時，買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停並保持 disabled，只留下查看阻塞原因與重新整理；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`；後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點，阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑",
+        "- **Execution Status / Bot 營運 已顯示熔斷解除條件**",
+        f"  - {breaker_release_ui_line}；操作員執行介面先看熔斷解除條件，再看 support / q15 背景治理",
         "- **本輪 current-state docs 已同步到最新 artifacts**",
         "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊",
+        *parallel_failure_roadmap_lines,
         "",
         "---",
         "",
@@ -852,20 +1777,24 @@ def overwrite_current_state_docs(
         "**目前真相**",
         f"- {blocker_line}",
         f"- {support_line}",
+        *support_progress_doc_lines,
         "**成功標準**",
         goal_a_success,
         f"- {support_scope_label} truth (`bucket / rows / minimum / gap / support route`) 仍在 top-level surfaces 可 machine-read。",
         "",
-        "### 目標 B：持續把 recent canonical pathological slice 當成 current blocker 根因來鑽",
+        "### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽",
         "**目前真相**",
         f"- {pathology_line}",
+        *([f"- {blocking_pathology_line}"] if blocking_pathology_line else []),
         "**成功標準**",
-        "- drift / probe / docs 能直接指出 pathological slice、adverse streak 與 top feature shifts，而不是退回 generic leaderboard / venue 摘要。",
+        "- drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。",
         "",
-        f"### 目標 C：守住 {support_scope_label} support + reference-only patch 真相",
+        goal_c_title,
         "**目前真相**",
         f"- {support_line}",
-        f"- `recommended_patch={live_decision_drilldown.get('recommended_patch_profile') or '—'}` / `status={live_decision_drilldown.get('recommended_patch_status') or '—'}` / `reference_scope={live_decision_drilldown.get('recommended_patch_reference_scope') or '—'}`",
+        *support_progress_doc_lines,
+        f"- {patch_context['docs_line']}",
+        *([f"- {q35_scaling_doc_line}"] if q35_scaling_doc_line else []),
         "**成功標準**",
         _support_goal_success_line(
             support_scope_label,
@@ -878,8 +1807,9 @@ def overwrite_current_state_docs(
         "### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth",
         "**目前真相**",
         f"- {leaderboard_line}",
+        *candidate_refresh_goal_lines,
         f"- fin_netflow：{fin_line}",
-        "- venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證",
+        "- venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證；API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows",
         "- docs automation：markdown docs 不再允許落後 live artifacts",
         "**成功標準**",
         "- Strategy Lab 不回退 placeholder-only；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。",
@@ -888,30 +1818,31 @@ def overwrite_current_state_docs(
         "",
         "## 下一輪 gate",
         next_gate_line1,
-        "   - 驗證：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`",
+        "   - 驗證：browser `/`、browser `/execution`（含初次同步時買入 / 減碼 / 自動模式暫停）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python -m pytest tests/test_server_startup.py -k api_trade -q`",
         next_gate_line1_blocker,
         "2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**",
         "   - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`",
         "   - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據",
-        f"3. **守住 {support_scope_label} support / reference-only patch、leaderboard governance、venue/source blockers 與 docs automation 閉環**",
+        next_gate_line3,
         "   - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status",
-        "   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts",
+        next_gate_line3_blocker,
         "",
         "---",
         "",
         "## 成功標準",
         success_primary_line,
         f"- {support_truth_label} 維持：**{support_truth_ratio} + {support_success_verdict} + {support_success_status}**",
-        "- recent canonical pathological slice 仍以同一個 current window 為主敘事，不被 generic 問題稀釋",
-        "- leaderboard 維持 dual-role governance；venue/source blockers 持續可見",
+        "- recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋",
+        f"- {leaderboard_governance_label} 維持；venue/source blockers 持續可見",
         "- heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**",
+        "- `/api/trade` 直接 API 不能繞過即時部署阻塞點：買入 / 加倉在 no-deploy 狀態必須 409，減倉 / 賣出仍可用",
         "",
     ]
 
     live_regime = live_predictor_diagnostics.get("regime_label") or "—"
     live_gate = live_predictor_diagnostics.get("regime_gate") or "—"
     live_bucket = live_predictor_diagnostics.get("current_live_structure_bucket") or "—"
-    docs_sync_line = "current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth"
+    docs_sync_line = "current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留減倉 / 賣出風險降低路徑；`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口"
 
     orid_lines = [
         "# ORID_DECISIONS.md — Current ORID Only",
@@ -923,28 +1854,32 @@ def overwrite_current_state_docs(
         f"## 心跳 #{run_label} ORID",
         "",
         "### O｜客觀事實",
-        f"- collect + diagnostics refresh 完成：{counts_line}；`simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`。",
-        f"- current-live blocker：{blocker_line}。",
+        f"- {orid_completion_phrase}：{counts_line}；歷史覆蓋確認：{history_line}；`simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`。",
+        f"- 即時部署阻塞點：{blocker_line}。",
         f"- {support_scope_label} truth：{support_line}。",
-        f"- recent pathological slice：{pathology_line}。",
+        *[f"- {line}。" for line in support_progress_doc_lines],
+        f"- latest recent-window diagnostics：{pathology_line}。",
+        *([f"- current blocking pathological pocket：{blocking_pathology_line}。"] if blocking_pathology_line else []),
         f"- leaderboard / governance：{leaderboard_line}。",
-        f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle。",
+        f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle；metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next。",
+        *parallel_failure_orid_lines,
+        *([f"- {q35_scaling_doc_line}。"] if q35_scaling_doc_line else []),
         f"- 本輪產品化前進：{docs_sync_line}；`recommended_patch={patch_profile}` / `status={patch_status}` / `reference_scope={patch_reference_scope}`。",
         "",
         "### R｜感受直覺",
         orid_reflection_line,
-        f"- current live 已落在 `{live_regime}/{live_gate}/{live_bucket}`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket 或舊 bucket 當成現在的 runtime 真相。",
+        f"- current live 已落在 `{live_regime}/{live_gate}/{live_bucket}`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket、舊 bucket，或 `/api/status` 尚未返回的 loading 狀態誤讀成可操作 runtime 真相。",
         "",
         "### I｜意義洞察",
-        f"1. **support accumulation ≠ deployment closure**：`support={support_current_rows}/{support_minimum_rows}` 且 `support_route_verdict={support_route_verdict}` 只代表治理前進，還不能把 reference patch 升級成 runtime patch。",
+        support_orid_insight_line,
         orid_insight2,
-        f"3. **docs overwrite sync 的角色是護欄，不是主 blocker**：{docs_sync_line} 讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。",
+        f"3. **docs overwrite sync 的角色是護欄，不是主阻塞**：{docs_sync_line}；這會讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。",
         "",
         "### D｜決策行動",
-        "- **Owner**：current-live runtime / governance lane",
-        orid_action_line,
+        "- **Owner**：即時執行治理 lane",
+        orid_action_line.rstrip("。") + "；`/execution` 操作入口在同步中 / 已阻塞兩種狀態都必須 fail-closed；直接 API 買入 / 加倉也必須 409 暫停，減倉 / 賣出保留風險降低路徑。",
         "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。",
-        "- **Verify**：browser `/`、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`。",
+        "- **Verify**：browser `/`、browser `/execution`（同步中 / 已阻塞快捷操作 fail-closed）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python -m pytest tests/test_server_startup.py -k api_trade -q`。",
         orid_fail_line,
         "",
     ]
@@ -1006,6 +1941,8 @@ def _artifact_is_newer_than_dependencies(
 
 def _refresh_leaderboard_candidate_alignment_snapshot(
     artifact_path: Path,
+    *,
+    allow_rebuild: bool = True,
 ) -> Dict[str, Any] | None:
     try:
         from scripts import hb_leaderboard_candidate_probe as leaderboard_probe
@@ -1014,7 +1951,7 @@ def _refresh_leaderboard_candidate_alignment_snapshot(
 
     if leaderboard_probe is not None:
         try:
-            rebuilt = leaderboard_probe.build_probe_result(allow_rebuild=True)
+            rebuilt = leaderboard_probe.build_probe_result(allow_rebuild=allow_rebuild)
         except Exception:
             rebuilt = None
         if rebuilt:
@@ -1353,9 +2290,16 @@ def _leaderboard_candidate_cache_hit() -> Dict[str, Any] | None:
     cache_reason = "fresh_leaderboard_candidate_artifact_reused"
     refresh_applied = False
 
-    def _attempt_refresh() -> None:
+    def _attempt_refresh(*, allow_rebuild: bool = False) -> None:
         nonlocal payload, artifact_signature, cache_reason, refresh_applied
-        refreshed_payload = _refresh_leaderboard_candidate_alignment_snapshot(artifact_path)
+        try:
+            refreshed_payload = _refresh_leaderboard_candidate_alignment_snapshot(
+                artifact_path,
+                allow_rebuild=allow_rebuild,
+            )
+        except TypeError:
+            # Some tests monkeypatch the older one-argument helper shape.
+            refreshed_payload = _refresh_leaderboard_candidate_alignment_snapshot(artifact_path)
         if refreshed_payload:
             payload = refreshed_payload
             artifact_signature = _leaderboard_candidate_semantic_signature(payload)
@@ -1608,19 +2552,25 @@ def _q15_boundary_replay_cache_hit() -> Dict[str, Any] | None:
     )
 
 
-def _get_fast_serial_cache_hit(command_name: str) -> Dict[str, Any] | None:
-    if not _CURRENT_HEARTBEAT_FAST_MODE:
-        return None
-    if command_name == "recent_drift_report":
-        return _recent_drift_cache_hit()
-    if command_name == "hb_q35_scaling_audit":
-        return _q35_scaling_cache_hit()
+def _get_serial_cache_hit(command_name: str) -> Dict[str, Any] | None:
+    # Candidate-evaluation artifacts are intentionally reusable outside fast mode
+    # when their semantic source signature is still current or within the bounded
+    # label-drift guardrail. This keeps full heartbeat training preflight from
+    # stalling the whole run on expensive candidate scans that would reproduce
+    # the same governance input.
     if command_name == "feature_group_ablation":
         return _feature_group_ablation_cache_hit()
     if command_name == "bull_4h_pocket_ablation":
         return _bull_4h_pocket_cache_hit()
     if command_name == "hb_leaderboard_candidate_probe":
         return _leaderboard_candidate_cache_hit()
+
+    if not _CURRENT_HEARTBEAT_FAST_MODE:
+        return None
+    if command_name == "recent_drift_report":
+        return _recent_drift_cache_hit()
+    if command_name == "hb_q35_scaling_audit":
+        return _q35_scaling_cache_hit()
     if command_name == "hb_q15_support_audit":
         return _q15_support_cache_hit()
     if command_name == "hb_q15_bucket_root_cause":
@@ -1628,6 +2578,12 @@ def _get_fast_serial_cache_hit(command_name: str) -> Dict[str, Any] | None:
     if command_name == "hb_q15_boundary_replay":
         return _q15_boundary_replay_cache_hit()
     return None
+
+
+def _get_fast_serial_cache_hit(command_name: str) -> Dict[str, Any] | None:
+    if not _CURRENT_HEARTBEAT_FAST_MODE:
+        return None
+    return _get_serial_cache_hit(command_name)
 
 
 def _build_cached_serial_result(command_name: str, cache_hit: Dict[str, Any]) -> Dict[str, Any]:
@@ -1820,17 +2776,26 @@ def _run_command_with_watchdog(
     }
 
 
+def _resolve_parallel_task_timeout(task_name: str, *, fast_mode: bool | None = None) -> int:
+    if fast_mode is None:
+        fast_mode = _CURRENT_HEARTBEAT_FAST_MODE
+    timeout_map = FAST_PARALLEL_TASK_TIMEOUTS if fast_mode else FULL_PARALLEL_TASK_TIMEOUTS
+    return int(timeout_map.get(task_name, 180 if fast_mode else 240))
+
+
 def run_task(task):
     try:
-        result = _run_command_with_watchdog(task["cmd"], timeout=600)
+        timeout_seconds = int(task.get("timeout_seconds") or _resolve_parallel_task_timeout(task["name"]))
+        result = _run_command_with_watchdog(task["cmd"], timeout=timeout_seconds)
         return (
             task["name"],
             result["success"],
             (result.get("stdout") or "").strip(),
             (result.get("stderr") or "").strip(),
+            result.get("returncode"),
         )
     except Exception as e:
-        return (task["name"], False, "", str(e))
+        return (task["name"], False, "", str(e), -1)
 
 
 def quick_counts():
@@ -1882,12 +2847,12 @@ def run_collect_step(skip: bool = False, run_label: str | None = None) -> Dict[s
         effective_run_label = run_label or _CURRENT_HEARTBEAT_RUN_LABEL or "adhoc"
         return _run_command_with_watchdog(
             COLLECT_CMD,
-            timeout=600,
+            timeout=COLLECT_TIMEOUT_SECONDS,
             progress={
                 "run_label": effective_run_label,
                 "stage": "collect",
                 "label": "hb_collect",
-                "details": {"command_kind": "collect"},
+                "details": {"command_kind": "collect", "timeout_seconds": COLLECT_TIMEOUT_SECONDS},
             },
         )
     except Exception as exc:
@@ -1932,7 +2897,7 @@ def _resolve_serial_timeout(cmd: list[str], timeout: int | None) -> int:
     command_name = Path(cmd[1]).stem if len(cmd) > 1 else Path(cmd[0]).stem
     if _CURRENT_HEARTBEAT_FAST_MODE:
         return FAST_SERIAL_TIMEOUTS.get(command_name, 600)
-    return 600
+    return FULL_SERIAL_TIMEOUTS.get(command_name, 600)
 
 
 def _run_serial_command(
@@ -1943,7 +2908,7 @@ def _run_serial_command(
     progress: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     command_name = Path(cmd[1]).stem if len(cmd) > 1 else Path(cmd[0]).stem
-    cache_hit = _get_fast_serial_cache_hit(command_name) if timeout is None else None
+    cache_hit = _get_serial_cache_hit(command_name) if timeout is None else None
     if cache_hit is not None:
         return _build_cached_serial_result(command_name, cache_hit)
     effective_timeout = _resolve_serial_timeout(cmd, timeout)
@@ -2014,8 +2979,11 @@ def run_feature_group_ablation() -> Dict[str, Any]:
 
 
 def run_bull_4h_pocket_ablation() -> Dict[str, Any]:
-    cmd = BULL_4H_POCKET_ABLATION_REFRESH_CMD if _CURRENT_HEARTBEAT_FAST_MODE else BULL_4H_POCKET_ABLATION_CMD
-    return _run_serial_command(cmd)
+    # Heartbeat cron runs use the bounded live-context refresh lane in both fast
+    # and full modes. Full rebuild remains available by invoking
+    # scripts/bull_4h_pocket_ablation.py manually, but the project-driver
+    # heartbeat must not spend the whole budget on silent candidate grids.
+    return _run_serial_command(BULL_4H_POCKET_ABLATION_REFRESH_CMD)
 
 
 def refresh_train_prerequisites(needs_train: bool) -> Dict[str, Any]:
@@ -2276,6 +3244,39 @@ def sync_fast_heartbeat_timeout_issue(
     }
 
 
+def refresh_summary_runtime_progress(summary_path: str | Path | None, progress_path: str | Path | None) -> Dict[str, Any]:
+    """Update an already-written heartbeat summary with the latest progress artifact.
+
+    The runner writes the terminal progress state after summary generation because the
+    final progress payload references the summary path. Without this second write,
+    heartbeat_<run>_summary.json can retain a stale in-progress snapshot such as
+    stage=auto_propose/status=running even though the progress artifact says finished.
+    Operator/runtime artifacts should never disagree about whether the heartbeat is
+    still running.
+    """
+    if not summary_path or not progress_path:
+        return {}
+    summary_file = Path(summary_path)
+    progress_file = Path(progress_path)
+    if not summary_file.exists() or not progress_file.exists():
+        return {}
+    try:
+        progress_snapshot = json.loads(progress_file.read_text())
+        summary_payload = json.loads(summary_file.read_text())
+    except Exception:
+        return {}
+
+    runtime_progress = summary_payload.setdefault("runtime_progress", {})
+    runtime_progress["path"] = str(progress_file)
+    runtime_progress["snapshot"] = progress_snapshot
+    runtime_progress["finalized"] = progress_snapshot.get("stage") == "finished"
+    try:
+        summary_file.write_text(json.dumps(summary_payload, indent=2, default=str))
+    except Exception:
+        return {}
+    return progress_snapshot
+
+
 def save_summary(
     run_label,
     counts,
@@ -2317,6 +3318,7 @@ def save_summary(
             runtime_progress_snapshot = {}
 
     summary_now = datetime.now(timezone.utc)
+    historical_coverage_confirmation = collect_historical_coverage_confirmation(DB_PATH)
     summary = {
         "heartbeat": run_label,
         "mode": "fast" if fast_mode else "full",
@@ -2330,6 +3332,7 @@ def save_summary(
             "continuity_repair": continuity_repair,
         },
         "db_counts": counts,
+        "historical_coverage_confirmation": historical_coverage_confirmation,
         "source_blockers": source_blockers,
         "ic_diagnostics": ic_diagnostics or {},
         "drift_diagnostics": drift_diagnostics or {},
@@ -2364,6 +3367,11 @@ def save_summary(
     for name, r in results.items():
         summary["parallel_results"][name] = {
             "success": r["success"],
+            "returncode": r.get("returncode"),
+            "timed_out": bool(
+                r.get("timed_out")
+                or (r.get("returncode") == -1 and "TIMEOUT after" in str(r.get("stderr") or ""))
+            ),
             "stdout_preview": r["stdout"][:2000] if r.get("stdout") else "",
             "stderr_preview": r["stderr"][:1000] if r.get("stderr") else "",
         }
@@ -2407,6 +3415,55 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
     quality_metrics = summary.get("quality_metrics") or {}
     target_path = summary.get("target_path_diagnostics") or {}
     tail_streak = target_path.get("tail_target_streak") or {}
+    blocking = payload.get("blocking_window") or {}
+    blocking_summary = blocking.get("summary") or {}
+    blocking_quality = blocking_summary.get("quality_metrics") or {}
+    blocking_reference = blocking_summary.get("reference_window_comparison") or {}
+    blocking_target_path = blocking_summary.get("target_path_diagnostics") or {}
+    blocking_tail_streak = blocking_target_path.get("tail_target_streak") or {}
+    blocking_target_path_payload = {}
+    if blocking_tail_streak.get("count") is not None and blocking_tail_streak.get("target") is not None:
+        blocking_target_path_payload = {
+            "tail_target_streak": {
+                "target": blocking_tail_streak.get("target"),
+                "count": blocking_tail_streak.get("count"),
+                "start_timestamp": blocking_tail_streak.get("start_timestamp"),
+                "end_timestamp": blocking_tail_streak.get("end_timestamp"),
+                "regime_counts": blocking_tail_streak.get("regime_counts") or {},
+            }
+        }
+    blocking_top_shift_source = blocking_summary.get("top_mean_shift_features") or blocking_reference.get("top_mean_shift_features") or []
+    blocking_new_compressed = blocking_summary.get("new_compressed_features")
+    if not isinstance(blocking_new_compressed, list) or not blocking_new_compressed:
+        blocking_new_compressed = blocking_reference.get("new_unexpected_compressed_features") or []
+    blocking_window = blocking.get("window")
+    blocking_alerts = blocking.get("alerts") or []
+    blocking_summary_payload = {
+        "rows": blocking_summary.get("rows"),
+        "win_rate": blocking_summary.get("win_rate"),
+        "win_rate_delta_vs_full": blocking_summary.get("win_rate_delta_vs_full"),
+        "dominant_regime": blocking_summary.get("dominant_regime"),
+        "dominant_regime_share": blocking_summary.get("dominant_regime_share"),
+        "drift_interpretation": blocking_summary.get("drift_interpretation"),
+        "avg_pnl": blocking_summary.get("avg_pnl", blocking_quality.get("avg_simulated_pnl")),
+        "avg_quality": blocking_summary.get("avg_quality", blocking_quality.get("avg_simulated_quality")),
+        "avg_drawdown_penalty": blocking_summary.get("avg_drawdown_penalty", blocking_quality.get("avg_drawdown_penalty")),
+        "top_shift_features": [
+            item.get("feature") if isinstance(item, dict) else item
+            for item in blocking_top_shift_source
+            if (item.get("feature") if isinstance(item, dict) else item)
+        ][:3],
+        "new_compressed_feature": blocking_new_compressed[0] if blocking_new_compressed else None,
+        "target_path_diagnostics": blocking_target_path_payload,
+    }
+    if not _has_recent_pathology_truth(
+        blocking_summary_payload,
+        window=blocking_window,
+        alerts=blocking_alerts,
+    ):
+        blocking_window = None
+        blocking_alerts = []
+        blocking_summary_payload = {}
     return {
         "generated_at": payload.get("generated_at"),
         "target_col": payload.get("target_col"),
@@ -2440,6 +3497,9 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
                 "recent_examples": target_path.get("recent_examples") or [],
             },
         },
+        "blocking_window": blocking_window,
+        "blocking_alerts": blocking_alerts,
+        "blocking_summary": blocking_summary_payload,
     }
 
 
@@ -2695,6 +3755,11 @@ def collect_feature_ablation_diagnostics() -> Dict[str, Any]:
         "generated_at": payload.get("generated_at"),
         "target_col": payload.get("target_col"),
         "recent_rows": payload.get("recent_rows"),
+        "n_splits": payload.get("n_splits"),
+        "xgb_n_estimators": payload.get("xgb_n_estimators"),
+        "refresh_mode": payload.get("refresh_mode") or "full_rebuild",
+        "profile_metrics_fresh": payload.get("profile_metrics_fresh", True),
+        "profiles_evaluated": payload.get("profiles_evaluated") or list(profiles.keys()),
         "recommended_profile": recommended,
         "recommended_metrics": recommended_metrics,
         "current_full_metrics": current_full,
@@ -3191,18 +4256,24 @@ def _current_leaderboard_support_progress() -> Dict[str, Any]:
         and current_bucket == current_live.get("current_live_structure_bucket")
         and q15_progress
     ):
-        if probe_progress:
-            if probe_timestamp and (q15_timestamp is None or probe_timestamp > q15_timestamp):
-                return probe_progress
-            if q15_timestamp is None and probe_timestamp is not None:
-                return probe_progress
-            if (
-                probe_progress.get("status") != q15_progress.get("status")
-                or probe_progress.get("delta_vs_previous") != q15_progress.get("delta_vs_previous")
-                or probe_progress.get("current_rows") != q15_progress.get("current_rows")
-            ):
-                return probe_progress
-        return q15_progress
+        if not probe_progress:
+            return q15_progress
+
+        progress_mismatch = (
+            probe_progress.get("status") != q15_progress.get("status")
+            or probe_progress.get("delta_vs_previous") != q15_progress.get("delta_vs_previous")
+            or probe_progress.get("current_rows") != q15_progress.get("current_rows")
+        )
+
+        if q15_timestamp and probe_timestamp:
+            if q15_timestamp >= probe_timestamp:
+                return q15_progress
+            return probe_progress if progress_mismatch else q15_progress
+        if q15_timestamp and probe_timestamp is None:
+            return q15_progress
+        if probe_timestamp and q15_timestamp is None:
+            return probe_progress
+        return probe_progress if progress_mismatch else q15_progress
 
     return probe_progress
 
@@ -3212,8 +4283,6 @@ def _overlay_current_leaderboard_candidate_truth(diag: Dict[str, Any]) -> Dict[s
     diag = dict(diag or {})
     current_signature = _current_leaderboard_candidate_semantic_signature() or {}
     current_progress = _current_leaderboard_support_progress()
-    if not current_signature and not current_progress:
-        return diag
 
     def _as_int(value: Any) -> int | None:
         if value is None or value == "":
@@ -3222,6 +4291,36 @@ def _overlay_current_leaderboard_candidate_truth(diag: Dict[str, Any]) -> Dict[s
             return int(value)
         except (TypeError, ValueError):
             return None
+
+    def _sync_governance_contract(progress_override: Dict[str, Any] | None = None) -> None:
+        governance_contract = dict(diag.get("governance_contract") or {})
+        support_route = diag.get("support_governance_route")
+        minimum_rows = _as_int(diag.get("minimum_support_rows"))
+        live_rows = _as_int(diag.get("live_current_structure_bucket_rows"))
+        gap_to_minimum = diag.get("live_current_structure_bucket_gap_to_minimum")
+        if gap_to_minimum is None and minimum_rows is not None and live_rows is not None:
+            gap_to_minimum = max(minimum_rows - live_rows, 0)
+        support_progress = progress_override
+        if support_progress is None:
+            raw_progress = diag.get("support_progress")
+            support_progress = raw_progress if isinstance(raw_progress, dict) and raw_progress else None
+
+        if support_route:
+            governance_contract["support_governance_route"] = support_route
+        if minimum_rows is not None:
+            governance_contract["minimum_support_rows"] = minimum_rows
+        if live_rows is not None:
+            governance_contract["live_current_structure_bucket_rows"] = live_rows
+        if gap_to_minimum is not None:
+            governance_contract["live_current_structure_bucket_gap_to_minimum"] = gap_to_minimum
+        if support_progress:
+            governance_contract["support_progress"] = support_progress
+        if governance_contract:
+            diag["governance_contract"] = governance_contract
+
+    if not current_signature and not current_progress:
+        _sync_governance_contract()
+        return diag
 
     current_bucket = current_signature.get("live_current_structure_bucket")
     current_rows = _as_int(current_signature.get("live_current_structure_bucket_rows"))
@@ -3270,6 +4369,7 @@ def _overlay_current_leaderboard_candidate_truth(diag: Dict[str, Any]) -> Dict[s
         )
     )
     if not live_truth_mismatch and not progress_mismatch:
+        _sync_governance_contract(current_progress)
         return diag
 
     recency = dict(diag.get("current_alignment_recency") or {})
@@ -3305,16 +4405,7 @@ def _overlay_current_leaderboard_candidate_truth(diag: Dict[str, Any]) -> Dict[s
     if current_progress:
         diag["support_progress"] = current_progress
 
-    governance_contract = dict(diag.get("governance_contract") or {})
-    if diag.get("support_governance_route"):
-        governance_contract["support_governance_route"] = diag.get("support_governance_route")
-    governance_contract["minimum_support_rows"] = minimum_rows
-    governance_contract["live_current_structure_bucket_rows"] = live_rows
-    governance_contract["live_current_structure_bucket_gap_to_minimum"] = diag.get("live_current_structure_bucket_gap_to_minimum")
-    if current_progress:
-        governance_contract["support_progress"] = current_progress
-    if governance_contract:
-        diag["governance_contract"] = governance_contract
+    _sync_governance_contract(current_progress)
 
     return diag
 
@@ -3498,6 +4589,13 @@ def main(argv=None):
         tasks = [t for t in tasks if t["name"] != "dynamic_window"]
     if args.fast:
         tasks = [t for t in tasks if t["name"] in ["full_ic", "regime_ic"]]
+    tasks = [
+        {
+            **task,
+            "timeout_seconds": _resolve_parallel_task_timeout(task["name"], fast_mode=bool(args.fast)),
+        }
+        for task in tasks
+    ]
 
     needs_train = any(t["name"] == "train" for t in tasks)
     write_progress(
@@ -3505,6 +4603,7 @@ def main(argv=None):
         "preflight",
         details={
             "task_names": [task["name"] for task in tasks],
+            "task_timeouts": {task["name"]: task.get("timeout_seconds") for task in tasks},
             "needs_train": needs_train,
         },
     )
@@ -3523,6 +4622,8 @@ def main(argv=None):
             recommended = feature_ablation_summary.get("recommended_metrics") or {}
             print(
                 "📚 訓練前 shrinkage："
+                f"mode={feature_ablation_summary.get('refresh_mode')} "
+                f"profiles={len(feature_ablation_summary.get('profiles_evaluated') or [])} "
                 f"recommended={feature_ablation_summary.get('recommended_profile')} "
                 f"cv={recommended.get('cv_mean_accuracy')}"
             )
@@ -3597,8 +4698,20 @@ def main(argv=None):
                 continue
             for future in done:
                 name = future_to_name[future]
-                _, ok, out, err = future.result()
-                results[name] = {"success": ok, "stdout": out, "stderr": err}
+                task_result = future.result()
+                if len(task_result) >= 5:
+                    _, ok, out, err, returncode = task_result[:5]
+                else:
+                    _, ok, out, err = task_result
+                    returncode = 0 if ok else 1
+                timed_out = returncode == -1 and "TIMEOUT after" in str(err or "")
+                results[name] = {
+                    "success": ok,
+                    "stdout": out,
+                    "stderr": err,
+                    "returncode": returncode,
+                    "timed_out": timed_out,
+                }
                 last_completion_at = time.monotonic()
                 completed = list(results.keys())
                 write_progress(
@@ -3897,6 +5010,8 @@ def main(argv=None):
         current_full = feature_ablation_summary.get("current_full_metrics") or {}
         print(
             "📚 Feature shrinkage："
+            f"mode={feature_ablation_summary.get('refresh_mode')} "
+            f"profiles={len(feature_ablation_summary.get('profiles_evaluated') or [])} "
             f"recommended={feature_ablation_summary.get('recommended_profile')} "
             f"cv={recommended.get('cv_mean_accuracy')} "
             f"worst={recommended.get('cv_worst_accuracy')} "
@@ -3959,6 +5074,7 @@ def main(argv=None):
             f"{semantic_note}"
         )
 
+    leaderboard_artifact_path = Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json"
     write_progress(run_label, "leaderboard_candidate_probe")
     if refresh_candidate_eval_lanes:
         leaderboard_probe_result = run_leaderboard_candidate_probe(run_label)
@@ -3976,27 +5092,54 @@ def main(argv=None):
         if leaderboard_probe_result.get("stderr"):
             print(f"\n--- hb_leaderboard_candidate_probe stderr ---\n{leaderboard_probe_result['stderr']}")
     else:
-        artifact_path = Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json"
+        alignment_refresh_payload = None
+        alignment_refresh_applied = False
+        if leaderboard_artifact_path.exists():
+            alignment_refresh_payload = _refresh_leaderboard_candidate_alignment_snapshot(
+                leaderboard_artifact_path,
+                allow_rebuild=False,
+            )
+            alignment_refresh_applied = alignment_refresh_payload is not None
+
         leaderboard_probe_result = _build_skipped_serial_result(
             "hb_leaderboard_candidate_probe",
-            reason="fast_mode_candidate_refresh_disabled",
-            artifact_path=artifact_path,
+            reason=(
+                "fast_mode_alignment_refresh_only"
+                if alignment_refresh_applied
+                else "fast_mode_candidate_refresh_disabled"
+            ),
+            artifact_path=leaderboard_artifact_path,
         )
+        if alignment_refresh_applied:
+            leaderboard_probe_result["alignment_refresh_only"] = True
+            leaderboard_probe_result["refresh_applied"] = True
+            leaderboard_probe_result["generated_at"] = alignment_refresh_payload.get("generated_at")
         leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
         write_progress(
             run_label,
             "leaderboard_candidate_probe",
             status="skipped",
             details={
-                "skip_reason": "fast_mode_candidate_refresh_disabled",
-                "artifact_path": str(artifact_path),
+                "skip_reason": (
+                    "fast_mode_alignment_refresh_only"
+                    if alignment_refresh_applied
+                    else "fast_mode_candidate_refresh_disabled"
+                ),
+                "artifact_path": str(leaderboard_artifact_path),
+                "alignment_refresh_only": alignment_refresh_applied,
                 "refresh_with": "--fast --fast-refresh-candidates",
             },
         )
-        print(
-            "⏭️  Leaderboard candidate probe：fast mode 預設跳過 candidate refresh；"
-            "沿用既有 artifact 做 governance 摘要。"
-        )
+        if alignment_refresh_applied:
+            print(
+                "⏭️  Leaderboard candidate probe：fast mode 僅刷新 current-live alignment snapshot；"
+                "沿用既有 leaderboard payload 並更新 governance 對齊時間戳。"
+            )
+        else:
+            print(
+                "⏭️  Leaderboard candidate probe：fast mode 預設跳過 candidate refresh；"
+                "沿用既有 artifact 做 governance 摘要。"
+            )
     if leaderboard_candidate_diagnostics:
         blocked = leaderboard_candidate_diagnostics.get("blocked_candidate_profiles") or []
         blocked_text = ",".join(
@@ -4097,6 +5240,15 @@ def main(argv=None):
             print(f"\n--- live_decision_quality_drilldown (resynced) ---\n{preview}")
         if live_drilldown_result.get("stderr"):
             print(f"\n--- live_decision_quality_drilldown (resynced) stderr ---\n{live_drilldown_result['stderr']}")
+
+    if leaderboard_artifact_path.exists():
+        _refresh_leaderboard_candidate_alignment_snapshot(
+            leaderboard_artifact_path,
+            allow_rebuild=False,
+        )
+        refreshed_leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
+        if refreshed_leaderboard_candidate_diagnostics:
+            leaderboard_candidate_diagnostics = refreshed_leaderboard_candidate_diagnostics
 
     write_progress(run_label, "q15_bucket_root_cause")
     q15_bucket_root_cause_result = run_q15_bucket_root_cause()
@@ -4258,6 +5410,10 @@ def main(argv=None):
         q15_support_summary,
         circuit_breaker_audit_summary,
         leaderboard_candidate_diagnostics,
+        run_mode="fast" if args.fast else "full",
+        collect_attempted=bool(collect_result.get("attempted", False)),
+        serial_results=serial_result_payload,
+        parallel_results=results,
     )
     docs_sync = collect_current_state_docs_sync_status()
     docs_sync["auto_synced"] = docs_sync_write.get("success", False)
@@ -4332,6 +5488,7 @@ def main(argv=None):
             "collect_success": collect_result.get("success", False),
         },
     )
+    refresh_summary_runtime_progress(summary_path, progress_path)
     _CURRENT_HEARTBEAT_RUN_LABEL = None
     print(f"\n📄 摘要已儲存：{os.path.relpath(summary_path, PROJECT_ROOT)}")
 

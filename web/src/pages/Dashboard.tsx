@@ -6,13 +6,26 @@ import RadarChart from "../components/RadarChart";
 import AdviceCard from "../components/AdviceCard";
 import FeatureChart from "../components/FeatureChart";
 import CandlestickChart from "../components/CandlestickChart";
+import ExecutionMetadataFreshnessDetail from "../components/ExecutionMetadataFreshnessDetail";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
+import RecentCanonicalDriftCard, { type RecentCanonicalDriftSummary } from "../components/RecentCanonicalDriftCard";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { ExecutionWorkspaceMetric, ExecutionWorkspaceSummary } from "../components/execution/ExecutionWorkspaceSummary";
 import { buildWsCandidateUrls, rememberActiveApiBaseFromWsUrl, useApi, fetchApi, prewarmActiveApiBase } from "../hooks/useApi";
 import ConfidenceIndicator from "../components/ConfidenceIndicator";
 import { ALL_SENSES, getSenseConfig } from "../config/senses";
-import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
+import {
+  humanizeCurrentLiveBlockerLabel,
+  humanizeExecutionModeLabel,
+  humanizeExecutionReason,
+  humanizeExecutionReconciliationStatusLabel,
+  humanizeExecutionVenueLabel,
+  humanizeLifecycleDiagnosticLabel,
+  humanizeRuntimeDetailText,
+  humanizeSupportGovernanceRouteLabel,
+  humanizeSupportRouteLabel,
+  isExecutionReconciliationLimitedEvidence,
+} from "../utils/runtimeCopy";
 
 interface SensesResponse {
   senses: Record<string, any>;
@@ -59,6 +72,11 @@ type LiveRuntimeTruth = {
   execution_guardrail_reason?: string | null;
   support_rows_text?: string | null;
   support_route_verdict?: string | null;
+  support_governance_route?: string | null;
+  support_progress?: {
+    gap_to_minimum?: number | null;
+  } | null;
+  current_live_structure_bucket_gap_to_minimum?: number | null;
   q15_exact_supported_component_patch_applied?: boolean | null;
   runtime_exact_support_rows?: number | null;
   calibration_exact_lane_rows?: number | null;
@@ -116,6 +134,7 @@ interface RuntimeStatusResponse {
     live_ready_blockers?: string[];
     operator_message?: string;
     live_runtime_truth?: LiveRuntimeTruth | null;
+    recent_canonical_drift?: RecentCanonicalDriftSummary | null;
   } | null;
   execution_metadata_smoke?: {
     available?: boolean;
@@ -256,6 +275,7 @@ interface RuntimeStatusResponse {
       [key: string]: unknown;
     } | null;
     live_runtime_truth?: LiveRuntimeTruth | null;
+    recent_canonical_drift?: RecentCanonicalDriftSummary | null;
     guardrails?: {
       kill_switch?: boolean;
       max_daily_loss_pct?: number;
@@ -311,6 +331,7 @@ interface RuntimeStatusResponse {
       live_runtime_truth?: LiveRuntimeTruth | null;
     } | null;
   } | null;
+  recent_canonical_drift?: RecentCanonicalDriftSummary | null;
   account?: {
     venue?: string;
     mode?: string;
@@ -553,6 +574,24 @@ interface RuntimeStatusResponse {
   } | null;
 }
 
+interface Q15BucketRootCauseSummary {
+  verdict?: string | null;
+  candidate_patch_type?: string | null;
+  candidate_patch_feature?: string | null;
+  reason?: string | null;
+  verify_next?: string | null;
+  current_live_structure_bucket?: string | null;
+  gap_to_q35_boundary?: number | null;
+  dominant_neighbor_bucket?: string | null;
+  dominant_neighbor_rows?: number | null;
+  near_boundary_rows?: number | null;
+  candidate_patch?: {
+    type?: string | null;
+    feature?: string | null;
+    needed_raw_delta_to_cross_q35?: number | null;
+  } | null;
+}
+
 interface ConfidenceData {
   error?: string;
   confidence: number;
@@ -585,7 +624,11 @@ interface ConfidenceData {
       required_recent_window_wins?: number | null;
       additional_recent_window_wins_needed?: number | null;
     } | null;
+    q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
+    current_bucket_root_cause?: Q15BucketRootCauseSummary | null;
   } | null;
+  q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
+  current_bucket_root_cause?: Q15BucketRootCauseSummary | null;
   support_route_verdict?: string | null;
   support_route_deployable?: boolean | null;
   support_progress?: {
@@ -604,6 +647,12 @@ interface ConfidenceData {
   best_single_component_required_score_delta?: number | null;
   component_experiment_verdict?: string | null;
   q15_exact_supported_component_patch_applied?: boolean | null;
+  q35_overall_verdict?: string | null;
+  q35_redesign_verdict?: string | null;
+  q35_runtime_remaining_gap_to_floor?: number | null;
+  q35_recommended_mode?: string | null;
+  q35_recommended_action?: string | null;
+  q35_next_patch_target?: string | null;
   decision_quality_horizon_minutes?: number | null;
   decision_quality_calibration_scope?: string | null;
   decision_quality_sample_size?: number | null;
@@ -713,31 +762,6 @@ function readRecordNumber(record: Record<string, unknown> | null | undefined, ke
     if (typeof value === "number" && Number.isFinite(value)) return value;
   }
   return null;
-}
-
-function getSmokeFreshnessTone(status: string | undefined | null): string {
-  if (status === "fresh") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
-  if (status === "stale") return "border-amber-700/40 bg-amber-950/20 text-amber-200";
-  return "border-slate-700/40 bg-slate-950/20 text-slate-300";
-}
-
-function getSmokeFreshnessLabel(status: string | undefined | null): string {
-  if (status === "fresh") return "FRESH";
-  if (status === "stale") return "STALE";
-  return "UNAVAILABLE";
-}
-
-function getSmokeGovernanceTone(status: string | undefined | null): string {
-  if (status === "healthy") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
-  if (status === "refresh_required") return "border-amber-700/40 bg-amber-950/20 text-amber-200";
-  return "border-red-700/40 bg-red-950/20 text-red-200";
-}
-
-function getExternalMonitorTickingTone(status: string | undefined | null): string {
-  if (status === "observed-ticking") return "border-emerald-700/40 bg-emerald-950/20 text-emerald-200";
-  if (status === "installed") return "border-sky-700/40 bg-sky-950/20 text-sky-200";
-  if (status === "install-ready") return "border-slate-700/40 bg-slate-950/20 text-slate-300";
-  return "border-amber-700/40 bg-amber-950/20 text-amber-200";
 }
 
 function getReconciliationTone(status: string | undefined | null): string {
@@ -974,6 +998,7 @@ export default function Dashboard() {
   const executionOperationsSurface = executionSurfaceContract?.operations_surface ?? null;
   const executionDiagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;
   const liveRuntimeTruth = executionSummary?.live_runtime_truth ?? executionSurfaceContract?.live_runtime_truth ?? null;
+  const recentCanonicalDrift = runtimeStatus?.execution?.recent_canonical_drift ?? executionSurfaceContract?.recent_canonical_drift ?? runtimeStatus?.recent_canonical_drift ?? null;
   const liveRecentPathologyApplied = Boolean(
     liveRuntimeTruth?.decision_quality_recent_pathology_applied ?? confidenceData?.decision_quality_recent_pathology_applied
   );
@@ -1035,51 +1060,60 @@ export default function Dashboard() {
   const dashboardPrimaryRuntimeMessageLabel = runtimeStatusPending
     ? "正在同步 /api/status"
     : humanizeExecutionReason(
-      dashboardPrimaryRuntimeMessage || (runtimeStatusError ? `無法取得 /api/status：${runtimeStatusError}` : "目前沒有額外 blocker 摘要")
+      dashboardPrimaryRuntimeMessage || (runtimeStatusError ? `無法取得 /api/status：${runtimeStatusError}` : "目前沒有額外阻塞點摘要")
     );
   const dashboardVenueBlockers = Array.isArray(executionSurfaceContract?.live_ready_blockers)
     ? executionSurfaceContract.live_ready_blockers
     : [];
   const dashboardVenueBlockersLabel = runtimeStatusPending
     ? "同步中"
-    : (dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "none");
+    : (dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "目前沒有額外場館阻塞");
+  const dashboardSupportRouteVerdictLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeSupportRouteLabel(liveRuntimeTruth?.support_route_verdict || null);
+  const dashboardSupportGovernanceRouteLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeSupportGovernanceRouteLabel(liveRuntimeTruth?.support_governance_route || null);
+  const dashboardSupportRowsLabel = runtimeStatusPending
+    ? "同步中"
+    : (liveRuntimeTruth?.support_rows_text || "—");
+  const dashboardSupportGapLabel = runtimeStatusPending
+    ? "同步中"
+    : (typeof liveRuntimeTruth?.current_live_structure_bucket_gap_to_minimum === "number"
+      ? liveRuntimeTruth.current_live_structure_bucket_gap_to_minimum.toFixed(0)
+      : (typeof liveRuntimeTruth?.support_progress?.gap_to_minimum === "number"
+        ? liveRuntimeTruth.support_progress.gap_to_minimum.toFixed(0)
+        : "—"));
   const adviceCardExecutionActionState: "syncing" | "blocked" | "ready" = runtimeStatusPending || !liveRuntimeTruth
     ? "syncing"
     : (dashboardCurrentLiveBlocker ? "blocked" : "ready");
   const adviceCardExecutionBlockerReason = runtimeStatusPending
-    ? "正在同步 /api/status；Dashboard 建議卡暫不提供快捷下單，避免 current live blocker truth 尚未到位前出現誤導 CTA。"
+    ? "正在同步 /api/status；Dashboard 建議卡暫不提供快捷下單，避免目前阻塞點真相尚未到位前出現誤導 CTA。"
     : dashboardPrimaryRuntimeMessageLabel;
   const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const metadataSmokeGovernance = metadataSmoke?.governance ?? null;
-  const metadataSmokeAutoRefresh = metadataSmokeGovernance?.auto_refresh ?? null;
-  const metadataSmokeBackgroundMonitor = metadataSmokeGovernance?.background_monitor ?? null;
-  const metadataSmokeExternalMonitor = metadataSmokeGovernance?.external_monitor ?? null;
-  const externalMonitorInstallContract = metadataSmokeExternalMonitor?.install_contract ?? null;
-  const externalMonitorTickingState = metadataSmokeExternalMonitor?.ticking_state ?? null;
-  const metadataSmokeFreshnessTone = getSmokeFreshnessTone(metadataSmokeFreshness?.status);
   const metadataSmokeFreshnessLabel = runtimeStatusPending
     ? "同步中"
-    : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "UNAVAILABLE");
-  const metadataSmokeGovernanceTone = getSmokeGovernanceTone(metadataSmokeGovernance?.status);
-  const externalMonitorTickingTone = getExternalMonitorTickingTone(externalMonitorTickingState?.status);
+    : humanizeLifecycleDiagnosticLabel(metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "UNAVAILABLE");
   const rawContinuity = runtimeStatus?.raw_continuity ?? null;
   const featureContinuity = runtimeStatus?.feature_continuity ?? null;
-  const executionModeLabel = runtimeStatusPending ? "同步中" : (executionSummary?.mode || accountSummary?.mode || "unknown");
-  const executionVenueLabel = runtimeStatusPending ? "同步中" : (executionSummary?.venue || accountSummary?.venue || "—");
+  const executionModeRaw = executionSummary?.mode || accountSummary?.mode || "unknown";
+  const executionModeLabel = runtimeStatusPending ? "同步中" : humanizeExecutionModeLabel(executionSummary?.mode || accountSummary?.mode || "unknown");
+  const executionVenueLabel = runtimeStatusPending ? "同步中" : humanizeExecutionVenueLabel(executionSummary?.venue || accountSummary?.venue || "—");
   const executionHealth = executionSummary?.health ?? accountSummary?.health ?? null;
   const balanceFree = typeof accountSummary?.balance?.free === "number" ? accountSummary.balance.free : null;
   const balanceTotal = typeof accountSummary?.balance?.total === "number" ? accountSummary.balance.total : null;
   const balanceCurrency = typeof accountSummary?.balance?.currency === "string" ? accountSummary.balance.currency : "USDT";
   const accountCredentialsConfigured = Boolean(accountSummary?.health?.credentials_configured ?? executionHealth?.credentials_configured);
   const accountBalanceUnavailableLabel = !accountCredentialsConfigured
-    ? "public-only / metadata only"
-    : "balance unavailable";
+    ? "僅公開資料 / 元資料觀測"
+    : "餘額暫不可用";
   const accountBalanceUnavailableReason = !accountCredentialsConfigured
-    ? "private balance unavailable until exchange credentials are configured"
-    : "balance unavailable in latest account snapshot";
+    ? "尚未配置交易所憑證，因此私有餘額暫不可見。"
+    : "最新帳戶快照暫無餘額資料。";
   const accountBalanceSummaryValue = balanceFree !== null
-    ? `free ${balanceFree.toFixed(2)} ${balanceCurrency}`
+    ? `可用 ${balanceFree.toFixed(2)} ${balanceCurrency}`
     : accountBalanceUnavailableLabel;
   const accountBalanceSummaryTotal = balanceTotal !== null
     ? `${balanceTotal.toFixed(2)} ${balanceCurrency}`
@@ -1101,14 +1135,19 @@ export default function Dashboard() {
   const lastRejectRuleLines = formatGuardrailRules(lastRejectContext?.rules);
   const lastFailure = guardrails?.last_failure ?? null;
   const lastOrder = guardrails?.last_order ?? null;
-  const reconciliationTone = getReconciliationTone(executionReconciliation?.status);
+  const reconciliationLifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
+  const reconciliationRecoveryState = executionReconciliation?.recovery_state ?? null;
+  const reconciliationLifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
+  const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(
+    executionReconciliation?.status,
+    reconciliationLifecycleAudit?.stage,
+    reconciliationLifecycleContract?.artifact_coverage,
+  );
+  const reconciliationTone = getReconciliationTone(reconciliationCoverageLimited ? "warning" : executionReconciliation?.status);
   const reconciliationIssues = Array.isArray(executionReconciliation?.issues) ? executionReconciliation.issues : [];
   const reconciliationLatestTrade = executionReconciliation?.trade_history_alignment?.latest_trade ?? null;
   const reconciliationMatchedOpenOrder = executionReconciliation?.open_order_alignment?.matched_open_order ?? null;
   const reconciliationFreshness = executionReconciliation?.account_snapshot?.freshness ?? null;
-  const reconciliationLifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
-  const reconciliationRecoveryState = executionReconciliation?.recovery_state ?? null;
-  const reconciliationLifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
   const reconciliationArtifactChecklist = Array.isArray(reconciliationLifecycleContract?.artifact_checklist)
     ? reconciliationLifecycleContract.artifact_checklist
     : [];
@@ -1124,9 +1163,9 @@ export default function Dashboard() {
       : "border-sky-700/40 bg-sky-950/20 text-sky-200";
   const executionTone = executionSummary?.kill_switch || guardrails?.daily_loss_halt || guardrails?.failure_halt
     ? "border-red-700/40 bg-red-950/30 text-red-200"
-    : executionModeLabel === "live"
+    : executionModeRaw === "live"
       ? "border-emerald-700/40 bg-emerald-950/30 text-emerald-200"
-      : executionModeLabel === "live_canary"
+      : executionModeRaw === "live_canary"
         ? "border-amber-700/40 bg-amber-950/30 text-amber-200"
         : "border-slate-700/40 bg-slate-950/30 text-slate-300";
   const continuityTone = rawContinuity?.status === "clean"
@@ -1136,10 +1175,18 @@ export default function Dashboard() {
       : rawContinuity?.status === "error"
         ? "border-red-700/40 bg-red-950/30 text-red-200"
         : "border-slate-700/40 bg-slate-950/30 text-slate-300";
-  const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
+  const reconciliationStatusLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeExecutionReconciliationStatusLabel(
+      executionReconciliation?.status,
+      reconciliationLifecycleAudit?.stage,
+      reconciliationLifecycleContract?.artifact_coverage,
+    );
   const reconciliationSummaryLabel = runtimeStatusPending
-    ? "正在向 /api/status 取得 reconciliation / recovery 摘要。"
-    : (executionReconciliation?.summary || "尚未收到 reconciliation 摘要。");
+    ? "正在向 /api/status 取得對帳 / 恢復摘要。"
+    : reconciliationCoverageLimited
+      ? `${humanizeRuntimeDetailText(executionReconciliation?.summary || "尚未收到對帳摘要。")} · 尚未有執行期委託，因此目前只能確認「沒有發現明顯對帳落差」，不可視為完整實單驗證。`
+      : humanizeRuntimeDetailText(executionReconciliation?.summary || "尚未收到對帳摘要。");
   const continuityLabel = runtimeStatusPending
     ? "同步 /api/status 中"
     : rawContinuity?.status === "clean"
@@ -1149,7 +1196,7 @@ export default function Dashboard() {
         : rawContinuity?.status === "error"
           ? "啟動檢查失敗"
           : "尚未收到啟動檢查結果";
-  const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "Ready" : "Blocked");
+  const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
 
   const handleTrade = useCallback(async (side: string) => {
     if (side === "hold") return;
@@ -1176,13 +1223,13 @@ export default function Dashboard() {
       const stepSize = data?.normalization?.contract?.step_size;
       const tickSize = data?.normalization?.contract?.tick_size;
       const contractSummary = [
-        stepSize != null ? `step ${formatGuardrailValue(stepSize)}` : null,
-        tickSize != null ? `tick ${formatGuardrailValue(tickSize)}` : null,
+        stepSize != null ? `數量步進 ${formatGuardrailValue(stepSize)}` : null,
+        tickSize != null ? `價格刻度 ${formatGuardrailValue(tickSize)}` : null,
       ].filter(Boolean).join(" · ");
       setTradeFeedback({
         tone: "success",
         title: `${label} 指令已提交`,
-        detail: `模式 ${mode} · 場館 ${venue}${normalizedQty != null ? ` · normalized qty ${formatGuardrailValue(normalizedQty)}` : ""}${normalizedPrice != null ? ` · normalized price ${formatGuardrailValue(normalizedPrice)}` : ""}${contractSummary ? ` · contract ${contractSummary}` : ""}。已主動刷新 /api/status。`,
+        detail: `模式 ${mode} · 場館 ${venue}${normalizedQty != null ? ` · 校準後數量 ${formatGuardrailValue(normalizedQty)}` : ""}${normalizedPrice != null ? ` · 校準後價格 ${formatGuardrailValue(normalizedPrice)}` : ""}${contractSummary ? ` · 規則 ${contractSummary}` : ""}。已主動刷新 /api/status。`,
         timestamp: new Date().toLocaleString("zh-TW"),
       });
     } catch (e: any) {
@@ -1241,7 +1288,7 @@ export default function Dashboard() {
 
       <ExecutionWorkspaceSummary
         title="💼 Execution 摘要"
-        subtitle="Dashboard 只保留 4 張 Bot 營運摘要卡；若要查看 current live blocker 詳情、metadata 明細與 recovery 脈絡，請前往「執行狀態」。"
+        subtitle="Dashboard 只保留 4 張 Bot 營運摘要卡；若要查看目前阻塞點詳情、元資料明細與恢復脈絡，請前往「執行狀態」。"
         className={executionTone}
         actions={(
           <>
@@ -1260,16 +1307,26 @@ export default function Dashboard() {
           </>
         )}
         footer={(
-          <LivePathologySummaryCard
-            summary={liveScopePathologySummary}
-            className="mt-1"
-            title="🧬 Live lane / spillover 對照"
-            compact
-            supportAlignmentStatus={liveRuntimeTruth?.support_alignment_status ?? null}
-            supportAlignmentSummary={liveRuntimeTruth?.support_alignment_summary ?? null}
-            runtimeExactSupportRows={liveRuntimeTruth?.runtime_exact_support_rows ?? null}
-            calibrationExactLaneRows={liveRuntimeTruth?.calibration_exact_lane_rows ?? null}
-          />
+          <>
+            <LivePathologySummaryCard
+              summary={liveScopePathologySummary}
+              className="mt-1"
+              title="🧬 精準路徑 / 外溢口袋對照"
+              compact
+              supportAlignmentStatus={liveRuntimeTruth?.support_alignment_status ?? null}
+              supportAlignmentSummary={liveRuntimeTruth?.support_alignment_summary ?? null}
+              runtimeExactSupportRows={liveRuntimeTruth?.runtime_exact_support_rows ?? null}
+              calibrationExactLaneRows={liveRuntimeTruth?.calibration_exact_lane_rows ?? null}
+              supportRouteVerdict={liveRuntimeTruth?.support_route_verdict ?? null}
+              supportGovernanceRoute={liveRuntimeTruth?.support_governance_route ?? null}
+            />
+            <RecentCanonicalDriftCard
+              summary={recentCanonicalDrift}
+              pending={runtimeStatusPending && !recentCanonicalDrift}
+              className="mt-3"
+              title="📉 最近 canonical drift"
+            />
+          </>
         )}
       >
         <ExecutionWorkspaceMetric
@@ -1277,9 +1334,10 @@ export default function Dashboard() {
           value={dashboardExecutionStatusValue}
           detail={(
             <>
-              <div>{executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()} · {executionVenueLabel}</div>
-              <div>current live blocker {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
-              <div className="opacity-70">venue blockers {dashboardVenueBlockersLabel}</div>
+              <div>{executionModeLabel} · {executionVenueLabel}</div>
+              <div>目前阻塞點 {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
+              <div className="opacity-70">當前分桶 {dashboardSupportRowsLabel} · 缺口 {dashboardSupportGapLabel} · 支持路徑 {dashboardSupportRouteVerdictLabel} · 治理路徑 {dashboardSupportGovernanceRouteLabel}</div>
+              <div className="opacity-70">場館阻塞 {dashboardVenueBlockersLabel}</div>
             </>
           )}
           extra={<VenueReadinessSummary venues={venueChecks} className="mt-2" compact />}
@@ -1287,15 +1345,23 @@ export default function Dashboard() {
         <ExecutionWorkspaceMetric
           label="資金 / 曝險"
           value={accountBalanceSummaryValue}
-          detail={<div>total {accountBalanceSummaryTotal} · 倉位 {positionCount} · 掛單 {openOrderCount}</div>}
+          detail={<div>總額 {accountBalanceSummaryTotal} · 倉位 {positionCount} · 掛單 {openOrderCount}</div>}
         />
         <ExecutionWorkspaceMetric
-          label="Metadata freshness"
+          label="元資料新鮮度"
           value={metadataSmokeFreshnessLabel}
-          detail={runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : (metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "尚未產生 smoke artifact")}
+          detail={(
+            <ExecutionMetadataFreshnessDetail
+              pending={runtimeStatusPending}
+              generatedAt={metadataSmoke?.generated_at}
+              freshness={metadataSmokeFreshness}
+              governance={metadataSmokeGovernance}
+              compact
+            />
+          )}
         />
         <ExecutionWorkspaceMetric
-          label="Reconciliation / recovery"
+          label="對帳 / 恢復"
           value={reconciliationStatusLabel}
           detail={reconciliationSummaryLabel}
         />
@@ -1303,7 +1369,7 @@ export default function Dashboard() {
 
       <div className={`rounded-xl border px-4 py-3 text-xs ${continuityTone}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="font-semibold">🩹 啟動檢查 / continuity</div>
+          <div className="font-semibold">🩹 啟動檢查 / 連續性</div>
           <div className="text-[11px] opacity-80">
             {runtimeStatusPending
               ? "正在向 /api/status 取得啟動檢查結果"
@@ -1322,9 +1388,9 @@ export default function Dashboard() {
         )}
         {featureContinuity?.continuity_repair && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] opacity-90">
-            <span>feature 狀態 {featureContinuity.status ?? "unknown"}</span>
+            <span>feature 狀態 {humanizeLifecycleDiagnosticLabel(featureContinuity.status || "unknown")}</span>
             <span>補回 {featureContinuity.continuity_repair.inserted_total ?? 0}</span>
-            <span>remaining missing {featureContinuity.continuity_repair.remaining_missing ?? 0}</span>
+            <span>剩餘缺口 {featureContinuity.continuity_repair.remaining_missing ?? 0}</span>
           </div>
         )}
         {rawContinuity?.error && (
@@ -1446,6 +1512,13 @@ export default function Dashboard() {
           bestSingleComponentRequiredScoreDelta={confidenceData.best_single_component_required_score_delta}
           componentExperimentVerdict={confidenceData.component_experiment_verdict}
           q15ExactSupportedComponentPatchApplied={confidenceData.q15_exact_supported_component_patch_applied}
+          q35OverallVerdict={confidenceData.q35_overall_verdict}
+          q35RedesignVerdict={confidenceData.q35_redesign_verdict}
+          q35RuntimeRemainingGapToFloor={confidenceData.q35_runtime_remaining_gap_to_floor}
+          q35RecommendedMode={confidenceData.q35_recommended_mode}
+          q35RecommendedAction={confidenceData.q35_recommended_action}
+          q35NextPatchTarget={confidenceData.q35_next_patch_target}
+          currentBucketRootCause={confidenceData.current_bucket_root_cause ?? confidenceData.q15_bucket_root_cause ?? confidenceData.deployment_blocker_details?.current_bucket_root_cause ?? confidenceData.deployment_blocker_details?.q15_bucket_root_cause ?? null}
           timestamp={confidenceData.timestamp}
         />
       )}
@@ -1484,7 +1557,7 @@ export default function Dashboard() {
         if (regime === 'bull' && bias50! <= -3) contextAction = '背景偏多，價格接近支撐。';
         else if (regime === 'bull' && bias50! <= -1) contextAction = '背景偏多，正在回調區。';
         else if (regime === 'bull' && bias50! >= 5) contextAction = '背景偏熱，已進入超買帶。';
-        else if (regime === 'bull') contextAction = '背景偏多，但仍需等 live gate / quality 確認。';
+        else if (regime === 'bull') contextAction = '背景偏多，但仍需等即時關卡 / 品質確認。';
         else contextAction = '背景偏保守，先觀察 4H 結構是否改善。';
 
         const canonicalGate = confidenceData?.regime_gate || '—';
@@ -1496,15 +1569,15 @@ export default function Dashboard() {
           ? `${confidenceData.allowed_layers.toFixed(0)} / 3`
           : '—';
         const canonicalDecisionText = confidenceData
-          ? `主決策：4H Gate ${canonicalGate} · Entry ${canonicalEntryQuality} (${canonicalEntryLabel}) · Layers ${canonicalLayers}`
-          : '主決策：等待 live decision-quality contract 載入';
+          ? `主決策：4H 關卡 ${canonicalGate} · 進場分數 ${canonicalEntryQuality} (${canonicalEntryLabel}) · 層數 ${canonicalLayers}`
+          : '主決策：等待即時決策品質契約載入';
 
         return (
         <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-5">
           <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
             <div>
               <h2 className="text-sm font-semibold text-slate-300">📐 4H 結構線儀表板</h2>
-              <div className="mt-1 text-[11px] text-slate-500">主決策以 live decision-quality contract 為準；以下 4H 指標僅作背景解讀。</div>
+              <div className="mt-1 text-[11px] text-slate-500">主決策以即時決策品質契約為準；以下 4H 指標僅作背景解讀。</div>
             </div>
             <span className={`text-xs font-bold ${regimeColor} px-2 py-0.5 rounded bg-slate-800`}>{regimeLabel}</span>
           </div>
@@ -1548,7 +1621,7 @@ export default function Dashboard() {
             <div className="bg-cyan-950/20 rounded-lg px-4 py-3 text-sm text-cyan-100 border border-cyan-700/30">
               <div className="font-semibold">{canonicalDecisionText}</div>
               <div className="mt-1 text-xs text-cyan-200/80">
-                若 4H raw 結構與 canonical gate 不一致，應以 decision-quality contract 為主，而不是手寫 bias 規則。
+                若 4H 原始結構與正式關卡不一致，應以決策品質契約為主，而不是手寫 bias 規則。
               </div>
             </div>
             <div className="bg-slate-800/30 rounded-lg px-4 py-2 text-sm text-slate-300 border border-slate-700/30">

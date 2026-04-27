@@ -254,6 +254,8 @@ def _deployment_profile_signature(params: Optional[Dict[str, Any]]) -> str:
 class ModelLeaderboard:
     """模型排行榜"""
     EVALUATION_MAX_FOLDS = 4
+    BACKGROUND_REFRESH_DEPLOYMENT_CANDIDATE_LIMIT = 2
+    BACKGROUND_REFRESH_FEATURE_CANDIDATE_LIMIT = 2
     SUPPORTED_MODELS = [
 
         'rule_baseline', 'logistic_regression', 'xgboost',
@@ -475,18 +477,24 @@ class ModelLeaderboard:
         },
     }
 
-    def __init__(self, data_df: pd.DataFrame, target_col: str = 'simulated_pyramid_win'):
+    def __init__(self, data_df: pd.DataFrame, target_col: str = 'simulated_pyramid_win', background_refresh: bool = False):
         """
         Args:
             data_df: 必須包含 timestamp, close_price, target label,
                       feat_4h_bias50, feat_4h_rsi14 等欄位
             target_col: Which label column to optimize. Supports
                         label_spot_long_win and simulated_pyramid_win.
+            background_refresh: Whether this instance is serving the bounded
+                        stale-while-revalidate refresh path. When enabled,
+                        candidate deployment / feature-profile surfaces are
+                        intentionally narrowed so background refreshes finish
+                        quickly enough for product UX.
         """
         self.data = data_df.copy()
         self.data['timestamp'] = pd.to_datetime(self.data['timestamp'])
         self.data = self.data.sort_values('timestamp').reset_index(drop=True)
         self.target_col = target_col
+        self.background_refresh = bool(background_refresh)
         self.last_model_statuses: Dict[str, Dict[str, Any]] = {}
         self._deployment_profile_override: Optional[str] = None
         self._feature_profile_override: Optional[str] = None
@@ -635,7 +643,10 @@ class ModelLeaderboard:
         for name in ordered:
             if name in self.DEPLOYMENT_PROFILES and name not in unique:
                 unique.append(name)
-        return unique or ['standard']
+        candidates = unique or ['standard']
+        if self.background_refresh:
+            return candidates[:self.BACKGROUND_REFRESH_DEPLOYMENT_CANDIDATE_LIMIT]
+        return candidates
 
     def _deployment_profile_for_model(self, model_name: str) -> Dict[str, Any]:
         """Return the active deployment profile, honoring temporary auto-selection overrides."""
@@ -681,6 +692,17 @@ class ModelLeaderboard:
             bull_pocket_payload=self._bull_pocket_payload,
         )
         add_candidate(selected_name, selected_meta)
+
+        if self.background_refresh:
+            # Keep stale-while-revalidate bounded and deterministic: evaluate the
+            # active training-selected profile plus the smallest stable fallback.
+            # Artifact-driven ablation recommendations can change every
+            # heartbeat and must not displace core_only inside the two-candidate
+            # background-refresh budget.
+            add_candidate("core_only")
+            if not candidates:
+                add_candidate("current_full", {"source": "leaderboard.fallback_current_full"})
+            return candidates[:self.BACKGROUND_REFRESH_FEATURE_CANDIDATE_LIMIT]
 
         ablation_payload = self._feature_ablation_payload or {}
         if ablation_payload.get("target_col") == self.target_col:

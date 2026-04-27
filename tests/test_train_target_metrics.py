@@ -29,6 +29,30 @@ class _DummyFoldModel:
         return [1 if i % 2 else 0 for i in range(len(X))]
 
 
+class _CaptureXGBClassifier:
+    last_params = None
+
+    def __init__(self, **kwargs):
+        type(self).last_params = kwargs
+
+    def fit(self, X, y, sample_weight=None):
+        self.sample_weight = sample_weight
+        return self
+
+
+def test_train_xgboost_uses_hist_tree_method_for_heartbeat_budget(monkeypatch):
+    monkeypatch.setattr(train_module.xgb, "XGBClassifier", _CaptureXGBClassifier)
+    X = pd.DataFrame({"feat_a": [0.1, 0.2, 0.3, 0.4], "feat_b": [0.2, 0.3, 0.4, 0.5]})
+    y = pd.Series([0, 1, 0, 1])
+
+    train_module.train_xgboost(X, y)
+
+    params = _CaptureXGBClassifier.last_params
+    assert params["tree_method"] == "hist"
+    assert params["n_jobs"] == train_module.DEFAULT_XGB_N_JOBS
+    assert 1 <= params["n_jobs"] <= 4
+
+
 def test_run_training_writes_target_specific_last_metrics(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     Path("model").mkdir()
@@ -49,12 +73,41 @@ def test_run_training_writes_target_specific_last_metrics(tmp_path, monkeypatch)
     monkeypatch.setattr(train_module, "save_model", lambda payload: None)
     monkeypatch.setattr(train_module.xgb, "XGBClassifier", _DummyFoldModel)
 
-    assert train_module.run_training(session=None, target_col="simulated_pyramid_win") is True
+    assert train_module.run_training(session=None, target_col="simulated_pyramid_win", max_cv_folds=2) is True
 
-    metrics = Path("model/last_metrics.json").read_text(encoding="utf-8")
-    assert '"target_col": "simulated_pyramid_win"' in metrics
-    assert '"feature_profile": "core_plus_macro"' in metrics
-    assert '"n_features": 2' in metrics
+    metrics = json.loads(Path("model/last_metrics.json").read_text(encoding="utf-8"))
+    assert metrics["target_col"] == "simulated_pyramid_win"
+    assert metrics["feature_profile"] == "core_plus_macro"
+    assert metrics["n_features"] == 2
+    assert metrics["cv_folds"] == 2
+    assert metrics["cv_max_folds"] == 2
+
+
+
+def test_train_main_skip_regime_models_delegates_without_duplicate_preload(monkeypatch):
+    class _DummySession:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    session = _DummySession()
+    calls = []
+
+    import database.models as database_models
+
+    monkeypatch.setattr(database_models, "init_db", lambda db_url: session)
+
+    def _unexpected_preload(*args, **kwargs):
+        raise AssertionError("main() should not call load_training_data before run_training(); run_training owns data loading")
+
+    monkeypatch.setattr(train_module, "load_training_data", _unexpected_preload)
+    monkeypatch.setattr(train_module, "run_training", lambda received_session, **kwargs: calls.append((received_session, kwargs)) or True)
+
+    assert train_module.main(["--skip-regime-models", "--max-cv-folds", "2"]) is True
+    assert calls == [(session, {"max_cv_folds": 2})]
+    assert session.closed is True
+
 
 
 def test_load_tw_ic_guardrail_reads_dynamic_window_and_recent_drift(tmp_path, monkeypatch):

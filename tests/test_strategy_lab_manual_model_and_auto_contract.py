@@ -1,10 +1,16 @@
 from pathlib import Path
 
+import asyncio
 import pandas as pd
 import pytest
 
 from backtesting import strategy_lab
 from server.routes import api as api_module
+
+
+class _DummyDb:
+    def close(self):
+        return None
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +50,28 @@ def test_auto_leaderboard_strategy_metadata_marks_system_generated_and_immutable
     assert loaded["metadata"]["source_label"] == "系統生成排行榜"
     assert loaded["metadata"]["immutable"] is True
     assert loaded["metadata"]["editable_clone_required"] is True
+
+
+def test_manual_test_named_strategy_is_visible_and_not_internal(isolated_strategies_dir: Path):
+    strategy_lab.save_strategy(
+        "Test",
+        {
+            "type": "hybrid",
+            "params": {
+                "model_name": "xgboost",
+                "entry": {"bias50_max": 0.0},
+            },
+        },
+        {"roi": 0.08, "win_rate": 0.55},
+    )
+
+    loaded = strategy_lab.load_strategy("Test")
+    visible = strategy_lab.load_all_strategies(include_internal=False)
+
+    assert loaded is not None
+    assert loaded["is_internal"] is False
+    assert loaded["metadata"]["source"] == "user_saved"
+    assert [entry["name"] for entry in visible] == ["Test"]
 
 
 @pytest.fixture()
@@ -116,19 +144,45 @@ def patched_strategy_run_env(monkeypatch: pytest.MonkeyPatch):
     return captured
 
 
-def test_execute_strategy_run_preserves_auto_leaderboard_rows_by_saving_manual_copy_when_operator_reruns(
+def test_execute_strategy_run_rejects_system_generated_strategy_until_operator_supplies_unique_name(
     patched_strategy_run_env,
 ):
     payload = api_module._execute_strategy_run(
         {
             "name": "Auto Leaderboard · 重掃 xgboost Hybrid #01",
+            "source_strategy_name": "Auto Leaderboard · 重掃 xgboost Hybrid #01",
             "type": "hybrid",
             "params": {"model_name": "xgboost", "entry": {"bias50_max": 0.0}},
         }
     )
 
-    assert payload["strategy"] == "Manual Copy · 重掃 xgboost Hybrid #01"
-    assert patched_strategy_run_env["name"] == "Manual Copy · 重掃 xgboost Hybrid #01"
+    assert payload["error"] == "系統生成策略不能直接儲存；請先輸入新的策略名稱。"
+    assert "name" not in patched_strategy_run_env
+
+
+
+def test_execute_strategy_run_rejects_duplicate_custom_name_when_it_would_overwrite_another_strategy(
+    monkeypatch: pytest.MonkeyPatch,
+    patched_strategy_run_env,
+):
+    monkeypatch.setattr(
+        strategy_lab,
+        "load_strategy",
+        lambda name: {"name": "My Existing Strategy"} if name == "My Existing Strategy" else None,
+    )
+
+    payload = api_module._execute_strategy_run(
+        {
+            "name": "My Existing Strategy",
+            "source_strategy_name": "Auto Leaderboard · 重掃 xgboost Hybrid #01",
+            "type": "hybrid",
+            "params": {"model_name": "xgboost", "entry": {"bias50_max": 0.0}},
+        }
+    )
+
+    assert payload["error"] == "策略名稱已存在；請使用唯一名稱。"
+    assert "name" not in patched_strategy_run_env
+
 
 
 def test_execute_strategy_run_allows_internal_overwrite_for_auto_leaderboard_refresh(
@@ -147,6 +201,111 @@ def test_execute_strategy_run_allows_internal_overwrite_for_auto_leaderboard_ref
     assert payload["requested_strategy_name"] == "Auto Leaderboard · 重掃 logistic_regression Hybrid #01"
     assert patched_strategy_run_env["name"] == "Auto Leaderboard · 重掃 logistic_regression Hybrid #01"
     assert patched_strategy_run_env["strategy_def"]["params"]["model_name"] == "logistic_regression"
+
+
+def test_execute_strategy_run_keeps_full_trade_history_for_chart_markers(
+    monkeypatch: pytest.MonkeyPatch,
+    patched_strategy_run_env,
+):
+    class Result:
+        roi = 0.1
+        win_rate = 0.6
+        total_trades = 100
+        wins = 60
+        losses = 40
+        max_drawdown = 0.02
+        profit_factor = 1.2
+        total_pnl = 100.0
+        avg_win = 100.0
+        avg_loss = -25.0
+        max_consecutive_losses = 3
+        equity_curve = []
+        trades = [
+            {
+                "timestamp": f"2026-01-{(idx % 28) + 1:02d} 00:00:00",
+                "entry_timestamp": f"2025-12-{(idx % 28) + 1:02d} 00:00:00",
+                "regime_gate": "CAUTION",
+            }
+            for idx in range(100)
+        ]
+
+    monkeypatch.setattr(strategy_lab, "run_hybrid_backtest", lambda *args, **kwargs: Result())
+
+    payload = api_module._execute_strategy_run(
+        {
+            "name": "Keep Full Trades",
+            "type": "hybrid",
+            "params": {"model_name": "logistic_regression", "entry": {"bias50_max": 0.0}},
+        }
+    )
+
+    assert payload["results"]["total_trades"] == 100
+    assert len(payload["results"]["trades"]) == 100
+    assert len(patched_strategy_run_env["results"]["trades"]) == 100
+
+
+def test_api_strategy_leaderboard_keeps_manual_rows_visible_alongside_auto_rows(monkeypatch: pytest.MonkeyPatch):
+    manual_row = {
+        "name": "Test",
+        "is_internal": False,
+        "definition": {
+            "type": "hybrid",
+            "params": {"model_name": "xgboost", "entry": {"bias50_max": 0.0}},
+        },
+        "metadata": {
+            "source": "user_saved",
+            "source_label": "手動策略",
+            "immutable": False,
+            "editable_clone_required": False,
+        },
+        "last_results": {
+            "overall_score": 0.91,
+            "reliability_score": 0.75,
+            "return_power_score": 0.74,
+            "risk_control_score": 0.70,
+            "capital_efficiency_score": 0.68,
+            "roi": 0.11,
+            "max_drawdown": 0.04,
+            "total_trades": 12,
+        },
+    }
+    auto_row = {
+        "name": "Auto Leaderboard · 重掃 xgboost Hybrid #01",
+        "is_internal": True,
+        "definition": {
+            "type": "hybrid",
+            "params": {"model_name": "xgboost", "entry": {"bias50_max": 0.0}},
+        },
+        "metadata": {
+            "source": "auto_leaderboard",
+            "source_label": "系統生成排行榜",
+            "immutable": True,
+            "editable_clone_required": True,
+        },
+        "last_results": {
+            "overall_score": 0.88,
+            "reliability_score": 0.72,
+            "return_power_score": 0.71,
+            "risk_control_score": 0.69,
+            "capital_efficiency_score": 0.64,
+            "roi": 0.13,
+            "max_drawdown": 0.05,
+            "total_trades": 20,
+        },
+    }
+
+    monkeypatch.setattr(api_module, "_ensure_auto_generated_strategy_leaderboard", lambda force=False: None)
+    monkeypatch.setattr(api_module, "get_db", lambda: _DummyDb())
+    monkeypatch.setattr(strategy_lab, "load_all_strategies", lambda include_internal=True: [auto_row, manual_row])
+    monkeypatch.setattr(api_module, "_decorate_strategy_entry", lambda entry, db=None: entry)
+    monkeypatch.setattr(api_module, "_compact_strategy_leaderboard_entry", lambda entry: entry)
+    monkeypatch.setattr(api_module, "_load_recent_strategy_leaderboard_snapshots", lambda limit=12, db_path=None: [])
+    monkeypatch.setattr(api_module, "_compute_strategy_rank_deltas_against_latest_snapshot", lambda entries, db_path=None: {})
+
+    payload = asyncio.run(api_module.api_strategy_leaderboard())
+
+    assert payload["count"] == 2
+    assert [entry["name"] for entry in payload["strategies"]] == ["Test", "Auto Leaderboard · 重掃 xgboost Hybrid #01"]
 
 
 def test_strategy_lab_frontend_prefers_saved_backtest_range_after_initial_override():
@@ -169,17 +328,136 @@ def test_strategy_lab_frontend_exposes_manual_model_selection_and_protects_syste
     required_snippets = [
         "const MODEL_OPTIONS = [",
         "const selectedStrategyIsSystemGenerated",
-        "const editableRunName =",
+        "const runNameError = useMemo(() => {",
         "setSelectedModelName",
         'model_name: strategyType === "hybrid" ? selectedModelName : "rule_based"',
-        '${strategyType === "hybrid" ? "Hybrid" : "Rule"} · ${strategyType === "hybrid" ? selectedModelName : "rule_based"}',
+        '${strategyType === "hybrid" ? "混合策略" : "規則策略"} · ${strategyType === "hybrid" ? selectedModelName : "rule_based"}',
         "策略類型",
         "手動選擇模型",
         "MODEL_OPTIONS.map",
         "系統生成排行榜",
-        "系統生成策略不可直接覆蓋；重新回測時會另存為可編輯副本。",
+        "系統生成策略不能直接儲存；請先輸入新的策略名稱。",
+        'placeholder={selectedStrategyIsSystemGenerated ? "請輸入新的策略名稱" : undefined}',
+        'setName(isSystemGeneratedStrategy(strategy) ? "" : strategy.name);',
+        'if (runNameError) {',
+        'setError(runNameError);',
         "目前只更新圖表 / 區間，尚未重新執行回測",
-        "請按「執行回測」刷新 ROI / Trades / 最近交易",
+        "請按「執行回測」刷新 ROI / 交易數 / 最近交易",
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+
+def test_strategy_lab_frontend_preserves_saved_turning_point_thresholds_on_rerun():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'turningPointBottomScoreMin: number;',
+        'turningPointTopScoreTakeProfit: number;',
+        'turningPointMinProfitPct: number;',
+        'turningPointBottomScoreMin: Math.round(DEFAULT_PARAMS.turning_point.bottom_score_min * 100),',
+        'turningPointTopScoreTakeProfit: Math.round(DEFAULT_PARAMS.turning_point.top_score_take_profit * 100),',
+        'turningPointMinProfitPct: Math.round(DEFAULT_PARAMS.turning_point.min_profit_pct * 100),',
+        'const [turningPointBottomScoreMin, setTurningPointBottomScoreMin] = useState(',
+        'const [turningPointTopScoreTakeProfit, setTurningPointTopScoreTakeProfit] = useState(',
+        'const [turningPointMinProfitPct, setTurningPointMinProfitPct] = useState(',
+        'if (Boolean(params.turning_point?.enabled)) {',
+        'active.push("turning_point");',
+        'const turningPoint = typeof params.turning_point === "object" && params.turning_point ? params.turning_point : DEFAULT_PARAMS.turning_point;',
+        'setTurningPointBottomScoreMin(Math.round((turningPoint.bottom_score_min ?? DEFAULT_PARAMS.turning_point.bottom_score_min) * 100));',
+        'setTurningPointTopScoreTakeProfit(Math.round((turningPoint.top_score_take_profit ?? DEFAULT_PARAMS.turning_point.top_score_take_profit) * 100));',
+        'setTurningPointMinProfitPct(Math.round((turningPoint.min_profit_pct ?? DEFAULT_PARAMS.turning_point.min_profit_pct) * 100));',
+        'setTurningPointBottomScoreMin(scenario.turningPointBottomScoreMin);',
+        'setTurningPointTopScoreTakeProfit(scenario.turningPointTopScoreTakeProfit);',
+        'setTurningPointMinProfitPct(scenario.turningPointMinProfitPct);',
+        'bottom_score_min: turningPointBottomScoreMin / 100,',
+        'top_score_take_profit: turningPointTopScoreTakeProfit / 100,',
+        'min_profit_pct: turningPointMinProfitPct / 100,',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_strategy_lab_frontend_prefills_workspace_with_unique_default_name_after_leaderboard_load():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'const buildUniqueStrategyName = (existingNames: Set<string>, baseName = "My Strategy") => {',
+        'const workspaceDefaultName = useMemo(() => buildUniqueStrategyName(existingStrategyNameSet, "My Strategy"), [existingStrategyNameSet]);',
+        'if (selectedStrategy || name !== "My Strategy" || !existingStrategyNameSet.has(name)) return;',
+        'setName(workspaceDefaultName);',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+
+def test_strategy_lab_frontend_rehydrates_cached_selected_strategy_into_form_state_before_defaulting():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'const restoredSelectedStrategyNameRef = useRef<string | null>(null);',
+        'restoredSelectedStrategyNameRef.current = cached.selectedStrategy.name;',
+        'applyStrategyToForm(cached.selectedStrategy);',
+        'const restoredStrategyName = restoredSelectedStrategyNameRef.current;',
+        'if (restoredStrategyName) {',
+        'await selectStrategyByName(restoredStrategyName, dataRange);',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+
+def test_strategy_lab_frontend_compacts_cached_selected_strategy_series_before_session_storage_write():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'const STRATEGY_LAB_CACHE_EQUITY_LIMIT = 1000;',
+        'const STRATEGY_LAB_CACHE_SCORE_LIMIT = 300;',
+        'const downsampleCachedSeries = <T extends { timestamp?: string | null }>(points: T[] | undefined, limit: number): T[] => {',
+        'const compactStrategyLabCacheEntry = (strategy?: StrategyEntry | null): StrategyEntry | null => {',
+        'equity_curve: Array.isArray(lastResults.equity_curve)',
+        'downsampleCachedSeries(lastResults.equity_curve, STRATEGY_LAB_CACHE_EQUITY_LIMIT)',
+        'score_series: Array.isArray(lastResults.score_series)',
+        'lastResults.score_series.slice(-STRATEGY_LAB_CACHE_SCORE_LIMIT)',
+        'selectedStrategy: compactStrategyLabCacheEntry(payload.selectedStrategy),',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+
+def test_strategy_lab_frontend_keeps_headline_metrics_above_workspace_chart():
+    source = _read("pages/StrategyLab.tsx")
+    metrics_def = source.index("const workspaceHeadlineMetrics = (")
+    workspace_render = source.index("{workspaceHeadlineMetrics}")
+    chart_render = source.index("<CandlestickChart")
+    assert metrics_def < workspace_render < chart_render
+
+
+def test_candlestick_chart_labels_position_series_as_mark_to_market():
+    source = _read("components/CandlestickChart.tsx")
+    required_snippets = [
+        "持倉市值",
+        "總權益 / 現金 / 持倉市值",
+        "下圖：總權益 / 現金水位 / 持倉市值 / 買賣點",
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_strategy_lab_frontend_main_module_layout_is_single_column_and_clarifies_not_all_in():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'const capitalDeploymentHint = capitalMode === "reserve_90"',
+        '不是一鍵 all-in',
+        '經典金字塔會按 25 / 25 / 50 逐層投入，三層都成交才會接近滿倉。',
+        'Fib 23 / 38 / 39 也只是把加碼節奏改得更平滑，不是單筆滿倉。',
+        'const moduleGridClassName = "grid gap-3";',
+        'lg:grid-cols-[420px,minmax(0,1fr)]',
+        '2xl:grid-cols-[460px,minmax(0,1fr)]',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+def test_strategy_confidence_lookup_key_normalizes_microseconds():
+    assert api_module._strategy_confidence_lookup_key("2024-04-21 13:00:00.000000") == "2024-04-21 13:00:00"
+    assert api_module._strategy_confidence_lookup_key("2024-04-21T13:00:00Z") == "2024-04-21 13:00:00"

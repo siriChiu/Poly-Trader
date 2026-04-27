@@ -29,6 +29,10 @@ DEFAULT_TARGET_COL = "simulated_pyramid_win"
 MODEL_PATH = "model/xgb_model.pkl"
 DB_PATH = str(Path(__file__).parent.parent / "poly_trader.db")
 PROJECT_ROOT = Path(__file__).parent.parent
+# Heartbeat cron trains the final global model plus bounded rolling-CV folds.
+# Keep CPU parallelism explicit and bounded so the train lane can finish inside
+# the 10-minute full-heartbeat envelope without starving sibling diagnostics.
+DEFAULT_XGB_N_JOBS = max(1, min(4, os.cpu_count() or 1))
 DW_RESULT_PATH = PROJECT_ROOT / "data" / "dw_result.json"
 RECENT_DRIFT_REPORT_PATH = PROJECT_ROOT / "data" / "recent_drift_report.json"
 FEATURE_ABLATION_PATH = PROJECT_ROOT / "data" / "feature_group_ablation.json"
@@ -845,6 +849,8 @@ def train_xgboost(X: pd.DataFrame, y: pd.Series, params: Optional[dict] = None) 
             "reg_lambda": 10.0,
             "min_child_weight": 20,
             "gamma": 0.5,
+            "tree_method": "hist",
+            "n_jobs": DEFAULT_XGB_N_JOBS,
             "objective": "binary:logistic",
             "eval_metric": "logloss",
             "random_state": 42,
@@ -906,7 +912,12 @@ def load_model(path: str = MODEL_PATH):
         return pickle.load(f)
 
 
-def run_training(session: Session, regime_filter: Optional[list] = None, target_col: str = DEFAULT_TARGET_COL) -> bool:
+def run_training(
+    session: Session,
+    regime_filter: Optional[list] = None,
+    target_col: str = DEFAULT_TARGET_COL,
+    max_cv_folds: Optional[int] = None,
+) -> bool:
     """Train global XGBoost model with IC pruning and optional regime filtering.
     
     Args:
@@ -916,6 +927,9 @@ def run_training(session: Session, regime_filter: Optional[list] = None, target_
                       with IC pruning gives AUC=0.5454 vs 0.5241 for ALL.
         target_col: Label column to optimize. Supports label_spot_long_win and
                     simulated_pyramid_win for target-comparison experiments.
+        max_cv_folds: Optional cap for rolling CV folds; heartbeat cron uses this
+                      to refresh a deployable global artifact inside budget while
+                      still training the final model on all rows.
     """
     logger.info(f"開始模型訓練 v5 (with IC pruning + optional regime filter, target={target_col})...")
     loaded = load_training_data(session, min_samples=50, regime_filter=regime_filter, target_col=target_col)
@@ -980,6 +994,8 @@ def run_training(session: Session, regime_filter: Optional[list] = None, target_
             _m.fit(X.iloc[train_idx], y_tr, sample_weight=compute_sample_weight("balanced", y_tr))
             fold_acc = float((_m.predict(X.iloc[test_idx]) == y.iloc[test_idx]).mean())
             cv_scores.append(fold_acc)
+            if max_cv_folds is not None and len(cv_scores) >= max_cv_folds:
+                break
             start += step
 
         cv_acc = float(np.mean(cv_scores)) if cv_scores else float('nan')
@@ -995,7 +1011,7 @@ def run_training(session: Session, regime_filter: Optional[list] = None, target_
             INSERT INTO model_metrics (timestamp, train_accuracy, cv_accuracy, cv_std, n_features, notes)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (trained_at, train_acc, cv_acc, cv_std, X.shape[1],
-              f'target={target_col} rolling_cv n={n_folds} worst={cv_worst:.4f} best={cv_best:.4f}'))
+              f'target={target_col} rolling_cv n={n_folds} max_folds={max_cv_folds or "all"} worst={cv_worst:.4f} best={cv_best:.4f}'))
         db.commit(); db.close()
         metrics_payload = {
             'target_col': target_col,
@@ -1008,6 +1024,8 @@ def run_training(session: Session, regime_filter: Optional[list] = None, target_
             'cv_best': cv_best,
             'n_samples': int(len(X)),
             'n_features': int(X.shape[1]),
+            'cv_folds': int(n_folds),
+            'cv_max_folds': int(max_cv_folds) if max_cv_folds is not None else None,
             'positive_ratio': float(y.mean()),
             'trained_at': trained_at,
         }
@@ -1139,6 +1157,8 @@ def train_regime_models(session: Session, target_col: str = DEFAULT_TARGET_COL) 
         "colsample_bytree": 0.6,
         "reg_alpha": 5.0,
         "gamma": 0.3,
+        "tree_method": "hist",
+        "n_jobs": DEFAULT_XGB_N_JOBS,
         "objective": "binary:logistic",
         "eval_metric": "logloss",
         "random_state": 42,
@@ -1243,26 +1263,39 @@ def train_regime_models(session: Session, target_col: str = DEFAULT_TARGET_COL) 
     return regime_stats
 
 
-def main():
-    """Standalone training entry point: python model/train.py"""
+def main(argv: Optional[list[str]] = None):
+    """Standalone training entry point: python model/train.py."""
+    import argparse
     import json, pickle
     from database.models import init_db
     import sys
+
+    parser = argparse.ArgumentParser(description="Train Poly-Trader model artifacts")
+    parser.add_argument(
+        "--skip-regime-models",
+        action="store_true",
+        help=(
+            "Refresh the global deployable model/metrics only. Use this from "
+            "heartbeat cron runs so optional per-regime grid search cannot "
+            "timeout the whole heartbeat."
+        ),
+    )
+    parser.add_argument(
+        "--max-cv-folds",
+        type=int,
+        default=None,
+        help="Cap rolling CV folds for heartbeat cron runs; final model still trains on all rows.",
+    )
+    args = parser.parse_args(argv)
+
     sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
     db_path = str(Path(__file__).parent.parent / "poly_trader.db")
     db_url = "sqlite:///" + db_path
     print("Loading data from " + db_path)
     session = init_db(db_url)
     try:
-        loaded = load_training_data(session)
-        if loaded is None:
-            logger.error("載入訓練資料失敗")
-            return
-        X, y, y_return = loaded
-        print("Training data: {} samples, {} features".format(len(X), len(X.columns)))
-        print("Positive ratio: {:.4f}".format(y.mean()))
         print("Training global model...")
-        result = run_training(session)
+        result = run_training(session, max_cv_folds=args.max_cv_folds)
         metrics_path = str(Path(__file__).parent / "last_metrics.json")
         if result and os.path.exists(metrics_path):
             with open(metrics_path) as f:
@@ -1271,6 +1304,10 @@ def main():
                 metrics.get("train_accuracy", "?"),
                 metrics.get("cv_accuracy", "?"),
                 metrics.get("cv_std", "?")))
+        if args.skip_regime_models:
+            print("Skipping regime models (--skip-regime-models); global model artifacts refreshed.")
+            print("Training complete.")
+            return bool(result)
         print("Training regime models...")
         regime_stats = train_regime_models(session)
         rpath = str(Path(__file__).parent / "regime_models.pkl")

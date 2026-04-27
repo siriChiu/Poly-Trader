@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
   Cell,
@@ -11,13 +11,34 @@ import {
   YAxis,
 } from "recharts";
 import CandlestickChart from "../components/CandlestickChart";
+import ExecutionMetadataFreshnessDetail from "../components/ExecutionMetadataFreshnessDetail";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
+import RecentCanonicalDriftCard, { type RecentCanonicalDriftSummary } from "../components/RecentCanonicalDriftCard";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { ExecutionWorkspaceMetric, ExecutionWorkspaceSummary } from "../components/execution/ExecutionWorkspaceSummary";
-import { fetchApi, useApi } from "../hooks/useApi";
+import { fetchApi, prewarmActiveApiBase, useApi } from "../hooks/useApi";
 import { useGlobalProgressTask } from "../hooks/useGlobalProgress";
 import { getSenseConfig } from "../config/senses";
-import { humanizeCurrentLiveBlockerLabel, humanizeExecutionReason } from "../utils/runtimeCopy";
+import {
+  humanizeCurrentLiveBlockerLabel,
+  humanizeExecutionReason,
+  humanizeExecutionReconciliationStatusLabel,
+  humanizePatchTargetLabel,
+  humanizeLifecycleDiagnosticLabel,
+  humanizeRegimeGateLabel,
+  humanizeRuntimeClosureStateLabel,
+  humanizeRuntimeDetailText,
+  humanizeStructureBucketLabel,
+  humanizeSupportGovernanceRouteLabel,
+  humanizeSupportProgressDeltaLabel,
+  humanizeSupportProgressReferenceLabel,
+  humanizeSupportProgressStatusLabel,
+  humanizeSupportRouteLabel,
+  humanizeTradeReasonLabel,
+  isExecutionReconciliationLimitedEvidence,
+  humanizeQ15BucketRootCauseAction,
+  humanizeQ15BucketRootCauseLabel,
+} from "../utils/runtimeCopy";
 
 interface RegimeBreakdownEntry {
   regime: string;
@@ -145,12 +166,33 @@ interface SleeveRoutingState {
   summary?: string | null;
 }
 
+interface Q15BucketRootCauseSummary {
+  verdict?: string | null;
+  candidate_patch_type?: string | null;
+  candidate_patch_feature?: string | null;
+  next_patch_target?: string | null;
+  recommended_mode?: string | null;
+  reason?: string | null;
+  verify_next?: string | null;
+  current_live_structure_bucket?: string | null;
+  gap_to_q35_boundary?: number | null;
+  runtime_remaining_gap_to_floor?: number | null;
+  remaining_gap_to_floor?: number | null;
+  dominant_neighbor_bucket?: string | null;
+  dominant_neighbor_rows?: number | null;
+  near_boundary_rows?: number | null;
+}
+
 interface StrategyLabLiveDecisionResponse {
   signal?: string | null;
   confidence?: number | null;
   regime_label?: string | null;
   regime_gate?: string | null;
   structure_bucket?: string | null;
+  q35_overall_verdict?: string | null;
+  q35_recommended_mode?: string | null;
+  q35_recommended_action?: string | null;
+  q35_next_patch_target?: string | null;
   should_trade?: boolean;
   entry_quality?: number | null;
   entry_quality_label?: string | null;
@@ -183,13 +225,20 @@ interface StrategyLabLiveDecisionResponse {
   runtime_closure_state?: string | null;
   runtime_closure_summary?: string | null;
   q15_exact_supported_component_patch_applied?: boolean | null;
+  q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
+  current_bucket_root_cause?: Q15BucketRootCauseSummary | null;
   support_route_verdict?: string | null;
+  support_governance_route?: string | null;
   support_progress?: {
     status?: string | null;
     current_rows?: number | null;
     minimum_support_rows?: number | null;
     gap_to_minimum?: number | null;
     delta_vs_previous?: number | null;
+    regressed_from_supported?: boolean | null;
+    recent_supported_rows?: number | null;
+    recent_supported_heartbeat?: string | null;
+    delta_vs_recent_supported?: number | null;
   } | null;
   floor_cross_verdict?: string | null;
   best_single_component?: string | null;
@@ -243,6 +292,7 @@ interface StrategyLabRuntimeStatusResponse {
     live_ready?: boolean;
     live_ready_blockers?: string[];
     operator_message?: string;
+    recent_canonical_drift?: RecentCanonicalDriftSummary | null;
     live_runtime_truth?: {
       runtime_closure_state?: string | null;
       runtime_closure_summary?: string | null;
@@ -251,11 +301,31 @@ interface StrategyLabRuntimeStatusResponse {
       regime_label?: string | null;
       regime_gate?: string | null;
       structure_bucket?: string | null;
+      current_live_structure_bucket?: string | null;
       sleeve_routing?: SleeveRoutingState | null;
       runtime_exact_support_rows?: number | null;
       calibration_exact_lane_rows?: number | null;
       support_alignment_status?: string | null;
       support_alignment_summary?: string | null;
+      support_route_verdict?: string | null;
+      support_governance_route?: string | null;
+      support_progress?: {
+        status?: string | null;
+        current_rows?: number | null;
+        minimum_support_rows?: number | null;
+        gap_to_minimum?: number | null;
+        delta_vs_previous?: number | null;
+        regressed_from_supported?: boolean | null;
+        recent_supported_rows?: number | null;
+        recent_supported_heartbeat?: string | null;
+        delta_vs_recent_supported?: number | null;
+      } | null;
+      q15_bucket_root_cause?: Q15BucketRootCauseSummary | null;
+      current_bucket_root_cause?: Q15BucketRootCauseSummary | null;
+      q35_overall_verdict?: string | null;
+      q35_recommended_mode?: string | null;
+      q35_recommended_action?: string | null;
+      q35_next_patch_target?: string | null;
       calibration_exact_lane_alerts?: string[] | null;
       decision_quality_recent_pathology_applied?: boolean | null;
       decision_quality_recent_pathology_reason?: string | null;
@@ -280,6 +350,27 @@ interface StrategyLabRuntimeStatusResponse {
       label?: string;
       age_minutes?: number | null;
     } | null;
+    governance?: {
+      status?: string;
+      operator_message?: string;
+      escalation_message?: string | null;
+      external_monitor?: {
+        status?: string;
+        reason?: string;
+        install_contract?: {
+          preferred_host_lane?: string;
+          install_status?: {
+            active_lane?: string | null;
+          } | null;
+        } | null;
+        ticking_state?: {
+          status?: string;
+          reason?: string;
+          message?: string;
+          active_lane?: string | null;
+        } | null;
+      } | null;
+    } | null;
     venues?: Array<{
       venue?: string;
       ok?: boolean;
@@ -294,6 +385,10 @@ interface StrategyLabRuntimeStatusResponse {
       } | null;
     }>;
   } | null;
+  execution?: {
+    recent_canonical_drift?: RecentCanonicalDriftSummary | null;
+  } | null;
+  recent_canonical_drift?: RecentCanonicalDriftSummary | null;
   execution_reconciliation?: {
     status?: string;
     summary?: string;
@@ -684,6 +779,9 @@ interface ModelLeaderboardMeta {
   stale?: boolean;
   updated_at?: string | null;
   cache_age_sec?: number | null;
+  refresh_reason?: string | null;
+  refresh_cooldown_sec?: number | null;
+  next_retry_at?: string | null;
   warning?: string | null;
   leaderboard_warning?: string | null;
   error?: string | null;
@@ -791,6 +889,7 @@ const MANUAL_COPY_STRATEGY_PREFIX = "Manual Copy · ";
 const LEADERBOARD_BACKTEST_WINDOW_MONTHS = 24;
 const LEADERBOARD_BACKTEST_WINDOW_DAYS = 730;
 const LEADERBOARD_BACKTEST_POLICY_LABEL = "排行榜回測固定使用最近兩年";
+const WORKSPACE_BACKTEST_WINDOW_HINT = `工作區預設沿用 ${LEADERBOARD_BACKTEST_WINDOW_DAYS} 天固定視窗；切換其他快速區間後，需重新執行回測才會刷新 ROI / 交易數。`;
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const formatDateTimeLocal = (date: Date) => {
@@ -826,17 +925,6 @@ const resolveLatestTwoYearBacktestRange = (availableStart?: string | null, avail
   return { start: formatDateTimeLocal(start), end: formatDateTimeLocal(end) };
 };
 
-const deriveEditableStrategyName = (rawName?: string | null) => {
-  const name = String(rawName || "").trim() || "My Strategy";
-  if (name.startsWith(MANUAL_COPY_STRATEGY_PREFIX)) {
-    return name;
-  }
-  if (name.startsWith(AUTO_STRATEGY_PREFIX)) {
-    return `${MANUAL_COPY_STRATEGY_PREFIX}${name.slice(AUTO_STRATEGY_PREFIX.length).trim()}`;
-  }
-  return name;
-};
-
 const formatStrategyDisplayName = (strategy?: Pick<StrategyEntry, "name" | "metadata"> | null) => {
   const raw = strategy?.metadata?.title || strategy?.name || "—";
   return raw.startsWith(AUTO_STRATEGY_PREFIX) ? raw.slice(AUTO_STRATEGY_PREFIX.length) : raw;
@@ -848,13 +936,14 @@ const isSystemGeneratedStrategy = (strategy?: Pick<StrategyEntry, "name" | "meta
     || String(strategy?.name || "").startsWith(AUTO_STRATEGY_PREFIX)
   );
 };
-const toEditableStrategyName = (rawName?: string | null) => {
-  const trimmed = String(rawName || "").trim() || "My Strategy";
-  if (trimmed.startsWith(MANUAL_COPY_STRATEGY_PREFIX)) return trimmed;
-  if (trimmed.startsWith(AUTO_STRATEGY_PREFIX)) {
-    return `${MANUAL_COPY_STRATEGY_PREFIX}${trimmed.slice(AUTO_STRATEGY_PREFIX.length).trim()}`;
+const buildUniqueStrategyName = (existingNames: Set<string>, baseName = "My Strategy") => {
+  const normalizedBaseName = String(baseName || "").trim() || "My Strategy";
+  if (!existingNames.has(normalizedBaseName)) return normalizedBaseName;
+  let suffix = 2;
+  while (existingNames.has(`${normalizedBaseName} #${suffix}`)) {
+    suffix += 1;
   }
-  return trimmed;
+  return `${normalizedBaseName} #${suffix}`;
 };
 const formatPct = (value: number | null | undefined, digits = 1, signed = false) => {
   if (!isFiniteNumber(value)) return "—";
@@ -862,6 +951,12 @@ const formatPct = (value: number | null | undefined, digits = 1, signed = false)
   return `${prefix}${(value * 100).toFixed(digits)}%`;
 };
 const formatDecimal = (value: number | null | undefined, digits = 2) => (isFiniteNumber(value) ? value.toFixed(digits) : "—");
+const formatDurationSeconds = (value: number | null | undefined) => {
+  if (!isFiniteNumber(value)) return "—";
+  if (value < 60) return `${Math.max(0, Math.round(value))} 秒`;
+  if (value < 3600) return `${Math.round(value / 60)} 分鐘`;
+  return `${(value / 3600).toFixed(1)} 小時`;
+};
 const formatMoney = (value: number | null | undefined) => (isFiniteNumber(value) ? `USDT ${value > 0 ? "+" : ""}${value.toFixed(0)}` : "—");
 const formatPenaltyHint = (value: number | null | undefined) => {
   if (!isFiniteNumber(value)) return "—";
@@ -985,28 +1080,28 @@ const deploymentProfileDisplayName = (model: ModelLeaderboardEntry) => (
 );
 const deploymentProfileSourceLabel = (model: ModelLeaderboardEntry) => {
   const source = model.selected_deployment_profile_source || model.deployment_profile_source || null;
-  if (source === "code_backed_promoted_from_scan") return "code-backed promoted from scan";
-  if (source === "artifact_scan") return "artifact scan";
-  if (source === "code_backed") return "code-backed";
-  return source || "source unknown";
+  if (source === "code_backed_promoted_from_scan") return "掃描結果升格為程式內建配置";
+  if (source === "artifact_scan") return "掃描產物";
+  if (source === "code_backed") return "程式內建配置";
+  return humanizeRuntimeDetailText(source || "來源未提供");
 };
-const featureProfileDisplayName = (model: ModelLeaderboardEntry) => (
+const featureProfileDisplayName = (model: ModelLeaderboardEntry) => humanizeRuntimeDetailText(
   model.selected_feature_profile
   || model.feature_profile
   || "current_full"
 );
 const featureProfileSourceLabel = (model: ModelLeaderboardEntry) => {
   const source = model.selected_feature_profile_source || model.feature_profile_source || null;
-  if (source === "feature_group_ablation.recommended_profile") return "global shrinkage winner";
-  if (source === "bull_4h_pocket_ablation.exact_supported_profile") return "bull exact-supported production";
-  if (source === "bull_4h_pocket_ablation.support_aware_profile") return "support-aware production";
-  return source || "source unknown";
+  if (source === "feature_group_ablation.recommended_profile") return "全域 shrinkage 勝出配置";
+  if (source === "bull_4h_pocket_ablation.exact_supported_profile") return "bull exact-supported 正式配置";
+  if (source === "bull_4h_pocket_ablation.support_aware_profile") return "support-aware 正式配置";
+  return humanizeRuntimeDetailText(source || "來源未提供");
 };
 const governanceRoleLabel = (role?: string | null) => {
-  if (role === "global_shrinkage_winner") return "global shrinkage winner";
-  if (role === "bull_exact_supported_production_profile") return "bull exact-supported production";
-  if (role === "support_aware_production_profile") return "support-aware production";
-  return role || "role unknown";
+  if (role === "global_shrinkage_winner") return "全域 shrinkage 勝出配置";
+  if (role === "bull_exact_supported_production_profile") return "bull exact-supported 正式配置";
+  if (role === "support_aware_production_profile") return "support-aware 正式配置";
+  return humanizeRuntimeDetailText(role || "角色未提供");
 };
 const governanceSupportRows = (governance?: LeaderboardGovernanceSummary | null) => {
   const supportProgress = governance?.governance_contract?.support_progress;
@@ -1088,6 +1183,9 @@ type EditorScenario = {
   stopLoss: number;
   tpBias: number;
   tpRoi: number;
+  turningPointBottomScoreMin: number;
+  turningPointTopScoreTakeProfit: number;
+  turningPointMinProfitPct: number;
   l1: number;
   l2: number;
   l3: number;
@@ -1154,7 +1252,7 @@ const EDITOR_MODULES: Array<{
     emoji: "🧭",
     badge: "預設 exit",
     category: "signal",
-    summary: "用 local-top 分數抓區域高點，取代一般固定 TP 當主出場邏輯。",
+    summary: "用區域頂部分數抓區域高點，取代一般固定 TP 當主出場邏輯。",
     explainer: "目前最佳默認候選：在 bull + chop 中，用較嚴格的底部進場 + 頂部轉折出場來提高 ROI / PF 與回撤表現。",
   },
 ];
@@ -1183,6 +1281,9 @@ const buildScenarioFromModules = (moduleIds: EditorModuleId[]): EditorScenario =
     stopLoss: -3,
     tpBias: 999,
     tpRoi: 999,
+    turningPointBottomScoreMin: Math.round(DEFAULT_PARAMS.turning_point.bottom_score_min * 100),
+    turningPointTopScoreTakeProfit: Math.round(DEFAULT_PARAMS.turning_point.top_score_take_profit * 100),
+    turningPointMinProfitPct: Math.round(DEFAULT_PARAMS.turning_point.min_profit_pct * 100),
     l1: 25,
     l2: 25,
     l3: 50,
@@ -1277,6 +1378,9 @@ const inferModulesFromStrategy = (strategy?: StrategyEntry | null): EditorModule
   if ((strategy?.definition?.type === "hybrid") || Number(entry.top_k_percent || 0) > 0 || Number(entry.confidence_min || 0) >= 0.7) {
     active.push("high_win_low_freq");
   }
+  if (Boolean(params.turning_point?.enabled)) {
+    active.push("turning_point");
+  }
   if ((params.capital_management?.mode || "classic_pyramid") === "reserve_90") {
     active.push("reserve_90");
   }
@@ -1357,10 +1461,50 @@ const loadStrategyLabCache = () => {
   }
 };
 
+const STRATEGY_LAB_CACHE_EQUITY_LIMIT = 1000;
+const STRATEGY_LAB_CACHE_SCORE_LIMIT = 300;
+
+const downsampleCachedSeries = <T extends { timestamp?: string | null }>(points: T[] | undefined, limit: number): T[] => {
+  if (!Array.isArray(points)) return [];
+  if (limit <= 0 || points.length <= limit) return [...points];
+  if (limit === 1) return [points[points.length - 1]];
+  const maxIndex = points.length - 1;
+  const step = maxIndex / Math.max(limit - 1, 1);
+  const selectedIndices = new Set<number>([0, maxIndex]);
+  for (let slot = 1; slot < limit - 1; slot += 1) {
+    selectedIndices.add(Math.min(maxIndex, Math.round(slot * step)));
+  }
+  return Array.from(selectedIndices)
+    .sort((a, b) => a - b)
+    .map((idx) => points[idx]);
+};
+
+const compactStrategyLabCacheEntry = (strategy?: StrategyEntry | null): StrategyEntry | null => {
+  if (!strategy) return null;
+  if (!strategy.last_results) return strategy;
+  const lastResults = strategy.last_results;
+  return {
+    ...strategy,
+    last_results: {
+      ...lastResults,
+      equity_curve: Array.isArray(lastResults.equity_curve)
+        ? downsampleCachedSeries(lastResults.equity_curve, STRATEGY_LAB_CACHE_EQUITY_LIMIT)
+        : lastResults.equity_curve,
+      score_series: Array.isArray(lastResults.score_series)
+        ? lastResults.score_series.slice(-STRATEGY_LAB_CACHE_SCORE_LIMIT)
+        : lastResults.score_series,
+    },
+  };
+};
+
 const saveStrategyLabCache = (payload: typeof STRATEGY_LAB_MEMORY_CACHE) => {
   if (typeof window === "undefined") return;
   try {
-    window.sessionStorage.setItem(STRATEGY_LAB_CACHE_KEY, JSON.stringify({ ...payload, updatedAt: Date.now() }));
+    const cachePayload = {
+      ...payload,
+      selectedStrategy: compactStrategyLabCacheEntry(payload.selectedStrategy),
+    };
+    window.sessionStorage.setItem(STRATEGY_LAB_CACHE_KEY, JSON.stringify({ ...cachePayload, updatedAt: Date.now() }));
   } catch {
     // ignore quota / serialization failures
   }
@@ -1372,34 +1516,31 @@ const extractStrategyLeaderboardList = (payload: any): StrategyEntry[] => {
   return Array.isArray(payload) ? payload : [];
 };
 
-const fetchStrategyLeaderboardPayload = async (endpoint: string) => {
-  let primaryPayload: any = null;
-  try {
-    primaryPayload = await fetchApi(endpoint);
-  } catch {
-    primaryPayload = null;
+const STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS = 2500;
+
+const fetchStrategyLabEndpointJson = async (endpoint: string) => {
+  await prewarmActiveApiBase();
+
+  if (typeof window !== "undefined") {
+    const sameOriginController = new AbortController();
+    const sameOriginTimeoutId = window.setTimeout(() => sameOriginController.abort(), STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS);
+    try {
+      const sameOriginResponse = await window.fetch(endpoint, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        signal: sameOriginController.signal,
+      });
+      if (sameOriginResponse.ok) {
+        return await sameOriginResponse.json();
+      }
+    } catch {
+      // Fall back to fetchApi below when same-origin proxy is unavailable or hangs.
+    } finally {
+      window.clearTimeout(sameOriginTimeoutId);
+    }
   }
 
-  if (extractStrategyLeaderboardList(primaryPayload).length > 0 || typeof window === "undefined") {
-    return primaryPayload;
-  }
-
-  try {
-    const fallbackResponse = await window.fetch(endpoint, {
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-    });
-    if (!fallbackResponse.ok) {
-      return primaryPayload;
-    }
-    const fallbackPayload = await fallbackResponse.json();
-    if (extractStrategyLeaderboardList(fallbackPayload).length > 0) {
-      return fallbackPayload;
-    }
-    return primaryPayload ?? fallbackPayload;
-  } catch {
-    return primaryPayload;
-  }
+  return fetchApi(endpoint);
 };
 
 const snapshotHistoryKey = (prefix: "strategy" | "model", row: LeaderboardHistoryRow, index: number) => {
@@ -1457,6 +1598,9 @@ export default function StrategyLab() {
   const [stopLoss, setStopLoss] = useState(Math.round(DEFAULT_PARAMS.stop_loss * 100));
   const [tpBias, setTpBias] = useState(DEFAULT_PARAMS.take_profit_bias);
   const [tpRoi, setTpRoi] = useState(Math.round(DEFAULT_PARAMS.take_profit_roi * 100));
+  const [turningPointBottomScoreMin, setTurningPointBottomScoreMin] = useState(Math.round(DEFAULT_PARAMS.turning_point.bottom_score_min * 100));
+  const [turningPointTopScoreTakeProfit, setTurningPointTopScoreTakeProfit] = useState(Math.round(DEFAULT_PARAMS.turning_point.top_score_take_profit * 100));
+  const [turningPointMinProfitPct, setTurningPointMinProfitPct] = useState(Math.round(DEFAULT_PARAMS.turning_point.min_profit_pct * 100));
   const [initialCapital, setInitialCapital] = useState(10000);
   const [chartStart, setChartStart] = useState<string>("");
   const [chartEnd, setChartEnd] = useState<string>("");
@@ -1466,6 +1610,7 @@ export default function StrategyLab() {
   const [capitalModeFilter, setCapitalModeFilter] = useState<"all" | "classic_pyramid" | "reserve_90">("all");
   const [strategySleeveFilter, setStrategySleeveFilter] = useState<string>("all");
   const [activeModules, setActiveModules] = useState<EditorModuleId[]>(["pyramid_sl_tp", "turning_point"]);
+  const restoredSelectedStrategyNameRef = useRef<string | null>(null);
   const { data: runtimeStatus, loading: runtimeStatusLoading, error: runtimeStatusError } = useApi<StrategyLabRuntimeStatusResponse>("/api/status", 60000);
   const { data: liveDecisionStatus, loading: liveDecisionStatusLoading, error: liveDecisionStatusError } = useApi<StrategyLabLiveDecisionResponse>("/api/predict/confidence", 60000);
 
@@ -1479,19 +1624,42 @@ export default function StrategyLab() {
     if (Array.isArray(cached.modelQuadrantPoints)) setModelQuadrantPoints(cached.modelQuadrantPoints);
     if (cached.modelMeta) setModelMeta(cached.modelMeta);
     if (cached.modelStats) setModelStats(cached.modelStats);
-    if (cached.selectedStrategy) setSelectedStrategy(cached.selectedStrategy);
+    if (cached.selectedStrategy) {
+      restoredSelectedStrategyNameRef.current = cached.selectedStrategy.name;
+      setSelectedStrategy(cached.selectedStrategy);
+      applyStrategyToForm(cached.selectedStrategy);
+    }
     setInitialLoading(false);
   }, []);
 
   const activeResult = runResult ?? selectedStrategy?.last_results ?? null;
   const selectedStrategyIsSystemGenerated = isSystemGeneratedStrategy(selectedStrategy);
-  const editableRunName = useMemo(() => {
-    const trimmed = String(name || "").trim();
-    if (selectedStrategyIsSystemGenerated && (!trimmed || trimmed === selectedStrategy?.name || trimmed.startsWith(AUTO_STRATEGY_PREFIX))) {
-      return toEditableStrategyName(selectedStrategy?.name || trimmed || "My Strategy");
+  const trimmedRunName = String(name || "").trim();
+  const existingStrategyNameSet = useMemo(
+    () => new Set(strategies.map((entry) => String(entry.name || "").trim()).filter(Boolean)),
+    [strategies]
+  );
+  const workspaceDefaultName = useMemo(() => buildUniqueStrategyName(existingStrategyNameSet, "My Strategy"), [existingStrategyNameSet]);
+  useEffect(() => {
+    if (selectedStrategy || name !== "My Strategy" || !existingStrategyNameSet.has(name)) return;
+    setName(workspaceDefaultName);
+  }, [existingStrategyNameSet, name, selectedStrategy, workspaceDefaultName]);
+  const runNameError = useMemo(() => {
+    if (!trimmedRunName) {
+      return selectedStrategyIsSystemGenerated ? "系統生成策略不能直接儲存；請先輸入新的策略名稱。" : "請先輸入策略名稱。";
     }
-    return trimmed || "My Strategy";
-  }, [name, selectedStrategy?.name, selectedStrategyIsSystemGenerated]);
+    if (selectedStrategyIsSystemGenerated && (
+      trimmedRunName === selectedStrategy?.name
+      || trimmedRunName.startsWith(AUTO_STRATEGY_PREFIX)
+      || trimmedRunName.startsWith(MANUAL_COPY_STRATEGY_PREFIX)
+    )) {
+      return "系統生成策略不能直接儲存；請先輸入新的策略名稱。";
+    }
+    if (existingStrategyNameSet.has(trimmedRunName) && trimmedRunName !== selectedStrategy?.name) {
+      return "策略名稱已存在；請使用唯一名稱。";
+    }
+    return null;
+  }, [existingStrategyNameSet, selectedStrategy?.name, selectedStrategyIsSystemGenerated, trimmedRunName]);
   const activeBacktestDisplayRange = useMemo(() => {
     const definitionRange = typeof selectedStrategy?.definition?.params?.backtest_range === "object" && selectedStrategy?.definition?.params?.backtest_range
       ? selectedStrategy.definition.params.backtest_range as { start?: string | null; end?: string | null }
@@ -1599,6 +1767,20 @@ export default function StrategyLab() {
   const leaderboardGovernance = modelMeta.leaderboard_governance ?? null;
   const governanceContract = leaderboardGovernance?.governance_contract ?? null;
   const profileSplit = leaderboardGovernance?.profile_split ?? null;
+  const modelLeaderboardStaleStateLabel = modelMeta.refreshing
+    ? "背景重算中"
+    : modelMeta.stale
+      ? "等待自動重試"
+      : "快取新鮮";
+  const modelLeaderboardCacheAgeLabel = formatDurationSeconds(modelMeta.cache_age_sec);
+  const modelLeaderboardNextRetryLabel = modelMeta.next_retry_at
+    ? new Date(modelMeta.next_retry_at).toLocaleString("zh-TW")
+    : null;
+  const modelLeaderboardRefreshDetail = [
+    modelMeta.refresh_reason ? `原因 ${humanizeRuntimeDetailText(modelMeta.refresh_reason)}` : null,
+    modelLeaderboardNextRetryLabel ? `下一次自動重試 ${modelLeaderboardNextRetryLabel}` : null,
+    isFiniteNumber(modelMeta.refresh_cooldown_sec) ? `冷卻 ${formatDurationSeconds(modelMeta.refresh_cooldown_sec)}` : null,
+  ].filter(Boolean).join(" · ");
   const modelFallbackCandidates = Array.isArray(modelStrategyParamScan?.best_strategy_candidates)
     ? modelStrategyParamScan.best_strategy_candidates.filter((candidate) => Boolean(candidate))
     : [];
@@ -1625,10 +1807,12 @@ export default function StrategyLab() {
       counts.set(key, (counts.get(key) || 0) + 1);
     }
     return [
-      { key: "all", label: "全部 sleeves", count: strategies.length },
+      { key: "all", label: "全部倉位腿", count: strategies.length },
       ...Array.from(counts.entries()).map(([key, count]) => ({
         key,
-        label: strategies.find((entry) => strategyPrimarySleeveKey(entry) === key)?.metadata?.primary_sleeve_label || "未分類 sleeve",
+        label: humanizeRuntimeDetailText(
+          strategies.find((entry) => strategyPrimarySleeveKey(entry) === key)?.metadata?.primary_sleeve_label || "未分類倉位腿",
+        ),
         count,
       })),
     ];
@@ -1730,7 +1914,7 @@ export default function StrategyLab() {
   ) => {
     const params = strategy.definition?.params ?? {};
     const entry = params.entry ?? {};
-    setName(deriveEditableStrategyName(strategy.name));
+    setName(isSystemGeneratedStrategy(strategy) ? "" : strategy.name);
     setStrategyType((strategy.definition?.type as "rule_based" | "hybrid") || "rule_based");
     setSelectedModelName(params.model_name || strategy.metadata?.model_name || "xgboost");
     setBias50Max(entry.bias50_max ?? DEFAULT_PARAMS.entry.bias50_max);
@@ -1752,9 +1936,13 @@ export default function StrategyLab() {
     setAllowedRegimesMode(
       allowedRegimes === "bear" ? "bear_only" : allowedRegimes === "bull" ? "bull_only" : allowedRegimes === "bull,chop" ? "bull_chop" : "all"
     );
+    const turningPoint = typeof params.turning_point === "object" && params.turning_point ? params.turning_point : DEFAULT_PARAMS.turning_point;
     setStopLoss(Math.round((params.stop_loss ?? DEFAULT_PARAMS.stop_loss) * 100));
     setTpBias(params.take_profit_bias ?? DEFAULT_PARAMS.take_profit_bias);
     setTpRoi(Math.round((params.take_profit_roi ?? DEFAULT_PARAMS.take_profit_roi) * 100));
+    setTurningPointBottomScoreMin(Math.round((turningPoint.bottom_score_min ?? DEFAULT_PARAMS.turning_point.bottom_score_min) * 100));
+    setTurningPointTopScoreTakeProfit(Math.round((turningPoint.top_score_take_profit ?? DEFAULT_PARAMS.turning_point.top_score_take_profit) * 100));
+    setTurningPointMinProfitPct(Math.round((turningPoint.min_profit_pct ?? DEFAULT_PARAMS.turning_point.min_profit_pct) * 100));
     setInitialCapital(Math.round(Number(params.initial_capital ?? 10000)));
     const backtestRange = typeof params.backtest_range === "object" && params.backtest_range ? params.backtest_range : {};
     const resultRange = strategy.last_results?.backtest_range ?? null;
@@ -1800,6 +1988,9 @@ export default function StrategyLab() {
     setStopLoss(scenario.stopLoss);
     setTpBias(scenario.tpBias);
     setTpRoi(scenario.tpRoi);
+    setTurningPointBottomScoreMin(scenario.turningPointBottomScoreMin);
+    setTurningPointTopScoreTakeProfit(scenario.turningPointTopScoreTakeProfit);
+    setTurningPointMinProfitPct(scenario.turningPointMinProfitPct);
     setLayer1(scenario.l1);
     setLayer2(scenario.l2);
     setLayer3(scenario.l3);
@@ -1852,7 +2043,7 @@ export default function StrategyLab() {
       progress: toStageProgress(0, STAGE_TOTALS.select_strategy),
     });
     try {
-      const detail = await fetchApi(`/api/strategies/${encodeURIComponent(strategyName)}`) as StrategyEntry;
+      const detail = await fetchStrategyLabEndpointJson(`/api/strategies/${encodeURIComponent(strategyName)}`) as StrategyEntry;
       updateBackgroundStage({
         mode: "select_strategy",
         label: `正在載入策略：${strategyName}`,
@@ -1887,7 +2078,7 @@ export default function StrategyLab() {
   const loadLeaderboard = async (forceRefresh = false) => {
     const endpoint = `/api/strategies/leaderboard${forceRefresh ? "?refresh=true" : ""}`;
     try {
-      const res = await fetchStrategyLeaderboardPayload(endpoint) as any;
+      const res = await fetchStrategyLabEndpointJson(endpoint) as any;
       const nextStrategies = extractStrategyLeaderboardList(res);
       const nextQuadrantPoints = Array.isArray(res?.quadrant_points) ? res.quadrant_points : [];
       const nextMeta = {
@@ -1913,7 +2104,7 @@ export default function StrategyLab() {
 
   const loadModelLeaderboard = async (forceRefresh = false) => {
     try {
-      const data = await fetchApi(`/api/models/leaderboard${forceRefresh ? "?refresh=true" : ""}`) as any;
+      const data = await fetchStrategyLabEndpointJson(`/api/models/leaderboard${forceRefresh ? "?refresh=true" : ""}`) as any;
       const nextModelLeaderboard = Array.isArray(data?.leaderboard) ? data.leaderboard : [];
       const nextModelQuadrants = Array.isArray(data?.quadrant_points) ? data.quadrant_points : [];
       const nextModelMeta = {
@@ -1923,6 +2114,9 @@ export default function StrategyLab() {
         updated_at: data?.updated_at ?? null,
         cache_age_sec: data?.cache_age_sec ?? null,
         warning: data?.warning ?? null,
+        refresh_reason: data?.refresh_reason ?? null,
+        refresh_cooldown_sec: data?.refresh_cooldown_sec ?? null,
+        next_retry_at: data?.next_retry_at ?? null,
         leaderboard_warning: data?.leaderboard_warning ?? null,
         error: data?.error ?? null,
         target_col: data?.target_col ?? null,
@@ -1955,7 +2149,7 @@ export default function StrategyLab() {
 
   const loadModelStats = async () => {
     try {
-      const data = await fetchApi("/api/model/stats") as ModelStatsResponse;
+      const data = await fetchStrategyLabEndpointJson("/api/model/stats") as ModelStatsResponse;
       setModelStats(data);
       STRATEGY_LAB_MEMORY_CACHE.modelStats = data;
       saveStrategyLabCache(STRATEGY_LAB_MEMORY_CACHE);
@@ -1966,7 +2160,7 @@ export default function StrategyLab() {
 
   const loadStrategyDataRange = async () => {
     try {
-      const data = await fetchApi("/api/strategy_data_range") as { start?: string | null; end?: string | null; count?: number; span_days?: number | null };
+      const data = await fetchStrategyLabEndpointJson("/api/strategy_data_range") as { start?: string | null; end?: string | null; count?: number; span_days?: number | null };
       setStrategyDataRange(data ?? null);
       if (data?.end) {
         // 保留 applyBacktestPreset("2y") 作為預設策略視窗語意，但這裡直接傳 fresh range，避免 React state 尚未同步時落回舊 snapshot 日期。
@@ -2010,7 +2204,10 @@ export default function StrategyLab() {
           detail: "模型統計已到位，正在掛載預設策略工作區。",
           progress: toStageProgress(3, STAGE_TOTALS.initial),
         });
-        if (!selectedStrategy && list.length) {
+        const restoredStrategyName = restoredSelectedStrategyNameRef.current;
+        if (restoredStrategyName) {
+          await selectStrategyByName(restoredStrategyName, dataRange);
+        } else if (list.length) {
           await selectStrategyByName(list[0].name, dataRange);
         }
         updateBackgroundStage({
@@ -2069,7 +2266,11 @@ export default function StrategyLab() {
   }, [modelMeta.refreshing, modelMeta.cache_age_sec]);
 
   const handleRun = async () => {
-    const runName = editableRunName;
+    const runName = trimmedRunName;
+    if (runNameError) {
+      setError(runNameError);
+      return;
+    }
     if (runName !== name) {
       setName(runName);
     }
@@ -2078,9 +2279,7 @@ export default function StrategyLab() {
     updateBackgroundStage({
       mode: "run_strategy",
       label: `正在執行回測：${runName}`,
-      detail: runName !== name
-        ? `系統生成策略不可直接覆蓋；本次會另存為「${runName}」。`
-        : "正在整理參數並準備送出回測請求。",
+      detail: "正在整理參數並準備送出回測請求。",
       progress: toStageProgress(0, STAGE_TOTALS.run_strategy),
     });
     try {
@@ -2089,6 +2288,7 @@ export default function StrategyLab() {
       const effectiveChartEnd = chartEnd || fallbackTwoYearRange.end;
       const body = {
         name: runName,
+        source_strategy_name: selectedStrategy?.name || null,
         type: strategyType,
         initial_capital: initialCapital,
         auto_backfill: true,
@@ -2127,9 +2327,9 @@ export default function StrategyLab() {
           },
           turning_point: activeModules.includes("turning_point") ? {
             enabled: true,
-            bottom_score_min: DEFAULT_PARAMS.turning_point.bottom_score_min,
-            top_score_take_profit: DEFAULT_PARAMS.turning_point.top_score_take_profit,
-            min_profit_pct: DEFAULT_PARAMS.turning_point.min_profit_pct,
+            bottom_score_min: turningPointBottomScoreMin / 100,
+            top_score_take_profit: turningPointTopScoreTakeProfit / 100,
+            min_profit_pct: turningPointMinProfitPct / 100,
           } : { enabled: false },
         },
       };
@@ -2251,9 +2451,9 @@ export default function StrategyLab() {
 
   const activeModuleDetails = EDITOR_MODULES.filter((module) => activeModules.includes(module.id));
   const moduleCategoryMeta = {
-    core: { label: "主 preset", description: "先選主要進出場骨架" },
-    signal: { label: "訊號 modifier", description: "再補強進出場品質" },
-    risk: { label: "風控 modifier", description: "最後補上資金防守" },
+    core: { label: "主模組", description: "先選主要進出場骨架" },
+    signal: { label: "訊號調節", description: "再補強進出場品質" },
+    risk: { label: "風控調節", description: "最後補上資金防守" },
     research: { label: "研究模組", description: "需要時再開" },
   } as const;
   const groupedEditorModules = (Object.keys(moduleCategoryMeta) as Array<keyof typeof moduleCategoryMeta>).map((key) => ({
@@ -2265,11 +2465,17 @@ export default function StrategyLab() {
     ? `複合策略：${activeModuleDetails.map((module) => module.label).join(" ＋ ")}`
     : `單一策略：${activeModuleDetails[0]?.label || "未選擇"}`;
   const dynamicHighlights = [
-    `${strategyType === "hybrid" ? "Hybrid" : "Rule"} · ${strategyType === "hybrid" ? selectedModelName : "rule_based"}`,
+    `${strategyType === "hybrid" ? "混合策略" : "規則策略"} · ${strategyType === "hybrid" ? selectedModelName : "rule_based"}`,
     capitalMode === "reserve_90" ? `10/90 後守 ${baseEntryFractionPct}%` : `層數 ${layer1}/${layer2}/${layer3}`,
     `信心 ${confidenceMin}% · 品質 ${entryQualityMin}%`,
     investmentHorizonLabels[investmentHorizon],
   ];
+  const capitalDeploymentHint = capitalMode === "reserve_90"
+    ? `不是一鍵 all-in；目前是 10 / 90 後守，先用 ${baseEntryFractionPct}% 試單，其餘資金等回撤觸發後才啟用。`
+    : "不是一鍵 all-in；經典金字塔會按 25 / 25 / 50 逐層投入，三層都成交才會接近滿倉。";
+  const pacingHint = activeModules.includes("fib_layers")
+    ? "Fib 23 / 38 / 39 也只是把加碼節奏改得更平滑，不是單筆滿倉。"
+    : "未勾選 Fib 時，預設仍是三層部署，不會直接一筆打滿。";
 
   const benchmarkCards = [
     activeResult?.benchmarks?.buy_hold,
@@ -2344,11 +2550,14 @@ export default function StrategyLab() {
   const executionOperationsSurface = executionSurfaceContract?.operations_surface ?? null;
   const executionDiagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;
   const liveRuntimeTruth = executionSurfaceContract?.live_runtime_truth ?? null;
+  const recentCanonicalDrift = runtimeStatus?.execution?.recent_canonical_drift ?? executionSurfaceContract?.recent_canonical_drift ?? runtimeStatus?.recent_canonical_drift ?? null;
   const liveRouting = liveRuntimeTruth?.sleeve_routing ?? null;
   const liveActiveSleeves = Array.isArray(liveRouting?.active_sleeves) ? liveRouting.active_sleeves : [];
   const liveInactiveSleeves = Array.isArray(liveRouting?.inactive_sleeves) ? liveRouting.inactive_sleeves : [];
   const liveSupportAlignmentStatus = liveDecisionStatus?.support_alignment_status ?? liveRuntimeTruth?.support_alignment_status ?? null;
   const liveSupportAlignmentSummary = liveDecisionStatus?.support_alignment_summary ?? liveRuntimeTruth?.support_alignment_summary ?? null;
+  const liveSupportRouteVerdict = liveDecisionStatus?.support_route_verdict ?? liveRuntimeTruth?.support_route_verdict ?? null;
+  const liveSupportGovernanceRoute = liveDecisionStatus?.support_governance_route ?? liveRuntimeTruth?.support_governance_route ?? null;
   const liveRuntimeExactSupportRows = liveDecisionStatus?.runtime_exact_support_rows ?? liveRuntimeTruth?.runtime_exact_support_rows ?? null;
   const liveCalibrationExactLaneRows = liveDecisionStatus?.calibration_exact_lane_rows ?? liveRuntimeTruth?.calibration_exact_lane_rows ?? null;
   const liveRuntimeClosureState = liveDecisionStatus?.runtime_closure_state ?? liveRuntimeTruth?.runtime_closure_state ?? null;
@@ -2419,36 +2628,137 @@ export default function StrategyLab() {
     liveDecisionStatus?.deployment_blocker_reason
     ?? liveRuntimeTruth?.deployment_blocker_reason
     ?? liveRuntimeClosureSummary
-    ?? "尚未取得 current live blocker。";
+    ?? "尚未取得目前阻塞點。";
   const metadataSmokeFreshness = metadataSmoke?.freshness ?? null;
   const currentLiveBlockerLabel = liveExecutionSyncPending
     ? "同步中"
     : humanizeCurrentLiveBlockerLabel(currentLiveBlocker || "unknown");
   const currentLiveBlockerSummaryLabel = liveExecutionSyncPending
-    ? "正在同步 live blocker / runtime closure"
+    ? "正在同步目前阻塞點 / 部署閉環"
     : humanizeExecutionReason(currentLiveBlockerSummary);
-  const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
-  const reconciliationStatusLabel = runtimeStatusPending ? "同步中" : (executionReconciliation?.status || "unavailable");
-  const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;
-  const reconciliationCheckedAtLabel = runtimeStatusPending
-    ? "正在向 /api/status 取得 execution sync 狀態"
-    : (executionReconciliation?.checked_at ? new Date(executionReconciliation.checked_at).toLocaleString("zh-TW") : "尚未取得 /api/status");
-  const runtimeClosureStateLabel = liveExecutionSyncPending ? "同步中" : (liveRuntimeClosureState || "unknown");
-  const runtimeClosureSummaryLabel = liveExecutionSyncPending
-    ? "正在同步 runtime closure summary。"
-    : humanizeExecutionReason(liveRuntimeClosureSummary || "尚未取得 runtime closure summary。");
-  const activeSleevesLabel = liveExecutionSyncPending ? "同步中" : (liveRouting?.active_ratio_text || "0/0");
-  const activeSleevesSummaryLabel = liveExecutionSyncPending
-    ? "正在同步 regime / gate 路由"
-    : `${liveRouting?.current_regime || liveDecisionStatus?.regime_label || "—"} · gate ${liveRouting?.current_regime_gate || liveDecisionStatus?.regime_gate || "—"}`;
-  const metadataSmokeFreshnessLabel = runtimeStatusPending
+  const currentBucketRootCause = liveDecisionStatus?.current_bucket_root_cause
+    ?? liveDecisionStatus?.q15_bucket_root_cause
+    ?? liveRuntimeTruth?.current_bucket_root_cause
+    ?? liveRuntimeTruth?.q15_bucket_root_cause
+    ?? null;
+  const currentBucketRootCauseLabel = liveExecutionSyncPending
     ? "同步中"
-    : (metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
-  const venueReadinessBlockersLabel = liveExecutionSyncPending
+    : humanizeQ15BucketRootCauseLabel(currentBucketRootCause?.verdict || null);
+  const currentBucketRootCauseSummary = liveExecutionSyncPending
+    ? "正在同步當前分桶根因。"
+    : humanizeRuntimeDetailText(currentBucketRootCause?.reason || "尚未取得當前分桶根因。");
+  const currentBucketRootCauseActionLabel = liveExecutionSyncPending
     ? "同步中"
-    : (venueReadinessBlockers.length ? venueReadinessBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : humanizeExecutionReason(executionSurfaceContract?.operator_message || "目前沒有額外 venue blocker 摘要"));
+    : humanizeQ15BucketRootCauseAction(currentBucketRootCause?.candidate_patch_type || currentBucketRootCause?.recommended_mode || null);
+  const currentBucketRootCausePatchTargetLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizePatchTargetLabel(currentBucketRootCause?.candidate_patch_feature || currentBucketRootCause?.next_patch_target || null);
+  const currentBucketRootCauseBucketRaw = currentBucketRootCause?.current_live_structure_bucket
+    || liveDecisionStatus?.current_live_structure_bucket
+    || liveRuntimeTruth?.current_live_structure_bucket
+    || liveDecisionStatus?.structure_bucket
+    || liveRuntimeTruth?.structure_bucket
+    || "—";
+  const currentBucketRootCauseBucket = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeStructureBucketLabel(currentBucketRootCauseBucketRaw);
+  const currentBucketRootCauseBucketKey = String(currentBucketRootCauseBucketRaw || "").toLowerCase();
+  const currentBucketRootCauseTradeFloorGap = currentBucketRootCause?.runtime_remaining_gap_to_floor
+    ?? currentBucketRootCause?.remaining_gap_to_floor
+    ?? null;
+  const currentBucketRootCauseIsQ35 = currentBucketRootCauseBucketKey === "q35" || currentBucketRootCauseBucketKey.endsWith("|q35");
+  const currentBucketRootCauseDrilldownLabel = currentBucketRootCauseIsQ35
+    ? `交易門檻缺口 ${formatDecimal(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考`
+    : `近邊界樣本 ${currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 ${formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}`;
+  const liveSupportCurrentRows = liveDecisionStatus?.support_progress?.current_rows
+    ?? liveRuntimeTruth?.support_progress?.current_rows
+    ?? null;
+  const liveSupportMinimumRows = liveDecisionStatus?.support_progress?.minimum_support_rows
+    ?? liveRuntimeTruth?.support_progress?.minimum_support_rows
+    ?? null;
+  const liveSupportGap = liveDecisionStatus?.support_progress?.gap_to_minimum
+    ?? liveRuntimeTruth?.support_progress?.gap_to_minimum
+    ?? null;
+  const liveSupportRowsLabel = liveExecutionSyncPending
+    ? "同步中"
+    : (isFiniteNumber(liveSupportCurrentRows) && isFiniteNumber(liveSupportMinimumRows)
+      ? `${formatDecimal(liveSupportCurrentRows, 0)} / ${formatDecimal(liveSupportMinimumRows, 0)}`
+      : "—");
+  const liveSupportGapLabel = liveExecutionSyncPending
+    ? "同步中"
+    : (isFiniteNumber(liveSupportGap) ? formatDecimal(liveSupportGap, 0) : "—");
+  const liveSupportStatusLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeSupportProgressStatusLabel(
+      liveDecisionStatus?.support_progress?.status
+      ?? liveRuntimeTruth?.support_progress?.status
+      ?? null,
+    );
+  const liveSupportDeltaLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeSupportProgressDeltaLabel(liveDecisionStatus?.support_progress ?? liveRuntimeTruth?.support_progress ?? null);
+  const liveSupportReferenceLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeSupportProgressReferenceLabel(liveDecisionStatus?.support_progress ?? liveRuntimeTruth?.support_progress ?? null);
+  const liveSupportRouteVerdictLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeSupportRouteLabel(liveSupportRouteVerdict);
+  const liveSupportGovernanceRouteLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeSupportGovernanceRouteLabel(liveSupportGovernanceRoute);
+  const liveSupportRouteSummaryLabel = liveExecutionSyncPending
+    ? "目前分桶同步中 · 缺口 同步中 · 支持路徑 同步中 · 治理路徑 同步中"
+    : `目前分桶 ${liveSupportRowsLabel} · 缺口 ${liveSupportGapLabel} · 支持路徑 ${liveSupportRouteVerdictLabel} · 治理路徑 ${liveSupportGovernanceRouteLabel}`;
+  const liveSupportStatusSummaryLabel = liveExecutionSyncPending
+    ? "支持狀態 同步中 · 樣本變化 同步中"
+    : `支持狀態 ${liveSupportStatusLabel} · 樣本變化 ${liveSupportDeltaLabel}`;
+  const liveSupportReferenceSummaryLabel = liveExecutionSyncPending
+    ? "最近已就緒 同步中"
+    : `最近已就緒 ${liveSupportReferenceLabel}`;
+  const runtimeClosureStateLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeRuntimeClosureStateLabel(
+      liveRuntimeClosureState,
+      liveRuntimeClosureSummary,
+    );
   const lifecycleAudit = executionReconciliation?.lifecycle_audit ?? null;
   const lifecycleContract = executionReconciliation?.lifecycle_contract ?? null;
+
+  const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
+  const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(
+    executionReconciliation?.status,
+    lifecycleAudit?.stage,
+    lifecycleContract?.artifact_coverage,
+  );
+  const reconciliationStatusLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeExecutionReconciliationStatusLabel(
+      executionReconciliation?.status,
+      lifecycleAudit?.stage,
+      lifecycleContract?.artifact_coverage,
+    );
+  const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;
+  const liveExecutionSyncSubtitle = liveExecutionSyncPending
+    ? "先以目前阻塞點為主；正在同步執行對齊 / 執行期鏡像，不等於目前可部署。"
+    : reconciliationCoverageLimited
+      ? "先以目前阻塞點為主；對帳證據有限只代表對帳 / 執行期鏡像狀態，不等於目前可部署。"
+      : `先以目前阻塞點為主；對帳 ${reconciliationStatusLabel} 只代表對帳 / 執行期鏡像狀態，不等於目前可部署。`;
+  const reconciliationCheckedAtLabel = runtimeStatusPending
+    ? "正在向 /api/status 取得執行對齊狀態"
+    : (executionReconciliation?.checked_at ? new Date(executionReconciliation.checked_at).toLocaleString("zh-TW") : "尚未取得 /api/status");
+  const runtimeClosureSummaryLabel = liveExecutionSyncPending
+    ? "正在同步部署閉環摘要。"
+    : humanizeRuntimeDetailText(liveRuntimeClosureSummary || "尚未取得部署閉環摘要。");
+  const activeSleevesLabel = liveExecutionSyncPending ? "同步中" : (liveRouting?.active_ratio_text || "0/0");
+  const activeSleevesSummaryLabel = liveExecutionSyncPending
+    ? "正在同步市場狀態 / 閘門路由"
+    : `${humanizeStructureBucketLabel(liveRouting?.current_regime || liveDecisionStatus?.regime_label || "—")} · 閘門 ${humanizeStructureBucketLabel(liveRouting?.current_regime_gate || liveDecisionStatus?.regime_gate || "—")}`;
+  const metadataSmokeFreshnessLabel = runtimeStatusPending
+    ? "同步中"
+    : humanizeLifecycleDiagnosticLabel(metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "unavailable");
+  const venueReadinessBlockersLabel = liveExecutionSyncPending
+    ? "同步中"
+    : (venueReadinessBlockers.length ? venueReadinessBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : humanizeExecutionReason(executionSurfaceContract?.operator_message || "目前沒有額外場館阻塞摘要"));
   const lifecycleArtifactChecklist = Array.isArray(lifecycleContract?.artifact_checklist)
     ? lifecycleContract.artifact_checklist
     : [];
@@ -2463,12 +2773,85 @@ export default function StrategyLab() {
     return "border-white/10 bg-slate-950/20 text-slate-200";
   };
 
+  const workspaceHeadlineMetrics = (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-300">🧭 綜合能力</div>
+            <div className="text-[11px] text-slate-500">五維能力摘要。</div>
+          </div>
+          <div className={`text-right text-lg font-bold ${decisionQualityTone(activeResult?.avg_decision_quality_score)}`}>
+            {formatDecimal(activeResult?.overall_score, 3)}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          {[
+            { label: "穩定度", value: formatDecimal(activeResult?.reliability_score, 3), color: "text-cyan-300" },
+            { label: "報酬力", value: formatDecimal(activeResult?.return_power_score, 3), color: "text-violet-300" },
+            { label: "風控", value: formatDecimal(activeResult?.risk_control_score, 3), color: "text-amber-300" },
+            { label: "資金效率", value: formatDecimal(activeResult?.capital_efficiency_score, 3), color: "text-fuchsia-300" },
+          ].map((card) => (
+            <div key={card.label} className="rounded-lg bg-slate-800/40 px-3 py-2">
+              <div className="text-[10px] text-slate-500">{card.label}</div>
+              <div className={`text-base font-semibold ${card.color}`}>{card.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
+        <div className="text-sm font-semibold text-slate-300">🎯 決策品質</div>
+        <div className={`text-2xl font-bold ${decisionQualityTone(activeResult?.avg_decision_quality_score)}`}>
+          DQ {formatDecimal(activeResult?.avg_decision_quality_score, 3)}
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">預期勝率</div><div className="text-emerald-300 font-semibold">{formatPct(activeResult?.avg_expected_win_rate)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">預期品質</div><div className="text-cyan-300 font-semibold">{formatDecimal(activeResult?.avg_expected_pyramid_quality, 3)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">回撤懲罰</div><div className="text-amber-300 font-semibold">{formatPct(activeResult?.avg_expected_drawdown_penalty)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">深套時間</div><div className="text-orange-300 font-semibold">{formatPct(activeResult?.avg_expected_time_underwater)}</div></div>
+        </div>
+      </div>
+
+      <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
+        <div className="text-sm font-semibold text-slate-300">📈 執行結果</div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">ROI</div><div className={`${isFiniteNumber(activeResult?.roi) && (activeResult?.roi ?? 0) >= 0 ? "text-green-400" : "text-red-400"} text-lg font-semibold`}>{formatPct(activeResult?.roi, 1, true)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">最大回撤</div><div className="text-red-300 text-lg font-semibold">{formatPct(activeResult?.max_drawdown)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">PF</div><div className="text-violet-300 text-lg font-semibold">{formatDecimal(activeResult?.profit_factor)}</div></div>
+          <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">交易數</div><div className="text-slate-100 text-lg font-semibold">{activeResult?.total_trades ?? "—"}</div></div>
+        </div>
+      </div>
+
+      <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
+        <div className="text-sm font-semibold text-slate-300">🧠 模型 / 閘門摘要</div>
+        <div className="rounded-lg bg-slate-800/40 px-3 py-2 text-xs">
+          <div className="text-[10px] text-slate-500">交易模型</div>
+          <div className="text-emerald-300 font-semibold">{activeMeta.model_name || "rule_based"}</div>
+          <div className="mt-1 text-slate-500">主閘門：{humanizeRegimeGateLabel(activeResult?.dominant_regime_gate || null)} · 平均允許層數 {formatDecimal(activeResult?.avg_allowed_layers, 1)}</div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          {[
+            { gate: "ALLOW", color: "text-emerald-300" },
+            { gate: "CAUTION", color: "text-yellow-300" },
+            { gate: "BLOCK", color: "text-red-300" },
+          ].map(({ gate, color }) => (
+            <div key={gate} className="rounded bg-slate-800/40 p-2">
+              <div className="text-slate-500">{humanizeRegimeGateLabel(gate)}</div>
+              <div className={`text-base font-semibold ${color}`}>{activeResult?.regime_gate_summary?.[gate] ?? 0}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="app-page-shell">
       <div className="app-page-header">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="app-page-kicker">Strategy workspace</div>
+            <div className="app-page-kicker">策略工作區</div>
             <h2 className="app-page-title">🧪 策略實驗室</h2>
             <span className="text-sm text-slate-400">點排行榜可快速載入</span>
           </div>
@@ -2491,11 +2874,11 @@ export default function StrategyLab() {
         </div>
         <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/8 px-4 py-3 text-sm leading-6 text-cyan-50/90">
           <span className="font-semibold text-cyan-100">{LEADERBOARD_BACKTEST_POLICY_LABEL}</span>
-          <span className="ml-2 text-cyan-100/80">最近 730 天（約 24 個月），降低短窗策略過擬合。</span>
+          <span className="ml-2 text-cyan-100/80"> · 固定視窗 730 天（約 24 個月），降低短窗策略過擬合。</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[360px,minmax(0,1fr)] 2xl:grid-cols-[380px,minmax(0,1fr)] gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[420px,minmax(0,1fr)] 2xl:grid-cols-[460px,minmax(0,1fr)] gap-4 items-start">
         <div className="space-y-4 self-start min-w-0">
           <div className="app-surface-card">
             <div className="flex items-start justify-between gap-3">
@@ -2512,17 +2895,27 @@ export default function StrategyLab() {
             <div className="mt-3 space-y-3">
               <div>
                 <label className="text-xs text-slate-500">實驗名稱（僅工作區）</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} className="app-control-input mt-1" />
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={selectedStrategyIsSystemGenerated ? "請輸入新的策略名稱" : undefined}
+                  className="app-control-input mt-1"
+                />
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
                   <span className={`inline-flex rounded-full border px-2 py-0.5 ${selectedStrategyIsSystemGenerated ? "border-amber-500/30 bg-amber-500/10 text-amber-100" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"}`}>
                     {selectedStrategySourceLabel}
                   </span>
                   {selectedStrategyIsSystemGenerated && (
                     <span className="inline-flex rounded-full border border-white/10 bg-slate-900/50 px-2 py-0.5 text-slate-300">
-                      rerun → {editableRunName}
+                      需自訂名稱後才能儲存
                     </span>
                   )}
                 </div>
+                {runNameError && (
+                  <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-5 text-amber-100">
+                    {runNameError}
+                  </div>
+                )}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -2533,8 +2926,8 @@ export default function StrategyLab() {
                     onChange={(e) => setStrategyType(e.target.value as "rule_based" | "hybrid")}
                     className="app-control-input mt-1"
                   >
-                    <option value="rule_based">rule_based</option>
-                    <option value="hybrid">hybrid</option>
+                    <option value="rule_based">規則策略</option>
+                    <option value="hybrid">混合策略</option>
                   </select>
                 </div>
                 <div>
@@ -2550,8 +2943,8 @@ export default function StrategyLab() {
                   </select>
                   <div className="mt-1 text-[11px] leading-5 text-slate-500">
                     {strategyType === "hybrid"
-                      ? "Hybrid 會直接帶入你現在手動選的模型。"
-                      : "目前是 rule_based；先選好模型後切回 hybrid 也會保留。"}
+                      ? "混合策略會直接帶入你現在手動選的模型。"
+                      : "目前是規則策略；先選好模型後切回混合策略也會保留。"}
                   </div>
                 </div>
               </div>
@@ -2559,13 +2952,29 @@ export default function StrategyLab() {
               {selectedStrategyIsSystemGenerated && (
                 <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-[11px] leading-5 text-amber-100 space-y-1">
                   <div className="font-medium">系統生成排行榜</div>
-                  <div>系統生成策略不可直接覆蓋；重新回測時會另存為可編輯副本。</div>
+                  <div>系統生成策略不能直接儲存；請先輸入新的策略名稱。</div>
                 </div>
               )}
 
-              <div className="rounded-xl border border-cyan-700/30 bg-cyan-950/10 px-3 py-3 text-[11px] leading-5 text-cyan-100 space-y-2">
-                <div className="font-medium">策略模組選擇</div>
-                <div>先選 1 個主 preset，再疊加 modifier；只看摘要，不先讀長說明。</div>
+              <div className="rounded-xl border border-cyan-700/30 bg-cyan-950/10 px-3 py-3 text-[11px] leading-5 text-cyan-100 space-y-3">
+                <div>
+                  <div className="font-medium">策略模組選擇</div>
+                  <div className="mt-1">先選 1 個主 preset，再疊加 modifier；只看摘要，不先讀長說明。</div>
+                </div>
+                <div className="grid gap-2">
+                  <div className="rounded-lg border border-cyan-700/30 bg-slate-950/30 px-3 py-2">
+                    <div className="font-medium text-cyan-50">資金部署</div>
+                    <div className="mt-1 text-cyan-100/85">{capitalDeploymentHint}</div>
+                  </div>
+                  <div className="rounded-lg border border-cyan-700/30 bg-slate-950/30 px-3 py-2">
+                    <div className="font-medium text-cyan-50">加碼節奏</div>
+                    <div className="mt-1 text-cyan-100/85">{pacingHint}</div>
+                  </div>
+                  <div className="rounded-lg border border-cyan-700/30 bg-slate-950/30 px-3 py-2">
+                    <div className="font-medium text-cyan-50">主模組 fallback</div>
+                    <div className="mt-1 text-cyan-100/85">若你把主模組全部取消，系統也會回退到「金字塔 + SL/TP」當主骨架。</div>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -2574,32 +2983,43 @@ export default function StrategyLab() {
                     <div className="flex items-center justify-between px-1">
                       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{group.label}</div>
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {group.modules.map((module) => {
-                        const active = activeModules.includes(module.id);
-                        return (
-                          <button
-                            key={module.id}
-                            type="button"
-                            onClick={() => toggleModule(module.id)}
-                            className={`app-target-card ${active ? "app-target-card-active" : ""}`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-                                  <span>{module.emoji}</span>
-                                  <span>{module.label}</span>
+                    {(() => {
+                      const moduleGridClassName = "grid gap-3";
+                      return (
+                        <div className={moduleGridClassName}>
+                          {group.modules.map((module) => {
+                            const active = activeModules.includes(module.id);
+                            const showExplainer = group.key === "core";
+                            return (
+                              <button
+                                key={module.id}
+                                type="button"
+                                onClick={() => toggleModule(module.id)}
+                                className={`app-target-card text-left ${active ? "app-target-card-active" : ""}`}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                      <span>{module.emoji}</span>
+                                      <span>{module.label}</span>
+                                    </div>
+                                    <div className="mt-1 text-[11px] leading-5 text-slate-400">{module.summary}</div>
+                                    {showExplainer && (
+                                      <div className="mt-2 border-t border-white/10 pt-2 text-[11px] leading-5 text-slate-500">
+                                        {module.explainer}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${active ? "border-[#7132f5]/50 bg-[#7132f5]/12 text-[#e3d9ff]" : "border-white/10 text-slate-500"}`}>
+                                    {active ? "已選取" : module.badge}
+                                  </div>
                                 </div>
-                                <div className="mt-1 text-[11px] leading-5 text-slate-400">{module.summary}</div>
-                              </div>
-                              <div className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${active ? "border-[#7132f5]/50 bg-[#7132f5]/12 text-[#e3d9ff]" : "border-white/10 text-slate-500"}`}>
-                                {active ? "已選取" : module.badge}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -2686,6 +3106,8 @@ export default function StrategyLab() {
           {error && <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-4 text-red-400 text-sm">{error}</div>}
 
           <div className={activeTab === "workspace" ? "space-y-4" : "hidden"}>
+            {workspaceHeadlineMetrics}
+
             <div className="app-surface-card space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div className="flex flex-col gap-3">
@@ -2720,7 +3142,7 @@ export default function StrategyLab() {
                   </div>
                   <div className={`rounded-lg border px-3 py-2 text-[11px] ${activeResult?.backtest_range?.backfill_required ? "border-amber-700/40 bg-amber-950/10 text-amber-100" : "border-slate-700/50 bg-slate-950/30 text-slate-400"}`}>
                     <div>可用特徵資料：{strategyDataRange?.start ? new Date(strategyDataRange.start).toLocaleDateString("zh-TW") : "—"} → {strategyDataRange?.end ? new Date(strategyDataRange.end).toLocaleDateString("zh-TW") : "—"}</div>
-                    <div className="mt-1 text-cyan-100/85">{LEADERBOARD_BACKTEST_POLICY_LABEL} · 最近 {LEADERBOARD_BACKTEST_WINDOW_DAYS} 天。</div>
+                    <div className="mt-1 text-cyan-100/85">{WORKSPACE_BACKTEST_WINDOW_HINT}</div>
                     <div>
                       {activeResult?.backtest_range?.backfill_required
                         ? `缺少約 ${Math.round(activeResult.backtest_range.missing_start_days || 0)} 天較早資料，需先回填。`
@@ -2730,7 +3152,7 @@ export default function StrategyLab() {
                   {strategyResultStale && (
                     <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-[11px] leading-5 text-amber-100 space-y-1">
                       <div className="font-medium">目前只更新圖表 / 區間，尚未重新執行回測</div>
-                      <div>請按「執行回測」刷新 ROI / Trades / 最近交易</div>
+                      <div>請按「執行回測」刷新 ROI / 交易數 / 最近交易</div>
                     </div>
                   )}
                 </div>
@@ -2760,8 +3182,8 @@ export default function StrategyLab() {
             </div>
 
             <ExecutionWorkspaceSummary
-              title="Live 部署同步"
-              subtitle="current live blocker 優先；對帳 healthy 只代表對帳 / runtime mirror 健康，不等於目前可部署。"
+              title="即時部署同步"
+              subtitle={liveExecutionSyncSubtitle}
               className={executionSyncTone({
                 pending: liveExecutionSyncPending,
                 liveReady: Boolean(executionSurfaceContract?.live_ready),
@@ -2772,7 +3194,10 @@ export default function StrategyLab() {
               aside={(
                 <div className="text-right text-xs">
                   <div className="font-semibold">{liveDeployStatusLabel}</div>
-                  <div className="opacity-70">current live blocker {currentLiveBlockerLabel}</div>
+                  <div className="opacity-70">目前阻塞點 {currentLiveBlockerLabel}</div>
+                  <div className="mt-1 opacity-60">當前分桶 {liveSupportRowsLabel} · 缺口 {liveSupportGapLabel}</div>
+                  <div className="mt-1 opacity-60">{liveSupportStatusSummaryLabel}</div>
+                  <div className="mt-1 opacity-60">{liveSupportReferenceSummaryLabel}</div>
                   <div className="mt-1 opacity-60">{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}</div>
                 </div>
               )}
@@ -2786,114 +3211,79 @@ export default function StrategyLab() {
                   </a>
                 </>
               )}
-              footer={<div className="text-xs opacity-80">diagnostics surface {executionDiagnosticsSurface?.label || "執行狀態"} · {executionDiagnosticsSurface?.route || "/execution/status"}</div>}
+              footer={<div className="text-xs opacity-80">診斷頁面 {humanizeRuntimeDetailText(executionDiagnosticsSurface?.label || "執行狀態")} · {executionDiagnosticsSurface?.route || "/execution/status"}</div>}
             >
               <ExecutionWorkspaceMetric
-                label="current live blocker"
+                label="目前阻塞點"
                 value={currentLiveBlockerLabel}
-                detail={currentLiveBlockerSummaryLabel}
+                detail={(
+                  <>
+                    <div>{currentLiveBlockerSummaryLabel}</div>
+                    <div className="opacity-70">{liveSupportRouteSummaryLabel}</div>
+                    <div className="opacity-70">{liveSupportStatusSummaryLabel}</div>
+                    <div className="opacity-70">{liveSupportReferenceSummaryLabel}</div>
+                  </>
+                )}
               />
               <ExecutionWorkspaceMetric
-                label="venue blockers"
+                label="場館阻塞"
                 value={venueReadinessBlockersLabel}
                 extra={<VenueReadinessSummary venues={venueChecks} className="mt-2" compact />}
               />
               <ExecutionWorkspaceMetric
-                label="runtime closure"
+                label="部署閉環"
                 value={runtimeClosureStateLabel}
                 detail={runtimeClosureSummaryLabel}
               />
               <ExecutionWorkspaceMetric
-                label="active sleeves"
+                label="當前分桶根因"
+                value={currentBucketRootCauseLabel}
+                detail={(
+                  <>
+                    <div>{humanizeRuntimeDetailText(currentBucketRootCauseSummary)}</div>
+                    <div className="opacity-70">當前分桶 {currentBucketRootCauseBucket}</div>
+                    <div className="opacity-70">候選修補方案 {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}</div>
+                    <div className="opacity-70">{currentBucketRootCauseDrilldownLabel}</div>
+                    <div className="opacity-70">下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}</div>
+                  </>
+                )}
+              />
+              <ExecutionWorkspaceMetric
+                label="啟用倉位腿"
                 value={activeSleevesLabel}
                 detail={activeSleevesSummaryLabel}
               />
               <ExecutionWorkspaceMetric
-                label="metadata freshness"
+                label="元資料新鮮度"
                 value={<span className={metadataFreshnessTone(metadataSmokeFreshness?.status)}>{metadataSmokeFreshnessLabel}</span>}
-                detail={runtimeStatusPending ? "正在向 /api/status 取得 metadata smoke。" : `generated ${metadataSmoke?.generated_at ? new Date(metadataSmoke.generated_at).toLocaleString("zh-TW") : "—"}`}
+                detail={(
+                  <ExecutionMetadataFreshnessDetail
+                    pending={runtimeStatusPending}
+                    generatedAt={metadataSmoke?.generated_at}
+                    freshness={metadataSmokeFreshness}
+                    governance={metadataSmoke?.governance ?? null}
+                    compact
+                  />
+                )}
               />
             </ExecutionWorkspaceSummary>
             <LivePathologySummaryCard
               summary={liveScopePathologySummary}
-              title="🧬 Live lane / spillover 對照"
+              title="🧬 精準路徑 / 外溢口袋對照"
               compact
               supportAlignmentStatus={liveSupportAlignmentStatus}
               supportAlignmentSummary={liveSupportAlignmentSummary}
               runtimeExactSupportRows={liveRuntimeExactSupportRows}
               calibrationExactLaneRows={liveCalibrationExactLaneRows}
+              supportRouteVerdict={liveSupportRouteVerdict}
+              supportGovernanceRoute={liveSupportGovernanceRoute}
             />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-300">🧭 綜合能力</div>
-                    <div className="text-[11px] text-slate-500">五維能力摘要。</div>
-                  </div>
-                  <div className={`text-right text-lg font-bold ${decisionQualityTone(activeResult?.avg_decision_quality_score)}`}>
-                    {formatDecimal(activeResult?.overall_score, 3)}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {[
-                    { label: "Reliability", value: formatDecimal(activeResult?.reliability_score, 3), color: "text-cyan-300" },
-                    { label: "Return", value: formatDecimal(activeResult?.return_power_score, 3), color: "text-violet-300" },
-                    { label: "Risk", value: formatDecimal(activeResult?.risk_control_score, 3), color: "text-amber-300" },
-                    { label: "Capital", value: formatDecimal(activeResult?.capital_efficiency_score, 3), color: "text-fuchsia-300" },
-                  ].map((card) => (
-                    <div key={card.label} className="rounded-lg bg-slate-800/40 px-3 py-2">
-                      <div className="text-[10px] text-slate-500">{card.label}</div>
-                      <div className={`text-base font-semibold ${card.color}`}>{card.value}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
-                <div className="text-sm font-semibold text-slate-300">🎯 Decision Quality</div>
-                <div className={`text-2xl font-bold ${decisionQualityTone(activeResult?.avg_decision_quality_score)}`}>
-                  DQ {formatDecimal(activeResult?.avg_decision_quality_score, 3)}
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">預期勝率</div><div className="text-emerald-300 font-semibold">{formatPct(activeResult?.avg_expected_win_rate)}</div></div>
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">預期品質</div><div className="text-cyan-300 font-semibold">{formatDecimal(activeResult?.avg_expected_pyramid_quality, 3)}</div></div>
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">回撤懲罰</div><div className="text-amber-300 font-semibold">{formatPct(activeResult?.avg_expected_drawdown_penalty)}</div></div>
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">深套時間</div><div className="text-orange-300 font-semibold">{formatPct(activeResult?.avg_expected_time_underwater)}</div></div>
-                </div>
-              </div>
-
-              <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
-                <div className="text-sm font-semibold text-slate-300">📈 執行結果</div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">ROI</div><div className={`${isFiniteNumber(activeResult?.roi) && (activeResult?.roi ?? 0) >= 0 ? "text-green-400" : "text-red-400"} text-lg font-semibold`}>{formatPct(activeResult?.roi, 1, true)}</div></div>
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">Max DD</div><div className="text-red-300 text-lg font-semibold">{formatPct(activeResult?.max_drawdown)}</div></div>
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">PF</div><div className="text-violet-300 text-lg font-semibold">{formatDecimal(activeResult?.profit_factor)}</div></div>
-                  <div className="rounded-lg bg-slate-800/40 px-3 py-2"><div className="text-[10px] text-slate-500">Trades</div><div className="text-slate-100 text-lg font-semibold">{activeResult?.total_trades ?? "—"}</div></div>
-                </div>
-              </div>
-
-              <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
-                <div className="text-sm font-semibold text-slate-300">🧠 模型 / Gate 摘要</div>
-                <div className="rounded-lg bg-slate-800/40 px-3 py-2 text-xs">
-                  <div className="text-[10px] text-slate-500">交易模型</div>
-                  <div className="text-emerald-300 font-semibold">{activeMeta.model_name || "rule_based"}</div>
-                  <div className="mt-1 text-slate-500">主 gate：{activeResult?.dominant_regime_gate || "—"} · 平均允許層數 {formatDecimal(activeResult?.avg_allowed_layers, 1)}</div>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  {[
-                    { gate: "ALLOW", color: "text-emerald-300" },
-                    { gate: "CAUTION", color: "text-yellow-300" },
-                    { gate: "BLOCK", color: "text-red-300" },
-                  ].map(({ gate, color }) => (
-                    <div key={gate} className="rounded bg-slate-800/40 p-2">
-                      <div className="text-slate-500">{gate}</div>
-                      <div className={`text-base font-semibold ${color}`}>{activeResult?.regime_gate_summary?.[gate] ?? 0}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <RecentCanonicalDriftCard
+              summary={recentCanonicalDrift}
+              pending={runtimeStatusPending && !recentCanonicalDrift}
+              className="mt-3"
+              title="📉 最近 canonical drift"
+            />
 
             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr),320px] gap-4">
               <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
@@ -2906,7 +3296,7 @@ export default function StrategyLab() {
                         <span className={`${isFiniteNumber(trade.pnl) && (trade.pnl ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>{isFiniteNumber(trade.pnl) ? `${trade.pnl! >= 0 ? "+" : ""}${trade.pnl!.toFixed(2)}` : "—"}</span>
                       </div>
                       <div className="mt-1 text-slate-500">進場 {isFiniteNumber(trade.entry) ? trade.entry!.toFixed(2) : "—"} → 出場 {isFiniteNumber(trade.exit) ? trade.exit!.toFixed(2) : "—"}</div>
-                      <div className="mt-1 text-slate-500">原因 {trade.reason || "—"} · 層數 {trade.layers ?? "—"} · Gate {trade.regime_gate || "—"}</div>
+                      <div className="mt-1 text-slate-500">原因 {humanizeTradeReasonLabel(trade.reason || null)} · 層數 {trade.layers ?? "—"} · 閘門 {humanizeRegimeGateLabel(trade.regime_gate || null)}</div>
                     </div>
                   ))}
                 </div>
@@ -2938,7 +3328,7 @@ export default function StrategyLab() {
                   <button onClick={() => loadLeaderboard(true)} className="text-xs text-blue-400 hover:text-blue-300">🔄 重新搜尋</button>
                 </div>
                 <div className="rounded-lg border border-slate-700/40 bg-slate-950/20 p-3 text-xs space-y-2">
-                  <div className="font-semibold text-slate-300">多 sleeve 結構</div>
+                  <div className="font-semibold text-slate-300">多倉位腿結構</div>
                   <div className="flex flex-wrap gap-2">
                     {strategySleeveOptions.map((option) => (
                       <button
@@ -2958,16 +3348,16 @@ export default function StrategyLab() {
                       <tr>
                         {[
                           { key: "name", label: "策略" },
-                          { key: "overall_score", label: "Overall" },
-                          { key: "reliability_score", label: "Reliability" },
-                          { key: "return_power_score", label: "Return" },
-                          { key: "risk_control_score", label: "Risk" },
-                          { key: "capital_efficiency_score", label: "Capital" },
+                          { key: "overall_score", label: "總評分" },
+                          { key: "reliability_score", label: "穩定度" },
+                          { key: "return_power_score", label: "報酬力" },
+                          { key: "risk_control_score", label: "風控" },
+                          { key: "capital_efficiency_score", label: "資金效率" },
                           { key: "roi", label: "ROI" },
                           { key: "win_rate", label: "勝率" },
-                          { key: "max_drawdown", label: "Max DD" },
+                          { key: "max_drawdown", label: "最大回撤" },
                           { key: "profit_factor", label: "PF" },
-                          { key: "total_trades", label: "Trades" },
+                          { key: "total_trades", label: "交易數" },
                         ].map((col) => (
                           <th key={col.key} className="text-right py-2 px-2 first:text-left">
                             <button
@@ -3000,13 +3390,13 @@ export default function StrategyLab() {
                             <td className="py-2 px-2 text-slate-200 font-medium align-top text-left">
                               <div>{formatStrategyDisplayName(strategy)}</div>
                               <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
-                                <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">{strategy.metadata?.primary_sleeve_label || "未分類 sleeve"}</span>
+                                <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">{humanizeRuntimeDetailText(strategy.metadata?.primary_sleeve_label || "未分類倉位腿")}</span>
                                 <span className={`rounded-full border px-2 py-0.5 ${systemGenerated ? "border-amber-500/30 bg-amber-500/10 text-amber-100" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"}`}>
                                   {strategy.metadata?.source_label || (systemGenerated ? "系統生成排行榜" : "手動策略")}
                                 </span>
                                 <span>{strategy.metadata?.model_name || strategy.definition?.type} · {investmentHorizonLabels[(strategy.definition?.params?.investment_horizon as keyof typeof investmentHorizonLabels) || "medium"]} · 變化 {typeof strategy.rank_delta === "number" ? (strategy.rank_delta > 0 ? `↑${strategy.rank_delta}` : strategy.rank_delta < 0 ? `↓${Math.abs(strategy.rank_delta)}` : "—") : "—"}</span>
                               </div>
-                              <div className="mt-1 text-[10px] text-slate-500">{strategy.metadata?.sleeve_labels?.join(" · ") || "單一路徑"}</div>
+                              <div className="mt-1 text-[10px] text-slate-500">{strategy.metadata?.sleeve_labels?.map((label) => humanizeRuntimeDetailText(label)).join(" · ") || "單一路徑"}</div>
                             </td>
                             <td className="py-2 px-2 text-right text-emerald-300 font-semibold">{formatDecimal(r?.overall_score, 3)}</td>
                             <td className="py-2 px-2 text-right text-cyan-300">{formatDecimal(r?.reliability_score, 3)}</td>
@@ -3040,6 +3430,28 @@ export default function StrategyLab() {
                       {modelMeta.warning}
                     </div>
                   )}
+                  {modelMeta.stale && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-50 space-y-2">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-amber-100">模型排行榜快取過期：{modelLeaderboardStaleStateLabel}</div>
+                          <div className="mt-1 text-[11px] text-amber-100/80">
+                            Strategy Lab 先顯示 stale-while-revalidate 快取，不把它當最新 production truth；背景重算完成前，請不要把目前排名當成剛刷新結果。
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => loadModelLeaderboard(true)}
+                          className="rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 text-[11px] font-medium text-amber-100 hover:border-amber-200/60 hover:text-amber-50"
+                        >
+                          重新整理模型排行榜
+                        </button>
+                      </div>
+                      <div className="text-[11px] text-amber-100/80">
+                        快取年齡 {modelLeaderboardCacheAgeLabel}{modelLeaderboardRefreshDetail ? ` · ${modelLeaderboardRefreshDetail}` : ""}
+                      </div>
+                    </div>
+                  )}
                   {modelMeta.leaderboard_warning && (
                     <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-3 text-xs text-yellow-100 space-y-1">
                       <div className="font-semibold text-yellow-200">排行榜治理提示</div>
@@ -3057,7 +3469,7 @@ export default function StrategyLab() {
                           <div className="mt-1 text-[11px] opacity-80">{governanceContract.reason || profileSplit.reason || "目前排行榜需要把 global ranking 與 production profile split 顯式同步到 operator surface。"}</div>
                         </div>
                         <div className="text-right text-[11px] opacity-80">
-                          <div>{leaderboardGovernance?.generated_at ? `generated ${new Date(leaderboardGovernance.generated_at).toLocaleString("zh-TW")}` : "generated —"}</div>
+                          <div>{leaderboardGovernance?.generated_at ? `生成於 ${new Date(leaderboardGovernance.generated_at).toLocaleString("zh-TW")}` : "生成時間 —"}</div>
                           <div>{governanceSupportRows(leaderboardGovernance)}</div>
                         </div>
                       </div>
@@ -3074,8 +3486,8 @@ export default function StrategyLab() {
                         </div>
                       </div>
                       <div className="text-[11px] opacity-80">
-                        closure：{governanceContract.current_closure || leaderboardGovernance?.dual_profile_state || "—"}
-                        {leaderboardGovernance?.live_current_structure_bucket ? ` · live bucket ${leaderboardGovernance.live_current_structure_bucket}` : ""}
+                        閉環：{governanceContract.current_closure || leaderboardGovernance?.dual_profile_state || "—"}
+                        {leaderboardGovernance?.live_current_structure_bucket ? ` · 即時分桶 ${humanizeStructureBucketLabel(leaderboardGovernance.live_current_structure_bucket)}` : ""}
                       </div>
                     </div>
                   )}
@@ -3092,8 +3504,8 @@ export default function StrategyLab() {
                           <div>已儲存策略 {modelStrategyParamScan?.saved_strategy_count ?? modelFallbackCandidates.length}</div>
                           <div>
                             {modelStrategyParamScan?.generated_at
-                              ? `generated ${new Date(modelStrategyParamScan.generated_at).toLocaleString("zh-TW")}`
-                              : "generated —"}
+                              ? `生成於 ${new Date(modelStrategyParamScan.generated_at).toLocaleString("zh-TW")}`
+                              : "生成時間 —"}
                           </div>
                         </div>
                       </div>
@@ -3107,7 +3519,7 @@ export default function StrategyLab() {
                               <div className="min-w-0 flex-1">
                                 <div className="truncate font-medium text-cyan-50">{candidate.name || "未命名候選"}</div>
                                 <div className="mt-1 text-[11px] text-cyan-200/80">
-                                  {(candidate.model_name || "unknown model")} · ROI {formatPct(candidate.roi, 1, true)} · 勝率 {formatPct(candidate.win_rate)} · Trades {formatDecimal(candidate.total_trades, 0)}
+                                  {(candidate.model_name || "未命名模型")} · ROI {formatPct(candidate.roi, 1, true)} · 勝率 {formatPct(candidate.win_rate)} · 交易數 {formatDecimal(candidate.total_trades, 0)}
                                 </div>
                               </div>
                               <button
@@ -3143,13 +3555,13 @@ export default function StrategyLab() {
                         <thead className="bg-slate-950/20 text-slate-500 border-b border-slate-800">
                           <tr>
                             {[
-                              { key: "model_name", label: "Model" },
-                              { key: "overall_score", label: "Overall" },
-                              { key: "reliability_score", label: "Reliability" },
-                              { key: "return_power_score", label: "Return" },
+                              { key: "model_name", label: "模型" },
+                              { key: "overall_score", label: "總評分" },
+                              { key: "reliability_score", label: "穩定度" },
+                              { key: "return_power_score", label: "報酬力" },
                               { key: "avg_roi", label: "ROI" },
-                              { key: "avg_max_dd", label: "Max DD" },
-                              { key: "avg_trades", label: "Trades" },
+                              { key: "avg_max_dd", label: "最大回撤" },
+                              { key: "avg_trades", label: "交易數" },
                             ].map((col) => (
                               <th key={`${group.key}-${col.key}`} className="px-2 py-2 text-right first:text-left">
                                 <button
@@ -3181,8 +3593,8 @@ export default function StrategyLab() {
                                   <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${modelTierBadgeTone[String(model.model_tier || group.key)] || modelTierBadgeTone.control}`}>{modelTierLabel(model)}</span>
                                 </div>
                                 <div className="mt-1 text-[10px] text-slate-500">{model.model_tier_reason || describeRankingReason(model)}</div>
-                                <div className="mt-1 text-[10px] text-slate-600">deployment: {deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)} · {typeof model.rank_delta === "number" ? (model.rank_delta > 0 ? `↑${model.rank_delta}` : model.rank_delta < 0 ? `↓${Math.abs(model.rank_delta)}` : "—") : "—"}</div>
-                                <div className="mt-1 text-[10px] text-slate-600">feature: {featureProfileDisplayName(model)} · {featureProfileSourceLabel(model)}{model.selected_feature_profile_blocker_applied && model.selected_feature_profile_blocker_reason ? ` · blocker ${model.selected_feature_profile_blocker_reason}` : ""}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">部署設定：{deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)} · {typeof model.rank_delta === "number" ? (model.rank_delta > 0 ? `↑${model.rank_delta}` : model.rank_delta < 0 ? `↓${Math.abs(model.rank_delta)}` : "—") : "—"}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">特徵設定：{featureProfileDisplayName(model)} · {featureProfileSourceLabel(model)}{model.selected_feature_profile_blocker_applied && model.selected_feature_profile_blocker_reason ? ` · 阻塞 ${model.selected_feature_profile_blocker_reason}` : ""}</div>
                               </td>
                               <td className="px-2 py-2 text-right text-emerald-300">{formatDecimal(model.overall_score, 3)}</td>
                               <td className="px-2 py-2 text-right text-cyan-300">{formatDecimal(model.reliability_score, 3)}</td>
@@ -3204,18 +3616,18 @@ export default function StrategyLab() {
                     <div className="overflow-auto rounded-lg border border-amber-500/20 bg-amber-500/5">
                       <div className="border-b border-amber-500/20 bg-amber-500/10 px-3 py-2">
                         <div className="flex items-center gap-2 text-sm font-semibold text-amber-100">
-                          <span className="inline-flex rounded-full border border-amber-400/30 px-2 py-0.5 text-[11px]">No-trade placeholder</span>
+                          <span className="inline-flex rounded-full border border-amber-400/30 px-2 py-0.5 text-[11px]">無交易 placeholder</span>
                           <span className="text-[11px] text-amber-200/80">這些模型在當前 deployment profile 下沒有產生任何交易，因此已從正式排行榜分離。</span>
                         </div>
                       </div>
                       <table className="w-full min-w-[860px] text-xs">
                         <thead className="bg-slate-950/20 text-slate-500 border-b border-slate-800">
                           <tr>
-                            <th className="px-2 py-2 text-left">Model</th>
-                            <th className="px-2 py-2 text-right">Placeholder rank</th>
-                            <th className="px-2 py-2 text-right">Overall</th>
+                            <th className="px-2 py-2 text-left">模型</th>
+                            <th className="px-2 py-2 text-right">Placeholder 排名</th>
+                            <th className="px-2 py-2 text-right">總評分</th>
                             <th className="px-2 py-2 text-right">ROI</th>
-                            <th className="px-2 py-2 text-right">Trades</th>
+                            <th className="px-2 py-2 text-right">交易數</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3227,8 +3639,8 @@ export default function StrategyLab() {
                                   <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${modelTierBadgeTone[String(model.model_tier || "control")] || modelTierBadgeTone.control}`}>{modelTierLabel(model)}</span>
                                 </div>
                                 <div className="mt-1 text-[10px] text-slate-500">{describeRankingReason(model)}</div>
-                                <div className="mt-1 text-[10px] text-slate-600">deployment: {deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)}</div>
-                                <div className="mt-1 text-[10px] text-slate-600">feature: {featureProfileDisplayName(model)} · {featureProfileSourceLabel(model)}{model.selected_feature_profile_blocker_applied && model.selected_feature_profile_blocker_reason ? ` · blocker ${model.selected_feature_profile_blocker_reason}` : ""}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">部署設定：{deploymentProfileDisplayName(model)} · {deploymentProfileSourceLabel(model)}</div>
+                                <div className="mt-1 text-[10px] text-slate-600">特徵設定：{featureProfileDisplayName(model)} · {featureProfileSourceLabel(model)}{model.selected_feature_profile_blocker_applied && model.selected_feature_profile_blocker_reason ? ` · 阻塞 ${model.selected_feature_profile_blocker_reason}` : ""}</div>
                               </td>
                               <td className="px-2 py-2 text-right text-amber-200">{typeof model.raw_rank === "number" ? `#${model.raw_rank}` : "—"}</td>
                               <td className="px-2 py-2 text-right text-amber-200">{formatDecimal(model.overall_score, 3)}</td>
@@ -3270,10 +3682,10 @@ export default function StrategyLab() {
                       <div className="text-slate-500">{row.count} 策略</div>
                     </div>
                     <div className="mt-2 space-y-1 text-slate-400">
-                      <div>平均 Overall：<span className="text-emerald-300">{formatDecimal(row.avgOverall, 3)}</span></div>
-                      <div>平均 Reliability：<span className="text-cyan-300">{formatDecimal(row.avgReliability, 3)}</span></div>
+                      <div>平均總評分：<span className="text-emerald-300">{formatDecimal(row.avgOverall, 3)}</span></div>
+                      <div>平均穩定度：<span className="text-cyan-300">{formatDecimal(row.avgReliability, 3)}</span></div>
                       <div>平均 ROI：<span className="text-violet-300">{formatPct(row.avgRoi, 1, true)}</span></div>
-                      <div>平均 Max DD：<span className="text-red-300">{formatPct(row.avgMaxDd)}</span></div>
+                      <div>平均最大回撤：<span className="text-red-300">{formatPct(row.avgMaxDd)}</span></div>
                     </div>
                   </div>
                 ))}

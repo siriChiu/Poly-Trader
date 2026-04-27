@@ -31,6 +31,7 @@ from server.live_pathology_summary import build_live_pathology_scope_surface
 DB_URL = f"sqlite:///{PROJECT_ROOT / 'poly_trader.db'}"
 OUT_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 Q15_SUPPORT_AUDIT_PATH = PROJECT_ROOT / "data" / "q15_support_audit.json"
+Q35_SCALING_AUDIT_PATH = PROJECT_ROOT / "data" / "q35_scaling_audit.json"
 BULL_4H_POCKET_ABLATION_PATH = PROJECT_ROOT / "data" / "bull_4h_pocket_ablation.json"
 FOUR_H_COLS = [
     "feat_4h_bias50",
@@ -66,7 +67,11 @@ def _support_governance_route_from_patch(recommended_patch: dict | None) -> str 
     cohort = str(recommended_patch.get("preferred_support_cohort") or "")
     if not cohort:
         return None
-    if "exact_live_bucket_proxy" in cohort or "exact_bucket_proxy" in cohort:
+    if (
+        "exact_live_bucket_proxy" in cohort
+        or "exact_bucket_proxy" in cohort
+        or "exact_lane_bucket_proxy" in cohort
+    ):
         return "exact_live_bucket_proxy_available"
     if "exact_live_lane_proxy" in cohort or "exact_lane_proxy" in cohort:
         return "exact_live_lane_proxy_available"
@@ -140,6 +145,50 @@ def _load_q15_support_audit(current_live_structure_bucket: str | None) -> dict |
     if audit_bucket and str(audit_bucket) != str(current_live_structure_bucket):
         return None
     return payload
+
+
+def _load_q35_scaling_audit_summary(current_live_structure_bucket: str | None) -> dict | None:
+    if not current_live_structure_bucket or "q35" not in str(current_live_structure_bucket):
+        return None
+    if not Q35_SCALING_AUDIT_PATH.exists():
+        return None
+    try:
+        payload = json.loads(Q35_SCALING_AUDIT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    applicability = payload.get("scope_applicability") if isinstance(payload.get("scope_applicability"), dict) else {}
+    if not applicability.get("active_for_current_live_row"):
+        return None
+    audit_bucket = (
+        applicability.get("current_structure_bucket")
+        or ((payload.get("current_live") or {}).get("structure_bucket"))
+        or current_live_structure_bucket
+    )
+    if audit_bucket and str(audit_bucket) != str(current_live_structure_bucket):
+        return None
+    segmented_calibration = payload.get("segmented_calibration") if isinstance(payload.get("segmented_calibration"), dict) else {}
+    deployment_grade = payload.get("deployment_grade_component_experiment") if isinstance(payload.get("deployment_grade_component_experiment"), dict) else {}
+    redesign = payload.get("base_stack_redesign_experiment") if isinstance(payload.get("base_stack_redesign_experiment"), dict) else {}
+    recommended_mode = segmented_calibration.get("recommended_mode")
+    next_patch_target = deployment_grade.get("next_patch_target")
+    return {
+        "generated_at": payload.get("generated_at"),
+        "current_live_structure_bucket": audit_bucket or current_live_structure_bucket,
+        "target_structure_bucket": applicability.get("target_structure_bucket"),
+        "scope_applicability_status": applicability.get("status"),
+        "overall_verdict": payload.get("overall_verdict"),
+        "verdict_reason": payload.get("verdict_reason"),
+        "recommended_action": payload.get("recommended_action"),
+        "segmented_calibration_status": segmented_calibration.get("status"),
+        "recommended_mode": recommended_mode,
+        "runtime_contract_status": segmented_calibration.get("runtime_contract_status"),
+        "redesign_verdict": redesign.get("verdict"),
+        "runtime_remaining_gap_to_floor": deployment_grade.get("runtime_remaining_gap_to_floor"),
+        "next_patch_target": next_patch_target,
+        "verify_next": payload.get("verify_next") or deployment_grade.get("verify_next") or redesign.get("verify_next"),
+    }
 
 
 def _q15_audit_matches_probe(payload: dict | None, *, current_live_structure_bucket: str | None, feature_timestamp: str | None) -> bool:
@@ -330,6 +379,15 @@ def _build_probe_payload(
         support_route = q15_support_audit.get("support_route")
         if isinstance(support_route.get("support_progress"), dict):
             support_progress = support_route.get("support_progress")
+    support_identity = None
+    artifact_context_freshness = None
+    if isinstance(q15_support_audit, dict):
+        artifact_context_freshness = q15_support_audit.get("artifact_context_freshness")
+        support_identity = (
+            q15_support_audit.get("support_identity")
+            or (support_route.get("support_identity") if isinstance(support_route, dict) else None)
+            or (support_progress.get("support_identity") if isinstance(support_progress, dict) else None)
+        )
     if not support_route:
         generic_support_mode = (
             str(result.get("decision_quality_structure_bucket_support_mode") or "")
@@ -359,6 +417,10 @@ def _build_probe_payload(
         deployment_blocker_details["current_live_structure_bucket_gap_to_minimum"] = support_progress.get("gap_to_minimum")
         if support_progress.get("current_rows") is not None:
             deployment_blocker_details.setdefault("current_live_structure_bucket_rows", support_progress.get("current_rows"))
+    if support_identity:
+        deployment_blocker_details["support_identity"] = support_identity
+    if artifact_context_freshness:
+        deployment_blocker_details["artifact_context_freshness"] = artifact_context_freshness
     if support_route:
         deployment_blocker_details["support_route_verdict"] = support_route.get("verdict")
         deployment_blocker_details["support_route_deployable"] = support_route.get("deployable")
@@ -396,6 +458,40 @@ def _build_probe_payload(
             support_route["support_governance_route"] = support_governance_route
         deployment_blocker_details["support_governance_route"] = support_governance_route
         runtime_result["support_governance_route"] = support_governance_route
+    q35_scaling_audit = _load_q35_scaling_audit_summary(current_live_structure_bucket)
+    recommended_patch_summary = (
+        scope_pathology_summary.get("recommended_patch")
+        if isinstance(scope_pathology_summary, dict)
+        and isinstance(scope_pathology_summary.get("recommended_patch"), dict)
+        else None
+    )
+    recommended_patch_profile = result.get("recommended_patch_profile")
+    if recommended_patch_profile is None and recommended_patch_summary is not None:
+        recommended_patch_profile = recommended_patch_summary.get("recommended_profile")
+    recommended_patch_status = result.get("recommended_patch_status")
+    if recommended_patch_status is None and recommended_patch_summary is not None:
+        recommended_patch_status = recommended_patch_summary.get("status")
+    recommended_patch_reference_scope = result.get("recommended_patch_reference_scope")
+    if recommended_patch_reference_scope is None and recommended_patch_summary is not None:
+        recommended_patch_reference_scope = recommended_patch_summary.get("reference_patch_scope")
+    recommended_patch_reference_source = result.get("recommended_patch_reference_source")
+    if recommended_patch_reference_source is None and recommended_patch_summary is not None:
+        recommended_patch_reference_source = recommended_patch_summary.get("reference_source")
+    recommended_patch_reason = result.get("recommended_patch_reason")
+    if recommended_patch_reason is None and recommended_patch_summary is not None:
+        recommended_patch_reason = recommended_patch_summary.get("reason")
+    recommended_patch_support_route = result.get("recommended_patch_support_route")
+    if recommended_patch_support_route is None and recommended_patch_summary is not None:
+        recommended_patch_support_route = recommended_patch_summary.get("support_route_verdict")
+    recommended_patch_gap_to_minimum = result.get("recommended_patch_gap_to_minimum")
+    if recommended_patch_gap_to_minimum is None and recommended_patch_summary is not None:
+        recommended_patch_gap_to_minimum = recommended_patch_summary.get("gap_to_minimum")
+    recommended_patch_current_rows = result.get("recommended_patch_current_live_structure_bucket_rows")
+    if recommended_patch_current_rows is None and recommended_patch_summary is not None:
+        recommended_patch_current_rows = recommended_patch_summary.get("current_live_structure_bucket_rows")
+    recommended_patch_minimum_rows = result.get("recommended_patch_minimum_support_rows")
+    if recommended_patch_minimum_rows is None and recommended_patch_summary is not None:
+        recommended_patch_minimum_rows = recommended_patch_summary.get("minimum_support_rows")
     breaker_release = deployment_blocker_details.get("release_condition") if isinstance(deployment_blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = deployment_blocker_details.get("recent_window") if isinstance(deployment_blocker_details.get("recent_window"), dict) else {}
     release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
@@ -405,6 +501,7 @@ def _build_probe_payload(
     current_wins = breaker_release.get("current_recent_window_wins")
     return {
         "db_url": DB_URL,
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "feature_timestamp": str(latest.get("timestamp")),
         "target_col": target_col,
         "used_model": used_model,
@@ -445,6 +542,8 @@ def _build_probe_payload(
         "support_route_verdict": support_route.get("verdict"),
         "support_route_deployable": support_route.get("deployable"),
         "support_governance_route": support_governance_route,
+        "support_identity": support_identity,
+        "artifact_context_freshness": artifact_context_freshness,
         "support_progress": support_progress or None,
         "minimum_support_rows": (
             support_progress.get("minimum_support_rows")
@@ -456,6 +555,16 @@ def _build_probe_payload(
             if support_progress
             else deployment_blocker_details.get("current_live_structure_bucket_gap_to_minimum")
         ),
+        "recommended_patch": recommended_patch_summary,
+        "recommended_patch_profile": recommended_patch_profile,
+        "recommended_patch_status": recommended_patch_status,
+        "recommended_patch_reference_scope": recommended_patch_reference_scope,
+        "recommended_patch_reference_source": recommended_patch_reference_source,
+        "recommended_patch_reason": recommended_patch_reason,
+        "recommended_patch_support_route": recommended_patch_support_route,
+        "recommended_patch_gap_to_minimum": recommended_patch_gap_to_minimum,
+        "recommended_patch_current_live_structure_bucket_rows": recommended_patch_current_rows,
+        "recommended_patch_minimum_support_rows": recommended_patch_minimum_rows,
         "floor_cross_verdict": floor_cross.get("verdict"),
         "legal_to_relax_runtime_gate": floor_cross.get("legal_to_relax_runtime_gate"),
         "remaining_gap_to_floor": floor_cross.get("remaining_gap_to_floor"),
@@ -473,6 +582,13 @@ def _build_probe_payload(
             scope_pathology_summary=scope_pathology_summary,
         ),
         "q15_support_audit": q15_support_audit,
+        "q35_scaling_audit": q35_scaling_audit,
+        "q35_overall_verdict": q35_scaling_audit.get("overall_verdict") if isinstance(q35_scaling_audit, dict) else None,
+        "q35_redesign_verdict": q35_scaling_audit.get("redesign_verdict") if isinstance(q35_scaling_audit, dict) else None,
+        "q35_runtime_remaining_gap_to_floor": q35_scaling_audit.get("runtime_remaining_gap_to_floor") if isinstance(q35_scaling_audit, dict) else None,
+        "q35_recommended_mode": q35_scaling_audit.get("recommended_mode") if isinstance(q35_scaling_audit, dict) else None,
+        "q35_recommended_action": q35_scaling_audit.get("recommended_action") if isinstance(q35_scaling_audit, dict) else None,
+        "q35_next_patch_target": q35_scaling_audit.get("next_patch_target") if isinstance(q35_scaling_audit, dict) else None,
         "decision_quality_horizon_minutes": result.get("decision_quality_horizon_minutes"),
         "decision_quality_calibration_scope": result.get("decision_quality_calibration_scope"),
         "decision_quality_calibration_window": result.get("decision_quality_calibration_window"),

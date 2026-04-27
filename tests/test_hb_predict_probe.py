@@ -99,6 +99,8 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
     hb_predict_probe.main()
     payload = json.loads(capsys.readouterr().out)
 
+    assert isinstance(payload["generated_at"], str)
+    assert payload["generated_at"].endswith("Z")
     assert payload["structure_bucket"] == "CAUTION|structure_quality_caution|q15"
     assert payload["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
     assert payload["current_live_structure_bucket_rows"] == 1
@@ -121,10 +123,36 @@ def test_hb_predict_probe_falls_back_to_generic_support_progress_for_q35_blocker
     session = DummySession()
     out_path = tmp_path / "live_predict_probe.json"
     q15_audit_path = tmp_path / "q15_support_audit.json"
+    q35_audit_path = tmp_path / "q35_scaling_audit.json"
     q15_audit_path.write_text("{}", encoding="utf-8")
+    q35_audit_path.write_text(json.dumps({
+        "generated_at": "2026-04-22 13:16:32.117896",
+        "scope_applicability": {
+            "active_for_current_live_row": True,
+            "status": "current_live_q35_lane_active",
+            "current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "target_structure_bucket": "CAUTION|structure_quality_caution|q35",
+        },
+        "segmented_calibration": {
+            "status": "formula_review_required",
+            "recommended_mode": "exact_lane_formula_review",
+            "runtime_contract_status": "piecewise_runtime_not_required",
+        },
+        "deployment_grade_component_experiment": {
+            "runtime_remaining_gap_to_floor": 0.1252,
+            "next_patch_target": "feat_4h_bias50_formula",
+        },
+        "base_stack_redesign_experiment": {
+            "verdict": "base_stack_redesign_candidate_grid_empty",
+        },
+        "overall_verdict": "bias50_formula_may_be_too_harsh",
+        "verdict_reason": "legacy bias50 formula still compresses the q35 lane too hard.",
+        "recommended_action": "升級成 base-stack redesign blocker，禁止把單點 bias50 當成 closure。",
+    }), encoding="utf-8")
 
     monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
     monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit_path)
+    monkeypatch.setattr(hb_predict_probe, "Q35_SCALING_AUDIT_PATH", q35_audit_path)
     monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
     monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"bull": object()}))
     monkeypatch.setattr(
@@ -192,6 +220,11 @@ def test_hb_predict_probe_falls_back_to_generic_support_progress_for_q35_blocker
     assert payload["current_live_structure_bucket_gap_to_minimum"] == 41
     assert payload["floor_cross_verdict"] is None
     assert payload["component_experiment_verdict"] is None
+    assert payload["q35_overall_verdict"] == "bias50_formula_may_be_too_harsh"
+    assert payload["q35_redesign_verdict"] == "base_stack_redesign_candidate_grid_empty"
+    assert payload["q35_runtime_remaining_gap_to_floor"] == 0.1252
+    assert payload["q35_recommended_mode"] == "exact_lane_formula_review"
+    assert payload["q35_next_patch_target"] == "feat_4h_bias50_formula"
 
 
 def test_hb_predict_probe_infers_support_governance_route_from_reference_patch(monkeypatch, capsys, tmp_path):
@@ -271,6 +304,14 @@ def test_hb_predict_probe_infers_support_governance_route_from_reference_patch(m
             "recommended_patch": {
                 "preferred_support_cohort": "bull_exact_live_lane_proxy",
                 "support_route_verdict": "exact_bucket_unsupported_block",
+                "recommended_profile": "core_plus_macro",
+                "status": "reference_only_until_exact_support_ready",
+                "reference_patch_scope": "bull|CAUTION",
+                "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
+                "reason": "proxy support is governance-only until exact bucket support is ready",
+                "gap_to_minimum": 50,
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
             },
         },
     )
@@ -281,6 +322,101 @@ def test_hb_predict_probe_infers_support_governance_route_from_reference_patch(m
     assert payload["support_governance_route"] == "exact_live_lane_proxy_available"
     assert payload["deployment_blocker_details"]["support_governance_route"] == "exact_live_lane_proxy_available"
     assert payload["decision_quality_scope_pathology_summary"]["recommended_patch"]["preferred_support_cohort"] == "bull_exact_live_lane_proxy"
+    assert payload["recommended_patch_profile"] == "core_plus_macro"
+    assert payload["recommended_patch_status"] == "reference_only_until_exact_support_ready"
+    assert payload["recommended_patch_reference_scope"] == "bull|CAUTION"
+    assert payload["recommended_patch_reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
+    assert payload["recommended_patch_support_route"] == "exact_bucket_unsupported_block"
+    assert payload["recommended_patch_gap_to_minimum"] == 50
+    assert payload["recommended_patch_current_live_structure_bucket_rows"] == 0
+    assert payload["recommended_patch_minimum_support_rows"] == 50
+
+
+def test_hb_predict_probe_treats_live_exact_lane_bucket_proxy_as_bucket_proxy_route(monkeypatch, capsys, tmp_path):
+    session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+    q15_audit_path = tmp_path / "q15_support_audit.json"
+    q15_audit_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit_path)
+    monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
+    monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"bull": object()}))
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "load_latest_features",
+        lambda _session: {
+            "timestamp": "2026-04-23 23:22:45.699196",
+            "regime_label": "bull",
+            "feat_4h_bias50": 2.4898,
+        },
+    )
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "predict",
+        lambda _session, _predictor, _regime_models: {
+            "target_col": "simulated_pyramid_win",
+            "used_model": "regime_bull_ensemble",
+            "model_type": "RegimeAwarePredictor",
+            "signal": "HOLD",
+            "confidence": 0.587198,
+            "regime_label": "bull",
+            "model_route_regime": "bull",
+            "regime_gate": "BLOCK",
+            "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+            "entry_quality": 0.4345,
+            "entry_quality_label": "D",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "unsupported_exact_live_structure_bucket",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "deployment_blocker_reason": "missing exact support",
+            "deployment_blocker_source": "decision_quality_contract",
+            "deployment_blocker_details": {
+                "support_mode": "exact_bucket_unsupported_block",
+                "support_route_verdict": "exact_bucket_unsupported_block",
+                "support_route_deployable": False,
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 50,
+                "support_progress": {
+                    "status": "stalled_under_minimum",
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                },
+            },
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_route_deployable": False,
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+        },
+    )
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "build_live_pathology_scope_surface",
+        lambda *_args, **_kwargs: {
+            "summary": "bucket proxy reference available",
+            "recommended_patch": {
+                "preferred_support_cohort": "bull_live_exact_lane_bucket_proxy",
+                "support_route_verdict": "exact_bucket_unsupported_block",
+            },
+        },
+    )
+
+    hb_predict_probe.main()
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["support_governance_route"] == "exact_live_bucket_proxy_available"
+    assert payload["deployment_blocker_details"]["support_governance_route"] == "exact_live_bucket_proxy_available"
+    assert payload["decision_quality_scope_pathology_summary"]["recommended_patch"]["preferred_support_cohort"] == "bull_live_exact_lane_bucket_proxy"
 
 
 def test_hb_predict_probe_uses_result_support_route_when_q35_override_is_exact_supported(monkeypatch, capsys, tmp_path):
@@ -1384,7 +1520,10 @@ def test_hb_predict_probe_surfaces_recommended_patch_summary_for_bull_caution_sp
     patch = summary["recommended_patch"]
     assert summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|CAUTION"
     assert patch["recommended_profile"] == "core_plus_macro"
-    assert patch["status"] == "reference_only_until_exact_support_ready"
+    assert patch["status"] == "reference_only_non_current_live_scope"
+    assert patch["reference_only_cause"] == "non_current_live_scope"
+    assert patch["patch_scope_matches_live"] is False
+    assert patch["current_live_regime_gate"] == "bull|BLOCK"
     assert patch["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
     assert patch["gap_to_minimum"] == 50
     assert patch["reference_patch_scope"] == "bull|CAUTION"
@@ -1559,7 +1698,10 @@ def test_hb_predict_probe_surfaces_reference_patch_summary_for_non_bull_live_row
     patch = summary["recommended_patch"]
     assert summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|BLOCK"
     assert patch["recommended_profile"] == "core_plus_macro"
-    assert patch["status"] == "reference_only_until_exact_support_ready"
+    assert patch["status"] == "reference_only_non_current_live_scope"
+    assert patch["reference_only_cause"] == "non_current_live_scope"
+    assert patch["patch_scope_matches_live"] is False
+    assert patch["current_live_regime_gate"] == "chop|CAUTION"
     assert patch["reference_patch_scope"] == "bull|CAUTION"
     assert patch["spillover_regime_gate"] == "bull|BLOCK"
     assert patch["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"

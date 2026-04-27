@@ -2,8 +2,10 @@
 FastAPI 主應用入口
 """
 
+import subprocess
 import sys
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -26,7 +28,173 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+_PROCESS_STARTED_AT = datetime.now(timezone.utc)
 _EXECUTION_METADATA_BACKGROUND_INTERVAL_SECONDS = 60.0
+_RUNTIME_SOURCE_METADATA_CACHE_TTL_SECONDS = 5.0
+_RUNTIME_SOURCE_SCAN_DIRS = (
+    "server",
+    "model",
+    "execution",
+    "database",
+    "feature_engine",
+    "backtesting",
+    "data_ingestion",
+    "utils",
+)
+_RUNTIME_SOURCE_EXTRA_FILES = (
+    "config.yaml",
+    "config.json",
+    "pyproject.toml",
+)
+# Only executable/runtime source files under code directories should influence lane freshness.
+# Generated artifacts such as model/ic_signs.json must not mark a backend stale.
+_RUNTIME_SOURCE_CODE_SUFFIXES = {".py"}
+_RUNTIME_SOURCE_METADATA_CACHE = {
+    "checked_at": None,
+    "payload": None,
+}
+_RUNTIME_SOURCE_METADATA_CACHE_LOCK = threading.Lock()
+
+
+def _parse_git_iso8601(timestamp_text: str | None) -> datetime | None:
+    if not timestamp_text:
+        return None
+    try:
+        normalized = str(timestamp_text).strip().replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def _iter_runtime_source_paths():
+    for path in PROJECT_ROOT.glob("*.py"):
+        if path.is_file():
+            yield path
+    for relative_path in _RUNTIME_SOURCE_EXTRA_FILES:
+        extra_path = PROJECT_ROOT / relative_path
+        if extra_path.is_file():
+            yield extra_path
+    for relative_dir in _RUNTIME_SOURCE_SCAN_DIRS:
+        root = PROJECT_ROOT / relative_dir
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            if path.suffix not in _RUNTIME_SOURCE_CODE_SUFFIXES:
+                continue
+            if "__pycache__" in path.parts:
+                continue
+            yield path
+
+
+def _compute_runtime_source_metadata() -> dict:
+    latest_path = None
+    latest_modified_at = None
+    for path in _iter_runtime_source_paths():
+        try:
+            modified_at = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+        except FileNotFoundError:
+            continue
+        if latest_modified_at is None or modified_at > latest_modified_at:
+            latest_modified_at = modified_at
+            latest_path = path
+    return {
+        "latest_runtime_source_path": str(latest_path.relative_to(PROJECT_ROOT)) if latest_path else None,
+        "latest_runtime_source_modified_at": latest_modified_at.isoformat() if latest_modified_at else None,
+    }
+
+
+def _load_latest_runtime_source_metadata() -> dict:
+    now = datetime.now(timezone.utc)
+    with _RUNTIME_SOURCE_METADATA_CACHE_LOCK:
+        checked_at = _RUNTIME_SOURCE_METADATA_CACHE.get("checked_at")
+        cached_payload = _RUNTIME_SOURCE_METADATA_CACHE.get("payload")
+        if (
+            checked_at is not None
+            and cached_payload is not None
+            and (now - checked_at).total_seconds() < _RUNTIME_SOURCE_METADATA_CACHE_TTL_SECONDS
+        ):
+            return dict(cached_payload)
+
+    payload = _compute_runtime_source_metadata()
+
+    with _RUNTIME_SOURCE_METADATA_CACHE_LOCK:
+        _RUNTIME_SOURCE_METADATA_CACHE["checked_at"] = now
+        _RUNTIME_SOURCE_METADATA_CACHE["payload"] = dict(payload)
+
+    return dict(payload)
+
+
+def _determine_head_sync_status(
+    *,
+    process_started_at: datetime,
+    head_committed_at: datetime | None,
+    latest_runtime_source_modified_at: datetime | None,
+) -> tuple[str, str]:
+    freshness_anchor = latest_runtime_source_modified_at or head_committed_at
+    if freshness_anchor is None:
+        return "head_commit_time_unavailable", "git_head_committed_at_unavailable"
+    freshness_basis = (
+        "latest_runtime_source_modified_at"
+        if latest_runtime_source_modified_at is not None
+        else "git_head_committed_at"
+    )
+    if process_started_at >= freshness_anchor:
+        return "current_head_commit", freshness_basis
+    return "stale_head_commit", freshness_basis
+
+
+def _load_runtime_build_metadata() -> dict:
+    payload = {
+        "process_started_at": _PROCESS_STARTED_AT.isoformat(),
+        "git_head_commit": None,
+        "git_head_committed_at": None,
+        "head_sync_status": "git_head_unavailable",
+        "head_sync_basis": "git_head_committed_at",
+        "latest_runtime_source_path": None,
+        "latest_runtime_source_modified_at": None,
+    }
+    payload.update(_load_latest_runtime_source_metadata())
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(PROJECT_ROOT), "log", "-1", "--format=%H%n%cI"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except Exception as exc:
+        payload["git_error"] = str(exc)
+        return payload
+
+    if result.returncode != 0:
+        payload["git_error"] = (result.stderr or result.stdout or "git log failed").strip()
+        return payload
+
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not lines:
+        payload["head_sync_status"] = "git_head_missing"
+        payload["head_sync_basis"] = "git_head_missing"
+        return payload
+
+    payload["git_head_commit"] = lines[0]
+    if len(lines) > 1:
+        payload["git_head_committed_at"] = lines[1]
+
+    head_committed_at = _parse_git_iso8601(payload.get("git_head_committed_at"))
+    latest_runtime_source_modified_at = _parse_git_iso8601(payload.get("latest_runtime_source_modified_at"))
+    head_sync_status, head_sync_basis = _determine_head_sync_status(
+        process_started_at=_PROCESS_STARTED_AT,
+        head_committed_at=head_committed_at,
+        latest_runtime_source_modified_at=latest_runtime_source_modified_at,
+    )
+    payload["head_sync_status"] = head_sync_status
+    payload["head_sync_basis"] = head_sync_basis
+    return payload
 
 
 def _execution_metadata_background_monitor_loop(
@@ -203,6 +371,7 @@ async def health_check():
         "status": "ok",
         "raw_continuity": getattr(app.state, "raw_continuity_status", None),
         "feature_continuity": getattr(app.state, "feature_continuity_status", None),
+        "runtime_build": _load_runtime_build_metadata(),
     }
 
 

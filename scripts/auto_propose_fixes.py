@@ -38,6 +38,10 @@ CORE_FEATURES = [
 CANONICAL_BREAKER_HORIZON_MINUTES = 1440
 
 
+def _is_reference_only_patch_status(status: object) -> bool:
+    return str(status or "").startswith("reference_only_")
+
+
 def _table_has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
     rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
     return any(str(row[1]) == column for row in rows)
@@ -221,12 +225,25 @@ def load_recent_tw_history(limit=3, current_entry=None):
     def _sort_key(path: Path):
         match = re.search(r"heartbeat_(.+)_summary\.json$", path.name)
         label = match.group(1) if match else path.stem
-        if str(label).isdigit():
-            # Prefer numbered heartbeats over aliases like "fast" so the
+        label_text = str(label)
+        timestamp_match = re.fullmatch(r"(\d{8})_(\d{4})(?:_(\d{2}))?", label_text)
+        if timestamp_match:
+            # Cron heartbeats use timestamp labels (YYYYMMDD_HHMM[_SS]). Treat
+            # them as stable numbered runs and prefer the newest timestamped
+            # summaries before older legacy numeric IDs. Otherwise TW history
+            # can mix the fresh cron run with stale #1024/#1023 artifacts.
+            sortable = int(
+                timestamp_match.group(1)
+                + timestamp_match.group(2)
+                + (timestamp_match.group(3) or "00")
+            )
+            return (0, -sortable, "")
+        if label_text.isdigit():
+            # Prefer legacy numbered heartbeats over aliases like "fast" so the
             # drift issue compares against stable chronological runs instead of
             # anonymous helper summaries from ad-hoc fast checks.
-            return (0, -int(label), "")
-        return (1, 0, str(label))
+            return (1, -int(label_text), "")
+        return (2, 0, label_text)
 
     for path in sorted(data_dir.glob("heartbeat_*_summary.json"), key=_sort_key):
         try:
@@ -276,6 +293,62 @@ def load_recent_drift_report():
     return {}
 
 
+def _recent_drift_window_payload(report, key="primary_window"):
+    payload = (report or {}).get(key) or {}
+    summary = payload.get("summary") or {}
+    return payload, summary
+
+
+def _blocking_recent_drift_window(report):
+    blocking, summary = _recent_drift_window_payload(report, "blocking_window")
+    if blocking and summary:
+        return blocking, summary
+
+    def _severity(alerts):
+        alerts = list(alerts or [])
+        score = 0
+        if "constant_target" in alerts:
+            score += 4
+        if "label_imbalance" in alerts:
+            score += 3
+        if "regime_concentration" in alerts:
+            score += 2
+        if "regime_shift" in alerts:
+            score += 1
+        return score
+
+    candidates = []
+    for window, summary in ((report or {}).get("windows") or {}).items():
+        if not isinstance(summary, dict):
+            continue
+        interpretation = summary.get("drift_interpretation")
+        if interpretation not in {"distribution_pathology", "regime_concentration"}:
+            continue
+        quality = summary.get("quality_metrics") or {}
+        win_rate = summary.get("win_rate")
+        avg_pnl = quality.get("avg_simulated_pnl")
+        avg_quality = quality.get("avg_simulated_quality")
+        spot_long_win = quality.get("spot_long_win_rate")
+        negative = any(
+            [
+                isinstance(win_rate, (int, float)) and win_rate <= 0.25,
+                isinstance(avg_pnl, (int, float)) and avg_pnl <= 0.0,
+                isinstance(avg_quality, (int, float)) and avg_quality <= 0.0,
+                isinstance(spot_long_win, (int, float)) and spot_long_win <= 0.20,
+            ]
+        )
+        if not negative:
+            continue
+        negativity = max(0.0, 0.5 - float(win_rate or 0.5)) + max(0.0, -float(avg_pnl or 0.0)) + max(0.0, -float(avg_quality or 0.0))
+        payload = {"window": str(window), "alerts": summary.get("alerts") or [], "summary": summary}
+        candidates.append(((_severity(payload["alerts"]), negativity, int(summary.get("rows") or 0)), payload))
+
+    if not candidates:
+        return {}, {}
+    payload = max(candidates, key=lambda item: item[0])[1]
+    return payload, payload.get("summary") or {}
+
+
 def load_live_predict_probe():
     path = ROOT / "data" / "live_predict_probe.json"
     if path.exists():
@@ -286,6 +359,14 @@ def load_live_predict_probe():
 
 def load_leaderboard_candidate_probe():
     path = ROOT / "data" / "leaderboard_feature_profile_probe.json"
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+
+def load_q35_scaling_audit():
+    path = ROOT / "data" / "q35_scaling_audit.json"
     if path.exists():
         with open(path) as f:
             return json.load(f)
@@ -315,7 +396,13 @@ def issue_action_text(item):
     return ""
 
 
-def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_live_probe, maybe_metrics=None):
+def sync_current_state_governance_issues(
+    tracker,
+    leaderboard_probe,
+    metrics_or_live_probe,
+    maybe_metrics=None,
+    q35_scaling_audit=None,
+):
     """Keep current-state issue IDs aligned with the latest live bucket/governance facts."""
     if maybe_metrics is None:
         metrics = metrics_or_live_probe or {}
@@ -323,6 +410,7 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
     else:
         live_predict_probe = metrics_or_live_probe or {}
         metrics = maybe_metrics or {}
+    q35_scaling_audit = q35_scaling_audit or {}
 
     def _first_non_null(*values):
         for value in values:
@@ -391,6 +479,11 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         governance.get("support_route_verdict"),
         support_progress.get("support_route_verdict"),
     )
+    support_route_deployable = _first_non_null(
+        (live_predict_probe or {}).get("support_route_deployable"),
+        live_blocker_details.get("support_route_deployable"),
+        governance.get("support_route_deployable"),
+    )
     support_governance_route = _first_non_null(
         (live_predict_probe or {}).get("support_governance_route"),
         live_blocker_details.get("support_governance_route"),
@@ -402,6 +495,13 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         or "under_minimum_exact_live_structure_bucket" in live_support_reason
     )
     live_bucket_meets_minimum = bool(current_bucket) and minimum_rows > 0 and int(current_rows or 0) >= int(minimum_rows or 0)
+    trade_floor_no_deploy_monitoring = (
+        live_blocker == "decision_quality_below_trade_floor"
+        and live_signal == "HOLD"
+        and live_bucket_meets_minimum
+        and support_route_verdict == "exact_bucket_supported"
+        and support_route_deployable is not False
+    )
     support_gap_markers = {
         "exact_live_bucket_present_but_below_minimum",
         "exact_bucket_present_but_below_minimum",
@@ -433,8 +533,49 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
     support_progress_status = support_progress.get("status") or (
         "stalled_under_minimum" if int(current_rows or 0) <= 0 else "present_but_below_minimum"
     )
+    support_regression_basis = support_progress.get("regression_basis")
+    support_identity = support_progress.get("support_identity")
+    legacy_supported_reference = support_progress.get("legacy_supported_reference")
+    same_identity_regression = (
+        support_progress_status == "regressed_under_minimum"
+        and support_regression_basis == "same_identity_same_semantic_signature"
+    )
+    semantic_rebaseline_under_minimum = (
+        support_progress_status == "semantic_rebaseline_under_minimum"
+        or (
+            support_progress_status == "regressed_under_minimum"
+            and support_regression_basis
+            and support_regression_basis != "same_identity_same_semantic_signature"
+        )
+    )
+    breaker_context = "circuit_breaker_active" if circuit_breaker_active else "breaker_clear"
+    support_context_phrase = "while breaker is active" if circuit_breaker_active else "while breaker is clear"
+    support_issue_title = f"q15 exact support remains under minimum {support_context_phrase} ({current_rows}/{minimum_rows})"
+    if circuit_breaker_active:
+        support_issue_action = "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible in probe/API/UI/docs even when circuit_breaker_active is the primary blocker."
+    else:
+        support_issue_action = "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible as the current-live deployment blocker; do not describe this breaker-clear state as under-breaker governance."
+    if same_identity_regression:
+        support_state = "exact support regressed back under minimum"
+        support_issue_title = f"q15 exact support regressed under minimum {support_context_phrase} ({current_rows}/{minimum_rows})"
+        support_issue_action = (
+            "Treat this as support regression, not ordinary stagnation: keep support_route_verdict/support_progress/"
+            "minimum_support_rows/gap_to_minimum plus the last-supported reference visible in probe/API/UI/docs, "
+            "verify why the current bucket fell back under minimum, and keep breaker context explicit."
+        )
+    elif semantic_rebaseline_under_minimum:
+        support_state = "semantic rebaseline / current exact support under minimum"
+        support_issue_title = f"q15 exact support under minimum after semantic rebaseline {support_context_phrase} ({current_rows}/{minimum_rows})"
+        support_issue_action = (
+            "Treat legacy supported rows as reference-only: keep support_identity/regression_basis/legacy_supported_reference "
+            "visible in probe/API/UI/docs, keep the current-live exact-support blocker open, and do not describe this as "
+            "same-identity support regression unless the semantic signature matches."
+        )
+    elif int(current_rows or 0) <= 0:
+        support_state = "exact support is missing"
+    else:
+        support_state = "support remains under minimum"
     if current_bucket_support_active:
-        support_state = "exact support is missing" if int(current_rows or 0) <= 0 else "support remains under minimum"
         tracker.add(
             "P1",
             "#H_AUTO_CURRENT_BUCKET_SUPPORT",
@@ -449,8 +590,8 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
             tracker,
             "P1",
             "P1_q15_exact_support_stalled_under_breaker",
-            f"q15 exact support remains under minimum under breaker ({current_rows}/{minimum_rows})",
-            "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible in probe/API/UI/docs even when circuit_breaker_active is the primary blocker.",
+            support_issue_title,
+            support_issue_action,
             summary={
                 "current_live_structure_bucket": current_bucket,
                 "live_current_structure_bucket_rows": int(current_rows or 0),
@@ -459,6 +600,16 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
                 "support_route_verdict": support_route_verdict,
                 "support_governance_route": support_governance_route,
                 "support_progress_status": support_progress_status,
+                "support_regression_basis": support_regression_basis,
+                "support_identity": support_identity,
+                "legacy_supported_reference": legacy_supported_reference,
+                "breaker_context": breaker_context,
+                "circuit_breaker_active": bool(circuit_breaker_active),
+                "previous_rows": support_progress.get("previous_rows"),
+                "delta_vs_previous": support_progress.get("delta_vs_previous"),
+                "recent_supported_rows": support_progress.get("recent_supported_rows"),
+                "recent_supported_heartbeat": support_progress.get("recent_supported_heartbeat"),
+                "delta_vs_recent_supported": support_progress.get("delta_vs_recent_supported"),
                 "leaderboard_selected_profile": alignment.get("leaderboard_selected_profile")
                 or alignment.get("selected_feature_profile")
                 or (leaderboard_probe or {}).get("selected_feature_profile"),
@@ -468,6 +619,81 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         )
     else:
         tracker.resolve("P1_q15_exact_support_stalled_under_breaker")
+
+    tracker.resolve("P1_q35_redesign_support_blocked")
+
+    q35_scope = (q35_scaling_audit.get("scope_applicability") or {}) if isinstance(q35_scaling_audit, dict) else {}
+    q35_current_live = (q35_scaling_audit.get("current_live") or {}) if isinstance(q35_scaling_audit, dict) else {}
+    q35_component = (
+        (q35_scaling_audit.get("deployment_grade_component_experiment") or {})
+        if isinstance(q35_scaling_audit, dict)
+        else {}
+    )
+    q35_redesign = (
+        (q35_scaling_audit.get("base_stack_redesign_experiment") or {})
+        if isinstance(q35_scaling_audit, dict)
+        else {}
+    )
+    q35_scope_status = str(q35_scope.get("status") or "")
+    q35_bucket = str(
+        q35_current_live.get("structure_bucket")
+        or q35_current_live.get("current_live_structure_bucket")
+        or current_bucket
+        or ""
+    )
+    q35_overall_verdict = str(q35_scaling_audit.get("overall_verdict") or "")
+    q35_redesign_verdict = str(q35_redesign.get("verdict") or "")
+    q35_redesign_machine = q35_redesign.get("machine_read_answer") or {}
+    q35_redesign_best = q35_redesign.get("best_discriminative_candidate") or {}
+    q35_gap_to_floor = q35_component.get("runtime_remaining_gap_to_floor")
+    q35_entry_quality = q35_current_live.get("entry_quality")
+    q35_audit_active = (
+        "q35" in q35_bucket
+        and q35_scope_status == "current_live_q35_lane_active"
+        and q35_overall_verdict not in {"", "runtime_blocker_preempts_q35_scaling", "reference_only_current_bucket_outside_q35"}
+        and q35_redesign_verdict != "base_stack_redesign_discriminative_reweight_crosses_trade_floor"
+    )
+    if q35_audit_active:
+        q35_title = "q35 lane still needs formula review / base-stack redesign before deploy"
+        if q35_redesign_machine.get("execution_blocked_after_floor_cross"):
+            q35_action = (
+                "把 q35 scaling audit 的 runtime gap / redesign entry_quality / allowed_layers 同步到 docs/probe/issues；"
+                "本輪 discriminative redesign 只跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0，禁止把 score-only floor-cross 當成 deployment closure。"
+            )
+        else:
+            q35_action = (
+                "把 q35 scaling audit 的 overall_verdict / redesign verdict / gap-to-floor 同步到 docs/probe/issues；"
+                "在 exact support 未就緒、且 redesign 未形成可執行 closure 前，禁止把 bias50 單點 uplift 或結構 uplift 當成 closure。"
+            )
+        recommended_action = q35_scaling_audit.get("recommended_action")
+        if not isinstance(recommended_action, str) or not recommended_action.strip():
+            recommended_action = None
+        upsert_issue(
+            tracker,
+            "P1",
+            "P1_q35_scaling_no_deploy",
+            q35_title,
+            q35_action,
+            summary={
+                "current_live_structure_bucket": q35_bucket or current_bucket,
+                "current_live_structure_bucket_rows": int(current_rows or 0),
+                "minimum_support_rows": int(minimum_rows or 0),
+                "gap_to_minimum": max(int(minimum_rows or 0) - int(current_rows or 0), 0),
+                "support_route_verdict": support_route_verdict,
+                "overall_verdict": q35_overall_verdict or None,
+                "redesign_verdict": q35_redesign_verdict or None,
+                "runtime_remaining_gap_to_floor": q35_gap_to_floor,
+                "remaining_gap_to_floor": q35_gap_to_floor,
+                "entry_quality": q35_entry_quality,
+                "redesign_entry_quality": q35_redesign_best.get("current_entry_quality_after"),
+                "redesign_allowed_layers_after": q35_redesign_best.get("allowed_layers_after"),
+                "redesign_positive_discriminative_gap": q35_redesign_machine.get("positive_discriminative_gap"),
+                "redesign_execution_blocked_after_floor_cross": q35_redesign_machine.get("execution_blocked_after_floor_cross"),
+                "audit_recommended_action": recommended_action,
+            },
+        )
+    else:
+        tracker.resolve("P1_q35_scaling_no_deploy")
 
     pathology_summary = (live_predict_probe or {}).get("decision_quality_scope_pathology_summary") or {}
     recommended_patch = pathology_summary.get("recommended_patch") if isinstance(pathology_summary, dict) else None
@@ -491,22 +717,42 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
             "reference_source": recommended_patch.get("reference_source"),
         }
 
+    patch_status = str(recommended_patch.get("status") or "") if isinstance(recommended_patch, dict) else ""
     if (
         isinstance(recommended_patch, dict)
         and recommended_patch.get("recommended_profile")
-        and str(recommended_patch.get("status") or "") == "reference_only_until_exact_support_ready"
+        and _is_reference_only_patch_status(patch_status)
     ):
         patch_profile = recommended_patch.get("recommended_profile")
         tracker.resolve("P1_reference_only_patch_visibility")
+        reference_patch_scope = recommended_patch.get("reference_patch_scope") or recommended_patch.get("spillover_regime_gate")
+        current_live_regime_gate = recommended_patch.get("current_live_regime_gate")
+        if patch_status == "reference_only_non_current_live_scope":
+            patch_title = (
+                f"support-aware {patch_profile} patch must stay visible but reference-only outside current live scope"
+            )
+            patch_action = (
+                "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, "
+                "live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, "
+                "so do not promote it to a deployable runtime patch even though exact support is available."
+            )
+        else:
+            patch_title = f"support-aware {patch_profile} patch must stay visible but reference-only"
+            patch_action = (
+                "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; "
+                "do not promote it from reference-only until current-live exact support reaches the minimum rows."
+            )
         upsert_issue(
             tracker,
             "P1",
             "P1_bull_caution_spillover_patch_reference_only",
-            f"support-aware {patch_profile} patch must stay visible but reference-only",
-            "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; do not promote it from reference-only until current-live exact support reaches the minimum rows.",
+            patch_title,
+            patch_action,
             summary={
                 "actual_live_spillover_scope": actual_live_spillover_scope,
-                "reference_patch_scope": recommended_patch.get("reference_patch_scope") or recommended_patch.get("spillover_regime_gate"),
+                "reference_patch_scope": reference_patch_scope,
+                "current_live_regime_gate": current_live_regime_gate,
+                "reference_only_cause": recommended_patch.get("reference_only_cause"),
                 "exact_live_lane_rows": _as_int_or_none(((pathology_summary.get("exact_live_lane") or {}) if isinstance(pathology_summary, dict) else {}).get("rows")),
                 "recommended_patch": patch_profile,
                 "recommended_patch_status": recommended_patch.get("status"),
@@ -523,6 +769,9 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         tracker.resolve("P1_bull_caution_spillover_patch_reference_only")
         tracker.resolve("P1_reference_only_patch_visibility")
 
+    if not trade_floor_no_deploy_monitoring:
+        tracker.resolve("P1_current_live_trade_floor_no_deploy")
+
     if circuit_breaker_active:
         release_condition = (((live_predict_probe or {}).get("deployment_blocker_details") or {}).get("release_condition") or {})
         current_recent_wins = release_condition.get("current_recent_window_wins")
@@ -531,20 +780,20 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
         additional_wins_needed = release_condition.get("additional_recent_window_wins_needed")
         streak_floor = release_condition.get("streak_must_be_below")
         release_text = (
-            f"recent {recent_window} 需至少 {required_recent_wins} 勝，當前 {current_recent_wins} 勝，還差 {additional_wins_needed} 勝；"
-            f"同時 streak 必須 < {streak_floor}。"
+            f"最近 {recent_window} 筆需至少 {required_recent_wins} 勝，當前 {current_recent_wins} 勝，還差 {additional_wins_needed} 勝；"
+            f"同時連續虧損必須 < {streak_floor}。"
             if recent_window is not None and required_recent_wins is not None and current_recent_wins is not None and additional_wins_needed is not None and streak_floor is not None
-            else "依 hb_circuit_breaker_audit / hb_predict_probe 的 release math 驗證解鎖條件。"
+            else "依 hb_circuit_breaker_audit / hb_predict_probe 的熔斷解除條件驗證解鎖。"
         )
         tracker.resolve("P0_q15_patch_active_but_execution_blocked")
         tracker.resolve("#H_AUTO_CURRENT_BUCKET_TOXICITY")
         breaker_title = (
-            f"canonical circuit breaker active ({current_recent_wins}/{required_recent_wins} wins in recent {recent_window})"
+            f"熔斷解除條件未達（最近 {recent_window} 筆 {current_recent_wins}/{required_recent_wins} 勝）"
             if recent_window is not None and required_recent_wins is not None and current_recent_wins is not None
-            else "canonical circuit breaker active"
+            else "熔斷解除條件未達"
         )
         breaker_action = (
-            "先把 current-live blocker 語義切回 circuit breaker release math；在 breaker 未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主 blocker。"
+            "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。"
             f" {release_text}"
         )
         breaker_summary = {
@@ -563,6 +812,9 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
             "support_route_verdict": support_route_verdict,
             "support_governance_route": support_governance_route,
             "runtime_closure_state": runtime_closure_state,
+            "api_trade_buy_guardrail": "current_live_deployment_blocker_409",
+            "api_trade_allowed_risk_off_sides": ["reduce", "sell"],
+            "api_trade_guardrail_context": "買入 / 加倉會在 ExecutionService.submit_order 前先檢查即時部署阻塞點",
         }
         upsert_issue(
             tracker,
@@ -576,7 +828,7 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
             tracker,
             "P0",
             CURRENT_LIVE_BLOCKER_ISSUE_ID,
-            "canonical circuit breaker remains the only current-live deployment blocker",
+            "熔斷解除條件仍是唯一即時部署阻塞點",
             breaker_action,
             summary=breaker_summary,
         )
@@ -611,6 +863,32 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
                 },
             )
             resolve_legacy_issue_id(tracker, "P0_circuit_breaker_active")
+        elif trade_floor_no_deploy_monitoring:
+            tracker.resolve(CURRENT_LIVE_BLOCKER_ISSUE_ID)
+            resolve_legacy_issue_id(tracker, "P0_circuit_breaker_active")
+            upsert_issue(
+                tracker,
+                "P1",
+                "P1_current_live_trade_floor_no_deploy",
+                f"current live bucket {current_bucket} is exact-supported but remains hold-only below the trade floor",
+                "把這個狀態視為正常 no-deploy risk posture 而非 release-blocking support failure：保留 allowed_layers=0 / trade_floor_gap / support metrics，僅在 exact-supported component experiment 通過 discrimination 與 runtime guardrail 後才重新開放下單。",
+                summary={
+                    "deployment_blocker": live_blocker,
+                    "current_live_structure_bucket": current_bucket,
+                    "current_live_structure_bucket_rows": int(current_rows or 0),
+                    "minimum_support_rows": int(minimum_rows or 0),
+                    "gap_to_minimum": max(int(minimum_rows or 0) - int(current_rows or 0), 0),
+                    "support_route_verdict": support_route_verdict,
+                    "support_governance_route": support_governance_route,
+                    "runtime_closure_state": runtime_closure_state,
+                    "entry_quality": live_blocker_details.get("entry_quality") or (live_predict_probe or {}).get("entry_quality"),
+                    "trade_floor": live_blocker_details.get("trade_floor"),
+                    "trade_floor_gap": live_blocker_details.get("trade_floor_gap"),
+                    "decision_quality_label": live_blocker_details.get("decision_quality_label") or (live_predict_probe or {}).get("decision_quality_label"),
+                    "allowed_layers": (live_predict_probe or {}).get("allowed_layers"),
+                    "allowed_layers_reason": (live_predict_probe or {}).get("allowed_layers_reason"),
+                },
+            )
         elif live_blocker:
             upsert_issue(
                 tracker,
@@ -716,6 +994,9 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
                 "governance_contract": governance.get("verdict"),
                 "current_closure": governance.get("current_closure"),
                 "leaderboard_payload_source": (leaderboard_probe or {}).get("leaderboard_payload_source"),
+                "leaderboard_payload_stale": (leaderboard_probe or {}).get("leaderboard_payload_stale"),
+                "leaderboard_payload_cache_age_sec": (leaderboard_probe or {}).get("leaderboard_payload_cache_age_sec"),
+                "leaderboard_payload_updated_at": (leaderboard_probe or {}).get("leaderboard_payload_updated_at"),
                 "dual_profile_state": alignment.get("dual_profile_state"),
             },
             verify=[
@@ -751,11 +1032,36 @@ def sync_current_state_governance_issues(tracker, leaderboard_probe, metrics_or_
                 tracker.resolve(issue_id)
 
 
-def summarize_recent_drift(report):
-    primary = (report or {}).get("primary_window") or {}
+def summarize_recent_drift_window(primary):
     summary = primary.get("summary") or {}
     if not primary:
         return "drift_report=missing"
+    compact = summary.get("compact_summary") if isinstance(summary.get("compact_summary"), dict) else {}
+    if compact:
+        window = primary.get("window") or compact.get("window")
+        alerts = compact.get("alerts") or primary.get("alerts") or []
+        severity = compact.get("severity") or "unknown"
+        interpretation = compact.get("interpretation") or summary.get("drift_interpretation") or "unknown"
+        win_rate = compact.get("win_rate")
+        avg_pnl = compact.get("avg_pnl")
+        avg_quality = compact.get("avg_quality")
+        dominant_regime = compact.get("dominant_regime") or summary.get("dominant_regime") or "unknown"
+        dominant_share = compact.get("dominant_regime_share")
+        share_text = f"{dominant_share:.2%}" if isinstance(dominant_share, (int, float)) else "n/a"
+        win_text = f"{win_rate:.4f}" if isinstance(win_rate, (int, float)) else "n/a"
+        pnl_text = f"{avg_pnl:+.4f}" if isinstance(avg_pnl, (int, float)) else "n/a"
+        quality_text = f"{avg_quality:+.4f}" if isinstance(avg_quality, (int, float)) else "n/a"
+        tail_text = _format_streak_fragment("tail_streak", compact.get("tail_streak"))
+        adverse_text = _format_streak_fragment("adverse_streak", compact.get("adverse_streak"), default_target=0)
+        top_shift = compact.get("top_shift_features") or []
+        top_shift_text = "/".join(str(feature) for feature in top_shift[:5]) if top_shift else "none"
+        note = compact.get("actionable_summary") or "see recent_drift_report artifact"
+        return (
+            f"recent_window={window}, severity={severity}, alerts={alerts}, win_rate={win_text}, "
+            f"dominant_regime={dominant_regime}({share_text}), interpretation={interpretation}, "
+            f"avg_pnl={pnl_text}, avg_quality={quality_text}, {tail_text}, {adverse_text}, "
+            f"top_shift={top_shift_text}, note={note}"
+        )
     window = primary.get("window")
     alerts = primary.get("alerts") or []
     dominant_regime = summary.get("dominant_regime") or "unknown"
@@ -851,15 +1157,7 @@ def summarize_recent_drift(report):
         )
     path_diag = summary.get("target_path_diagnostics") or {}
     tail_streak = path_diag.get("tail_target_streak") or {}
-    streak_target = tail_streak.get("target")
-    streak_target_text = "n/a" if streak_target is None else str(streak_target)
-    adverse_streak = {}
-    if isinstance(win_rate, (int, float)):
-        adverse_streak = path_diag.get("longest_zero_target_streak") if win_rate <= 0.5 else path_diag.get("longest_one_target_streak")
-    adverse_streak = adverse_streak or {}
-    adverse_target = adverse_streak.get("target")
-    adverse_target_text = "n/a" if adverse_target is None else str(adverse_target)
-    adverse_examples = adverse_streak.get("examples") or []
+    adverse_streak = _select_adverse_target_streak(path_diag)
     recent_examples = path_diag.get("recent_examples") or []
     recent_examples_text = ""
     if recent_examples:
@@ -867,22 +1165,15 @@ def summarize_recent_drift(report):
             f"{row.get('timestamp')}:{row.get('target')}:{row.get('regime')}:{row.get('simulated_pyramid_quality')}"
             for row in recent_examples[-3:]
         )
+    adverse_examples = adverse_streak.get("examples") or []
     adverse_examples_text = ""
     if adverse_examples:
         adverse_examples_text = ", adverse_examples=" + "/".join(
             f"{row.get('timestamp')}:{row.get('target')}:{row.get('regime')}:{row.get('simulated_pyramid_quality')}"
             for row in adverse_examples[-3:]
         )
-    tail_text = (
-        f", tail_streak={tail_streak.get('count', 0)}x{streak_target_text}"
-        f" since {tail_streak.get('start_timestamp')}"
-        f" -> {tail_streak.get('end_timestamp')}"
-    )
-    adverse_text = (
-        f", adverse_streak={adverse_streak.get('count', 0)}x{adverse_target_text}"
-        f" since {adverse_streak.get('start_timestamp')}"
-        f" -> {adverse_streak.get('end_timestamp')}"
-    )
+    tail_text = ", " + _format_streak_fragment("tail_streak", tail_streak)
+    adverse_text = ", " + _format_streak_fragment("adverse_streak", adverse_streak, default_target=0)
     reference = summary.get("reference_window_comparison") or {}
     reference_text = ""
     if reference:
@@ -918,6 +1209,48 @@ def summarize_recent_drift(report):
         f"avg_dd_penalty={dd_text}, spot_long_win_rate={spot_long_text}, {feature_summary}"
         f"{tail_text}{adverse_text}{reference_text}{examples_text}{recent_examples_text}{adverse_examples_text}"
     )
+
+
+def _select_adverse_target_streak(path_diag):
+    streak = dict((path_diag or {}).get("longest_zero_target_streak") or {})
+    if streak.get("target") is None:
+        streak["target"] = 0
+    streak.setdefault("count", 0)
+    streak.setdefault("start_timestamp", None)
+    streak.setdefault("end_timestamp", None)
+    streak.setdefault("examples", [])
+    return streak
+
+
+def _format_streak_fragment(name, streak, default_target=None):
+    streak = dict(streak or {})
+    target = streak.get("target")
+    if target is None:
+        target = default_target
+    count = int(streak.get("count") or 0)
+    target_text = "n/a" if target is None else str(target)
+    text = f"{name}={count}x{target_text}"
+    start = streak.get("start_timestamp")
+    end = streak.get("end_timestamp")
+    if start and end:
+        text += f" since {start} -> {end}"
+    return text
+
+
+def summarize_recent_drift(report):
+    primary, primary_summary = _recent_drift_window_payload(report, "primary_window")
+    blocking, blocking_summary = _blocking_recent_drift_window(report)
+    preferred = blocking if blocking and blocking_summary else primary
+    summary = summarize_recent_drift_window(preferred)
+    if blocking and primary and blocking.get("window") != primary.get("window"):
+        latest_win = primary_summary.get("win_rate")
+        latest_win_text = f"{latest_win:.4f}" if isinstance(latest_win, (int, float)) else "n/a"
+        latest_interpretation = primary_summary.get("drift_interpretation") or "unknown"
+        summary += (
+            f", latest_window={primary.get('window')}, latest_interpretation={latest_interpretation}, "
+            f"latest_win_rate={latest_win_text}, latest_alerts={primary.get('alerts') or []}"
+        )
+    return summary
 
 
 def _format_recent_regime_counts(counts):
@@ -1273,9 +1606,13 @@ def main():
     drift_summary = summarize_recent_drift(recent_drift)
     live_predict_probe = load_live_predict_probe()
     leaderboard_candidate_probe = load_leaderboard_candidate_probe()
+    q35_scaling_audit = load_q35_scaling_audit()
     live_predict_summary = summarize_live_predict_probe(live_predict_probe)
-    drift_primary = (recent_drift or {}).get("primary_window") or {}
-    drift_primary_summary = drift_primary.get("summary") or {}
+    drift_primary, drift_primary_summary = _recent_drift_window_payload(recent_drift, "primary_window")
+    drift_blocking, drift_blocking_summary = _blocking_recent_drift_window(recent_drift)
+    pathology_drift = drift_blocking or drift_primary
+    pathology_drift_summary = drift_blocking_summary or drift_primary_summary
+    pathology_drift_summary_text = summarize_recent_drift_window(pathology_drift)
 
     drift_interpretation = drift_primary_summary.get("drift_interpretation")
     drift_alerts = drift_primary.get("alerts") or []
@@ -1288,7 +1625,13 @@ def main():
 
     # Load existing issues
     tracker = IssueTracker.load()
-    sync_current_state_governance_issues(tracker, leaderboard_candidate_probe, live_predict_probe, metrics)
+    sync_current_state_governance_issues(
+        tracker,
+        leaderboard_candidate_probe,
+        live_predict_probe,
+        metrics,
+        q35_scaling_audit,
+    )
 
     # Rule 1: canonical simulated win collapses below random
     if db_stats["simulated_win_avg"] < 0.50:
@@ -1352,22 +1695,39 @@ def main():
         tracker.resolve("#H_AUTO_STALE")
 
     # Rule 6: recent canonical distribution pathology persists even when global/TW IC recover
+    pathology_interpretation = pathology_drift_summary.get("drift_interpretation")
+    pathology_alerts = pathology_drift.get("alerts") or []
+    pathology_window = pathology_drift.get("window")
+    pathology_quality = pathology_drift_summary.get("quality_metrics") or {}
+    pathology_avg_pnl = pathology_quality.get("avg_simulated_pnl")
+    pathology_avg_quality = pathology_quality.get("avg_simulated_quality")
+    pathology_spot_long_win = pathology_quality.get("spot_long_win_rate")
+    pathology_avg_time_underwater = pathology_quality.get("avg_time_underwater")
+    pathology_dominant_regime = pathology_drift_summary.get("dominant_regime")
+    live_regime_label = (live_predict_probe or {}).get("regime_label")
+    live_recent_pathology_applied = bool((live_predict_probe or {}).get("decision_quality_recent_pathology_applied"))
+    pathology_is_current_live_scope = live_recent_pathology_applied or not (
+        live_regime_label
+        and pathology_dominant_regime
+        and str(live_regime_label) != str(pathology_dominant_regime)
+    )
     drift_is_negative_pathology = (
-        drift_interpretation == "distribution_pathology"
-        and any(alert in drift_alerts for alert in ("constant_target", "label_imbalance"))
+        pathology_interpretation in {"distribution_pathology", "regime_concentration"}
+        and any(alert in pathology_alerts for alert in ("constant_target", "label_imbalance", "regime_concentration", "regime_shift"))
         and (
-            (isinstance(drift_avg_pnl, (int, float)) and drift_avg_pnl <= 0.0)
-            or (isinstance(drift_avg_quality, (int, float)) and drift_avg_quality <= 0.0)
-            or (isinstance(drift_spot_long_win, (int, float)) and drift_spot_long_win <= 0.20)
+            (isinstance(pathology_avg_pnl, (int, float)) and pathology_avg_pnl <= 0.0)
+            or (isinstance(pathology_avg_quality, (int, float)) and pathology_avg_quality <= 0.0)
+            or (isinstance(pathology_spot_long_win, (int, float)) and pathology_spot_long_win <= 0.20)
         )
     )
     if drift_is_negative_pathology:
-        drift_feature_diag = drift_primary_summary.get("feature_diagnostics") or {}
-        drift_target_path = drift_primary_summary.get("target_path_diagnostics") or {}
-        drift_reference_comparison = drift_primary_summary.get("reference_window_comparison") or {}
+        drift_feature_diag = pathology_drift_summary.get("feature_diagnostics") or {}
+        drift_target_path = pathology_drift_summary.get("target_path_diagnostics") or {}
+        drift_reference_comparison = pathology_drift_summary.get("reference_window_comparison") or {}
         tail_streak = drift_target_path.get("tail_target_streak") or {}
+        adverse_streak = _select_adverse_target_streak(drift_target_path)
         top_shift_source = (
-            drift_primary_summary.get("top_mean_shift_features")
+            pathology_drift_summary.get("top_mean_shift_features")
             or drift_reference_comparison.get("top_mean_shift_features")
             or []
         )
@@ -1376,20 +1736,23 @@ def main():
             for item in top_shift_source
             if (item.get("feature") if isinstance(item, dict) else item)
         ]
-        new_compressed = drift_primary_summary.get("new_compressed_features")
+        new_compressed = pathology_drift_summary.get("new_compressed_features")
         if not isinstance(new_compressed, list) or not new_compressed:
             new_compressed = drift_reference_comparison.get("new_unexpected_compressed_features") or []
         if not isinstance(new_compressed, list) or not new_compressed:
             new_compressed = drift_feature_diag.get("new_unexpected_compressed_features") or []
         pathology_summary = {
-            "window": drift_window,
-            "win_rate": drift_primary_summary.get("win_rate"),
-            "dominant_regime": drift_primary_summary.get("dominant_regime"),
-            "dominant_regime_share": drift_primary_summary.get("dominant_regime_share"),
-            "avg_pnl": drift_avg_pnl,
-            "avg_quality": drift_avg_quality,
-            "avg_drawdown_penalty": drift_quality.get("avg_drawdown_penalty"),
-            "alerts": drift_alerts,
+            "window": pathology_window,
+            "interpretation": pathology_interpretation,
+            "win_rate": pathology_drift_summary.get("win_rate"),
+            "dominant_regime": pathology_dominant_regime,
+            "dominant_regime_share": pathology_drift_summary.get("dominant_regime_share"),
+            "avg_pnl": pathology_avg_pnl,
+            "avg_quality": pathology_avg_quality,
+            "avg_drawdown_penalty": pathology_quality.get("avg_drawdown_penalty"),
+            "spot_long_win_rate": pathology_spot_long_win,
+            "avg_time_underwater": pathology_avg_time_underwater,
+            "alerts": pathology_alerts,
             "top_shift_features": top_shift_features[:3],
             "new_compressed_feature": new_compressed[0] if new_compressed else None,
             "tail_streak": (
@@ -1397,19 +1760,51 @@ def main():
                 if tail_streak.get("count") is not None and tail_streak.get("target") is not None
                 else None
             ),
+            "adverse_streak": (
+                f"{adverse_streak.get('count')}x{adverse_streak.get('target')}"
+                if adverse_streak.get("count") is not None and adverse_streak.get("target") is not None
+                else None
+            ),
+            "live_regime_label": live_regime_label,
+            "current_live_scope": bool(pathology_is_current_live_scope),
+            "blocking_basis": [
+                basis
+                for basis, active in [
+                    ("avg_pnl<=0", isinstance(pathology_avg_pnl, (int, float)) and pathology_avg_pnl <= 0.0),
+                    ("avg_quality<=0", isinstance(pathology_avg_quality, (int, float)) and pathology_avg_quality <= 0.0),
+                    ("spot_long_win_rate<=0.20", isinstance(pathology_spot_long_win, (int, float)) and pathology_spot_long_win <= 0.20),
+                ]
+                if active
+            ],
         }
-        upsert_issue(
-            tracker,
-            "P0",
-            "#H_AUTO_RECENT_PATHOLOGY",
-            f"recent canonical window {drift_window} rows = distribution_pathology",
-            "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；"
-            "維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。"
-            f" {drift_summary}",
-            summary=pathology_summary,
-        )
+        if pathology_is_current_live_scope:
+            upsert_issue(
+                tracker,
+                "P0",
+                "#H_AUTO_RECENT_PATHOLOGY",
+                f"recent canonical window {pathology_window} rows = {pathology_interpretation or 'distribution_pathology'}",
+                "直接對 recent canonical rows 做 feature variance / distinct-count / target-path drill-down；"
+                "維持 decision-quality guardrails，並檢查 calibration scope 是否仍被病態 slice 稀釋。"
+                "具體 window / alerts / feature shifts 只保留在 machine-readable summary 與 recent_drift_report artifact，"
+                "避免 ISSUES.md / ROADMAP.md 被長篇 telemetry 污染。",
+                summary=pathology_summary,
+            )
+            tracker.resolve("P1_recent_distribution_pathology_monitoring")
+        else:
+            tracker.resolve("#H_AUTO_RECENT_PATHOLOGY")
+            tracker.resolve("P0_recent_distribution_pathology")
+            upsert_issue(
+                tracker,
+                "P1",
+                "P1_recent_distribution_pathology_monitoring",
+                f"recent canonical window {pathology_window} rows = {pathology_interpretation or 'regime_concentration'} but current live regime is outside the blocker pocket",
+                "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
+                summary=pathology_summary,
+            )
     else:
         tracker.resolve("#H_AUTO_RECENT_PATHOLOGY")
+        tracker.resolve("P0_recent_distribution_pathology")
+        tracker.resolve("P1_recent_distribution_pathology_monitoring")
 
     # Rule 7: live predictor runtime shows same-scope or narrowed-lane decision-quality pathology
     live_recent_pathology = bool(live_predict_probe.get("decision_quality_recent_pathology_applied"))

@@ -1,3 +1,12 @@
+import {
+  humanizeFeatureKey,
+  humanizeLivePathologyLabel,
+  humanizeRuntimeDetailText,
+  humanizeStructureBucketLabel,
+  humanizeSupportGovernanceRouteLabel,
+  humanizeSupportRouteLabel,
+} from "../utils/runtimeCopy";
+
 type TopMeanShiftFeature = {
   feature?: string | null;
   current_mean?: number | null;
@@ -15,6 +24,7 @@ type LaneSummary = {
   avg_time_underwater?: number | null;
   current_live_structure_bucket?: string | null;
   current_live_structure_bucket_rows?: number | null;
+  dominant_structure_bucket?: string | null;
 };
 
 type SpilloverPocket = {
@@ -52,7 +62,11 @@ type RecommendedPatchSummary = {
   min_collapse_flags?: number | null;
   preferred_support_cohort?: string | null;
   support_route_verdict?: string | null;
+  support_governance_route?: string | null;
   support_route_deployable?: boolean | null;
+  current_live_regime_gate?: string | null;
+  patch_scope_matches_live?: boolean | null;
+  reference_only_cause?: string | null;
   current_live_structure_bucket?: string | null;
   current_live_structure_bucket_rows?: number | null;
   minimum_support_rows?: number | null;
@@ -79,6 +93,8 @@ type Props = {
   supportAlignmentSummary?: string | null;
   runtimeExactSupportRows?: number | null;
   calibrationExactLaneRows?: number | null;
+  supportRouteVerdict?: string | null;
+  supportGovernanceRoute?: string | null;
 };
 
 const isFiniteNumber = (value: number | null | undefined): value is number => (
@@ -98,7 +114,7 @@ const formatDecimal = (value: number | null | undefined, digits = 3, signed = fa
 };
 
 const formatMeanShift = (shift: TopMeanShiftFeature) => {
-  const feature = shift.feature || "unknown";
+  const feature = humanizeFeatureKey(shift.feature || "unknown", { preferShortLabel: true });
   const current = formatDecimal(shift.current_mean ?? null, 3);
   const reference = formatDecimal(shift.reference_mean ?? null, 3);
   const delta = formatDecimal(shift.mean_delta ?? null, 3, true);
@@ -109,33 +125,61 @@ const formatPatchStatus = (status?: string | null) => {
   switch (status) {
     case "reference_only_until_exact_support_ready":
       return "先當治理參考，不可直接放行";
+    case "reference_only_non_current_live_scope":
+      return "範圍不同，僅作治理參考";
+    case "reference_only_while_deployment_blocked":
+      return "阻塞點未清前僅作治理參考";
     case "deployable_patch_candidate":
-      return "已達可部署 patch 候選";
+      return "已達 runtime / training patch 候選";
     default:
-      return status || "patch 狀態未提供";
+      return status || "修補方案狀態未提供";
   }
 };
+
+const isReferenceOnlyPatchStatus = (status?: string | null) => (
+  String(status || "").startsWith("reference_only_")
+);
 
 const formatSupportAlignmentStatus = (status?: string | null) => {
   switch (status) {
     case "runtime_ahead_of_calibration":
-      return "runtime 先於 calibration";
+      return "執行期樣本先於校準樣本";
     case "aligned":
-      return "runtime / calibration 已對齊";
+      return "執行期 / 校準已對齊";
     default:
       return status || null;
   }
 };
 
+const PATHOLOGY_LABELS = {
+  exactLane: humanizeLivePathologyLabel("exact_lane"),
+  spilloverPocket: humanizeLivePathologyLabel("spillover_pocket"),
+  spilloverRows: humanizeLivePathologyLabel("spillover_rows"),
+  focusScopeRows: humanizeLivePathologyLabel("focus_scope_rows"),
+  currentSpillover: humanizeLivePathologyLabel("current_spillover"),
+  referencePatch: humanizeLivePathologyLabel("reference_patch"),
+  supportRoute: humanizeLivePathologyLabel("support_route"),
+  governanceRoute: humanizeLivePathologyLabel("governance_route"),
+  top4hShifts: humanizeLivePathologyLabel("top_4h_shifts"),
+  nextAction: humanizeLivePathologyLabel("next_action"),
+  currentBucketSupport: humanizeLivePathologyLabel("current_bucket_support"),
+  exactLaneCohort: humanizeLivePathologyLabel("exact_lane_cohort"),
+  historicalLaneBucket: humanizeLivePathologyLabel("historical_lane_bucket"),
+  noSpillover: humanizeLivePathologyLabel("no_spillover"),
+  patch: humanizeLivePathologyLabel("patch"),
+};
+
 export default function LivePathologySummaryCard({
   summary,
-  title = "🧬 Live lane / spillover 對照",
+  title = "🧬 精準路徑 / 外溢口袋對照",
   className = "",
   compact = false,
   supportAlignmentStatus,
   supportAlignmentSummary,
   runtimeExactSupportRows,
   calibrationExactLaneRows,
+  supportRouteVerdict,
+  supportGovernanceRoute,
 }: Props) {
   if (!summary) return null;
 
@@ -149,30 +193,56 @@ export default function LivePathologySummaryCard({
   const collapseFeatures = Array.isArray(recommendedPatch?.collapse_features)
     ? recommendedPatch.collapse_features.slice(0, 4)
     : [];
+  const summaryText = summary.summary ? humanizeRuntimeDetailText(summary.summary) : null;
+  const focusScopeLabel = humanizeRuntimeDetailText(summary.focus_scope_label || summary.focus_scope || "範圍");
   const spilloverLabel = summary.focus_scope_label
-    ? `${summary.focus_scope_label} spillover pocket`
-    : "broader-scope spillover pocket";
+    ? `${humanizeRuntimeDetailText(summary.focus_scope_label)} ${PATHOLOGY_LABELS.spilloverPocket}`
+    : `較寬範圍 ${PATHOLOGY_LABELS.spilloverPocket}`;
 
   if (!summary.summary && !exactLane && !spilloverPocket && !recommendedPatch) return null;
 
   const compactTopShifts = topShifts.slice(0, 2);
-  const compactPatchLabel = recommendedPatch?.recommended_profile
+  const patchProfileLabel = humanizeRuntimeDetailText(recommendedPatch?.recommended_profile || "未提供 profile");
+  const patchReasonLabel = humanizeRuntimeDetailText(recommendedPatch?.reason || "");
+  const patchActionLabel = humanizeRuntimeDetailText(recommendedPatch?.recommended_action || "");
+  const compactPatchLabel = humanizeRuntimeDetailText(
+    recommendedPatch?.recommended_profile
     || recommendedPatch?.reference_patch_scope
-    || (recommendedPatch ? formatPatchStatus(recommendedPatch.status) : null);
+    || (recommendedPatch ? formatPatchStatus(recommendedPatch.status) : null)
+  );
+  const compactPatchStatusLabel = recommendedPatch ? formatPatchStatus(recommendedPatch.status) : null;
+  const patchSectionTitle = isReferenceOnlyPatchStatus(recommendedPatch?.status)
+    ? "治理 / 訓練修補方案參考"
+    : "建議正式修補方案";
   const currentBucketSupportRows = recommendedPatch?.current_live_structure_bucket_rows ?? exactLane?.current_live_structure_bucket_rows;
   const currentBucketSupportMinimum = recommendedPatch?.minimum_support_rows ?? null;
   const currentBucketSupportLabel = currentBucketSupportRows != null
-    ? ` · current bucket ${currentBucketSupportRows}${currentBucketSupportMinimum != null ? `/${currentBucketSupportMinimum}` : ""}`
-    : "";
+    ? `${PATHOLOGY_LABELS.currentBucketSupport} ${currentBucketSupportRows}${currentBucketSupportMinimum != null ? `/${currentBucketSupportMinimum}` : ""}`
+    : null;
+  const exactLaneRowsLabel = exactLane?.rows != null
+    ? `${PATHOLOGY_LABELS.exactLaneCohort} ${exactLane.rows}`
+    : `${PATHOLOGY_LABELS.exactLaneCohort} —`;
+  const exactLaneHistoricalBucket = exactLane?.dominant_structure_bucket || null;
+  const exactLaneHistoricalBucketLabel = exactLaneHistoricalBucket && exactLaneHistoricalBucket !== exactLane?.current_live_structure_bucket
+    ? `${PATHOLOGY_LABELS.historicalLaneBucket} ${humanizeStructureBucketLabel(exactLaneHistoricalBucket)}`
+    : null;
+  const exactLaneCurrentBucketLabel = exactLane?.current_live_structure_bucket
+    ? `當前分桶 ${humanizeStructureBucketLabel(exactLane.current_live_structure_bucket)}`
+    : humanizeStructureBucketLabel(exactLane?.scope || "未提供分桶");
+  const spilloverPocketLabel = humanizeStructureBucketLabel(spilloverPocket?.regime_gate || spilloverLabel || PATHOLOGY_LABELS.noSpillover);
   const supportAlignmentStatusLabel = formatSupportAlignmentStatus(supportAlignmentStatus);
   const supportAlignmentCountsLabel = runtimeExactSupportRows != null || calibrationExactLaneRows != null
-    ? `runtime/calibration ${runtimeExactSupportRows ?? "—"} / ${calibrationExactLaneRows ?? "—"}`
+    ? `執行期 / 校準 ${runtimeExactSupportRows ?? "—"} / ${calibrationExactLaneRows ?? "—"}`
     : null;
   const supportAlignmentTone = supportAlignmentStatus === "runtime_ahead_of_calibration"
     ? "text-amber-200/90"
     : supportAlignmentStatus === "aligned"
       ? "text-emerald-200/90"
       : "text-slate-200/80";
+  const supportRouteLabel = supportRouteVerdict || recommendedPatch?.support_route_verdict || null;
+  const supportGovernanceRouteLabel = supportGovernanceRoute || recommendedPatch?.support_governance_route || null;
+  const supportRouteDisplayLabel = humanizeSupportRouteLabel(supportRouteLabel);
+  const supportGovernanceRouteDisplayLabel = humanizeSupportGovernanceRouteLabel(supportGovernanceRouteLabel);
 
   if (compact) {
     return (
@@ -181,58 +251,63 @@ export default function LivePathologySummaryCard({
           <div>
             <div className="text-sm font-semibold">{title}</div>
             <div className="mt-1 text-[11px] leading-5 text-amber-100/80">
-              摘要版只保留 current-live lane、spillover 與 patch 治理真相；完整 diagnostics 請看執行狀態。
+              摘要版只保留目前精準路徑、外溢口袋與修補方案治理真相；完整診斷請看執行狀態。
             </div>
           </div>
           <div className="rounded-full border border-amber-500/30 bg-amber-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-amber-200">
-            {summary.focus_scope_label || summary.focus_scope || "scope"}
+            {focusScopeLabel}
           </div>
         </div>
 
         <div className="grid gap-2 xl:grid-cols-3">
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/10 px-3 py-2 text-[11px] leading-5 text-emerald-50">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">exact lane</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">{PATHOLOGY_LABELS.exactLane}</div>
             <div className="mt-1 font-semibold text-emerald-100">
-              WR {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)}
+              勝率 {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)}
             </div>
             <div className="text-emerald-50/80">
-              {exactLane?.current_live_structure_bucket || exactLane?.scope || "未提供 bucket"}
+              {exactLaneCurrentBucketLabel}
             </div>
             <div className="text-emerald-50/80">
-              exact lane rows {exactLane?.rows ?? "—"}
-              {currentBucketSupportLabel}
+              {exactLaneRowsLabel}
+              {currentBucketSupportLabel ? ` · ${currentBucketSupportLabel}` : ""}
             </div>
+            {exactLaneHistoricalBucketLabel && (
+              <div className="text-emerald-50/80">{exactLaneHistoricalBucketLabel}</div>
+            )}
             {(supportAlignmentCountsLabel || supportAlignmentStatusLabel) && (
               <div className={supportAlignmentTone}>
-                {supportAlignmentCountsLabel || "runtime/calibration — / —"}
+                {supportAlignmentCountsLabel || "執行期 / 校準 — / —"}
                 {supportAlignmentStatusLabel ? ` · ${supportAlignmentStatusLabel}` : ""}
               </div>
             )}
           </div>
 
           <div className="rounded-lg border border-red-500/20 bg-red-950/10 px-3 py-2 text-[11px] leading-5 text-red-50">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-red-200/80">spillover</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-red-200/80">{PATHOLOGY_LABELS.spilloverPocket}</div>
             <div className="mt-1 font-semibold text-red-100">
-              {spilloverPocket?.regime_gate || spilloverLabel || "no spillover"}
+              {spilloverPocketLabel}
             </div>
             <div className="text-red-50/80">
-              {spillover?.extra_rows != null ? `spillover rows ${spillover.extra_rows}` : "spillover rows —"}
+              {spillover?.extra_rows != null ? `${PATHOLOGY_LABELS.spilloverRows} ${spillover.extra_rows}` : `${PATHOLOGY_LABELS.spilloverRows} —`}
               {spillover?.extra_row_share != null ? ` (${formatPct(spillover.extra_row_share)})` : ""}
             </div>
             <div className="text-red-50/80">
-              Δ WR {formatPct(spillover?.win_rate_delta_vs_exact ?? null, 1, true)} · Δ 品質 {formatDecimal(spillover?.avg_quality_delta_vs_exact ?? null, 3, true)}
+              Δ 勝率 {formatPct(spillover?.win_rate_delta_vs_exact ?? null, 1, true)} · Δ 品質 {formatDecimal(spillover?.avg_quality_delta_vs_exact ?? null, 3, true)}
             </div>
           </div>
 
           <div className="rounded-lg border border-sky-500/20 bg-sky-950/10 px-3 py-2 text-[11px] leading-5 text-sky-50">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">patch</div>
-            <div className="mt-1 font-semibold text-sky-100">{compactPatchLabel || "未提供 patch"}</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">{PATHOLOGY_LABELS.patch}</div>
+            <div className="mt-1 font-semibold text-sky-100">{compactPatchLabel || "未提供修補方案"}</div>
             <div className="text-sky-50/80">
-              support {recommendedPatch?.current_live_structure_bucket_rows ?? "—"}/{recommendedPatch?.minimum_support_rows ?? "—"}
-              {recommendedPatch?.gap_to_minimum != null ? ` · gap ${recommendedPatch.gap_to_minimum}` : ""}
+              樣本 {recommendedPatch?.current_live_structure_bucket_rows ?? "—"}/{recommendedPatch?.minimum_support_rows ?? "—"}
+              {recommendedPatch?.gap_to_minimum != null ? ` · 缺口 ${recommendedPatch.gap_to_minimum}` : ""}
             </div>
             <div className="text-sky-50/80">
-              {recommendedPatch?.support_route_verdict || formatPatchStatus(recommendedPatch?.status) || "patch 狀態未提供"}
+              {compactPatchStatusLabel || "修補方案狀態未提供"}
+              {supportRouteLabel ? ` · ${PATHOLOGY_LABELS.supportRoute} ${supportRouteDisplayLabel}` : ""}
+              {supportGovernanceRouteLabel ? ` · ${PATHOLOGY_LABELS.governanceRoute} ${supportGovernanceRouteDisplayLabel}` : ""}
             </div>
           </div>
         </div>
@@ -256,46 +331,49 @@ export default function LivePathologySummaryCard({
         <div>
           <div className="text-sm font-semibold">{title}</div>
           <div className="mt-1 text-[11px] leading-5 text-amber-100/80">
-            不要把 exact live lane 與更寬 scope 的 spillover 混成同一個 current-live 真相。
+            不要把精準路徑與更寬範圍的外溢口袋混成同一個目前 live 真相。
           </div>
         </div>
         <div className="rounded-full border border-amber-500/30 bg-amber-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-amber-200">
-          {summary.focus_scope_label || summary.focus_scope || "scope"}
+          {focusScopeLabel}
         </div>
       </div>
 
-      {summary.summary && (
+      {summaryText && (
         <div className="rounded-lg border border-amber-500/20 bg-black/10 px-3 py-2 leading-5 text-amber-50/90">
-          {summary.summary}
+          {summaryText}
         </div>
       )}
 
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/10 px-3 py-3 text-emerald-50">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">exact live lane</div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">{PATHOLOGY_LABELS.exactLane}</div>
           <div className="mt-1 text-sm font-semibold text-emerald-100">
             {exactLane?.scope || "regime_label+regime_gate+entry_quality_label"}
           </div>
           <div className="mt-2 space-y-1 text-[11px] leading-5 text-emerald-50/85">
             <div>
-              rows {exactLane?.rows ?? "—"}
-              {currentBucketSupportLabel}
+              {exactLaneRowsLabel}
+              {currentBucketSupportLabel ? ` · ${currentBucketSupportLabel}` : ""}
             </div>
             {(supportAlignmentCountsLabel || supportAlignmentStatusLabel) && (
               <div className={supportAlignmentTone}>
-                {supportAlignmentCountsLabel || "runtime/calibration — / —"}
+                {supportAlignmentCountsLabel || "執行期 / 校準 — / —"}
                 {supportAlignmentStatusLabel ? ` · ${supportAlignmentStatusLabel}` : ""}
               </div>
             )}
             {supportAlignmentSummary && (
               <div className={supportAlignmentTone}>{supportAlignmentSummary}</div>
             )}
-            <div>{exactLane?.current_live_structure_bucket || "未提供 current live structure bucket"}</div>
+            <div>{exactLaneCurrentBucketLabel}</div>
+            {exactLaneHistoricalBucketLabel && (
+              <div>{exactLaneHistoricalBucketLabel}</div>
+            )}
             <div>
-              WR {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)} · PnL {formatPct(exactLane?.avg_pnl ?? null, 2, true)}
+              勝率 {formatPct(exactLane?.win_rate ?? null)} · 品質 {formatDecimal(exactLane?.avg_quality ?? null)} · 損益 {formatPct(exactLane?.avg_pnl ?? null, 2, true)}
             </div>
             <div>
-              DD 懲罰 {formatPct(exactLane?.avg_drawdown_penalty ?? null)} · 深套 {formatPct(exactLane?.avg_time_underwater ?? null)}
+              回撤懲罰 {formatPct(exactLane?.avg_drawdown_penalty ?? null)} · 深套 {formatPct(exactLane?.avg_time_underwater ?? null)}
             </div>
           </div>
         </div>
@@ -303,22 +381,22 @@ export default function LivePathologySummaryCard({
         <div className="rounded-lg border border-red-500/20 bg-red-950/10 px-3 py-3 text-red-50">
           <div className="text-[10px] uppercase tracking-[0.16em] text-red-200/80">{spilloverLabel}</div>
           <div className="mt-1 text-sm font-semibold text-red-100">
-            {spilloverPocket?.regime_gate || summary.focus_scope_label || "no spillover"}
+            {spilloverPocketLabel}
           </div>
           <div className="mt-2 space-y-1 text-[11px] leading-5 text-red-50/85">
             <div>
-              focus scope rows {summary.focus_scope_rows ?? "—"}
-              {spillover?.extra_rows != null ? ` · spillover rows ${spillover.extra_rows}` : ""}
+              {PATHOLOGY_LABELS.focusScopeRows} {summary.focus_scope_rows ?? "—"}
+              {spillover?.extra_rows != null ? ` · ${PATHOLOGY_LABELS.spilloverRows} ${spillover.extra_rows}` : ""}
               {spillover?.extra_row_share != null ? ` (${formatPct(spillover.extra_row_share)})` : ""}
             </div>
             <div>
-              WR {formatPct(spilloverPocket?.win_rate ?? null)} · 品質 {formatDecimal(spilloverPocket?.avg_quality ?? null)} · PnL {formatPct(spilloverPocket?.avg_pnl ?? null, 2, true)}
+              勝率 {formatPct(spilloverPocket?.win_rate ?? null)} · 品質 {formatDecimal(spilloverPocket?.avg_quality ?? null)} · 損益 {formatPct(spilloverPocket?.avg_pnl ?? null, 2, true)}
             </div>
             <div>
-              Δ WR {formatPct(spillover?.win_rate_delta_vs_exact ?? null, 1, true)} · Δ 品質 {formatDecimal(spillover?.avg_quality_delta_vs_exact ?? null, 3, true)} · Δ PnL {formatPct(spillover?.avg_pnl_delta_vs_exact ?? null, 2, true)}
+              Δ 勝率 {formatPct(spillover?.win_rate_delta_vs_exact ?? null, 1, true)} · Δ 品質 {formatDecimal(spillover?.avg_quality_delta_vs_exact ?? null, 3, true)} · Δ 損益 {formatPct(spillover?.avg_pnl_delta_vs_exact ?? null, 2, true)}
             </div>
             <div>
-              DD 懲罰 {formatPct(spilloverPocket?.avg_drawdown_penalty ?? null)} · 深套 {formatPct(spilloverPocket?.avg_time_underwater ?? null)}
+              回撤懲罰 {formatPct(spilloverPocket?.avg_drawdown_penalty ?? null)} · 深套 {formatPct(spilloverPocket?.avg_time_underwater ?? null)}
             </div>
           </div>
         </div>
@@ -326,7 +404,7 @@ export default function LivePathologySummaryCard({
 
       {topShifts.length > 0 && (
         <div className="space-y-2">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-amber-200/80">top 4H shifts</div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-amber-200/80">{PATHOLOGY_LABELS.top4hShifts}</div>
           <div className="flex flex-wrap gap-2">
             {topShifts.map((shift, index) => (
               <div key={`${shift.feature || "shift"}-${index}`} className="rounded-full border border-amber-500/20 bg-black/10 px-3 py-1.5 text-[11px] text-amber-50/90">
@@ -341,9 +419,9 @@ export default function LivePathologySummaryCard({
         <div className="rounded-lg border border-sky-500/20 bg-sky-950/10 px-3 py-3 text-sky-50 space-y-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">建議正式 patch</div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200/80">{patchSectionTitle}</div>
               <div className="mt-1 text-sm font-semibold text-sky-100">
-                {recommendedPatch.recommended_profile || "未提供 profile"}
+                {patchProfileLabel}
               </div>
             </div>
             <div className="rounded-full border border-sky-500/30 bg-sky-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-sky-200">
@@ -352,31 +430,32 @@ export default function LivePathologySummaryCard({
           </div>
           <div className="space-y-1 text-[11px] leading-5 text-sky-50/90">
             <div>
-              live spillover {recommendedPatch.spillover_regime_gate || "—"}
-              {recommendedPatch.spillover_rows != null ? ` · rows ${recommendedPatch.spillover_rows}` : ""}
+              {PATHOLOGY_LABELS.currentSpillover} {recommendedPatch.spillover_regime_gate || "—"}
+              {recommendedPatch.spillover_rows != null ? ` · 樣本 ${recommendedPatch.spillover_rows}` : ""}
             </div>
             <div>
-              reference patch {recommendedPatch.reference_patch_scope || recommendedPatch.spillover_regime_gate || "—"}
-              {recommendedPatch.reference_source ? ` · via ${recommendedPatch.reference_source}` : ""}
+              {PATHOLOGY_LABELS.referencePatch} {recommendedPatch.reference_patch_scope || recommendedPatch.spillover_regime_gate || "—"}
+              {recommendedPatch.reference_source ? ` · 來源 ${recommendedPatch.reference_source}` : ""}
             </div>
             <div>
-              support {recommendedPatch.current_live_structure_bucket_rows ?? "—"}
+              樣本 {recommendedPatch.current_live_structure_bucket_rows ?? "—"}
               /
               {recommendedPatch.minimum_support_rows ?? "—"}
-              {recommendedPatch.gap_to_minimum != null ? ` · gap ${recommendedPatch.gap_to_minimum}` : ""}
+              {recommendedPatch.gap_to_minimum != null ? ` · 缺口 ${recommendedPatch.gap_to_minimum}` : ""}
             </div>
             <div>
-              support route {recommendedPatch.support_route_verdict || "—"}
-              {recommendedPatch.preferred_support_cohort ? ` · cohort ${recommendedPatch.preferred_support_cohort}` : ""}
+              {PATHOLOGY_LABELS.supportRoute} {supportRouteDisplayLabel || "—"}
+              {supportGovernanceRouteLabel ? ` · ${PATHOLOGY_LABELS.governanceRoute} ${supportGovernanceRouteDisplayLabel}` : ""}
+              {recommendedPatch.preferred_support_cohort ? ` · 參考樣本群 ${humanizeRuntimeDetailText(recommendedPatch.preferred_support_cohort)}` : ""}
             </div>
-            {recommendedPatch.reason && <div>{recommendedPatch.reason}</div>}
-            {recommendedPatch.recommended_action && <div>action {recommendedPatch.recommended_action}</div>}
+            {patchReasonLabel && <div>{patchReasonLabel}</div>}
+            {patchActionLabel && <div>{PATHOLOGY_LABELS.nextAction} {patchActionLabel}</div>}
           </div>
           {collapseFeatures.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {collapseFeatures.map((feature) => (
                 <div key={feature} className="rounded-full border border-sky-500/20 bg-black/10 px-3 py-1.5 text-[11px] text-sky-50/90">
-                  {feature}
+                  {humanizeFeatureKey(feature, { preferShortLabel: true })}
                 </div>
               ))}
             </div>

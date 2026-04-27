@@ -18,6 +18,7 @@ from data_ingestion.backfill_historical import fetch_binance_klines
 from data_ingestion.labeling import generate_future_return_labels, save_labels_to_db
 from database.models import FeaturesNormalized, Labels, RawMarketData, init_db
 from feature_engine.preprocessor import backfill_missing_feature_rows
+from scripts import backfill_4h_distance as backfill_4h_distance_module
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -163,6 +164,7 @@ def run_backfill_pipeline(
     actions = {
         "raw_rows_inserted": 0,
         "feature_rows_inserted": 0,
+        "four_h_distance_refreshed": False,
         "labels_saved": 0,
     }
 
@@ -177,6 +179,10 @@ def run_backfill_pipeline(
             if progress_callback:
                 progress_callback("features", {"symbol": symbol})
             actions["feature_rows_inserted"] = backfill_missing_feature_rows(session, symbol=symbol, lookback_days=None)
+            if progress_callback:
+                progress_callback("4h_distance", {"symbol": symbol})
+            backfill_4h_distance_module.main()
+            actions["four_h_distance_refreshed"] = True
         if plan["missing_raw_start"] or plan["missing_feature_start"] or plan["missing_label_start"]:
             if progress_callback:
                 progress_callback("labels", {"horizon_hours": horizon_hours})

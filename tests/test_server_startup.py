@@ -1,9 +1,11 @@
 import json
+import os
 from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from fastapi import HTTPException
 from server import main as server_main
 from server.routes import api as api_module
 
@@ -120,6 +122,426 @@ def test_run_startup_raw_continuity_check_records_failure_status():
     assert app.state.raw_continuity_status["status"] == "error"
 
 
+def test_health_check_includes_runtime_build_metadata(monkeypatch):
+    monkeypatch.setattr(server_main.app.state, "raw_continuity_status", {"status": "clean"}, raising=False)
+    monkeypatch.setattr(server_main.app.state, "feature_continuity_status", {"status": "clean"}, raising=False)
+    monkeypatch.setattr(
+        server_main,
+        "_load_runtime_build_metadata",
+        lambda: {
+            "process_started_at": "2026-04-22T08:30:00+00:00",
+            "git_head_commit": "abc123",
+            "git_head_committed_at": "2026-04-22T08:45:00+00:00",
+            "head_sync_status": "stale_head_commit",
+            "head_sync_basis": "latest_runtime_source_modified_at",
+            "latest_runtime_source_path": "server/main.py",
+            "latest_runtime_source_modified_at": "2026-04-22T08:50:00+00:00",
+        },
+    )
+
+    import asyncio
+
+    payload = asyncio.run(server_main.health_check())
+
+    assert payload["status"] == "ok"
+    assert payload["runtime_build"]["git_head_commit"] == "abc123"
+    assert payload["runtime_build"]["head_sync_status"] == "stale_head_commit"
+    assert payload["runtime_build"]["head_sync_basis"] == "latest_runtime_source_modified_at"
+    assert payload["runtime_build"]["latest_runtime_source_path"] == "server/main.py"
+    assert payload["raw_continuity"]["status"] == "clean"
+    assert payload["feature_continuity"]["status"] == "clean"
+
+
+def test_determine_head_sync_status_prefers_latest_runtime_source_mtime():
+    status, basis = server_main._determine_head_sync_status(
+        process_started_at=datetime.fromisoformat("2026-04-22T08:30:00+00:00"),
+        head_committed_at=datetime.fromisoformat("2026-04-22T08:45:00+00:00"),
+        latest_runtime_source_modified_at=datetime.fromisoformat("2026-04-22T08:15:00+00:00"),
+    )
+
+    assert status == "current_head_commit"
+    assert basis == "latest_runtime_source_modified_at"
+
+
+def test_determine_head_sync_status_marks_backend_stale_when_runtime_source_is_newer():
+    status, basis = server_main._determine_head_sync_status(
+        process_started_at=datetime.fromisoformat("2026-04-22T08:30:00+00:00"),
+        head_committed_at=datetime.fromisoformat("2026-04-22T08:45:00+00:00"),
+        latest_runtime_source_modified_at=datetime.fromisoformat("2026-04-22T08:35:00+00:00"),
+    )
+
+    assert status == "stale_head_commit"
+    assert basis == "latest_runtime_source_modified_at"
+
+
+def test_load_runtime_build_metadata_uses_runtime_source_mtime_when_commit_lands_later(monkeypatch):
+    monkeypatch.setattr(
+        server_main,
+        "_PROCESS_STARTED_AT",
+        datetime.fromisoformat("2026-04-22T08:30:00+00:00"),
+    )
+    monkeypatch.setattr(
+        server_main,
+        "_load_latest_runtime_source_metadata",
+        lambda: {
+            "latest_runtime_source_path": "server/main.py",
+            "latest_runtime_source_modified_at": "2026-04-22T08:15:00+00:00",
+        },
+    )
+
+    class DummyCompletedProcess:
+        returncode = 0
+        stdout = "abc123\n2026-04-22T08:45:00+00:00\n"
+        stderr = ""
+
+    monkeypatch.setattr(server_main.subprocess, "run", lambda *args, **kwargs: DummyCompletedProcess())
+
+    payload = server_main._load_runtime_build_metadata()
+
+    assert payload["git_head_commit"] == "abc123"
+    assert payload["head_sync_status"] == "current_head_commit"
+    assert payload["head_sync_basis"] == "latest_runtime_source_modified_at"
+    assert payload["latest_runtime_source_path"] == "server/main.py"
+
+
+def test_compute_runtime_source_metadata_ignores_generated_artifacts_in_code_dirs(monkeypatch, tmp_path):
+    server_dir = tmp_path / "server"
+    model_dir = tmp_path / "model"
+    server_dir.mkdir()
+    model_dir.mkdir()
+
+    source_file = server_dir / "main.py"
+    generated_artifact = model_dir / "ic_signs.json"
+
+    source_file.write_text("print('runtime source')\n")
+    generated_artifact.write_text('{"generated": true}\n')
+
+    os.utime(source_file, (1_650_000_000, 1_650_000_000))
+    os.utime(generated_artifact, (1_660_000_000, 1_660_000_000))
+
+    monkeypatch.setattr(server_main, "PROJECT_ROOT", tmp_path)
+
+    payload = server_main._compute_runtime_source_metadata()
+
+    assert payload["latest_runtime_source_path"] == "server/main.py"
+    assert payload["latest_runtime_source_modified_at"] == datetime.fromtimestamp(
+        1_650_000_000,
+        timezone.utc,
+    ).isoformat()
+
+
+def test_load_recent_canonical_drift_summary_maps_nested_reference_window_comparison(tmp_path):
+    artifact = {
+        "generated_at": "2026-04-22T03:24:15.971116+00:00",
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "primary_window": {
+            "window": "1000",
+            "alerts": ["regime_shift"],
+            "summary": {
+                "rows": 1000,
+                "win_rate": 0.384,
+                "drift_interpretation": "regime_concentration",
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.814,
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0002,
+                    "avg_simulated_quality": 0.0698,
+                    "avg_drawdown_penalty": 0.2374,
+                    "spot_long_win_rate": 0.17,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 7,
+                    "frozen_count": 1,
+                    "compressed_count": 7,
+                    "expected_static_count": 0,
+                    "expected_compressed_count": 0,
+                    "overlay_only_count": 1,
+                    "unexpected_frozen_count": 0,
+                    "unexpected_compressed_count": 3,
+                    "null_heavy_count": 10,
+                    "low_distinct_count": 10,
+                    "low_distinct_examples": [
+                        {"feature": "feat_eye"},
+                        {"feature": "feat_ear"},
+                        {"feature": "feat_nose"},
+                        {"feature": "feat_tongue"},
+                    ],
+                    "expected_compressed_examples": [{"feature": "feat_atr_pct"}],
+                    "unexpected_compressed_examples": [
+                        {"feature": "feat_mind"},
+                        {"feature": "feat_4h_bias50"},
+                    ],
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 35, "target": 1},
+                    "longest_target_streak": {"count": 273, "target": 0, "start_timestamp": "2026-04-21 00:00:00", "end_timestamp": "2026-04-22 00:00:00"},
+                    "longest_zero_target_streak": {"count": 273, "target": 0},
+                    "longest_one_target_streak": {"count": 152, "target": 1},
+                },
+                "reference_window_comparison": {
+                    "current_quality": {
+                        "win_rate": 0.384,
+                        "avg_simulated_quality": 0.0698,
+                        "avg_simulated_pnl": 0.0002,
+                    },
+                    "reference_quality": {
+                        "win_rate": 0.915,
+                        "avg_simulated_quality": 0.5282,
+                        "avg_simulated_pnl": 0.0142,
+                    },
+                    "win_rate_delta_vs_reference": -0.531,
+                    "avg_simulated_quality_delta_vs_reference": -0.4584,
+                    "avg_simulated_pnl_delta_vs_reference": -0.014,
+                    "top_mean_shift_features": [
+                        {"feature": "feat_4h_bias200", "current_mean": 7.6623, "reference_mean": 4.1934}
+                    ],
+                    "new_unexpected_compressed_features": ["feat_mind"],
+                },
+            },
+        },
+        "blocking_window": {
+            "window": "2500",
+            "alerts": ["regime_shift", "label_imbalance"],
+            "summary": {
+                "rows": 2500,
+                "win_rate": 0.291,
+                "drift_interpretation": "distribution_pathology",
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.902,
+                "quality_metrics": {
+                    "avg_simulated_pnl": -0.0014,
+                    "avg_simulated_quality": -0.024,
+                    "avg_drawdown_penalty": 0.281,
+                    "spot_long_win_rate": 0.11,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 12,
+                    "compressed_count": 9,
+                    "expected_static_count": 1,
+                    "expected_compressed_count": 2,
+                    "overlay_only_count": 1,
+                    "null_heavy_count": 11,
+                    "low_distinct_count": 12,
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 48, "target": 0},
+                    "longest_zero_target_streak": {"count": 300, "target": 0},
+                    "longest_one_target_streak": {"count": 20, "target": 1},
+                },
+                "reference_window_comparison": {
+                    "prev_win_rate": 0.71,
+                    "prev_quality": 0.221,
+                    "prev_pnl": 0.0051,
+                    "win_rate_delta": -0.419,
+                    "quality_delta": -0.245,
+                    "pnl_delta": -0.0065,
+                    "top_mean_shift_features": [
+                        {"feature": "feat_vix", "current_mean": 29.4, "reference_mean": 19.2}
+                    ],
+                },
+            },
+        },
+    }
+    artifact_path = tmp_path / "recent_drift_report.json"
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+
+    summary = api_module._load_recent_canonical_drift_summary(artifact_path)
+
+    comparison = summary["primary_window"]["summary"]["reference_window_comparison"]
+    assert comparison["prev_win_rate"] == 0.915
+    assert comparison["prev_quality"] == 0.5282
+    assert comparison["prev_pnl"] == 0.0142
+    assert comparison["win_rate_delta"] == -0.531
+    assert comparison["quality_delta"] == -0.4584
+    assert comparison["pnl_delta"] == -0.014
+    assert comparison["top_mean_shift_features"][0]["feature"] == "feat_4h_bias200"
+    assert comparison["new_unexpected_compressed_features"] == ["feat_mind"]
+    feature_diag = summary["primary_window"]["summary"]["feature_diagnostics"]
+    assert feature_diag["frozen_count"] == 1
+    assert feature_diag["unexpected_compressed_count"] == 3
+    assert feature_diag["low_distinct_features"] == ["feat_eye", "feat_ear", "feat_nose"]
+    assert feature_diag["unexpected_compressed_features"] == ["feat_mind", "feat_4h_bias50"]
+    target_path = summary["primary_window"]["summary"]["target_path_diagnostics"]
+    assert target_path["longest_target_streak"]["count"] == 273
+    assert target_path["longest_target_streak"]["start_timestamp"] == "2026-04-21 00:00:00"
+    blocking = summary["blocking_window"]
+    assert blocking["window"] == "2500"
+    assert blocking["alerts"] == ["regime_shift", "label_imbalance"]
+    assert blocking["summary"]["drift_interpretation"] == "distribution_pathology"
+    assert blocking["summary"]["quality_metrics"]["avg_simulated_pnl"] == -0.0014
+    assert blocking["summary"]["reference_window_comparison"]["top_mean_shift_features"][0]["feature"] == "feat_vix"
+
+
+
+def test_load_recent_canonical_drift_summary_falls_back_to_issue_blocking_window_when_artifact_placeholder_is_empty(tmp_path, monkeypatch):
+    artifact = {
+        "generated_at": "2026-04-22T03:24:15.971116+00:00",
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "windows": {
+            "250": {
+                "rows": 250,
+                "win_rate": 0.828,
+                "drift_interpretation": "distribution_pathology",
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.544,
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0123,
+                    "avg_simulated_quality": 0.4497,
+                    "avg_drawdown_penalty": 0.18,
+                    "spot_long_win_rate": 0.47,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 8,
+                    "compressed_count": 8,
+                    "expected_static_count": 0,
+                    "expected_compressed_count": 0,
+                    "overlay_only_count": 1,
+                    "null_heavy_count": 10,
+                    "low_distinct_count": 10,
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 69, "target": 1},
+                    "longest_zero_target_streak": {"count": 43, "target": 0},
+                    "longest_one_target_streak": {"count": 69, "target": 1},
+                },
+                "reference_window_comparison": {
+                    "prev_win_rate": 0.076,
+                    "prev_quality": -0.002,
+                    "prev_pnl": -0.001,
+                    "win_rate_delta": 0.752,
+                    "quality_delta": 0.4517,
+                    "pnl_delta": 0.0133,
+                    "top_mean_shift_features": [{"feature": "feat_4h_bb_pct_b"}],
+                },
+                "alerts": ["label_imbalance"],
+            },
+            "1000": {
+                "rows": 1000,
+                "win_rate": 0.394,
+                "drift_interpretation": "regime_concentration",
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.813,
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0009,
+                    "avg_simulated_quality": 0.0814,
+                    "avg_drawdown_penalty": 0.2414,
+                    "spot_long_win_rate": 0.199,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 7,
+                    "compressed_count": 7,
+                    "expected_static_count": 0,
+                    "expected_compressed_count": 0,
+                    "overlay_only_count": 1,
+                    "null_heavy_count": 10,
+                    "low_distinct_count": 10,
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 64, "target": 1},
+                    "longest_zero_target_streak": {"count": 273, "target": 0},
+                    "longest_one_target_streak": {"count": 64, "target": 1},
+                },
+                "reference_window_comparison": {
+                    "prev_win_rate": 0.934,
+                    "prev_quality": 0.5441,
+                    "prev_pnl": 0.0146,
+                    "win_rate_delta": -0.54,
+                    "quality_delta": -0.4627,
+                    "pnl_delta": -0.0137,
+                    "top_mean_shift_features": [
+                        {"feature": "feat_4h_bias200"},
+                        {"feature": "feat_vwap_dev"},
+                    ],
+                },
+                "alerts": ["regime_shift"],
+            },
+        },
+        "primary_window": {
+            "window": "250",
+            "alerts": ["label_imbalance"],
+            "summary": {
+                "rows": 250,
+                "win_rate": 0.828,
+                "drift_interpretation": "distribution_pathology",
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.544,
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0123,
+                    "avg_simulated_quality": 0.4497,
+                    "avg_drawdown_penalty": 0.18,
+                    "spot_long_win_rate": 0.47,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 8,
+                    "compressed_count": 8,
+                    "expected_static_count": 0,
+                    "expected_compressed_count": 0,
+                    "overlay_only_count": 1,
+                    "null_heavy_count": 10,
+                    "low_distinct_count": 10,
+                },
+                "target_path_diagnostics": {
+                    "tail_target_streak": {"count": 69, "target": 1},
+                    "longest_zero_target_streak": {"count": 43, "target": 0},
+                    "longest_one_target_streak": {"count": 69, "target": 1},
+                },
+                "reference_window_comparison": {
+                    "prev_win_rate": 0.076,
+                    "prev_quality": -0.002,
+                    "prev_pnl": -0.001,
+                    "win_rate_delta": 0.752,
+                    "quality_delta": 0.4517,
+                    "pnl_delta": 0.0133,
+                    "top_mean_shift_features": [{"feature": "feat_4h_bb_pct_b"}],
+                },
+            },
+        },
+        "blocking_window": {"window": None, "alerts": [], "summary": {}},
+    }
+    artifact_path = tmp_path / "recent_drift_report.json"
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+    issues_path = tmp_path / "issues.json"
+    issues_path.write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_recent_distribution_pathology",
+                        "summary": {
+                            "window": "1000",
+                            "win_rate": 0.394,
+                            "dominant_regime": "bull",
+                            "dominant_regime_share": 0.813,
+                            "avg_quality": 0.0814,
+                            "avg_pnl": 0.0009,
+                            "alerts": ["regime_shift"],
+                        },
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_ISSUES_JSON_PATH", issues_path)
+
+    summary = api_module._load_recent_canonical_drift_summary(artifact_path)
+
+    assert summary["blocking_window"]["window"] == "1000"
+    assert summary["blocking_window"]["alerts"] == ["regime_shift"]
+    assert summary["blocking_window"]["summary"]["rows"] == 1000
+    assert summary["blocking_window"]["summary"]["win_rate"] == 0.394
+    assert summary["blocking_window"]["summary"]["quality_metrics"]["avg_simulated_quality"] == 0.0814
+    assert summary["blocking_window"]["summary"]["reference_window_comparison"]["top_mean_shift_features"][0]["feature"] == "feat_4h_bias200"
+
+
 def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     reconciliation_payload = {"status": "warning", "summary": "reconciliation evidence"}
     monkeypatch.setattr(api_module, "get_runtime_status", lambda key, default=None: {
@@ -135,6 +557,27 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     monkeypatch.setattr(api_module, "is_automation_enabled", lambda: True)
     monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "binance"}, "execution": {"mode": "paper", "venue": "binance", "venues": {"binance": {"enabled": True}}}})
     monkeypatch.setattr(api_module, "_ensure_execution_metadata_smoke_governance", lambda cfg, symbol: {"all_ok": True, "ok_count": 2, "venues_checked": 2, "venues": [{"venue": "binance", "ok": True}], "governance": {"status": "healthy"}})
+    monkeypatch.setattr(api_module, "_load_recent_canonical_drift_summary", lambda: {
+        "generated_at": "2026-04-22T00:00:00Z",
+        "primary_window": {
+            "window": 500,
+            "alerts": ["regime_shift"],
+            "summary": {
+                "rows": 500,
+                "win_rate": 0.316,
+                "drift_interpretation": "regime_concentration",
+            },
+        },
+        "blocking_window": {
+            "window": 1000,
+            "alerts": ["label_imbalance"],
+            "summary": {
+                "rows": 1000,
+                "win_rate": 0.287,
+                "drift_interpretation": "distribution_pathology",
+            },
+        },
+    })
     monkeypatch.setattr(api_module, "get_confidence_prediction", lambda: {
         "signal": "HOLD",
         "confidence": 0.346959,
@@ -191,10 +634,16 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["execution_surface_contract"]["shortcut_surface"]["name"] == "signal_banner"
     assert payload["execution_surface_contract"]["shortcut_surface"]["role"] == "shortcut-only"
     assert payload["execution_surface_contract"]["shortcut_surface"]["status"] == "not-upgraded"
-    assert payload["execution_surface_contract"]["shortcut_surface"]["message"] == "SignalBanner 目前只提供快捷下單 / 自動交易切換；完整 Execution 狀態、Guardrail context 與 stale governance 必須回 Dashboard 檢查。"
-    assert payload["execution_surface_contract"]["shortcut_surface"]["upgrade_prerequisite"] == "必須先完整消費 /api/status 的 ticking_state、stale governance、guardrail context，才能升級第二 execution route。"
+    assert payload["execution_surface_contract"]["shortcut_surface"]["message"] == "快捷面板目前只提供受阻塞點保護的下單入口 / 自動交易切換；完整執行狀態、保護欄脈絡與治理新鮮度必須回執行狀態頁檢查。"
+    assert payload["execution_surface_contract"]["shortcut_surface"]["upgrade_prerequisite"] == "必須先完整消費 /api/status 的監控跳動狀態、治理新鮮度與保護欄脈絡，才能升級第二執行路由。"
     assert payload["execution_surface_contract"]["readiness_scope"] == "runtime_governance_visibility_only"
     assert payload["execution_surface_contract"]["operator_message"].startswith("目前完成的是 execution governance / visibility closure，不是 live 或 canary readiness。")
+    assert payload["execution"]["recent_canonical_drift"]["primary_window"]["window"] == 500
+    assert payload["execution"]["recent_canonical_drift"]["primary_window"]["summary"]["drift_interpretation"] == "regime_concentration"
+    assert payload["execution"]["recent_canonical_drift"]["blocking_window"]["window"] == 1000
+    assert payload["execution_surface_contract"]["recent_canonical_drift"]["blocking_window"]["summary"]["drift_interpretation"] == "distribution_pathology"
+    assert payload["execution_surface_contract"]["recent_canonical_drift"]["primary_window"]["alerts"] == ["regime_shift"]
+    assert payload["recent_canonical_drift"]["generated_at"] == "2026-04-22T00:00:00Z"
     assert payload["execution"]["live_runtime_truth"]["runtime_closure_state"] == "capacity_opened_signal_hold"
     assert payload["execution_surface_contract"]["live_runtime_truth"]["runtime_closure_state"] == "capacity_opened_signal_hold"
     assert payload["execution"]["live_runtime_truth"]["regime_label"] == "bull"
@@ -221,6 +670,128 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
         "order ack lifecycle 尚未驗證",
         "fill lifecycle 尚未驗證",
     ]
+
+
+def test_api_trade_rejects_buy_when_current_live_blocker_active(monkeypatch):
+    async def _blocked_confidence_payload():
+        return {
+            "signal": "CIRCUIT_BREAKER",
+            "deployment_blocker": "circuit_breaker_active",
+            "deployment_blocker_reason": "release condition still unmet",
+            "runtime_closure_state": "circuit_breaker_active",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "circuit_breaker_active",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 87,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_supported",
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "current_recent_window_wins": 0,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 15,
+                }
+            },
+        }
+
+    class ExplodingExecutionService:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("ExecutionService must not submit buy orders while current-live blocker is active")
+
+    monkeypatch.setattr(api_module, "get_confidence_prediction", _blocked_confidence_payload)
+    monkeypatch.setattr(api_module, "ExecutionService", ExplodingExecutionService)
+
+    import asyncio
+
+    req = api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.001)
+    try:
+        asyncio.run(api_module.api_trade(req, request=_local_request()))
+    except HTTPException as exc:
+        assert exc.status_code == 409
+        assert exc.detail["code"] == "current_live_deployment_blocker"
+        assert "目前即時部署阻塞" in exc.detail["message"]
+        assert "Current live" not in exc.detail["message"]
+        assert exc.detail["context"]["blocked_side"] == "buy"
+        assert exc.detail["context"]["allowed_sides"] == ["reduce", "sell"]
+        assert exc.detail["context"]["reduce_only_allowed"] is True
+        assert exc.detail["context"]["deployment_blocker"] == "circuit_breaker_active"
+        assert exc.detail["context"]["runtime_closure_state"] == "circuit_breaker_active"
+        assert exc.detail["context"]["current_live_structure_bucket_rows"] == 87
+        assert exc.detail["context"]["release_condition"]["additional_recent_window_wins_needed"] == 15
+        assert "前往 /execution/status" in exc.detail["context"]["operator_action"]
+        assert "Go to /execution/status" not in exc.detail["context"]["operator_action"]
+    else:
+        raise AssertionError("buy/add-exposure trade must fail closed under current-live blocker")
+
+
+def test_api_trade_rejects_buy_with_chinese_copy_when_current_live_guardrail_unavailable(monkeypatch):
+    def _confidence_unavailable():
+        raise RuntimeError("predictor offline")
+
+    class ExplodingExecutionService:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("ExecutionService must not submit buy orders while current-live guardrail is unavailable")
+
+    monkeypatch.setattr(api_module, "get_confidence_prediction", _confidence_unavailable)
+    monkeypatch.setattr(api_module, "ExecutionService", ExplodingExecutionService)
+
+    import asyncio
+
+    req = api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.001)
+    try:
+        asyncio.run(api_module.api_trade(req, request=_local_request()))
+    except HTTPException as exc:
+        assert exc.status_code == 409
+        assert exc.detail["code"] == "current_live_guardrail_unavailable"
+        assert "目前即時風控無法取得" in exc.detail["message"]
+        assert "Current live" not in exc.detail["message"]
+        assert exc.detail["context"]["blocked_side"] == "buy"
+        assert exc.detail["context"]["allowed_sides"] == ["reduce", "sell"]
+        assert exc.detail["context"]["reduce_only_allowed"] is True
+        assert "重新整理 /execution/status" in exc.detail["context"]["operator_action"]
+        assert "Refresh /execution/status" not in exc.detail["context"]["operator_action"]
+    else:
+        raise AssertionError("buy/add-exposure trade must fail closed when current-live guardrail is unavailable")
+
+
+def test_api_trade_allows_reduce_when_current_live_blocker_active(monkeypatch):
+    calls = []
+
+    def _confidence_should_not_run():
+        raise AssertionError("reduce/de-risk orders must not depend on predictor availability")
+
+    class FakeExecutionService:
+        def __init__(self, cfg, db_session=None):
+            self.cfg = cfg
+            self.db_session = db_session
+
+        def submit_order(self, **kwargs):
+            calls.append(kwargs)
+            return {
+                "success": True,
+                "venue": "binance",
+                "guardrails": {"last_reject": None},
+                "order": {"id": "dry_reduce_1", "status": "accepted"},
+            }
+
+    monkeypatch.setattr(api_module, "get_confidence_prediction", _confidence_should_not_run)
+    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "binance"}, "trading": {"venue": "binance"}})
+    monkeypatch.setattr(api_module, "get_db", lambda: DummySession())
+    monkeypatch.setattr(api_module, "ExecutionService", FakeExecutionService)
+
+    import asyncio
+
+    req = api_module.TradeRequest(side="reduce", symbol="BTCUSDT", qty=0.001)
+    result = asyncio.run(api_module.api_trade(req, request=_local_request()))
+
+    assert result["order_id"] == "dry_reduce_1"
+    assert calls == [{
+        "side": "sell",
+        "symbol": "BTCUSDT",
+        "qty": 0.001,
+        "order_type": "market",
+        "reduce_only": True,
+    }]
 
 
 def test_overlay_confidence_with_live_predict_probe_prefers_fresh_probe_truth(tmp_path):
@@ -271,6 +842,32 @@ def test_overlay_confidence_with_live_predict_probe_prefers_fresh_probe_truth(tm
 
 
 
+def test_overlay_confidence_with_live_predict_probe_uses_generated_at_freshness_over_old_feature_timestamp(tmp_path):
+    probe_path = tmp_path / "live_predict_probe.json"
+    probe_path.write_text(json.dumps({
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "feature_timestamp": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat().replace("+00:00", "Z"),
+        "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+        "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+        "current_live_structure_bucket_rows": 0,
+        "q35_overall_verdict": "bias50_formula_may_be_too_harsh",
+    }), encoding="utf-8")
+
+    current = {
+        "structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q65",
+        "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q65",
+        "current_live_structure_bucket_rows": 0,
+        "q35_overall_verdict": None,
+    }
+    merged = api_module._overlay_confidence_with_live_predict_probe(current, path=probe_path, stale_after_sec=60)
+
+    assert merged["structure_bucket"] == "BLOCK|bull_high_bias200_overheat_block|q35"
+    assert merged["current_live_structure_bucket"] == "BLOCK|bull_high_bias200_overheat_block|q35"
+    assert merged["q35_overall_verdict"] == "bias50_formula_may_be_too_harsh"
+    assert merged["live_predict_probe_overlay_applied"] is True
+
+
+
 def test_overlay_confidence_with_live_predict_probe_skips_stale_artifact(tmp_path):
     probe_path = tmp_path / "live_predict_probe.json"
     probe_path.write_text(json.dumps({
@@ -288,6 +885,47 @@ def test_overlay_confidence_with_live_predict_probe_skips_stale_artifact(tmp_pat
     merged = api_module._overlay_confidence_with_live_predict_probe(current, path=probe_path, stale_after_sec=60)
 
     assert merged == current
+
+
+
+def test_enrich_confidence_with_q15_bucket_root_cause_surfaces_boundary_candidate(tmp_path, monkeypatch):
+    report_path = tmp_path / "q15_bucket_root_cause.json"
+    report_path.write_text(json.dumps({
+        "generated_at": "2026-04-21 16:01:00.665468",
+        "current_live": {
+            "structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "gap_to_q35_boundary": 0.0205,
+        },
+        "exact_live_lane": {
+            "dominant_neighbor_bucket": "CAUTION|structure_quality_caution|q35",
+            "dominant_neighbor_rows": 661,
+            "near_boundary_rows": 68,
+        },
+        "verdict": "boundary_sensitivity_candidate",
+        "candidate_patch_type": "bucket_boundary_review",
+        "candidate_patch_feature": "feat_4h_bb_pct_b",
+        "reason": "current_structure_quality 已貼近 q35 邊界。",
+        "verify_next": "以歷史 lane 回放驗證 boundary review 不會把 0-row blocker 假裝成已解。",
+        "candidate_patch": {
+            "type": "bucket_boundary_review",
+            "feature": "feat_4h_bb_pct_b",
+            "needed_raw_delta_to_cross_q35": 0.0603,
+        },
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_Q15_BUCKET_ROOT_CAUSE_PATH", report_path)
+
+    enriched = api_module._enrich_confidence_with_q15_bucket_root_cause({
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "deployment_blocker_details": {
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        },
+    })
+
+    assert enriched["q15_bucket_root_cause"]["verdict"] == "boundary_sensitivity_candidate"
+    assert enriched["q15_bucket_root_cause"]["candidate_patch_feature"] == "feat_4h_bb_pct_b"
+    assert enriched["q15_bucket_root_cause"]["gap_to_q35_boundary"] == 0.0205
+    assert enriched["q15_bucket_root_cause"]["dominant_neighbor_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert enriched["deployment_blocker_details"]["q15_bucket_root_cause"]["near_boundary_rows"] == 68
 
 
 
@@ -731,6 +1369,56 @@ def test_build_live_runtime_closure_surface_keeps_q15_patch_active_execution_blo
     assert "decision_quality_below_trade_floor" in payload["runtime_closure_summary"]
 
 
+def test_build_live_runtime_closure_surface_keeps_q35_exact_supported_patch_active_execution_blocked_state():
+    payload = api_module._build_live_runtime_closure_surface(
+        {
+            "signal": "HOLD",
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "entry_quality": 0.5534,
+            "entry_quality_label": "C",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "q35_discriminative_redesign_applied": True,
+            "q35_discriminative_redesign": {"applied": True, "weights": {"feat_nose": 0.5, "feat_ear": 0.5}},
+            "allowed_layers": 0,
+            "allowed_layers_raw": 1,
+            "allowed_layers_raw_reason": "entry_quality_C_single_layer",
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "deployment_blocker_reason": "q35 discriminative redesign 已啟用但 final execution 仍被 decision-quality trade floor 擋住",
+            "deployment_blocker_source": "decision_quality_contract+runtime_patch",
+            "deployment_blocker_details": {
+                "current_live_structure_bucket_rows": 74,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 0,
+                "support_route_verdict": "exact_bucket_supported",
+                "allowed_layers_raw": 1,
+                "q35_discriminative_redesign_applied": True,
+            },
+            "support_route_verdict": "exact_bucket_supported",
+            "support_progress": {
+                "status": "exact_supported",
+                "current_rows": 74,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 0,
+            },
+        }
+    )
+
+    assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
+    assert payload["deployment_blocker"] == "decision_quality_below_trade_floor"
+    assert payload["support_route_verdict"] == "exact_bucket_supported"
+    assert payload["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert payload["current_live_structure_bucket_rows"] == 74
+    assert payload["minimum_support_rows"] == 50
+    assert payload["current_live_structure_bucket_gap_to_minimum"] == 0
+    assert "q35 discriminative redesign 已啟用" in payload["runtime_closure_summary"]
+    assert "decision_quality_below_trade_floor" in payload["runtime_closure_summary"]
+
+
 def test_build_live_runtime_closure_surface_describes_exact_support_blocker_without_stale_q15_copy():
     payload = api_module._build_live_runtime_closure_surface(
         {
@@ -1146,6 +1834,59 @@ def test_load_execution_metadata_smoke_summary_reports_freshness(tmp_path, monke
     assert summary["freshness"]["age_minutes"] is not None
     assert summary["freshness"]["age_minutes"] >= 0
     assert summary["freshness"]["stale_after_minutes"] == api_module._EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES
+    venue = summary["venues"][0]
+    assert venue["proof_state"] == "public_metadata_only"
+    assert venue["readiness_scope"] == "venue_runtime_proof_required"
+    assert venue["blockers"] == [
+        "live exchange credential 尚未驗證",
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+    ]
+    assert venue["operator_next_action"].startswith("先配置 binance 交易憑證")
+    assert "場館生命週期通道" in venue["verify_next"]
+
+
+def test_load_execution_metadata_smoke_summary_marks_disabled_venue_as_metadata_only(tmp_path, monkeypatch):
+    fresh_path = tmp_path / "execution_metadata_smoke.json"
+    fresh_path.write_text(json.dumps({
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "symbol": "BTC/USDT",
+        "all_ok": True,
+        "ok_count": 1,
+        "venues_checked": 1,
+        "results": {
+            "okx": {"ok": True, "enabled_in_config": False, "credentials_configured": False, "contract": {"step_size": "0.001", "tick_size": "0.1"}},
+        },
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_SMOKE_PATH", fresh_path)
+
+    summary = api_module._load_execution_metadata_smoke_summary()
+
+    assert summary is not None
+    venue = summary["venues"][0]
+    assert venue["proof_state"] == "config_disabled_metadata_only"
+    assert venue["blockers"] == [
+        "場館設定停用",
+        "live exchange credential 尚未驗證",
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+    ]
+    assert "先開啟場館設定" in venue["operator_next_action"]
+
+
+def test_build_venue_runtime_proof_contract_marks_credentials_configured_lifecycle_gap():
+    contract = api_module._build_venue_runtime_proof_contract("binance", {
+        "ok": True,
+        "enabled_in_config": True,
+        "credentials_configured": True,
+    })
+
+    assert contract["proof_state"] == "credentials_configured_missing_runtime_lifecycle"
+    assert contract["blockers"] == [
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+    ]
+    assert "極小額實單" in contract["operator_next_action"]
 
 
 def test_load_execution_metadata_smoke_summary_marks_stale_and_invalid_timestamps(tmp_path, monkeypatch):
@@ -1611,7 +2352,21 @@ def test_build_live_runtime_closure_surface_surfaces_bull_caution_patch_summary(
     scope_summary = result["decision_quality_scope_pathology_summary"]
     patch_summary = scope_summary["recommended_patch"]
     assert scope_summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|CAUTION"
-    assert patch_summary["status"] == "reference_only_until_exact_support_ready"
+    assert result["recommended_patch"] == patch_summary
+    assert result["recommended_patch_profile"] == "core_plus_macro"
+    assert result["recommended_patch_status"] == "reference_only_non_current_live_scope"
+    assert result["recommended_patch_reference_scope"] == "bull|CAUTION"
+    assert result["recommended_patch_reference_source"] == patch_summary["reference_source"]
+    assert result["recommended_patch_support_route"] == "exact_bucket_missing_exact_lane_proxy_only"
+    assert result["recommended_patch_gap_to_minimum"] == 50
+    assert result["recommended_patch_current_live_structure_bucket_rows"] == 0
+    assert result["recommended_patch_minimum_support_rows"] == 50
+    assert "current live scope 是 bull|BLOCK" in result["recommended_patch_reason"]
+    assert "不可直接放行 runtime" in result["recommended_patch_reason"]
+    assert patch_summary["status"] == "reference_only_non_current_live_scope"
+    assert patch_summary["reference_only_cause"] == "non_current_live_scope"
+    assert patch_summary["patch_scope_matches_live"] is False
+    assert patch_summary["current_live_regime_gate"] == "bull|BLOCK"
     assert patch_summary["recommended_profile"] == "core_plus_macro"
     assert patch_summary["collapse_features"] == [
         "feat_4h_dist_swing_low",

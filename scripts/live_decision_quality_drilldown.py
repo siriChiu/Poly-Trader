@@ -26,6 +26,30 @@ OUT_JSON = PROJECT_ROOT / "data" / "live_decision_quality_drilldown.json"
 OUT_MD = PROJECT_ROOT / "docs" / "analysis" / "live_decision_quality_drilldown.md"
 
 
+def _recommended_patch_projection(recommended_patch: Any) -> dict[str, Any]:
+    if not isinstance(recommended_patch, dict):
+        return {
+            "recommended_patch_profile": None,
+            "recommended_patch_status": None,
+            "recommended_patch_reference_scope": None,
+            "recommended_patch_reference_source": None,
+            "recommended_patch_support_route": None,
+            "recommended_patch_gap_to_minimum": None,
+            "recommended_patch_current_live_structure_bucket_rows": None,
+            "recommended_patch_minimum_support_rows": None,
+        }
+    return {
+        "recommended_patch_profile": recommended_patch.get("recommended_profile"),
+        "recommended_patch_status": recommended_patch.get("status"),
+        "recommended_patch_reference_scope": recommended_patch.get("reference_patch_scope") or recommended_patch.get("spillover_regime_gate"),
+        "recommended_patch_reference_source": recommended_patch.get("reference_source"),
+        "recommended_patch_support_route": recommended_patch.get("support_route_verdict"),
+        "recommended_patch_gap_to_minimum": recommended_patch.get("gap_to_minimum"),
+        "recommended_patch_current_live_structure_bucket_rows": recommended_patch.get("current_live_structure_bucket_rows"),
+        "recommended_patch_minimum_support_rows": recommended_patch.get("minimum_support_rows"),
+    }
+
+
 def _scope_summary(name: str, payload: dict[str, Any]) -> dict[str, Any]:
     recent = payload.get("recent_pathology") or {}
     spillover = payload.get("spillover_vs_exact_live_lane") or {}
@@ -78,6 +102,48 @@ def _load_q35_audit_counterfactuals() -> dict[str, Any]:
     except Exception:
         return {}
     return payload.get("counterfactuals") or {}
+
+
+def _load_q35_audit_summary(current_live_structure_bucket: str | None) -> dict[str, Any] | None:
+    if not current_live_structure_bucket or "q35" not in str(current_live_structure_bucket):
+        return None
+    if not Q35_AUDIT_PATH.exists():
+        return None
+    try:
+        payload = json.loads(Q35_AUDIT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    applicability = payload.get("scope_applicability") if isinstance(payload.get("scope_applicability"), dict) else {}
+    if not applicability.get("active_for_current_live_row"):
+        return None
+    audit_bucket = (
+        applicability.get("current_structure_bucket")
+        or ((payload.get("current_live") or {}).get("structure_bucket"))
+        or current_live_structure_bucket
+    )
+    if audit_bucket and str(audit_bucket) != str(current_live_structure_bucket):
+        return None
+    segmented_calibration = payload.get("segmented_calibration") if isinstance(payload.get("segmented_calibration"), dict) else {}
+    deployment_grade = payload.get("deployment_grade_component_experiment") if isinstance(payload.get("deployment_grade_component_experiment"), dict) else {}
+    redesign = payload.get("base_stack_redesign_experiment") if isinstance(payload.get("base_stack_redesign_experiment"), dict) else {}
+    return {
+        "generated_at": payload.get("generated_at"),
+        "current_live_structure_bucket": audit_bucket or current_live_structure_bucket,
+        "target_structure_bucket": applicability.get("target_structure_bucket"),
+        "scope_applicability_status": applicability.get("status"),
+        "overall_verdict": payload.get("overall_verdict"),
+        "verdict_reason": payload.get("verdict_reason"),
+        "recommended_action": payload.get("recommended_action"),
+        "segmented_calibration_status": segmented_calibration.get("status"),
+        "recommended_mode": segmented_calibration.get("recommended_mode"),
+        "runtime_contract_status": segmented_calibration.get("runtime_contract_status"),
+        "redesign_verdict": redesign.get("verdict"),
+        "runtime_remaining_gap_to_floor": deployment_grade.get("runtime_remaining_gap_to_floor"),
+        "next_patch_target": deployment_grade.get("next_patch_target"),
+        "verify_next": payload.get("verify_next") or deployment_grade.get("verify_next") or redesign.get("verify_next"),
+    }
 
 
 def _runtime_blocker_summary(payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -290,7 +356,9 @@ def main() -> None:
     broad_scope_name = "regime_gate+entry_quality_label"
 
     entry_quality_components = payload.get("entry_quality_components") or {}
+    current_live_structure_bucket = payload.get("current_live_structure_bucket") or payload.get("structure_bucket")
     q35_counterfactuals = _load_q35_audit_counterfactuals()
+    q35_audit_summary = _load_q35_audit_summary(current_live_structure_bucket)
     if entry_quality_components:
         component_gap_attribution = _component_gap_attribution(entry_quality_components, q35_counterfactuals)
     else:
@@ -337,6 +405,8 @@ def main() -> None:
         "worst_pathology_scope": consensus.get("worst_pathology_scope") or {},
         "decision_quality_scope_pathology_summary": scope_pathology_summary,
         "recommended_patch": recommended_patch,
+        **_recommended_patch_projection(recommended_patch),
+        "q35_scaling_audit": q35_audit_summary,
     }
 
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
@@ -364,6 +434,12 @@ def main() -> None:
     recommended_patch_features = ", ".join(recommended_patch.get("collapse_features") or []) or "None"
     recommended_patch_status = recommended_patch.get("status") or "None"
     recommended_patch_profile = recommended_patch.get("recommended_profile") or "None"
+    q35_audit = report.get("q35_scaling_audit") or {}
+    q35_overall_verdict = q35_audit.get("overall_verdict") or "None"
+    q35_redesign_verdict = q35_audit.get("redesign_verdict") or "None"
+    q35_runtime_gap = q35_audit.get("runtime_remaining_gap_to_floor")
+    q35_recommended_mode = q35_audit.get("recommended_mode") or "None"
+    q35_next_patch_target = q35_audit.get("next_patch_target") or "None"
     runtime_closure_state = report.get("runtime_closure_state") or (
         "support_closed_but_trade_floor_blocked"
         if (
@@ -443,6 +519,8 @@ def main() -> None:
         f"- deployment_blocker: `{(deployment_blocker or {}).get('type')}` | reason: `{(deployment_blocker or {}).get('reason')}`",
         f"- q15 exact-supported patch: **{'active' if report['q15_exact_supported_component_patch_applied'] else 'inactive'}** | support_route `{report.get('support_route_verdict')}` | floor_cross `{report.get('floor_cross_verdict')}`",
         f"- runtime closure summary: **{runtime_closure_summary}**",
+        f"- q35 scaling audit: overall=`{q35_overall_verdict}` / redesign=`{q35_redesign_verdict}` / runtime_gap=`{q35_runtime_gap}` / mode=`{q35_recommended_mode}` / next_patch=`{q35_next_patch_target}`",
+        f"- q35 audit action: {q35_audit.get('recommended_action')}",
         f"- q15 patch machine-read: support_ready={q15_patch_machine_read.get('support_ready')} / entry_quality_ge_0_55={q15_patch_machine_read.get('entry_quality_ge_0_55')} / allowed_layers_gt_0={q15_patch_machine_read.get('allowed_layers_gt_0')} / preserves_positive_discrimination_status=`{q15_patch_machine_read.get('preserves_positive_discrimination_status')}`",
         f"- recommended_patch: **{recommended_patch_profile}** / status `{recommended_patch_status}` / support_route `{recommended_patch.get('support_route_verdict')}` / gap `{recommended_patch.get('gap_to_minimum')}` / reference_scope `{recommended_patch.get('reference_patch_scope') or recommended_patch.get('spillover_regime_gate')}` / source `{recommended_patch.get('reference_source')}`",
         f"- recommended_patch_features: {recommended_patch_features}",
@@ -517,6 +595,11 @@ def main() -> None:
         "remaining_gap_to_floor": gap_attr.get("remaining_gap_to_floor"),
         "best_single_component": (best_component.get("feature") if best_component else None),
         "best_single_component_required_score_delta": (best_component.get("required_score_delta_to_cross_floor") if best_component else None),
+        "q35_overall_verdict": q35_audit.get("overall_verdict"),
+        "q35_redesign_verdict": q35_audit.get("redesign_verdict"),
+        "q35_runtime_remaining_gap_to_floor": q35_audit.get("runtime_remaining_gap_to_floor"),
+        "q35_recommended_mode": q35_audit.get("recommended_mode"),
+        "q35_next_patch_target": q35_audit.get("next_patch_target"),
     }, indent=2, ensure_ascii=False))
 
 

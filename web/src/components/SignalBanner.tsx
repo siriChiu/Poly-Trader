@@ -2,6 +2,12 @@
  * SignalBanner — Trading signal + manual buy/sell + automation toggle
  */
 import { useEffect, useState } from "react";
+import {
+  humanizeCurrentLiveBlockerLabel,
+  humanizeExecutionReason,
+  humanizeRuntimeClosureStateLabel,
+  humanizeRuntimeDetailText,
+} from "../utils/runtimeCopy";
 
 interface Props {
   confidence: number;
@@ -17,6 +23,10 @@ interface RuntimeDecisionSnapshot {
   allowed_layers_raw_reason?: string | null;
   allowed_layers_reason?: string | null;
   deployment_blocker?: string | null;
+  current_live_structure_bucket?: string | null;
+  current_live_structure_bucket_rows?: number | null;
+  minimum_support_rows?: number | null;
+  current_live_structure_bucket_gap_to_minimum?: number | null;
   deployment_blocker_details?: {
     recent_window?: {
       window_size?: number | null;
@@ -66,6 +76,37 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
   const breakerFloor = typeof breakerRelease?.recent_win_rate_must_be_at_least === "number"
     ? breakerRelease.recent_win_rate_must_be_at_least
     : (typeof breakerRecentWindow?.floor === "number" ? breakerRecentWindow.floor : null);
+  const runtimeAllowedLayersRawReasonLabel = humanizeExecutionReason(runtimeDecision?.allowed_layers_raw_reason || null);
+  const runtimeAllowedLayersReasonLabel = humanizeRuntimeDetailText(runtimeDecision?.allowed_layers_reason || null);
+  const runtimeClosureStateLabel = humanizeRuntimeClosureStateLabel(
+    runtimeDecision?.runtime_closure_state,
+    runtimeDecision?.runtime_closure_summary,
+  );
+  const runtimeClosureSummaryLabel = humanizeRuntimeDetailText(
+    runtimeDecision?.runtime_closure_summary || "尚未取得部署閉環摘要。",
+  );
+  const runtimeDeploymentBlocker = runtimeDecision?.deployment_blocker || null;
+  const runtimeDeploymentBlockerLabel = humanizeCurrentLiveBlockerLabel(runtimeDeploymentBlocker);
+  const runtimeShortcutPending = !runtimeDecision;
+  const runtimeShortcutBlocked = runtimeShortcutPending
+    || Boolean(runtimeDeploymentBlocker)
+    || ((runtimeDecision?.allowed_layers ?? 0) <= 0);
+  const runtimeShortcutBlockerLabel = runtimeShortcutPending
+    ? "正在同步即時執行狀態"
+    : runtimeDeploymentBlocker
+      ? runtimeDeploymentBlockerLabel
+      : "目前有效層數為 0";
+  const currentSupportRows = runtimeDecision?.current_live_structure_bucket_rows ?? null;
+  const currentSupportMinimum = runtimeDecision?.minimum_support_rows ?? null;
+  const currentSupportGap = runtimeDecision?.current_live_structure_bucket_gap_to_minimum ?? null;
+  const currentSupportLabel = currentSupportRows != null
+    ? `當前樣本 ${currentSupportRows}/${currentSupportMinimum ?? "—"}${currentSupportGap != null ? ` · 缺口 ${currentSupportGap}` : ""}`
+    : null;
+
+  const showShortcutBlockedMessage = () => {
+    setStatusMsg(`⛔ 快捷下單已暫停：${runtimeShortcutBlockerLabel}。請先到執行狀態頁確認完整阻塞點。`);
+    setTimeout(() => setStatusMsg(null), 5000);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +132,13 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
   }, []);
 
   const handleTrade = async (side: string) => {
+    if (runtimeShortcutBlocked) {
+      showShortcutBlockedMessage();
+      setConfirmBuy(false);
+      setConfirmSell(false);
+      return;
+    }
+
     try {
       const resp = await fetch("/api/trade", {
         method: "POST",
@@ -98,10 +146,13 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
         body: JSON.stringify({ side: side.toLowerCase(), symbol: "BTCUSDT" }),
       });
       const data = await resp.json();
+      const orderId = data.order_id || data.order?.order_id || null;
       setStatusMsg(
         data.error
-          ? `❌ ${data.error}`
-          : `✅ ${side} 訂單已提交: ${data.order_id || "dry_run"}`
+          ? `❌ ${humanizeRuntimeDetailText(data.error)}`
+          : orderId
+            ? `✅ ${side} 訂單已提交：${orderId}`
+            : "✅ 模擬委託已記錄；請回執行狀態頁確認保護欄與委託回放。"
       );
     } catch (e: any) {
       setStatusMsg(`❌ ${e.message}`);
@@ -158,27 +209,32 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
       </div>
 
       {runtimeDecision && (
-        <div className={`mb-4 rounded-lg border px-3 py-2 text-xs leading-5 ${circuitBreakerActive ? "border-amber-500/30 bg-amber-500/10 text-amber-100" : runtimeDecision.q15_exact_supported_component_patch_applied ? ((runtimeDecision.allowed_layers ?? 0) > 0 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100" : "border-amber-500/30 bg-amber-500/10 text-amber-100") : "border-slate-700/40 bg-slate-900/40 text-slate-300"}`}>
-          <div className="font-semibold">q15 runtime 快照</div>
+        <div className={`mb-4 rounded-lg border px-3 py-2 text-xs leading-5 ${runtimeShortcutBlocked ? "border-amber-500/30 bg-amber-500/10 text-amber-100" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"}`}>
+          <div className="font-semibold">即時執行快照</div>
           <div className="mt-1">
-            signal {runtimeDecision.signal || "—"} · layers {runtimeDecision.allowed_layers_raw ?? "—"} → {runtimeDecision.allowed_layers ?? "—"} · raw reason {runtimeDecision.allowed_layers_raw_reason || "—"} · final reason {runtimeDecision.allowed_layers_reason || "—"}
+            訊號 {runtimeDecision.signal || "—"} · 層數 {runtimeDecision.allowed_layers_raw ?? "—"} → {runtimeDecision.allowed_layers ?? "—"} · 原始原因 {runtimeAllowedLayersRawReasonLabel} · 最終原因 {runtimeAllowedLayersReasonLabel}
           </div>
+          {currentSupportLabel && (
+            <div className="mt-1">{currentSupportLabel}</div>
+          )}
           <div className="mt-1">
-            runtime closure {runtimeDecision.runtime_closure_state || "—"} · {runtimeDecision.runtime_closure_summary || "尚未取得 runtime closure summary。"}
+            部署閉環 {runtimeClosureStateLabel} · {runtimeClosureSummaryLabel}
           </div>
           {circuitBreakerActive && (
             <div className="mt-1">
-              circuit breaker：recent 50 release window {breakerWins ?? "—"}/{breakerWindow ?? "—"}，win rate {breakerRecentWinRate != null ? `${(breakerRecentWinRate * 100).toFixed(1)}%` : "—"}，floor {breakerFloor != null ? `${(breakerFloor * 100).toFixed(1)}%` : "—"}，至少還差 {breakerWinsGap ?? "—"} 勝。不要把 support / component patch 當成 breaker release 替代品。
+              熔斷保護：最近 {breakerWindow ?? 50} 筆解除視窗 {breakerWins ?? "—"}/{breakerWindow ?? "—"}，勝率 {breakerRecentWinRate != null ? `${(breakerRecentWinRate * 100).toFixed(1)}%` : "—"}，解除門檻 {breakerFloor != null ? `${(breakerFloor * 100).toFixed(1)}%` : "—"}，至少還差 {breakerWinsGap ?? "—"} 勝。不要把支持樣本 / 元件修補方案當成熔斷解除替代品。
             </div>
           )}
           <div className="mt-1">
             {circuitBreakerActive
-              ? "目前 canonical live path 仍被 circuit breaker 擋下；SignalBanner 只同步 release math，不可把這裡的快捷面板誤讀成 deployment readiness。"
+              ? "目前即時交易路徑仍被熔斷保護擋下；快捷面板只同步解除條件，不可把這裡誤讀成可部署狀態。"
               : runtimeDecision.q15_exact_supported_component_patch_applied
                 ? ((runtimeDecision.allowed_layers ?? 0) > 0
-                    ? "目前是 support-ready + patch active；即使 signal 仍是 HOLD，也代表 runtime 已開出 1 層 deployment capacity，不等於自動 BUY。"
-                    : "目前 q15 patch 已經吃到 current live row，但 execution 仍被 blocker / guardrail 壓回 0 層；這裡要讀成 patch active but execution still blocked。")
-                : "目前尚未觀察到 q15 patch active；若要確認完整 runtime truth，請改看執行狀態頁。"}
+                    ? "目前精準樣本已就緒且修補方案已套用；即使訊號仍是 HOLD，也只代表執行期已開出 1 層可部署容量，不等於自動買入。"
+                    : "目前支援修補方案已經作用在當前即時資料列，但執行期仍被阻塞點 / 保護欄壓回 0 層；這代表修補方案已套用，但執行仍被阻擋。")
+                : runtimeShortcutBlocked
+                  ? `快捷下單已暫停：${runtimeShortcutBlockerLabel}；請改看執行狀態頁確認完整即時真相。`
+                  : "目前未偵測到阻塞點；仍以執行狀態頁的完整治理與委託回放為準。"}
           </div>
         </div>
       )}
@@ -186,18 +242,34 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
       {/* Trade buttons */}
       <div className="flex gap-2 mb-4">
         <button
-          onClick={() => setConfirmBuy(true)}
-          className="flex-1 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white font-medium transition-colors"
+          onClick={() => runtimeShortcutBlocked ? showShortcutBlockedMessage() : setConfirmBuy(true)}
+          disabled={runtimeShortcutBlocked}
+          className={`flex-1 px-3 py-2 rounded-lg font-medium transition-colors ${
+            runtimeShortcutBlocked
+              ? "cursor-not-allowed border border-amber-500/30 bg-amber-950/30 text-amber-100/60"
+              : "bg-green-600 hover:bg-green-500 text-white"
+          }`}
         >
-          買入
+          {runtimeShortcutBlocked ? "買入暫停" : "買入"}
         </button>
         <button
-          onClick={() => setConfirmSell(true)}
-          className="flex-1 px-3 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium transition-colors"
+          onClick={() => runtimeShortcutBlocked ? showShortcutBlockedMessage() : setConfirmSell(true)}
+          disabled={runtimeShortcutBlocked}
+          className={`flex-1 px-3 py-2 rounded-lg font-medium transition-colors ${
+            runtimeShortcutBlocked
+              ? "cursor-not-allowed border border-amber-500/30 bg-amber-950/30 text-amber-100/60"
+              : "bg-red-600 hover:bg-red-500 text-white"
+          }`}
         >
-          賣出
+          {runtimeShortcutBlocked ? "賣出暫停" : "賣出"}
         </button>
       </div>
+
+      {runtimeShortcutBlocked && (
+        <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
+          快捷下單暫停：{runtimeShortcutBlockerLabel}。此面板只能查看狀態；請到執行狀態頁確認完整阻塞點、樣本支持與委託回放。
+        </div>
+      )}
 
       {/* Confirmation dialogs */}
       {confirmBuy && (
@@ -245,8 +317,8 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
       )}
 
       <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
-        <div>SignalBanner 目前只提供快捷下單 / 自動交易切換；完整 blocker、Guardrail context、stale governance 與 recovery 請到執行狀態頁查看。</div>
-        <div className="mt-1">若 q15 patch active 但 signal 仍是 HOLD，這裡應理解為「capacity opened but signal still HOLD」，不是 patch 失效，也不是自動 BUY readiness。</div>
+        <div>快捷面板目前只提供受阻塞點保護的下單入口 / 自動交易切換；完整阻塞點、保護欄脈絡、治理狀態與恢復脈絡請到執行狀態頁查看。</div>
+        <div className="mt-1">若支援修補方案已啟用但訊號仍是 HOLD，這裡應理解為「部署容量已開但訊號仍維持 HOLD」，不是修補方案失效，也不是自動買入就緒。</div>
         <a href="/execution/status" className="mt-1 inline-flex text-[11px] font-semibold text-amber-200 underline underline-offset-2 hover:text-amber-100">
           前往執行狀態頁 →
         </a>

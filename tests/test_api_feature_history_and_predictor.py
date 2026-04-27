@@ -254,6 +254,70 @@ def test_circuit_breaker_surfaces_recent_pathology_from_drift_report(tmp_path, m
     assert result["decision_quality_recent_pathology_summary"]["longest_one_target_streak"] == 259
 
 
+def test_circuit_breaker_prefers_blocking_recent_pathology_window_over_primary_window(tmp_path, monkeypatch):
+    drift_path = tmp_path / "recent_drift_report.json"
+    drift_path.write_text(
+        json.dumps(
+            {
+                "primary_window": {
+                    "window": "100",
+                    "alerts": ["regime_concentration"],
+                    "summary": {
+                        "rows": 100,
+                        "wins": 79,
+                        "losses": 21,
+                        "win_rate": 0.79,
+                        "drift_interpretation": "regime_concentration",
+                        "dominant_regime": "bull",
+                        "dominant_regime_share": 1.0,
+                        "quality_metrics": {
+                            "spot_long_win_rate": 0.0,
+                            "avg_simulated_pnl": 0.0041,
+                            "avg_simulated_quality": 0.3403,
+                            "avg_drawdown_penalty": 0.1859,
+                            "avg_time_underwater": 0.2915,
+                        },
+                    },
+                },
+                "blocking_window": {
+                    "window": "500",
+                    "alerts": ["regime_concentration", "regime_shift"],
+                    "summary": {
+                        "rows": 500,
+                        "wins": 270,
+                        "losses": 230,
+                        "win_rate": 0.54,
+                        "drift_interpretation": "regime_concentration",
+                        "dominant_regime": "bull",
+                        "dominant_regime_share": 0.994,
+                        "quality_metrics": {
+                            "spot_long_win_rate": 0.0,
+                            "avg_simulated_pnl": 0.0005,
+                            "avg_simulated_quality": 0.116,
+                            "avg_drawdown_penalty": 0.211,
+                            "avg_time_underwater": 0.7251,
+                        },
+                    },
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(predictor_module, "RECENT_DRIFT_REPORT_PATH", drift_path)
+
+    rows = [_FakeLabelRow(0, 1440) for _ in range(60)]
+    result = predictor_module._check_circuit_breaker(_FakeSession(rows))
+
+    assert result is not None
+    assert result["decision_quality_recent_pathology_window"] == 500
+    assert result["decision_quality_recent_pathology_alerts"] == ["regime_concentration", "regime_shift"]
+    assert "blocking window 500 rows" in result["decision_quality_recent_pathology_reason"]
+    summary = result["decision_quality_recent_pathology_summary"]
+    assert summary["source_window"] == "blocking"
+    assert summary["win_rate"] == 0.54
+    assert summary["spot_long_win_rate"] == 0.0
+    assert summary["avg_time_underwater"] == 0.7251
+
+
 def test_infer_deployment_blocker_flags_bull_q35_no_deploy_governance(tmp_path, monkeypatch):
     q35_path = tmp_path / "q35_scaling_audit.json"
     q15_path = tmp_path / "q15_support_audit.json"
@@ -523,6 +587,60 @@ def test_infer_deployment_blocker_flags_exact_supported_q15_patch_active_executi
     assert blocker["allowed_layers_raw"] == 1
     assert blocker["support_route_verdict"] == "exact_bucket_supported"
     assert "q15 patch 已啟用並把 raw entry 拉到 entry_quality=0.5500" in blocker["reason"]
+    assert guarded["deployment_blocker"] == "decision_quality_below_trade_floor"
+    assert guarded["allowed_layers_reason"] == "decision_quality_below_trade_floor"
+    assert guarded["execution_guardrail_reason"] == "decision_quality_below_trade_floor"
+
+
+def test_infer_deployment_blocker_flags_exact_supported_q35_patch_active_execution_blocker():
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bull",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "entry_quality": 0.5534,
+            "entry_quality_label": "C",
+            "allowed_layers": 1,
+            "allowed_layers_reason": "entry_quality_C_single_layer",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "q35_discriminative_redesign_applied": True,
+            "q35_discriminative_redesign": {"applied": True, "weights": {"feat_nose": 0.5, "feat_ear": 0.5}},
+        },
+        {
+            "decision_quality_structure_bucket_support_rows": 74,
+            "decision_quality_exact_live_structure_bucket_support_rows": 74,
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_supported_via_q35_runtime_redesign",
+            "decision_quality_label": "D",
+            "decision_quality_score": 0.084,
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 0,
+                    "alerts": ["no_rows"],
+                },
+            },
+        },
+    )
+    guarded = predictor_module._apply_deployment_blocker_to_execution_profile(
+        {
+            "allowed_layers": 0,
+            "allowed_layers_raw": 1,
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+        },
+        blocker,
+    )
+
+    assert blocker is not None
+    assert blocker["type"] == "decision_quality_below_trade_floor"
+    assert blocker["source"] == "decision_quality_contract+runtime_patch"
+    assert blocker["support_route_verdict"] == "exact_bucket_supported"
+    assert blocker["current_live_structure_bucket_rows"] == 74
+    assert blocker["allowed_layers_raw"] == 1
+    assert blocker["q35_discriminative_redesign_applied"] is True
+    assert blocker["q35_discriminative_redesign"]["weights"] == {"feat_nose": 0.5, "feat_ear": 0.5}
+    assert "q35 discriminative redesign 已把 raw entry 拉到 entry_quality=0.5534" in blocker["reason"]
     assert guarded["deployment_blocker"] == "decision_quality_below_trade_floor"
     assert guarded["allowed_layers_reason"] == "decision_quality_below_trade_floor"
     assert guarded["execution_guardrail_reason"] == "decision_quality_below_trade_floor"
@@ -1054,6 +1172,27 @@ def test_summarize_structure_bucket_support_route_does_not_false_open_below_mini
     assert summary["support_progress"]["current_rows"] == 1
     assert summary["minimum_support_rows"] == 50
     assert summary["current_live_structure_bucket_gap_to_minimum"] == 49
+
+
+def test_summarize_structure_bucket_support_route_falls_back_to_exact_scope_rows_when_support_counts_missing():
+    summary = predictor_module._summarize_structure_bucket_support_route(
+        {
+            "decision_quality_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                    "current_live_structure_bucket_rows": 66,
+                }
+            },
+        }
+    )
+
+    assert summary["verdict"] == "exact_bucket_supported"
+    assert summary["deployable"] is True
+    assert summary["support_governance_route"] == "exact_live_bucket_supported"
+    assert summary["support_progress"]["current_rows"] == 66
+    assert summary["minimum_support_rows"] == 50
+    assert summary["current_live_structure_bucket_gap_to_minimum"] == 0
 
 
 def test_structure_bucket_support_guardrail_replays_q15_exact_supported_runtime(tmp_path, monkeypatch):

@@ -25,12 +25,21 @@ import sqlite3
 
 import numpy as np
 import ccxt
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.path.insert(0, '/home/kazuha/Poly-Trader')
 os.chdir('/home/kazuha/Poly-Trader')
 
 DB_PATH = '/home/kazuha/Poly-Trader/poly_trader.db'
+
+
+def _resolve_4h_fetch_start(ts_list, warmup_days=400):
+    if not ts_list:
+        raise ValueError('ts_list is empty')
+    earliest_text = str(ts_list[0]).strip().replace('T', ' ').replace('Z', '')
+    earliest_dt = datetime.fromisoformat(earliest_text)
+    return earliest_dt - timedelta(days=max(int(warmup_days), 1))
+
 
 
 def ema(data, period):
@@ -143,8 +152,8 @@ def main():
     # ──────────────────────────────
     print("\n[2/5] Fetching 4H candles from Binance...")
     exchange = ccxt.binance({"enableRateLimit": True})
-    # 從最早 1m 資料前 3 個月開始（給 MA200 暖機）
-    earliest_dt = datetime.strptime('2025-01-01 00:00:00', '%Y-%m-%d %H:%M:%S')
+    # 從最早 1m / feature 資料往前抓一段暖機窗口，避免把 2024 歷史誤截成 2025 才開始。
+    earliest_dt = _resolve_4h_fetch_start(ts_list, warmup_days=400)
     since_ts = int(earliest_dt.timestamp() * 1000)
 
     ohlcv_all = []

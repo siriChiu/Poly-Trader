@@ -7,6 +7,7 @@ import pytest
 
 import backtesting.model_leaderboard as model_leaderboard_module
 from backtesting.model_leaderboard import ModelLeaderboard
+from model import train as train_module
 from server.routes import api as api_module
 from server.routes.api import load_model_leaderboard_frame
 
@@ -285,6 +286,7 @@ def test_build_model_leaderboard_payload_uses_bounded_refresh_shortlist(monkeypa
 
     def _fake_run_all_models(self, model_names=None):
         refresh_calls["model_names"] = list(model_names or [])
+        refresh_calls["background_refresh"] = getattr(self, "background_refresh", False)
         self.last_model_statuses = {
             name: {"status": "skipped", "reason": "test_shortlist", "detail": None}
             for name in refresh_calls["model_names"]
@@ -296,9 +298,138 @@ def test_build_model_leaderboard_payload_uses_bounded_refresh_shortlist(monkeypa
     payload = api_module._build_model_leaderboard_payload()
 
     assert refresh_calls["model_names"] == ModelLeaderboard.REFRESH_MODELS
+    assert refresh_calls["background_refresh"] is True
     assert payload["refresh_model_scope"] == "production_refresh_shortlist"
     assert payload["evaluated_models"] == ModelLeaderboard.REFRESH_MODELS
     assert payload["excluded_supported_models"] == ["mlp", "svm", "ensemble"]
+
+
+
+def test_build_model_leaderboard_payload_skips_expensive_target_candidate_rescoring(monkeypatch):
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=3, freq="D"),
+            "close_price": [50000.0, 50010.0, 50020.0],
+            "simulated_pyramid_win": [1, 0, 1],
+            "feat_4h_bias50": [0.0, 0.0, 0.0],
+            "feat_nose": [0.4, 0.5, 0.6],
+            "feat_pulse": [0.6, 0.5, 0.4],
+            "feat_ear": [0.1, 0.1, 0.1],
+        }
+    )
+
+    monkeypatch.setattr(api_module, "load_model_leaderboard_frame", lambda db_path=None: df)
+    monkeypatch.setattr(api_module, "_load_model_leaderboard_history", lambda db_path=None: [])
+    monkeypatch.setattr(api_module, "_serialize_model_scores", lambda scores, leaderboard: [])
+    monkeypatch.setattr(api_module, "_summarize_target_candidates", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("target candidate rescoring should be skipped during background refresh")))
+    monkeypatch.setattr(ModelLeaderboard, "run_all_models", lambda self, model_names=None: [])
+
+    payload = api_module._build_model_leaderboard_payload()
+
+    assert payload["target_candidates"] == []
+
+
+
+def test_normalize_model_leaderboard_payload_clears_stale_target_candidates():
+    payload = {
+        "leaderboard": [
+            {
+                "model_name": "rule_baseline",
+                "is_placeholder": False,
+                "overall_score": 0.5,
+                "reliability_score": 0.6,
+                "return_power_score": 0.4,
+            }
+        ],
+        "target_candidates": [
+            {"target_col": "simulated_pyramid_win", "model_name": "stale_candidate"}
+        ],
+    }
+
+    normalized = api_module._normalize_model_leaderboard_payload(payload)
+
+    assert normalized["target_candidates"] == []
+    assert normalized["leaderboard"][0]["model_name"] == "rule_baseline"
+
+
+
+def test_background_refresh_limits_candidate_surface(monkeypatch):
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=8, freq="D"),
+            "close_price": [50000.0 + idx for idx in range(8)],
+            "simulated_pyramid_win": [1, 0, 1, 0, 1, 0, 1, 0],
+            "feat_4h_bias50": [0.0] * 8,
+            "feat_nose": [0.4] * 8,
+            "feat_pulse": [0.6] * 8,
+            "feat_ear": [0.1] * 8,
+        }
+    )
+    leaderboard = ModelLeaderboard(df, target_col="simulated_pyramid_win", background_refresh=True)
+
+    monkeypatch.setattr(leaderboard, "_scan_backed_best_params", lambda model_name: None)
+    monkeypatch.setattr(
+        train_module,
+        "select_feature_profile",
+        lambda all_columns, target_col=None, ablation_payload=None, bull_pocket_payload=None: (
+            "current_full",
+            list(all_columns),
+            {"source": "test_selected"},
+        ),
+    )
+
+    deployment_candidates = leaderboard._deployment_profile_candidates_for_model("xgboost")
+    feature_candidates = leaderboard._feature_profile_candidates_for_frame([c for c in df.columns if c.startswith("feat_")])
+
+    assert deployment_candidates == [
+        "stable_turning_point_all_regimes_strict_v1",
+        "balanced_conviction",
+    ]
+    assert [candidate["name"] for candidate in feature_candidates] == [
+        "current_full",
+        "core_only",
+    ]
+
+
+
+def test_summarize_target_candidates_uses_background_refresh_mode(monkeypatch):
+    init_calls = []
+
+    class FakeLeaderboard:
+        REFRESH_MODELS = ["rule_baseline"]
+        SUPPORTED_MODELS = ["rule_baseline"]
+
+        def __init__(self, data_df, target_col="simulated_pyramid_win", background_refresh=False):
+            init_calls.append({"target_col": target_col, "background_refresh": background_refresh, "rows": len(data_df)})
+            self.target_col = target_col
+            self.last_model_statuses = {"rule_baseline": {"status": "ok"}}
+
+        def run_all_models(self, model_names=None):
+            return []
+
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=6, freq="D"),
+            "close_price": [50000.0 + idx for idx in range(6)],
+            "simulated_pyramid_win": [1, 0, 1, 0, 1, 0],
+            "label_spot_long_win": [1, 1, 0, 0, 1, 0],
+            "feat_4h_bias50": [0.0] * 6,
+            "feat_nose": [0.4] * 6,
+            "feat_pulse": [0.6] * 6,
+            "feat_ear": [0.1] * 6,
+        }
+    )
+
+    monkeypatch.setattr(model_leaderboard_module, "ModelLeaderboard", FakeLeaderboard)
+    monkeypatch.setattr(api_module, "_serialize_model_scores", lambda scores, leaderboard: [])
+
+    summaries = api_module._summarize_target_candidates(df)
+
+    assert len(summaries) == 2
+    assert init_calls == [
+        {"target_col": "simulated_pyramid_win", "background_refresh": True, "rows": 6},
+        {"target_col": "label_spot_long_win", "background_refresh": True, "rows": 6},
+    ]
 
 
 
@@ -1540,8 +1671,9 @@ def test_evaluate_model_tracks_unavailable_dependency_reason(monkeypatch):
 
 def test_build_model_leaderboard_payload_includes_skipped_models(monkeypatch):
     class FakeLeaderboard:
-        def __init__(self, data_df, target_col="simulated_pyramid_win"):
+        def __init__(self, data_df, target_col="simulated_pyramid_win", background_refresh=False):
             self.target_col = target_col
+            self.background_refresh = background_refresh
             self.last_model_statuses = {
                 "lightgbm": {"status": "unavailable", "reason": "missing_dependency", "detail": "No module named 'lightgbm'"},
                 "xgboost": {
@@ -1659,8 +1791,9 @@ def test_build_model_leaderboard_payload_includes_skipped_models(monkeypatch):
 
 def test_build_model_leaderboard_payload_moves_zero_trade_rows_to_placeholder_models(monkeypatch):
     class FakeLeaderboard:
-        def __init__(self, data_df, target_col="simulated_pyramid_win"):
+        def __init__(self, data_df, target_col="simulated_pyramid_win", background_refresh=False):
             self.target_col = target_col
+            self.background_refresh = background_refresh
             self.last_model_statuses = {"rule_baseline": {"status": "ok"}}
 
         def run_all_models(self, model_names):
@@ -1733,7 +1866,7 @@ def test_summarize_target_candidates_prefers_non_overfit_best_model(monkeypatch)
     )
 
     class FakeLeaderboard:
-        def __init__(self, data_df, target_col="label_spot_long_win"):
+        def __init__(self, data_df, target_col="label_spot_long_win", background_refresh=False):
             self.target_col = target_col
 
         def run_all_models(self, model_names):

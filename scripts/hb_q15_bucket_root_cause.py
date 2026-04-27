@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import math
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +58,121 @@ def _load_json(path: Path) -> dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def _parse_isoish_timestamp(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _probe_current_bucket(probe: dict[str, Any]) -> Any:
+    scope_name = probe.get("decision_quality_calibration_scope") or "regime_label+regime_gate+entry_quality_label"
+    scope_diag = (probe.get("decision_quality_scope_diagnostics") or {}).get(scope_name) or {}
+    exact_scope = (probe.get("decision_quality_scope_diagnostics") or {}).get("regime_label+regime_gate+entry_quality_label") or {}
+    return (
+        scope_diag.get("current_live_structure_bucket")
+        or exact_scope.get("current_live_structure_bucket")
+        or probe.get("current_live_structure_bucket")
+        or probe.get("decision_quality_live_structure_bucket")
+        or probe.get("structure_bucket")
+    )
+
+
+def _support_identity_from_probe(probe: dict[str, Any], current_bucket: Any) -> dict[str, Any] | None:
+    support_progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
+    identity = support_progress.get("support_identity")
+    if isinstance(identity, dict):
+        return identity
+    return {
+        "target_col": probe.get("target_col"),
+        "horizon_minutes": probe.get("decision_quality_horizon_minutes") or probe.get("horizon_minutes") or 1440,
+        "current_live_structure_bucket": current_bucket,
+        "regime_label": probe.get("regime_label"),
+        "regime_gate": probe.get("regime_gate"),
+        "entry_quality_label": probe.get("entry_quality_label"),
+        "calibration_window": probe.get("decision_quality_calibration_window"),
+        "bucket_semantic_signature": support_progress.get("bucket_semantic_signature"),
+    }
+
+
+def _probe_has_current_support_truth(probe: dict[str, Any]) -> bool:
+    """Return True when the live probe already carries current exact-support rows/minimum.
+
+    q15 root-cause can compute current-bucket support truth from the fresh probe +
+    training frame without depending on bull_4h_pocket_ablation's live_context. In
+    fast heartbeats that bull artifact is often intentionally reused as a
+    reference-only governance artifact, so a stale bull live_context must not
+    erase fresh current-live q15 support truth when rows/minimum are present.
+    """
+
+    support_progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
+    current_rows = support_progress.get("current_rows")
+    if current_rows is None:
+        current_rows = probe.get("current_live_structure_bucket_rows")
+    minimum_rows = support_progress.get("minimum_support_rows")
+    if minimum_rows is None:
+        minimum_rows = probe.get("minimum_support_rows")
+    return current_rows is not None and minimum_rows is not None
+
+
+def _artifact_context_freshness(
+    probe: dict[str, Any],
+    drilldown: dict[str, Any],
+    bull_pocket: dict[str, Any],
+    *,
+    current_bucket: Any,
+) -> dict[str, Any]:
+    mismatches: list[str] = []
+    reference_mismatches: list[str] = []
+    probe_bucket = _probe_current_bucket(probe)
+    bull_context = bull_pocket.get("live_context") if isinstance(bull_pocket.get("live_context"), dict) else {}
+    bull_bucket = bull_context.get("current_live_structure_bucket")
+    bull_context_mismatches: list[str] = []
+    if probe_bucket and bull_bucket and str(probe_bucket) != str(bull_bucket):
+        bull_context_mismatches.append("current_live_structure_bucket")
+    for key in ("regime_label", "regime_gate", "entry_quality_label"):
+        probe_value = probe.get(key)
+        bull_value = bull_context.get(key)
+        if probe_value is not None and bull_value is not None and str(probe_value) != str(bull_value):
+            bull_context_mismatches.append(key)
+    if bull_context_mismatches:
+        if _probe_has_current_support_truth(probe):
+            reference_mismatches.extend(bull_context_mismatches)
+        else:
+            mismatches.extend(bull_context_mismatches)
+
+    probe_ts = _parse_isoish_timestamp(probe.get("feature_timestamp"))
+    drilldown_ts = _parse_isoish_timestamp(drilldown.get("generated_at"))
+    if probe_ts is not None and drilldown_ts is not None and abs((probe_ts - drilldown_ts).total_seconds()) >= 1:
+        mismatches.append("feature_timestamp")
+
+    return {
+        "verdict": "current_context" if not mismatches else "stale_or_non_current_context",
+        "mismatched_fields": sorted(set(mismatches)),
+        "reference_mismatched_fields": sorted(set(reference_mismatches)),
+        "reference_artifact_warning": (
+            "bull_4h_pocket_ablation live_context is stale/reference-only; current q15 root-cause used fresh live_predict_probe support truth."
+            if reference_mismatches
+            else None
+        ),
+        "latest_live_probe_feature_timestamp": probe.get("feature_timestamp"),
+        "drilldown_generated_at": drilldown.get("generated_at"),
+        "probe_current_live_structure_bucket": probe_bucket,
+        "artifact_current_live_structure_bucket": bull_bucket or current_bucket,
+        "probe_regime_label": probe.get("regime_label"),
+        "probe_regime_gate": probe.get("regime_gate"),
+        "probe_entry_quality_label": probe.get("entry_quality_label"),
+        "artifact_regime_label": bull_context.get("regime_label"),
+        "artifact_regime_gate": bull_context.get("regime_gate"),
+        "artifact_entry_quality_label": bull_context.get("entry_quality_label"),
+    }
 
 
 def _safe_float(value: Any) -> float | None:
@@ -187,8 +303,15 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
     live_gate = str(probe.get("regime_gate") or "")
     live_entry_quality_label = str(probe.get("entry_quality_label") or "")
     current_bucket = (
-        ((probe.get("decision_quality_scope_diagnostics") or {}).get("regime_label+regime_gate+entry_quality_label") or {}).get("current_live_structure_bucket")
+        _probe_current_bucket(probe)
         or ((bull_pocket.get("live_context") or {}).get("current_live_structure_bucket"))
+    )
+    support_identity = _support_identity_from_probe(probe, current_bucket)
+    artifact_context_freshness = _artifact_context_freshness(
+        probe,
+        drilldown,
+        bull_pocket,
+        current_bucket=current_bucket,
     )
     structure_components = (probe.get("entry_quality_components") or {}).get("structure_components") or []
     current_structure_quality = _safe_float((probe.get("entry_quality_components") or {}).get("structure_quality"))
@@ -252,11 +375,48 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
     deployment_blocker = str(probe.get("deployment_blocker") or "").strip()
     deployment_blocker_source = str(probe.get("deployment_blocker_source") or "").strip()
     execution_guardrail_reason = str(probe.get("execution_guardrail_reason") or "").strip()
+    support_progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
+    support_status = str(support_progress.get("status") or "").strip()
+    support_route_verdict = str(probe.get("support_route_verdict") or "").strip()
+    support_current_rows = support_progress.get("current_rows")
+    if support_current_rows is None:
+        support_current_rows = probe.get("current_live_structure_bucket_rows")
+    support_minimum_rows = support_progress.get("minimum_support_rows")
+    if support_minimum_rows is None:
+        support_minimum_rows = probe.get("minimum_support_rows")
+    support_gap_to_minimum = support_progress.get("gap_to_minimum")
+    if support_gap_to_minimum is None:
+        support_gap_to_minimum = probe.get("current_live_structure_bucket_gap_to_minimum")
+
+    exact_support_closed = False
+    if support_status == "exact_supported" or support_route_verdict == "exact_bucket_supported":
+        exact_support_closed = True
+    else:
+        current_rows_float = _safe_float(support_current_rows)
+        minimum_rows_float = _safe_float(support_minimum_rows)
+        gap_to_minimum_float = _safe_float(support_gap_to_minimum)
+        exact_support_closed = bool(
+            (current_rows_float is not None and minimum_rows_float is not None and current_rows_float >= minimum_rows_float)
+            or (gap_to_minimum_float is not None and gap_to_minimum_float <= 0)
+        )
+
+    support_rows_text = "—"
+    if support_current_rows is not None or support_minimum_rows is not None:
+        support_rows_text = f"{support_current_rows if support_current_rows is not None else '—'}/{support_minimum_rows if support_minimum_rows is not None else '—'}"
     runtime_blocker_preempts = bool(
         signal == "CIRCUIT_BREAKER"
         or deployment_blocker == "circuit_breaker_active"
         or deployment_blocker_source == "circuit_breaker"
         or execution_guardrail_reason == "circuit_breaker_blocks_trade"
+    )
+    support_current_rows_float = _safe_float(support_current_rows)
+    support_minimum_rows_float = _safe_float(support_minimum_rows)
+    current_exact_support_under_minimum = bool(
+        "q15" in str(current_bucket or "")
+        and support_current_rows_float is not None
+        and support_minimum_rows_float is not None
+        and support_current_rows_float > 0
+        and support_current_rows_float < support_minimum_rows_float
     )
 
     verdict = "insufficient_scope_data"
@@ -264,7 +424,15 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
     reason = "目前資料不足，尚無法判定 q15 exact bucket 0-row 的最小可修補原因。"
     verify_next = "先確保 live probe / bull pocket artifacts 完整，再重跑 q15 root-cause artifact。"
 
-    if runtime_blocker_preempts:
+    if artifact_context_freshness.get("verdict") == "stale_or_non_current_context":
+        verdict = "stale_or_non_current_context"
+        candidate_patch_type = None
+        reason = (
+            "q15 root-cause 的輸入 artifact 與最新 live_predict_probe 在 bucket / timestamp / regime context 不一致；"
+            "本輪不得沿用舊 boundary 或 structure_quality 結論。"
+        )
+        verify_next = "先重跑 hb_predict_probe.py、hb_q15_support_audit.py、bull_4h_pocket_ablation.py，再重建 q15 root-cause artifact。"
+    elif runtime_blocker_preempts:
         verdict = "runtime_blocker_preempts_bucket_root_cause"
         reason = "目前 live runtime 已先被 circuit breaker 擋下；q15 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。"
         verify_next = "先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 q15 root-cause artifact。"
@@ -278,6 +446,30 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
         candidate_patch_type = "live_row_projection"
         reason = "目前 live row 無法算出 structure_quality，先修 4H 結構輸入。"
         verify_next = "重跑 hb_predict_probe.py，確認 entry_quality_components.structure_quality 有值。"
+    elif current_structure_quality >= Q35_THRESHOLD and exact_support_closed:
+        verdict = "current_bucket_exact_support_already_closed"
+        candidate_patch_type = "deployment_blocker_verification"
+        reason = (
+            f"目前 live row 已不在 q15/q35 邊界下方，且 exact support 已 closure（{support_rows_text}）；"
+            "current bucket root cause 不應再回報 support 累積，應回到當前 deployment blocker / execution guardrail 真相。"
+        )
+        blocker_focus = deployment_blocker or execution_guardrail_reason or "active_runtime_blocker"
+        verify_next = (
+            f"machine-check deployment_blocker 仍為 {blocker_focus}，並確認 allowed_layers_raw > 0 但 allowed_layers = 0；"
+            "current-bucket card 不得再要求 rows 累積到 minimum_support_rows。"
+        )
+    elif current_exact_support_under_minimum:
+        verdict = "current_exact_support_under_minimum"
+        candidate_patch_type = "support_accumulation_or_semantic_rebaseline"
+        candidate_patch_feature = None
+        reason = (
+            f"current q15 exact support 目前為 {support_rows_text}，低於 minimum；"
+            "這是 current exact support under minimum，不是 boundary candidate。"
+        )
+        verify_next = (
+            "維持 minimum_support_rows=50 與 current-live guardrail，累積同 support_identity 的 exact rows；"
+            "若只有 legacy / different semantic signature 支撐，文案必須標成 semantic rebaseline reference。"
+        )
     elif current_structure_quality >= Q35_THRESHOLD:
         verdict = "current_row_already_above_q35_boundary"
         candidate_patch_type = "support_accumulation"
@@ -326,7 +518,9 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
 
     candidate_patch_feature = best_feature.get("feature") or None
     candidate_patch = None
-    if candidate_patch_feature:
+    if candidate_patch_type in {None, "deployment_blocker_verification", "support_accumulation_or_semantic_rebaseline"}:
+        candidate_patch_feature = None
+    elif candidate_patch_feature:
         candidate_patch = {
             "type": candidate_patch_type,
             "feature": candidate_patch_feature,
@@ -342,6 +536,8 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
     return {
         "generated_at": probe.get("feature_timestamp") or drilldown.get("generated_at"),
         "target_col": probe.get("target_col") or bull_pocket.get("target_col"),
+        "support_identity": support_identity,
+        "artifact_context_freshness": artifact_context_freshness,
         "current_live": {
             "regime_label": live_regime,
             "regime_gate": live_gate,
@@ -353,6 +549,11 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
             "gap_to_q35_boundary": round(max(Q35_THRESHOLD - current_structure_quality, 0.0), 4) if current_structure_quality is not None else None,
             "non_null_4h_feature_count": probe.get("non_null_4h_feature_count"),
             "execution_guardrail_reason": probe.get("execution_guardrail_reason"),
+            "support_status": support_status or None,
+            "support_route_verdict": support_route_verdict or None,
+            "support_current_rows": support_current_rows,
+            "support_minimum_rows": support_minimum_rows,
+            "support_gap_to_minimum": support_gap_to_minimum,
         },
         "exact_live_lane": {
             "rows": exact_lane_rows,
@@ -362,6 +563,7 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
             "near_boundary_window": boundary_window,
             "near_boundary_rows": near_boundary_rows,
         },
+        "floor_gap_attribution": drilldown.get("component_gap_attribution") or {},
         "verdict": verdict,
         "candidate_patch_type": candidate_patch_type,
         "candidate_patch_feature": candidate_patch_feature,
@@ -382,6 +584,7 @@ def _markdown(report: dict[str, Any]) -> str:
     current = report.get("current_live") or {}
     lane = report.get("exact_live_lane") or {}
     candidate = report.get("candidate_patch") or {}
+    freshness = report.get("artifact_context_freshness") or {}
     component_lines = []
     for feature, payload in (report.get("component_deltas") or {}).items():
         component_lines.append(
@@ -401,6 +604,8 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- verdict: **{report.get('verdict')}**",
             f"- candidate_patch_type: **{report.get('candidate_patch_type')}**",
             f"- candidate_patch_feature: **{report.get('candidate_patch_feature')}**",
+            f"- artifact_context_freshness: **{freshness.get('verdict')}** (`{freshness.get('mismatched_fields')}`)",
+            f"- support_identity: `{report.get('support_identity')}`",
             "",
             "## Current live",
             f"- live path: **{current.get('regime_label')} / {current.get('regime_gate')} / {current.get('entry_quality_label')}**",
@@ -409,6 +614,7 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- gap_to_q35_boundary: **{current.get('gap_to_q35_boundary')}**",
             f"- non_null_4h_feature_count: **{current.get('non_null_4h_feature_count')}**",
             f"- execution_guardrail_reason: `{current.get('execution_guardrail_reason')}`",
+            f"- support rows/minimum/gap: **{current.get('support_current_rows')} / {current.get('support_minimum_rows')} / {current.get('support_gap_to_minimum')}**",
             "",
             "## Exact live lane",
             f"- rows: **{lane.get('rows')}**",

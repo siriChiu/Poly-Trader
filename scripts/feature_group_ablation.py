@@ -9,6 +9,7 @@ Outputs:
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import sys
@@ -37,6 +38,17 @@ HORIZON_MINUTES = 1440
 RECENT_ROWS = 5000
 N_SPLITS = 5
 TOP_K = 0.10
+BOUNDED_RECENT_ROWS = 1000
+BOUNDED_N_SPLITS = 2
+BOUNDED_N_ESTIMATORS = 40
+BOUNDED_PROFILE_NAMES = [
+    "core_only",
+    "core_plus_macro",
+    "core_macro_plus_stable_4h",
+    "core_plus_macro_plus_all_4h",
+    "current_full_no_bull_collapse_4h",
+    "current_full",
+]
 
 CORE_FEATURES = [
     "feat_eye", "feat_ear", "feat_nose", "feat_tongue",
@@ -96,7 +108,7 @@ def _feature_row(r: Any) -> dict[str, Any]:
     return train_module._feature_row(r)
 
 
-def _load_training_frame() -> tuple[pd.DataFrame, pd.Series, pd.Series, dict[str, Any]]:
+def _load_training_frame(recent_rows: int = RECENT_ROWS) -> tuple[pd.DataFrame, pd.Series, pd.Series, dict[str, Any]]:
     session = init_db(DB_URL)
     try:
         feat_rows = session.query(FeaturesNormalized).order_by(FeaturesNormalized.timestamp).all()
@@ -161,7 +173,8 @@ def _load_training_frame() -> tuple[pd.DataFrame, pd.Series, pd.Series, dict[str
 
     feature_columns = list(base_and_lags) + CROSS_FEATURES
     merged = merged.dropna(subset=[TARGET_COL]).copy()
-    merged = merged.iloc[-RECENT_ROWS:].reset_index(drop=True)
+    effective_recent_rows = max(1, int(recent_rows or RECENT_ROWS))
+    merged = merged.iloc[-effective_recent_rows:].reset_index(drop=True)
 
     latest_label_timestamp = None
     if not label_df.empty:
@@ -191,9 +204,18 @@ def _safe_win_rate(y_true: pd.Series, proba: np.ndarray, top_k: float = TOP_K) -
     return float(selected.mean()), int(len(selected))
 
 
-def _evaluate_subset(X: pd.DataFrame, y: pd.Series, regimes: pd.Series, columns: list[str]) -> dict[str, Any]:
-    tscv = TimeSeriesSplit(n_splits=N_SPLITS)
+def _evaluate_subset(
+    X: pd.DataFrame,
+    y: pd.Series,
+    regimes: pd.Series,
+    columns: list[str],
+    *,
+    n_splits: int = N_SPLITS,
+    xgb_params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    tscv = TimeSeriesSplit(n_splits=n_splits)
     folds: list[FoldMetrics] = []
+    params = dict(xgb_params or DEFAULT_XGB_PARAMS)
 
     for train_idx, test_idx in tscv.split(X):
         X_train = X.iloc[train_idx][columns]
@@ -202,7 +224,7 @@ def _evaluate_subset(X: pd.DataFrame, y: pd.Series, regimes: pd.Series, columns:
         y_test = y.iloc[test_idx]
         regime_test = regimes.iloc[test_idx]
 
-        model = XGBClassifier(**DEFAULT_XGB_PARAMS)
+        model = XGBClassifier(**params)
         model.fit(X_train, y_train)
         proba = model.predict_proba(X_test)[:, 1]
         pred = (proba >= 0.5).astype(int)
@@ -300,6 +322,8 @@ def _write_markdown(payload: dict[str, Any]) -> None:
         f"- target: `{payload['target_col']}`",
         f"- recent_rows: **{payload['recent_rows']}**",
         f"- splits: **{payload['n_splits']}** (TimeSeriesSplit)",
+        f"- xgb_n_estimators: **{payload.get('xgb_n_estimators', DEFAULT_XGB_PARAMS['n_estimators'])}**",
+        f"- refresh_mode: **{payload.get('refresh_mode', 'full_rebuild')}**",
         f"- generated_at: **{payload['generated_at']} UTC**",
         "",
         "## Ranking (accuracy / worst fold / stability)",
@@ -343,11 +367,44 @@ def _write_markdown(payload: dict[str, Any]) -> None:
     OUT_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def main() -> None:
-    X, y, regimes, source_meta = _load_training_frame()
-    subsets = _build_subsets(list(X.columns))
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Feature-group ablation report for the canonical target.")
+    parser.add_argument(
+        "--bounded-refresh",
+        action="store_true",
+        help=(
+            "Cron-safe candidate refresh: evaluate only the governance-critical profiles "
+            "with a smaller recent window / split count / estimator budget. Manual runs "
+            "without this flag still perform the full report."
+        ),
+    )
+    parser.add_argument("--recent-rows", type=int, default=None, help="Override recent rows used for this report.")
+    parser.add_argument("--n-splits", type=int, default=None, help="Override TimeSeriesSplit fold count.")
+    parser.add_argument("--n-estimators", type=int, default=None, help="Override XGBoost n_estimators.")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
+    recent_rows = args.recent_rows or (BOUNDED_RECENT_ROWS if args.bounded_refresh else RECENT_ROWS)
+    n_splits = args.n_splits or (BOUNDED_N_SPLITS if args.bounded_refresh else N_SPLITS)
+    n_estimators = args.n_estimators or (BOUNDED_N_ESTIMATORS if args.bounded_refresh else DEFAULT_XGB_PARAMS["n_estimators"])
+    xgb_params = {**DEFAULT_XGB_PARAMS, "n_estimators": int(n_estimators)}
+
+    X, y, regimes, source_meta = _load_training_frame(recent_rows=recent_rows)
+    all_subsets = _build_subsets(list(X.columns))
+    if args.bounded_refresh:
+        subsets = {
+            name: all_subsets[name]
+            for name in BOUNDED_PROFILE_NAMES
+            if name in all_subsets and all_subsets[name]
+        }
+        if not subsets:
+            subsets = all_subsets
+    else:
+        subsets = all_subsets
     profile_results = {
-        name: _evaluate_subset(X, y, regimes, columns)
+        name: _evaluate_subset(X, y, regimes, columns, n_splits=n_splits, xgb_params=xgb_params)
         for name, columns in subsets.items()
     }
 
@@ -361,10 +418,16 @@ def main() -> None:
         "generated_at": generated_at,
         "source_meta": source_meta,
         "target_col": TARGET_COL,
-        "recent_rows": RECENT_ROWS,
+        "recent_rows": int(recent_rows),
         "positive_ratio": round(float(y.mean()), 4),
         "regime_mix": {k: int(v) for k, v in regimes.value_counts().to_dict().items()},
-        "n_splits": N_SPLITS,
+        "n_splits": int(n_splits),
+        "xgb_n_estimators": int(n_estimators),
+        "refresh_mode": "bounded_candidate_refresh" if args.bounded_refresh else "full_rebuild",
+        "profile_metrics_fresh": True,
+        "profiles_evaluated": list(profile_results.keys()),
+        "full_profile_count": len(all_subsets),
+        "bounded_profile_count": len(profile_results) if args.bounded_refresh else None,
         "bull_collapse_4h_features": BULL_COLLAPSE_4H_FEATURES,
         "stable_4h_features": STABLE_4H_FEATURES,
         "recommended_profile": ranked[0][0] if ranked else None,

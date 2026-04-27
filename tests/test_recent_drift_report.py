@@ -1331,6 +1331,31 @@ def test_target_path_diagnostics_exposes_longest_adverse_streak_even_when_tail_r
     assert diagnostics["longest_zero_target_streak"]["end_timestamp"] == "2026-04-12 00:07:00"
 
 
+def test_select_adverse_target_streak_tracks_losses_not_all_win_tail():
+    adverse = recent_drift_report._select_adverse_target_streak(
+        {
+            "longest_zero_target_streak": {
+                "target": 0,
+                "count": 0,
+                "start_timestamp": None,
+                "end_timestamp": None,
+                "examples": [],
+            },
+            "longest_one_target_streak": {
+                "target": 1,
+                "count": 100,
+                "start_timestamp": "2026-04-19 15:30:25",
+                "end_timestamp": "2026-04-20 09:12:33",
+                "examples": [{"timestamp": "2026-04-20 09:12:33", "target": 1}],
+            },
+        }
+    )
+
+    assert adverse["target"] == 0
+    assert adverse["count"] == 0
+    assert adverse["examples"] == []
+
+
 def test_classify_window_marks_high_quality_label_imbalance_as_supported_extreme_trend_even_if_legacy_compare_is_weaker():
     interpretation = recent_drift_report._classify_window(
         ["label_imbalance", "regime_concentration"],
@@ -1363,6 +1388,64 @@ def test_classify_window_keeps_supported_extreme_trend_for_near_threshold_time_u
     assert interpretation == "supported_extreme_trend"
 
 
+def test_classify_window_marks_strong_nonconstant_label_imbalance_as_supported_extreme_trend_when_drawdown_is_low():
+    interpretation = recent_drift_report._classify_window(
+        ["label_imbalance", "regime_shift"],
+        {
+            "simulated_win_rate": 0.88,
+            "avg_simulated_pnl": 0.0148,
+            "avg_simulated_quality": 0.5503,
+            "avg_drawdown_penalty": 0.0703,
+            "avg_time_underwater": 0.1642,
+            "spot_long_win_rate": 0.61,
+        },
+    )
+
+    assert interpretation == "supported_extreme_trend"
+
+
+def test_compact_window_summary_describes_positive_label_imbalance_as_concentration_risk():
+    compact = recent_drift_report._compact_window_summary(
+        window_rows=100,
+        alerts=["label_imbalance", "regime_concentration", "regime_shift"],
+        interpretation="distribution_pathology",
+        win_rate=0.81,
+        dominant_regime="bull",
+        dominant_share=1.0,
+        quality_metrics={
+            "avg_simulated_pnl": 0.0046,
+            "avg_simulated_quality": 0.3429,
+            "avg_drawdown_penalty": 0.2043,
+        },
+        target_path_diagnostics={
+            "tail_target_streak": {
+                "target": 0,
+                "count": 19,
+                "start_timestamp": "2026-04-23 12:00:00",
+                "end_timestamp": "2026-04-24 06:00:00",
+            },
+            "longest_zero_target_streak": {
+                "target": 0,
+                "count": 19,
+                "start_timestamp": "2026-04-23 12:00:00",
+                "end_timestamp": "2026-04-24 06:00:00",
+            },
+        },
+        reference_comparison={
+            "top_mean_shift_features": [
+                {"feature": "feat_bb_pct_b"},
+                {"feature": "feat_4h_dist_bb_lower"},
+            ]
+        },
+    )
+
+    assert compact["severity"] == "medium"
+    assert compact["actionable_summary"] == "distribution concentration with adverse tail risk; canonical quality remains positive"
+    assert compact["top_shift_features"] == ["feat_bb_pct_b", "feat_4h_dist_bb_lower"]
+    assert compact["tail_streak"]["count"] == 19
+    assert compact["adverse_streak"]["count"] == 19
+
+
 def test_find_primary_window_prefers_more_persistent_pathology_when_severity_and_delta_tie():
     label, summary = recent_drift_report._find_primary_window(
         {
@@ -1386,3 +1469,35 @@ def test_find_primary_window_prefers_more_persistent_pathology_when_severity_and
 
     assert label == "250"
     assert summary["rows"] == 250
+
+
+def test_find_blocking_window_prefers_negative_pathology_over_supported_extreme_trend():
+    label, summary = recent_drift_report._find_blocking_window(
+        {
+            "100": {
+                "rows": 100,
+                "alerts": ["constant_target", "regime_concentration", "regime_shift"],
+                "win_rate": 1.0,
+                "drift_interpretation": "supported_extreme_trend",
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.0191,
+                    "avg_simulated_quality": 0.6332,
+                    "spot_long_win_rate": 0.74,
+                },
+            },
+            "500": {
+                "rows": 500,
+                "alerts": ["regime_shift"],
+                "win_rate": 0.25,
+                "drift_interpretation": "regime_concentration",
+                "quality_metrics": {
+                    "avg_simulated_pnl": -0.0015,
+                    "avg_simulated_quality": -0.0335,
+                    "spot_long_win_rate": 0.14,
+                },
+            },
+        }
+    )
+
+    assert label == "500"
+    assert summary["drift_interpretation"] == "regime_concentration"

@@ -1,3 +1,5 @@
+import { humanizeExecutionReason, humanizeLifecycleDiagnosticLabel } from "../utils/runtimeCopy";
+
 type VenueReadinessItem = {
   venue?: string;
   ok?: boolean;
@@ -5,6 +7,10 @@ type VenueReadinessItem = {
   credentials_configured?: boolean;
   error?: string | null;
   blockers?: string[] | null;
+  proof_state?: string | null;
+  readiness_scope?: string | null;
+  operator_next_action?: string | null;
+  verify_next?: string | null;
   contract?: {
     step_size?: string | number | null;
     tick_size?: string | number | null;
@@ -27,17 +33,17 @@ const readinessTone = (item: VenueReadinessItem) => {
 };
 
 const readinessLabel = (item: VenueReadinessItem) => {
-  if (!item.ok) return "metadata contract failed";
-  if (item.enabled_in_config && item.credentials_configured) return "credentials configured / runtime proof pending";
-  if (item.enabled_in_config) return "public-only metadata lane";
-  return "disabled venue / metadata only";
+  if (!item.ok) return "元資料契約失敗";
+  if (item.enabled_in_config && item.credentials_configured) return "已配置憑證 / 待補實單證據";
+  if (item.enabled_in_config) return "僅公開資料 / 元資料路徑";
+  return "停用場館 / 僅元資料";
 };
 
 const readinessBadgeLabel = (item: VenueReadinessItem) => {
-  if (!item.ok) return "METADATA-FAIL";
-  if (item.enabled_in_config && item.credentials_configured) return "CONFIGURED";
-  if (item.enabled_in_config) return "READ-ONLY";
-  return "DISABLED";
+  if (!item.ok) return "元資料失敗";
+  if (item.enabled_in_config && item.credentials_configured) return "已配置";
+  if (item.enabled_in_config) return "公開資料";
+  return "停用";
 };
 
 function formatScalar(value: string | number | null | undefined): string {
@@ -54,9 +60,14 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
     <div className={`grid gap-2 ${compact ? "grid-cols-1" : "md:grid-cols-2"} ${className}`.trim()}>
       {venues.map((item) => {
         const defaultProofSummary = item.credentials_configured
-          ? "order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證"
-          : "live exchange credential 尚未驗證 · order ack lifecycle 尚未驗證 · fill lifecycle 尚未驗證";
-        const blockerSummary = item.blockers?.length ? item.blockers.join(" · ") : defaultProofSummary;
+          ? ["order ack lifecycle", "fill lifecycle"]
+          : ["live exchange credential", "order ack lifecycle", "fill lifecycle"];
+        const blockerSummary = (item.blockers?.length ? item.blockers : defaultProofSummary)
+          .map((entry) => humanizeExecutionReason(entry))
+          .join(" · ");
+        const proofStateLabel = humanizeLifecycleDiagnosticLabel(item.proof_state || item.readiness_scope || "unknown");
+        const operatorNextAction = item.operator_next_action ? humanizeExecutionReason(item.operator_next_action) : null;
+        const verifyNext = item.verify_next ? humanizeExecutionReason(item.verify_next) : null;
         if (compact) {
           return (
             <div
@@ -71,12 +82,15 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
                 <div className="text-right opacity-80">{readinessBadgeLabel(item)}</div>
               </div>
               <div className="mt-2 opacity-90">
-                config {item.enabled_in_config ? "enabled" : "disabled"} · creds {item.credentials_configured ? "configured" : "public-only"} · metadata {item.ok ? "OK" : "FAIL"}
+                設定 {item.enabled_in_config ? "啟用" : "停用"} · 憑證 {item.credentials_configured ? "已配置" : "僅公開資料"} · 元資料 {item.ok ? "正常" : "失敗"}
               </div>
               <div className="opacity-90">
-                step {item.contract?.step_size ?? "—"} · tick {item.contract?.tick_size ?? "—"} · min qty {formatScalar(item.contract?.min_qty)}
+                數量步進 {item.contract?.step_size ?? "—"} · 價格刻度 {item.contract?.tick_size ?? "—"} · 最小數量 {formatScalar(item.contract?.min_qty)}
               </div>
-              <div className="opacity-90">proof pending · {blockerSummary}</div>
+              <div className="opacity-90">待補實單證據 · {blockerSummary}</div>
+              <div className="opacity-90">證據狀態 {proofStateLabel}</div>
+              {operatorNextAction ? <div className="opacity-90">下一步 {operatorNextAction}</div> : null}
+              {verifyNext ? <div className="opacity-90">驗證 {verifyNext}</div> : null}
               {item.error ? <div className="mt-1 opacity-90">{item.error}</div> : null}
             </div>
           );
@@ -93,11 +107,14 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
               </div>
               <div className="text-right opacity-80">{readinessBadgeLabel(item)}</div>
             </div>
-            <div className="mt-2 opacity-90">config {item.enabled_in_config ? "enabled" : "disabled"} · creds {item.credentials_configured ? "configured" : "public-only"}</div>
-            <div className="opacity-90">metadata contract {item.ok ? "OK" : "FAIL"}</div>
-            <div className="opacity-90">step {item.contract?.step_size ?? "—"} · tick {item.contract?.tick_size ?? "—"}</div>
-            <div className="opacity-90">min qty {formatScalar(item.contract?.min_qty)} · min cost {formatScalar(item.contract?.min_cost)}</div>
-            <div className="mt-2 opacity-90">missing runtime proof · {blockerSummary}</div>
+            <div className="mt-2 opacity-90">設定 {item.enabled_in_config ? "啟用" : "停用"} · 憑證 {item.credentials_configured ? "已配置" : "僅公開資料"}</div>
+            <div className="opacity-90">元資料契約 {item.ok ? "正常" : "失敗"}</div>
+            <div className="opacity-90">數量步進 {item.contract?.step_size ?? "—"} · 價格刻度 {item.contract?.tick_size ?? "—"}</div>
+            <div className="opacity-90">最小數量 {formatScalar(item.contract?.min_qty)} · 最小成本 {formatScalar(item.contract?.min_cost)}</div>
+            <div className="mt-2 opacity-90">待補實單證據 · {blockerSummary}</div>
+            <div className="opacity-90">證據狀態 {proofStateLabel}</div>
+            {operatorNextAction ? <div className="opacity-90">下一步 {operatorNextAction}</div> : null}
+            {verifyNext ? <div className="opacity-90">驗證 {verifyNext}</div> : null}
             {item.error ? <div className="mt-1 opacity-90">{item.error}</div> : null}
           </div>
         );

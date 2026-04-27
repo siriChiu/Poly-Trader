@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -17,6 +18,13 @@ q35_spec = importlib.util.spec_from_file_location("hb_q35_scaling_audit_test_mod
 hb_q35_scaling_audit = importlib.util.module_from_spec(q35_spec)
 assert q35_spec.loader is not None
 q35_spec.loader.exec_module(hb_q35_scaling_audit)
+
+FEATURE_GROUP_PATH = Path(__file__).resolve().parents[1] / "scripts" / "feature_group_ablation.py"
+feature_group_spec = importlib.util.spec_from_file_location("feature_group_ablation_test_module", FEATURE_GROUP_PATH)
+feature_group_ablation = importlib.util.module_from_spec(feature_group_spec)
+assert feature_group_spec.loader is not None
+sys.modules[feature_group_spec.name] = feature_group_ablation
+feature_group_spec.loader.exec_module(feature_group_ablation)
 
 
 class _DictRow(dict):
@@ -55,6 +63,54 @@ def test_parse_args_requires_hb_for_full_mode():
         assert exc.code == 2
     else:
         raise AssertionError("Expected parser error when --hb missing in full mode")
+
+
+def test_full_heartbeat_train_task_skips_optional_regime_grid_search():
+    train_task = next(task for task in hb_parallel_runner.TASKS if task["name"] == "train")
+
+    assert "--skip-regime-models" in train_task["cmd"]
+    assert train_task["cmd"][-2:] == ["--max-cv-folds", "2"]
+    assert hb_parallel_runner._resolve_parallel_task_timeout("train", fast_mode=False) == 300
+
+
+def test_feature_group_ablation_has_cron_safe_bounded_refresh_cli():
+    args = feature_group_ablation.parse_args(
+        ["--bounded-refresh", "--recent-rows", "1200", "--n-splits", "2", "--n-estimators", "40"]
+    )
+
+    assert args.bounded_refresh is True
+    assert args.recent_rows == 1200
+    assert args.n_splits == 2
+    assert args.n_estimators == 40
+
+
+def test_heartbeat_candidate_refresh_uses_bounded_lanes(monkeypatch):
+    calls = []
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(cmd)
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "", "stderr": "", "command": cmd}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run)
+
+    hb_parallel_runner.run_feature_group_ablation()
+    hb_parallel_runner.run_bull_4h_pocket_ablation()
+
+    assert calls[0][-1] == "--bounded-refresh"
+    assert calls[1][-1] == "--refresh-live-context"
+
+
+def test_patch_truth_doc_context_treats_any_reference_only_status_as_reference_only():
+    context = hb_parallel_runner._patch_truth_doc_context(
+        "core_plus_macro_plus_all_4h",
+        "reference_only_non_current_live_scope",
+        "bull|CAUTION",
+    )
+
+    assert context["reference_only"] is True
+    assert context["patch_label"] == "reference-only patch"
+    assert context["priority_focus_phrase"] == "support / reference-only patch"
+    assert "reference_only_non_current_live_scope" in context["docs_line"]
 
 
 def test_parse_collect_metadata_extracts_continuity_repair_json():
@@ -1369,6 +1425,74 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
 
 
 
+def test_load_open_current_state_issues_keeps_non_duplicate_auto_issues(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "#H_AUTO_CIRCUIT_BREAKER",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "duplicate breaker auto issue",
+                    },
+                    {
+                        "id": "#H_AUTO_MODEL_STABILITY",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "model stability still needs work",
+                        "summary": {"cv_accuracy": 0.5548, "cv_worst": 0.5357},
+                    },
+                    {
+                        "id": "#H_AUTO_REGIME_DRIFT",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "TW-IC 26 vs Global IC 17 — 信號強依賴近期資料",
+                        "summary": {"global_pass": 17, "tw_pass": 26, "total_features": 30},
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    issues = hb_parallel_runner._load_open_current_state_issues()
+
+    issue_ids = [issue["id"] for issue in issues]
+    assert "#H_AUTO_CIRCUIT_BREAKER" not in issue_ids
+    assert "#H_AUTO_MODEL_STABILITY" in issue_ids
+    assert "#H_AUTO_REGIME_DRIFT" in issue_ids
+
+
+
+def test_collect_historical_coverage_confirmation_reports_two_year_backfill(tmp_path):
+    db_path = tmp_path / "poly_trader.db"
+    conn = hb_parallel_runner.sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE raw_market_data (timestamp TEXT, symbol TEXT)")
+    conn.execute("CREATE TABLE features_normalized (timestamp TEXT, symbol TEXT)")
+    conn.execute("CREATE TABLE labels (timestamp TEXT, symbol TEXT)")
+    for table_name, start_ts in (
+        ("raw_market_data", "2024-04-13T22:00:00Z"),
+        ("features_normalized", "2024-04-14T07:00:00Z"),
+        ("labels", "2024-04-14T07:00:00Z"),
+    ):
+        conn.execute(f"INSERT INTO {table_name} VALUES (?, ?)", (start_ts, "BTCUSDT"))
+        conn.execute(f"INSERT INTO {table_name} VALUES (?, ?)", ("2026-04-22T18:22:35Z", "BTCUSDT"))
+    conn.commit()
+    conn.close()
+
+    summary = hb_parallel_runner.collect_historical_coverage_confirmation(db_path)
+
+    assert summary["ok"] is True
+    assert summary["covers_two_years"] is True
+    assert summary["tables"]["raw_market_data"]["older_than_two_year_cutoff"] is True
+    assert summary["tables"]["features_normalized"]["older_than_two_year_cutoff"] is True
+    assert summary["tables"]["labels"]["older_than_two_year_cutoff"] is True
+
+
+
 def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
@@ -1485,7 +1609,11 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
             "support_aware_production_profile": "core_plus_macro",
             "governance_contract": "dual_role_governance_active",
             "current_closure": "global_ranking_vs_support_aware_production_split",
+            "leaderboard_payload_source": "latest_persisted_snapshot",
+            "leaderboard_payload_stale": True,
+            "leaderboard_payload_cache_age_sec": 4001,
         },
+        run_mode="full",
     )
 
     assert result["success"] is True
@@ -1495,18 +1623,316 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
     orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
 
+    assert "最新 full heartbeat #20260420z 已完成 collect + diagnostics refresh" in issues_md
+    assert "fast heartbeat #20260420z" not in issues_md
+    assert "full heartbeat #20260420z 已完成 collect + diagnostics refresh" in roadmap_md
+    assert "fast heartbeat #20260420z" not in roadmap_md
     assert "heartbeat runner overwrite sync" in issues_md
     assert "P0. canonical circuit breaker remains the only current-live deployment blocker" in issues_md
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in issues_md
     assert "curl http://127.0.0.1:8000/api/models/leaderboard" not in issues_md
     assert "current-state docs overwrite sync 已自動化" in roadmap_md
+    assert "Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）" in issues_md
+    assert "`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout" in issues_md
+    assert "把可用 payload 誤報成 `API timeout`" in issues_md
+    assert "POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點" in issues_md
+    assert "runtime/API guardrail：`POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點" in issues_md
+    assert "Execution Status / Bot 營運 已顯示熔斷解除條件" in issues_md
+    assert "最近 50 筆目前 0/50，還差 15 勝；支持樣本 / q15 修補不可取代熔斷解除條件" in issues_md
+    assert "manual_trade=paused_when_status_syncing_or_deployment_blocked" in issues_md
+    assert "metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next" in orid_md
+    assert "execution_metadata_smoke.venues[]` 已提供 per-venue `proof_state / blockers / operator_next_action / verify_next`" in issues_md
+    assert "API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows" in roadmap_md
+    assert "manual_trade=paused_when_deployment_blocked" not in issues_md
+    assert "Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）" in roadmap_md
+    assert "operator-workspace timeout" in roadmap_md
+    assert "直接呼叫 `POST /api/trade` 的買入 / 加倉也必須依即時部署阻塞點以 409 暫停" in roadmap_md
+    assert "`/api/trade` 直接 API 不能繞過即時部署阻塞點" in roadmap_md
+    assert "Execution Status / Bot 營運 已顯示熔斷解除條件" in roadmap_md
+    assert "初次同步前或部署阻塞存在時" in roadmap_md
+    assert "買入 / 減碼 / 啟用自動模式快捷操作都顯示暫停" in roadmap_md
+    assert "`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 減碼 / 啟用自動模式" in roadmap_md
+    assert "browser `/execution`（含初次同步時買入 / 減碼 / 自動模式暫停）" in roadmap_md
+    assert "`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed" in orid_md
+    assert "Bot 營運 payload 誤報成 `API timeout`" in orid_md
+    assert "`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停" in orid_md
+    assert "直接 API 買入 / 加倉也必須 409 暫停" in orid_md
+    assert "`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡" in orid_md
+    assert "同步中 / 已阻塞兩種狀態都必須 fail-closed" in orid_md
+    assert "browser `/execution`（同步中 / 已阻塞快捷操作 fail-closed）" in orid_md
+    combined_docs = "\n".join([issues_md, roadmap_md, orid_md])
+    assert "buy/add-exposure" not in combined_docs
+    assert "current-live blocker" not in combined_docs
+    assert "`reduce/sell`" not in combined_docs
     assert "curl http://127.0.0.1:<active-backend>/api/models/leaderboard" in roadmap_md
     assert "不要硬綁單一 port" in roadmap_md
+    assert "payload_source=latest_persisted_snapshot" in issues_md
+    assert "payload_stale=true" in issues_md
+    assert "payload_age=1.1h" in issues_md
+    assert "payload_stale=true" in roadmap_md
     assert "心跳 #20260420z ORID" in orid_md
-    assert "support accumulation ≠ deployment closure" in orid_md
+    assert "support truth ≠ deployment closure" in orid_md
     assert "support=0/50" in orid_md
     assert "recommended_patch=core_plus_macro_plus_all_4h" in orid_md
     assert "heartbeat runner 現在會在 `auto_propose_fixes.py` 後自動 overwrite sync" not in orid_md
+
+
+def test_overwrite_current_state_docs_marks_no_collect_verification_runs(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text('{"issues": []}', encoding="utf-8")
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260425_verify",
+        {
+            "raw_market_data": 32187,
+            "features_normalized": 23605,
+            "labels": 64918,
+            "simulated_pyramid_win_rate": 0.5699,
+        },
+        {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []},
+        {},
+        {
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 123,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_governance_route": "exact_live_bucket_supported",
+        },
+        {},
+        {},
+        {},
+        {},
+        run_mode="full",
+        collect_attempted=False,
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+
+    assert "最新 full heartbeat #20260425_verify 已完成 diagnostics refresh（collect skipped）" in issues_md
+    assert "full heartbeat #20260425_verify 已完成 diagnostics refresh（collect skipped）" in roadmap_md
+    assert "diagnostics refresh 完成（collect skipped）" in orid_md
+    assert "#20260425_verify 已完成 collect + diagnostics refresh" not in issues_md
+
+
+
+def test_overwrite_current_state_docs_falls_back_to_leaderboard_issue_summary(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", lambda: {})
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P1_leaderboard_recent_window_contract",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe",
+                        "action": "keep leaderboard governance stable",
+                        "summary": {
+                            "leaderboard_count": 6,
+                            "top_profile": "core_only",
+                            "support_aware_profile": "core_plus_macro_plus_all_4h",
+                            "governance_contract": "single_role_governance_ok",
+                            "current_closure": "single_profile_alignment",
+                        },
+                    }
+                ]
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260425_docs_fallback",
+        {
+            "raw_market_data": 32197,
+            "features_normalized": 23615,
+            "labels": 64945,
+            "simulated_pyramid_win_rate": 0.5696,
+        },
+        {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []},
+        {
+            "primary_window": "500",
+            "primary_alerts": ["regime_concentration"],
+            "primary_summary": {"win_rate": 0.512, "dominant_regime": "bull", "dominant_regime_share": 0.994},
+        },
+        {
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 122,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+        },
+        {},
+        {},
+        {},
+        {},
+        run_mode="fast",
+        collect_attempted=False,
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+
+    for doc in (issues_md, roadmap_md):
+        assert "leaderboard_count=6" in doc
+        assert "selected_feature_profile=core_only" in doc
+        assert "support_aware_profile=core_plus_macro_plus_all_4h" in doc
+        assert "governance_contract=single_role_governance_ok" in doc
+        assert "current_closure=single_profile_alignment" in doc
+        assert "selected_feature_profile=—" not in doc
+        assert "governance_contract=—" not in doc
+
+
+
+def test_overwrite_current_state_docs_surfaces_stale_candidate_fallback(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text('{"issues": []}', encoding="utf-8")
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+    feature_artifact = data_dir / "feature_group_ablation.json"
+    bull_artifact = data_dir / "bull_4h_pocket_ablation.json"
+    feature_artifact.write_text('{"generated_at":"2026-04-20T00:00:00+00:00"}', encoding="utf-8")
+    bull_artifact.write_text('{"generated_at":"2026-04-20T00:00:00+00:00"}', encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260425_candidate_fallback",
+        {
+            "raw_market_data": 32192,
+            "features_normalized": 23610,
+            "labels": 64928,
+            "simulated_pyramid_win_rate": 0.5698,
+        },
+        {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []},
+        {},
+        {
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 123,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_governance_route": "exact_live_bucket_supported",
+        },
+        {},
+        {},
+        {},
+        {
+            "leaderboard_count": 6,
+            "selected_feature_profile": "core_only",
+            "support_aware_production_profile": "core_plus_macro_plus_all_4h",
+            "governance_contract": {"verdict": "dual_role_governance_active", "current_closure": "global_ranking_vs_support_aware_production_split"},
+        },
+        run_mode="full",
+        serial_results={
+            "feature_group_ablation": {
+                "result": {"attempted": True, "success": False, "returncode": -1, "stderr": "TIMEOUT after 60s"},
+                "diagnostics": {"generated_at": "2026-04-20T00:00:00+00:00"},
+                "artifact_path": feature_artifact,
+            },
+            "bull_4h_pocket_ablation": {
+                "result": {"attempted": True, "success": False, "returncode": -1, "stderr": "TIMEOUT after 45s"},
+                "diagnostics": {"generated_at": "2026-04-20T00:00:00+00:00"},
+                "artifact_path": bull_artifact,
+            },
+        },
+    )
+
+    assert result["success"] is True
+    issues_payload = json.loads((tmp_path / "issues.json").read_text(encoding="utf-8"))
+    issue_ids = {issue["id"] for issue in issues_payload["issues"]}
+    assert hb_parallel_runner.CANDIDATE_ARTIFACT_STALE_FALLBACK_ISSUE_ID in issue_ids
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "candidate governance refresh 仍有 stale fallback 風險" in issues_md
+    assert "feature_group_ablation=timeout→fallback" in issues_md
+    assert "bull_4h_pocket_ablation=timeout→fallback" in issues_md
+    assert "candidate governance artifacts fell back after refresh timeouts" in issues_md
+    assert "fallback artifact 只能作 reference-only governance" in roadmap_md
+
+
+
+def test_overwrite_current_state_docs_surfaces_parallel_task_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text('{"issues": []}', encoding="utf-8")
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260425_train_timeout",
+        {
+            "raw_market_data": 32201,
+            "features_normalized": 23619,
+            "labels": 64960,
+            "simulated_pyramid_win_rate": 0.5694,
+        },
+        {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []},
+        {
+            "primary_window": "100",
+            "primary_alerts": ["regime_concentration"],
+            "primary_summary": {"win_rate": 0.41, "dominant_regime": "bull", "dominant_regime_share": 0.99},
+        },
+        {
+            "deployment_blocker": "circuit_breaker_active",
+            "streak": 31,
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 111,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_governance_route": "exact_live_bucket_supported",
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "recent_window": 50,
+                    "current_recent_window_wins": 12,
+                    "additional_recent_window_wins_needed": 3,
+                }
+            },
+        },
+        {},
+        {},
+        {"root_cause": {"verdict": "canonical_breaker_active"}},
+        {},
+        run_mode="full",
+        parallel_results={
+            "train": {"success": False, "returncode": -1, "timed_out": True, "stderr": "TIMEOUT after 300s"},
+            "tests": {"success": True, "returncode": 0},
+        },
+    )
+
+    assert result["success"] is True
+    issues_payload = json.loads((tmp_path / "issues.json").read_text(encoding="utf-8"))
+    issue_ids = {issue["id"] for issue in issues_payload["issues"]}
+    assert hb_parallel_runner.PARALLEL_TASK_FAILURE_ISSUE_ID in issue_ids
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+    assert "heartbeat verification incomplete：parallel task failure 已 machine-read" in issues_md
+    assert "train=timeout(300s)" in issues_md
+    assert "heartbeat parallel verification did not finish cleanly" in issues_md
+    assert "本輪 verification 有未完成 parallel lane" in roadmap_md
+    assert "parallel verification：`train=timeout(300s)`" in orid_md
 
 
 
@@ -1622,6 +2048,148 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
     assert "維持 current-live exact-support truth" in orid_md
 
 
+def test_overwrite_current_state_docs_surfaces_q15_breaker_context_for_under_minimum_support(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    (tmp_path / "data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P1_q15_exact_support_stalled_under_breaker",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "q15 exact support under minimum after semantic rebaseline while breaker is clear (8/50)",
+                        "action": "keep breaker context explicit",
+                        "summary": {
+                            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                            "live_current_structure_bucket_rows": 8,
+                            "minimum_support_rows": 50,
+                            "gap_to_minimum": 42,
+                            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                            "breaker_context": "breaker_clear",
+                        },
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260424v",
+        {},
+        {},
+        {"primary_summary": {}},
+        {
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 8,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 42,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {"recommended_patch_profile": "core_plus_macro_plus_all_4h", "recommended_patch_status": "reference_only_until_exact_support_ready"},
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    assert "q15 exact support under minimum after semantic rebaseline while breaker is clear (8/50)" in issues_md
+    assert "`support=8/50`" in issues_md
+    assert "`breaker_context=breaker_clear`" in issues_md
+    assert "under breaker" not in issues_md
+
+
+
+def test_overwrite_current_state_docs_surfaces_q15_support_identity_rebaseline(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    (tmp_path / "data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_current_live_deployment_blocker",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "current live q15 exact support remains under minimum",
+                        "action": "keep exact-support blocker truth visible",
+                    },
+                    {
+                        "id": "P1_q15_exact_support_stalled_under_breaker",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "q15 exact support remains under minimum while breaker is clear (16/50)",
+                        "action": "keep support identity and legacy reference visible",
+                        "summary": {"breaker_context": "breaker_clear"},
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    q15_audit = {
+        "current_live": {
+            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        },
+        "support_route": {
+            "verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "support_progress": {
+                "status": "semantic_rebaseline_under_minimum",
+                "regression_basis": "legacy_or_different_semantic_signature",
+                "current_rows": 16,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 34,
+                "legacy_supported_reference": {
+                    "heartbeat": "20260423i",
+                    "live_current_structure_bucket_rows": 199,
+                    "minimum_support_rows": 50,
+                },
+            },
+        },
+    }
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260424identity",
+        {},
+        {},
+        {"primary_summary": {}},
+        {
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+            "current_live_structure_bucket_rows": 16,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 34,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {"recommended_patch_profile": "core_plus_macro_plus_all_4h", "recommended_patch_status": "reference_only_non_current_live_scope"},
+        q15_audit,
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+    for content in (issues_md, roadmap_md, orid_md):
+        assert "support progress：`status=semantic_rebaseline_under_minimum`" in content
+        assert "`regression_basis=legacy_or_different_semantic_signature`" in content
+        assert "`legacy_supported_reference=199/50@20260423i`" in content
+
+
+
 def test_overwrite_current_state_docs_keeps_reference_only_patch_truth_from_issue_summary(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
@@ -1695,8 +2263,185 @@ def test_overwrite_current_state_docs_keeps_reference_only_patch_truth_from_issu
     assert "`support=0/50`" in issues_md
 
 
+def test_overwrite_current_state_docs_falls_back_to_issue_blocking_window_when_drift_placeholder_is_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_current_live_deployment_blocker",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "current live bucket exact support is missing and remains the deployment blocker",
+                    },
+                    {
+                        "id": "P0_recent_distribution_pathology",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "recent canonical window 1000 rows = regime_concentration",
+                        "action": "keep blocker-window root cause visible",
+                        "summary": {
+                            "window": "1000",
+                            "win_rate": 0.394,
+                            "dominant_regime": "bull",
+                            "dominant_regime_share": 0.813,
+                            "avg_quality": 0.0814,
+                            "avg_pnl": 0.0009,
+                            "alerts": ["regime_shift"],
+                            "top_shift_features": ["feat_4h_bias200", "feat_vwap_dev", "feat_dxy"],
+                            "new_compressed_feature": "feat_vix",
+                            "tail_streak": "64x1",
+                        },
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260422docs",
+        {},
+        {},
+        {
+            "primary_window": "250",
+            "primary_alerts": ["label_imbalance"],
+            "primary_summary": {
+                "win_rate": 0.828,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.544,
+                "avg_quality": 0.4497,
+                "avg_pnl": 0.0123,
+            },
+            "blocking_window": None,
+            "blocking_alerts": [],
+            "blocking_summary": {
+                "rows": None,
+                "win_rate": None,
+                "dominant_regime": None,
+                "dominant_regime_share": None,
+                "avg_quality": None,
+                "avg_pnl": None,
+                "top_shift_features": [],
+                "new_compressed_feature": None,
+            },
+        },
+        {
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q65",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "no_support_proxy",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {
+            "recommended_patch_profile": "core_plus_macro_plus_all_4h",
+            "recommended_patch_status": "reference_only_non_current_live_scope",
+            "recommended_patch_reference_scope": "bull|CAUTION",
+        },
+        {
+            "support_route": {
+                "verdict": "exact_bucket_unsupported_block",
+                "support_progress": {
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                },
+            }
+        },
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "`window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)`" in issues_md
+    assert "`latest_window=250` / `win_rate=82.8%` / `dominant_regime=chop(54.4%)`" in issues_md
+    assert "`blocking_window=1000` / `win_rate=39.4%` / `dominant_regime=bull(81.3%)`" in roadmap_md
+
+
+def test_overwrite_current_state_docs_flattens_drift_target_path_tail_streak(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_recent_distribution_pathology",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "recent canonical window 500 rows = regime_concentration",
+                        "action": "keep target-path evidence visible",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260424tail",
+        {},
+        {},
+        {
+            "primary_window": "500",
+            "primary_alerts": ["regime_concentration", "regime_shift"],
+            "primary_summary": {
+                "win_rate": 0.45,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.996,
+                "avg_quality": 0.0541,
+                "avg_pnl": -0.0007,
+            },
+            "blocking_window": "500",
+            "blocking_alerts": ["regime_concentration", "regime_shift"],
+            "blocking_summary": {
+                "win_rate": 0.45,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.996,
+                "avg_quality": 0.0541,
+                "avg_pnl": -0.0007,
+                "top_shift_features": ["feat_4h_bb_pct_b", "feat_4h_dist_bb_lower"],
+                "new_compressed_feature": "feat_vix",
+                "target_path_diagnostics": {
+                    "tail_target_streak": {
+                        "target": 1,
+                        "count": 42,
+                        "start_timestamp": "2026-04-23 02:25:12.980622",
+                        "end_timestamp": "2026-04-23 03:10:09.998190",
+                    }
+                },
+            },
+        },
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    assert "`tail_streak=42x1`" in issues_md
+    assert "`tail_streak=—`" not in issues_md
+
 
 def test_overwrite_current_state_docs_uses_dynamic_support_ratio_in_success_criteria(tmp_path, monkeypatch):
+
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -1759,6 +2504,245 @@ def test_overwrite_current_state_docs_uses_dynamic_support_ratio_in_success_crit
         "current live q15 truth 維持：**3/50 + exact_bucket_present_but_below_minimum + "
         "reference_only_until_exact_support_ready**"
     ) in roadmap_md
+
+
+
+def test_overwrite_current_state_docs_drops_stale_reference_only_patch_copy_when_no_patch_exists(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_current_live_deployment_blocker",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "current-live deployment blocker is exact_live_lane_toxic_sub_bucket_current_bucket",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260422tox",
+        {},
+        {},
+        {"primary_summary": {}},
+        {
+            "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 117,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_governance_route": "exact_live_bucket_supported",
+            "runtime_closure_state": "deployment_guardrail_blocks_trade",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {
+            "recommended_patch_profile": "None",
+            "recommended_patch_status": "None",
+            "recommended_patch_reference_scope": None,
+        },
+        {
+            "current_live": {"current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15"},
+            "support_route": {
+                "verdict": "exact_bucket_supported",
+                "support_governance_route": "exact_live_bucket_supported",
+                "support_progress": {
+                    "current_rows": 117,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 0,
+                },
+            },
+        },
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+
+    assert "recommended_patch=None" not in issues_md
+    assert "recommended_patch=None" not in roadmap_md
+    assert "reference-only patch" not in issues_md
+    assert "reference-only patch" not in roadmap_md
+    assert "support truth / blocker truth" in issues_md
+    assert "support truth 與 deployment closure 邊界" in roadmap_md
+    assert "`recommended_patch=—` / `status=—` / `reference_scope=—`（本輪無 active recommended patch）" in roadmap_md
+    assert "support truth 與 deployment closure 邊界持續顯示清楚" in orid_md
+
+
+
+def test_overwrite_current_state_docs_separates_latest_recent_window_from_blocking_pathology_issue(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_current_live_deployment_blocker",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "current live bucket exact support remains under minimum",
+                    },
+                    {
+                        "id": "P0_recent_distribution_pathology",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "recent canonical window 500 rows = distribution_pathology",
+                        "action": "drill into the blocker pocket",
+                        "summary": {
+                            "window": "500",
+                            "win_rate": 0.2,
+                            "dominant_regime": "bull",
+                            "dominant_regime_share": 0.766,
+                            "avg_pnl": -0.0034,
+                            "avg_quality": -0.0847,
+                            "avg_drawdown_penalty": 0.2943,
+                            "alerts": ["label_imbalance", "regime_shift"],
+                        },
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260421split",
+        {"raw_market_data": 31367, "features_normalized": 22785, "labels": 63238},
+        {},
+        {
+            "primary_window": "100",
+            "primary_alerts": ["constant_target", "regime_shift"],
+            "primary_summary": {
+                "window": "100",
+                "win_rate": 1.0,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.88,
+                "avg_quality": 0.6025,
+                "avg_pnl": 0.0177,
+            },
+        },
+        {
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "current_live_structure_bucket_rows": 12,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 38,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {
+            "recommended_patch_profile": "core_plus_macro_plus_all_4h",
+            "recommended_patch_status": "reference_only_until_exact_support_ready",
+            "recommended_patch_reference_scope": "bull|CAUTION",
+        },
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+
+    assert "recent canonical diagnostics 已刷新" in issues_md
+    assert "`latest_window=100`" in issues_md
+    assert "`blocking_window=500`" in issues_md
+    assert "### P0. recent canonical window 500 rows = distribution_pathology" in issues_md
+    assert "目前真相：`window=500`" in issues_md
+    assert "latest diagnostics：`latest_window=100`" in issues_md
+    assert "`latest_window=100`" in roadmap_md
+    assert "`blocking_window=500`" in roadmap_md
+    assert "latest recent-window diagnostics" in orid_md
+    assert "current blocking pathological pocket" in orid_md
+
+
+def test_overwrite_current_state_docs_prefers_fresh_drift_blocking_window_over_stale_issue_summary(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_recent_distribution_pathology",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "recent canonical window 250 rows = distribution_pathology",
+                        "action": "stale blocker pocket",
+                        "summary": {
+                            "window": "250",
+                            "win_rate": 0.48,
+                            "dominant_regime": "chop",
+                            "dominant_regime_share": 0.56,
+                            "avg_pnl": 0.0039,
+                            "avg_quality": 0.1686,
+                            "alerts": [],
+                        },
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260421blocking",
+        {},
+        {},
+        {
+            "primary_window": "100",
+            "primary_alerts": ["constant_target", "regime_concentration", "regime_shift"],
+            "primary_summary": {
+                "window": "100",
+                "win_rate": 1.0,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.92,
+                "avg_quality": 0.6332,
+                "avg_pnl": 0.0191,
+            },
+            "blocking_window": "500",
+            "blocking_alerts": ["regime_shift"],
+            "blocking_summary": {
+                "window": "500",
+                "win_rate": 0.25,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.716,
+                "avg_quality": -0.0335,
+                "avg_pnl": -0.0015,
+                "top_shift_features": ["feat_4h_bias20", "feat_4h_rsi14", "feat_4h_bias50"],
+                "new_compressed_feature": "feat_atr_pct",
+            },
+        },
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    assert "### P0. recent canonical window 250 rows = distribution_pathology" in issues_md
+    assert "目前真相：`window=500` / `win_rate=25.0%` / `dominant_regime=bull(71.6%)` / `avg_quality=-0.0335` / `avg_pnl=-0.0015` / `alerts=regime_shift`" in issues_md
+    assert "病態切片：`alerts=regime_shift` / `tail_streak=—` / `top_shift=feat_4h_bias20,feat_4h_rsi14,feat_4h_bias50` / `new_compressed=feat_atr_pct`" in issues_md
 
 
 
@@ -2031,6 +3015,18 @@ def test_collect_current_state_docs_sync_status_is_clean_after_overwrite(tmp_pat
 def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
 
+    db_path = tmp_path / "poly_trader.db"
+    conn = hb_parallel_runner.sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE raw_market_data (timestamp TEXT, symbol TEXT)")
+    conn.execute("CREATE TABLE features_normalized (timestamp TEXT, symbol TEXT)")
+    conn.execute("CREATE TABLE labels (timestamp TEXT, symbol TEXT)")
+    for table_name in ("raw_market_data", "features_normalized", "labels"):
+        conn.execute(f"INSERT INTO {table_name} VALUES (?, ?)", ("2024-04-13T22:00:00Z", "BTCUSDT"))
+        conn.execute(f"INSERT INTO {table_name} VALUES (?, ?)", ("2026-04-22T18:22:35Z", "BTCUSDT"))
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(hb_parallel_runner, "DB_PATH", str(db_path))
+
     counts = {"raw_market_data": 1, "features_normalized": 2, "labels": 3, "simulated_pyramid_win_rate": 0.5}
     collect_result = {
         "attempted": True,
@@ -2117,6 +3113,8 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert summary["collect_result"]["success"] is True
     assert summary["collect_result"]["continuity_repair"]["bridge_inserted"] == 1
     assert summary["collect_result"]["continuity_repair"]["bridge_fallback_streak"] == 1
+    assert summary["historical_coverage_confirmation"]["covers_two_years"] is True
+    assert summary["historical_coverage_confirmation"]["tables"]["raw_market_data"]["older_than_two_year_cutoff"] is True
     assert summary["source_blockers"]["blocked_count"] == 1
     assert summary["ic_diagnostics"]["tw_pass"] == 10
     assert summary["drift_diagnostics"]["primary_window"] == "100"
@@ -2147,6 +3145,7 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     saved = json.loads(Path(summary_path).read_text())
     assert saved["collect_result"]["attempted"] is True
     assert saved["collect_result"]["continuity_repair"]["used_bridge"] is True
+    assert saved["historical_coverage_confirmation"]["covers_two_years"] is True
     assert saved["source_blockers"]["blocked_features"][0]["key"] == "nest_pred"
     assert saved["ic_diagnostics"]["global_pass"] == 13
     assert saved["drift_diagnostics"]["primary_alerts"] == ["regime_concentration"]
@@ -2170,6 +3169,48 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert saved["docs_sync"]["reference_artifacts"] == ["issues.json"]
     assert saved["serial_results"]["recent_drift_report"]["fallback_artifact_used"] is True
     assert saved["serial_results"]["recent_drift_report"]["timed_out"] is True
+
+
+def test_refresh_summary_runtime_progress_rewrites_stale_running_snapshot(tmp_path):
+    summary_path = tmp_path / "data" / "heartbeat_test_summary.json"
+    progress_path = tmp_path / "data" / "heartbeat_test_progress.json"
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(
+        json.dumps(
+            {
+                "heartbeat": "test",
+                "runtime_progress": {
+                    "path": str(progress_path),
+                    "snapshot": {
+                        "heartbeat": "test",
+                        "stage": "auto_propose",
+                        "status": "running",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    progress_path.write_text(
+        json.dumps(
+            {
+                "heartbeat": "test",
+                "stage": "finished",
+                "status": "success",
+                "details": {"summary_path": str(summary_path)},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = hb_parallel_runner.refresh_summary_runtime_progress(summary_path, progress_path)
+
+    assert snapshot["stage"] == "finished"
+    saved = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert saved["runtime_progress"]["snapshot"]["stage"] == "finished"
+    assert saved["runtime_progress"]["snapshot"]["status"] == "success"
+    assert saved["runtime_progress"]["finalized"] is True
+    assert saved["runtime_progress"]["path"] == str(progress_path)
 
 
 def test_collect_recent_drift_diagnostics_reads_primary_window(tmp_path, monkeypatch):
@@ -2229,6 +3270,45 @@ def test_collect_recent_drift_diagnostics_reads_primary_window(tmp_path, monkeyp
     assert diag["primary_summary"]["feature_diagnostics"]["low_variance_count"] == 4
     assert diag["primary_summary"]["target_path_diagnostics"]["tail_target_streak"]["count"] == 14
     assert diag["primary_summary"]["target_path_diagnostics"]["recent_examples"][0]["timestamp"] == "2026-04-13 03:00:00"
+
+
+def test_collect_recent_drift_diagnostics_drops_empty_blocking_placeholder(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "recent_drift_report.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-22T11:05:57+00:00",
+                "target_col": "simulated_pyramid_win",
+                "horizon_minutes": 1440,
+                "primary_window": {
+                    "window": "250",
+                    "alerts": ["label_imbalance"],
+                    "summary": {
+                        "rows": 250,
+                        "win_rate": 0.828,
+                        "dominant_regime": "chop",
+                        "dominant_regime_share": 0.544,
+                        "avg_quality": 0.4497,
+                        "avg_pnl": 0.0123,
+                    },
+                },
+                "blocking_window": {
+                    "window": None,
+                    "alerts": [],
+                    "summary": {},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    diag = hb_parallel_runner.collect_recent_drift_diagnostics()
+
+    assert diag["blocking_window"] is None
+    assert diag["blocking_alerts"] == []
+    assert diag["blocking_summary"] == {}
 
 
 def test_collect_live_predictor_diagnostics_reads_probe_json(tmp_path, monkeypatch):
@@ -2786,6 +3866,211 @@ def test_main_fast_mode_skips_candidate_refresh_lanes_by_default(tmp_path, monke
     assert order == ["q35", "predict_probe", "drilldown", "q15", "q15_root", "q15_replay"]
 
 
+def test_main_fast_mode_refreshes_leaderboard_alignment_snapshot_when_artifact_exists(tmp_path, monkeypatch):
+    order = []
+
+    class Args:
+        fast = True
+        fast_refresh_candidates = False
+        hb = "test"
+        no_collect = True
+        no_train = True
+        no_dw = True
+
+    class FakeExecutor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def submit(self, fn, task):
+            raise AssertionError("submit() should not be called when TASKS is empty in this test")
+
+    def _ok(stdout: str = ""):
+        return {"success": True, "returncode": 0, "stdout": stdout, "stderr": ""}
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "leaderboard_feature_profile_probe.json").write_text(
+        json.dumps({"generated_at": "2026-04-15T00:00:00Z", "top_model": {}, "alignment": {}}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    monkeypatch.setattr(hb_parallel_runner, "TASKS", [])
+    monkeypatch.setattr(hb_parallel_runner, "parse_args", lambda argv=None: Args())
+    monkeypatch.setattr(hb_parallel_runner, "resolve_run_label", lambda args: "test")
+    monkeypatch.setattr(hb_parallel_runner, "run_collect_step", lambda skip=False: {"attempted": False, "success": True, "returncode": 0, "stdout": "", "stderr": ""})
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "quick_counts",
+        lambda: {
+            "raw_market_data": 1,
+            "features_normalized": 1,
+            "labels": 1,
+            "simulated_pyramid_win_rate": 0.5,
+            "latest_raw_timestamp": "2026-04-15 00:00:00",
+            "label_horizons": [],
+        },
+    )
+    monkeypatch.setattr(hb_parallel_runner, "collect_source_blockers", lambda: {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []})
+    monkeypatch.setattr(hb_parallel_runner, "print_source_blockers", lambda payload: None)
+    monkeypatch.setattr(hb_parallel_runner, "refresh_train_prerequisites", lambda needs_train: {})
+    monkeypatch.setattr(hb_parallel_runner.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
+    monkeypatch.setattr(hb_parallel_runner.concurrent.futures, "as_completed", lambda future_to_name: [])
+    monkeypatch.setattr(hb_parallel_runner, "collect_ic_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_recent_drift_report", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_recent_drift_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q35_scaling_audit", lambda: order.append("q35") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q35_scaling_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_predict_probe", lambda: order.append("predict_probe") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "_persist_live_predictor_probe", lambda stdout: None)
+    monkeypatch.setattr(hb_parallel_runner, "collect_live_predictor_diagnostics", lambda result: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_live_decision_quality_drilldown", lambda: order.append("drilldown") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_circuit_breaker_audit", lambda run_label: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_circuit_breaker_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_feature_group_ablation", lambda: order.append("feature_ablation") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_feature_ablation_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_bull_4h_pocket_ablation", lambda: order.append("bull_pocket") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_bull_4h_pocket_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_leaderboard_candidate_probe", lambda run_label=None: order.append("leaderboard") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "_refresh_leaderboard_candidate_alignment_snapshot", lambda path, allow_rebuild=True: order.append(f"leaderboard_refresh:{allow_rebuild}") or {"generated_at": "2026-04-21T09:20:00Z"})
+    monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_support_audit", lambda: order.append("q15") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_bucket_root_cause", lambda: order.append("q15_root") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_bucket_root_cause_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_boundary_replay", lambda: order.append("q15_replay") or _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_boundary_replay_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_auto_propose", lambda run_label=None: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "save_summary", lambda *args, **kwargs: ({}, "/tmp/heartbeat_test_summary.json"))
+
+    hb_parallel_runner.main(["--fast", "--hb", "test"])
+
+    assert order == [
+        "q35",
+        "predict_probe",
+        "drilldown",
+        "leaderboard_refresh:False",
+        "q15",
+        "leaderboard_refresh:False",
+        "q15_root",
+        "q15_replay",
+    ]
+
+
+def test_main_fast_mode_recollects_leaderboard_diagnostics_after_q15_audit(tmp_path, monkeypatch):
+    class Args:
+        fast = True
+        fast_refresh_candidates = False
+        hb = "test"
+        no_collect = True
+        no_train = True
+        no_dw = True
+
+    class FakeExecutor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def submit(self, fn, task):
+            raise AssertionError("submit() should not be called when TASKS is empty in this test")
+
+    def _ok(stdout: str = ""):
+        return {"success": True, "returncode": 0, "stdout": stdout, "stderr": ""}
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "leaderboard_feature_profile_probe.json").write_text(
+        json.dumps({"generated_at": "2026-04-15T00:00:00Z", "top_model": {}, "alignment": {}}),
+        encoding="utf-8",
+    )
+
+    stale_diag = {
+        "support_progress": {"status": "accumulating", "delta_vs_previous": None},
+        "current_alignment_recency": {"inputs_current": False},
+    }
+    fresh_diag = {
+        "support_progress": {"status": "stalled_under_minimum", "delta_vs_previous": 0},
+        "current_alignment_recency": {"inputs_current": True},
+    }
+    diag_calls = []
+    captured = {}
+
+    def _collect_diag():
+        diag_calls.append(len(diag_calls) + 1)
+        return stale_diag if len(diag_calls) == 1 else fresh_diag
+
+    def _save_summary(*args, **kwargs):
+        captured["leaderboard_candidate_diagnostics"] = kwargs.get("leaderboard_candidate_diagnostics")
+        return ({}, "/tmp/heartbeat_test_summary.json")
+
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    monkeypatch.setattr(hb_parallel_runner, "TASKS", [])
+    monkeypatch.setattr(hb_parallel_runner, "parse_args", lambda argv=None: Args())
+    monkeypatch.setattr(hb_parallel_runner, "resolve_run_label", lambda args: "test")
+    monkeypatch.setattr(hb_parallel_runner, "run_collect_step", lambda skip=False: {"attempted": False, "success": True, "returncode": 0, "stdout": "", "stderr": ""})
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "quick_counts",
+        lambda: {
+            "raw_market_data": 1,
+            "features_normalized": 1,
+            "labels": 1,
+            "simulated_pyramid_win_rate": 0.5,
+            "latest_raw_timestamp": "2026-04-15 00:00:00",
+            "label_horizons": [],
+        },
+    )
+    monkeypatch.setattr(hb_parallel_runner, "collect_source_blockers", lambda: {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []})
+    monkeypatch.setattr(hb_parallel_runner, "print_source_blockers", lambda payload: None)
+    monkeypatch.setattr(hb_parallel_runner, "refresh_train_prerequisites", lambda needs_train: {})
+    monkeypatch.setattr(hb_parallel_runner.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
+    monkeypatch.setattr(hb_parallel_runner.concurrent.futures, "as_completed", lambda future_to_name: [])
+    monkeypatch.setattr(hb_parallel_runner, "collect_ic_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_recent_drift_report", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_recent_drift_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q35_scaling_audit", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q35_scaling_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_predict_probe", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "_persist_live_predictor_probe", lambda stdout: None)
+    monkeypatch.setattr(hb_parallel_runner, "collect_live_predictor_diagnostics", lambda result: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_live_decision_quality_drilldown", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_live_decision_quality_drilldown_diagnostics", lambda result: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_circuit_breaker_audit", lambda run_label: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_circuit_breaker_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_feature_group_ablation", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_feature_ablation_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_bull_4h_pocket_ablation", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_bull_4h_pocket_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_leaderboard_candidate_probe", lambda run_label=None: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "_refresh_leaderboard_candidate_alignment_snapshot", lambda path, allow_rebuild=True: {"generated_at": "2026-04-21T09:20:00Z"})
+    monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", _collect_diag)
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_support_audit", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_audit_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_bucket_root_cause", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_bucket_root_cause_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_boundary_replay", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_boundary_replay_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_auto_propose", lambda run_label=None: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "save_summary", _save_summary)
+
+    hb_parallel_runner.main(["--fast", "--hb", "test"])
+
+    assert diag_calls == [1, 2]
+    assert captured["leaderboard_candidate_diagnostics"]["support_progress"]["status"] == "stalled_under_minimum"
+    assert captured["leaderboard_candidate_diagnostics"]["current_alignment_recency"]["inputs_current"] is True
+
+
 def test_main_fast_mode_opt_in_refreshes_candidate_lanes(tmp_path, monkeypatch):
     order = []
 
@@ -2961,7 +4246,7 @@ def test_run_serial_command_reuses_fresh_fast_artifact(monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", True)
     monkeypatch.setattr(
         hb_parallel_runner,
-        "_get_fast_serial_cache_hit",
+        "_get_serial_cache_hit",
         lambda command_name: {
             "artifact_path": "/tmp/recent_drift_report.json",
             "reason": "fresh_recent_drift_artifact_reused",
@@ -2977,6 +4262,121 @@ def test_run_serial_command_reuses_fresh_fast_artifact(monkeypatch):
     assert result["cache_reason"] == "fresh_recent_drift_artifact_reused"
     assert result["artifact_path"] == "/tmp/recent_drift_report.json"
 
+
+def test_run_serial_command_reuses_candidate_artifact_in_full_mode(monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", False)
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "_feature_group_ablation_cache_hit",
+        lambda: {
+            "artifact_path": "/tmp/feature_group_ablation.json",
+            "reason": "bounded_label_drift_feature_group_ablation_artifact_reused",
+            "details": {"row_delta": 2},
+        },
+    )
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "_run_command_with_watchdog",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("fresh candidate artifact should be reused before spawning subprocess")),
+    )
+
+    result = hb_parallel_runner._run_serial_command(["python", "scripts/feature_group_ablation.py"])
+
+    assert result["success"] is True
+    assert result["attempted"] is False
+    assert result["cached"] is True
+    assert result["cache_reason"] == "bounded_label_drift_feature_group_ablation_artifact_reused"
+    assert result["artifact_path"] == "/tmp/feature_group_ablation.json"
+
+
+def test_full_serial_timeout_caps_expensive_candidate_lanes(monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", False)
+
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/feature_group_ablation.py"],
+        None,
+    ) == hb_parallel_runner.FULL_SERIAL_TIMEOUTS["feature_group_ablation"]
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["feature_group_ablation"] == 90
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["feature_group_ablation"] < 600
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/hb_predict_probe.py"],
+        None,
+    ) == 600
+
+    monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", True)
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/feature_group_ablation.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["feature_group_ablation"]
+
+
+def test_parallel_task_timeouts_are_bounded_for_full_cron_budget():
+    assert hb_parallel_runner._resolve_parallel_task_timeout("train", fast_mode=False) == hb_parallel_runner.FULL_PARALLEL_TASK_TIMEOUTS["train"]
+    assert hb_parallel_runner._resolve_parallel_task_timeout("dynamic_window", fast_mode=False) == hb_parallel_runner.FULL_PARALLEL_TASK_TIMEOUTS["dynamic_window"]
+    assert hb_parallel_runner._resolve_parallel_task_timeout("train", fast_mode=False) < 600
+    assert hb_parallel_runner._resolve_parallel_task_timeout("full_ic", fast_mode=True) == hb_parallel_runner.FAST_PARALLEL_TASK_TIMEOUTS["full_ic"]
+
+
+def test_run_task_passes_task_timeout_and_surfaces_timeout(monkeypatch):
+    captured = {}
+
+    def _fake_watchdog(cmd, *, timeout=600, extra_env=None, progress=None):
+        captured["timeout"] = timeout
+        return {
+            "attempted": True,
+            "success": False,
+            "returncode": -1,
+            "stdout": "",
+            "stderr": f"TIMEOUT after {timeout}s",
+            "command": cmd,
+        }
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_command_with_watchdog", _fake_watchdog)
+
+    name, ok, out, err, returncode = hb_parallel_runner.run_task(
+        {"name": "train", "cmd": ["python", "model/train.py"], "timeout_seconds": 42}
+    )
+
+    assert name == "train"
+    assert ok is False
+    assert out == ""
+    assert "TIMEOUT after 42s" in err
+    assert returncode == -1
+    assert captured["timeout"] == 42
+
+
+def test_save_summary_marks_parallel_timeout(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    db_path = tmp_path / "poly_trader.db"
+    conn = hb_parallel_runner.sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE raw_market_data (timestamp TEXT, symbol TEXT)")
+    conn.execute("CREATE TABLE features_normalized (timestamp TEXT, symbol TEXT)")
+    conn.execute("CREATE TABLE labels (timestamp TEXT, symbol TEXT)")
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(hb_parallel_runner, "DB_PATH", str(db_path))
+
+    summary, _ = hb_parallel_runner.save_summary(
+        "hb-timeout",
+        {"raw_market_data": 1, "features_normalized": 1, "labels": 1},
+        {},
+        {"attempted": True, "success": True, "returncode": 0, "stdout": "", "stderr": ""},
+        {
+            "train": {
+                "success": False,
+                "returncode": -1,
+                "timed_out": True,
+                "stdout": "",
+                "stderr": "TIMEOUT after 180s",
+            }
+        },
+        elapsed=181.0,
+        fast_mode=False,
+    )
+
+    assert summary["parallel_results"]["train"]["returncode"] == -1
+    assert summary["parallel_results"]["train"]["timed_out"] is True
+    assert "TIMEOUT after 180s" in summary["parallel_results"]["train"]["stderr_preview"]
 
 
 def test_recent_drift_cache_hit_requires_matching_label_signature(tmp_path, monkeypatch):
@@ -3466,6 +4866,37 @@ def test_refresh_leaderboard_candidate_alignment_snapshot_uses_rebuild_path(tmp_
 
 
 
+def test_refresh_leaderboard_candidate_alignment_snapshot_can_skip_live_rebuild(tmp_path, monkeypatch):
+    artifact_path = tmp_path / "leaderboard_feature_profile_probe.json"
+    artifact_path.write_text(
+        json.dumps({"top_model": {"selected_feature_profile": "core_only"}}),
+        encoding="utf-8",
+    )
+
+    import scripts.hb_leaderboard_candidate_probe as real_probe
+
+    called = {}
+
+    def _fake_build_probe_result(*, allow_rebuild=True, generated_at=None):
+        called["allow_rebuild"] = allow_rebuild
+        return {
+            "generated_at": "2026-04-19T02:30:05Z",
+            "top_model": {"selected_feature_profile": "core_only"},
+            "alignment": {"selected_feature_profile": "core_only"},
+        }
+
+    monkeypatch.setattr(real_probe, "build_probe_result", _fake_build_probe_result)
+
+    refreshed = hb_parallel_runner._refresh_leaderboard_candidate_alignment_snapshot(
+        artifact_path,
+        allow_rebuild=False,
+    )
+
+    assert called["allow_rebuild"] is False
+    assert refreshed["top_model"]["selected_feature_profile"] == "core_only"
+
+
+
 def test_leaderboard_candidate_cache_hit_refreshes_alignment_snapshot_when_only_code_freshness_is_stale(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
@@ -3760,7 +5191,9 @@ def test_main_writes_final_progress_artifact(tmp_path, monkeypatch):
     assert progress["status"] == "success"
     assert progress["details"]["summary_path"] == str(summary_path)
     assert summary["runtime_progress"]["path"] == str(progress_path)
-    assert summary["runtime_progress"]["snapshot"]["stage"] == "auto_propose"
+    assert summary["runtime_progress"]["snapshot"]["stage"] == "finished"
+    assert summary["runtime_progress"]["snapshot"]["status"] == "success"
+    assert summary["runtime_progress"]["finalized"] is True
 
 
 
@@ -4572,6 +6005,108 @@ def test_collect_leaderboard_candidate_diagnostics_prefers_live_probe_progress_w
     assert diag["governance_contract"]["support_progress"]["delta_vs_previous"] == 1
 
 
+def test_collect_leaderboard_candidate_diagnostics_prefers_q15_audit_progress_when_it_is_newer(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    model_dir = tmp_path / "model"
+    data_dir.mkdir()
+    model_dir.mkdir()
+
+    (data_dir / "leaderboard_feature_profile_probe.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-20T05:00:00Z",
+                "target_col": "simulated_pyramid_win",
+                "leaderboard_count": 6,
+                "top_model": {"selected_feature_profile": "core_only"},
+                "alignment": {
+                    "current_alignment_inputs_stale": False,
+                    "current_alignment_recency": {"inputs_current": True},
+                    "global_recommended_profile": "core_only",
+                    "train_selected_profile": "core_plus_macro",
+                    "train_selected_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+                    "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                    "live_current_structure_bucket_rows": 12,
+                    "minimum_support_rows": 50,
+                    "support_governance_route": "exact_live_lane_proxy_available",
+                    "live_regime_gate": "CAUTION",
+                    "live_entry_quality_label": "D",
+                    "live_execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
+                    "support_progress": {"status": "stalled_under_minimum", "current_rows": 12, "delta_vs_previous": 0},
+                    "governance_contract": {
+                        "verdict": "dual_role_governance_active",
+                        "current_closure": "global_ranking_vs_support_aware_production_split",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "feature_group_ablation.json").write_text(json.dumps({"recommended_profile": "core_only"}), encoding="utf-8")
+    (data_dir / "bull_4h_pocket_ablation.json").write_text(json.dumps({"live_context": {}}), encoding="utf-8")
+    (model_dir / "last_metrics.json").write_text(
+        json.dumps({"feature_profile": "core_plus_macro", "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile"}),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "feature_timestamp": "2026-04-20 05:20:20.413713",
+                "regime_gate": "CAUTION",
+                "entry_quality_label": "D",
+                "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
+                "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                "current_live_structure_bucket_rows": 12,
+                "minimum_support_rows": 50,
+                "support_governance_route": "exact_live_lane_proxy_available",
+                "deployment_blocker_details": {
+                    "support_progress": {
+                        "status": "accumulating",
+                        "current_rows": 12,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 38,
+                        "delta_vs_previous": 1,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "q15_support_audit.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-20 05:35:10.000000",
+                "current_live": {
+                    "feature_timestamp": "2026-04-20 05:35:10.000000",
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                    "current_live_structure_bucket_rows": 12,
+                },
+                "support_route": {
+                    "support_governance_route": "exact_live_lane_proxy_available",
+                    "minimum_support_rows": 50,
+                    "support_progress": {
+                        "status": "stalled_under_minimum",
+                        "current_rows": 12,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 38,
+                        "delta_vs_previous": 0,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    diag = hb_parallel_runner.collect_leaderboard_candidate_diagnostics()
+
+    assert diag["support_progress"]["status"] == "stalled_under_minimum"
+    assert diag["support_progress"]["delta_vs_previous"] == 0
+    assert diag["governance_contract"]["support_progress"]["status"] == "stalled_under_minimum"
+    assert diag["current_alignment_inputs_stale"] is False
+    assert diag["current_alignment_recency"]["inputs_current"] is True
+
+
+
 def test_refresh_train_prerequisites_runs_both_artifacts_when_train_is_needed(monkeypatch):
     calls = []
 
@@ -4605,3 +6140,115 @@ def test_refresh_train_prerequisites_runs_both_artifacts_when_train_is_needed(mo
 
 def test_refresh_train_prerequisites_skips_artifacts_when_train_not_needed():
     assert hb_parallel_runner.refresh_train_prerequisites(needs_train=False) == {}
+
+
+def test_overwrite_current_state_docs_surfaces_q35_scaling_no_deploy_issue(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_current_live_deployment_blocker",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "current live bucket BLOCK|bull_high_bias200_overheat_block|q35 exact support is missing and remains the deployment blocker (0/50)",
+                        "action": "keep exact-support blocker truth visible",
+                    },
+                    {
+                        "id": "P1_q35_scaling_no_deploy",
+                        "priority": "P1",
+                        "status": "open",
+                        "title": "q35 lane still needs formula review / base-stack redesign before deploy",
+                        "action": "把 q35 scaling audit 的 overall_verdict / redesign verdict / gap-to-floor 同步到 docs，禁止把 bias50 單點 uplift 當成 closure。",
+                        "summary": {
+                            "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+                            "current_live_structure_bucket_rows": 0,
+                            "minimum_support_rows": 50,
+                            "gap_to_minimum": 50,
+                            "support_route_verdict": "exact_bucket_unsupported_block",
+                            "overall_verdict": "bias50_formula_may_be_too_harsh",
+                            "redesign_verdict": "base_stack_redesign_candidate_grid_empty",
+                            "remaining_gap_to_floor": 0.1895,
+                        },
+                    },
+                ]
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260422u",
+        {
+            "raw_market_data": 31486,
+            "features_normalized": 22904,
+            "labels": 63481,
+            "simulated_pyramid_win_rate": 0.5726,
+        },
+        {
+            "blocked_count": 8,
+            "counts_by_history_class": {"archive_required": 3, "snapshot_only": 4, "short_window_public_api": 1},
+            "blocked_features": [
+                {
+                    "key": "fin_netflow",
+                    "quality_flag": "source_auth_blocked",
+                    "raw_snapshot_latest_status": "auth_missing",
+                    "raw_snapshot_events": 2956,
+                    "archive_window_coverage_pct": 0.0,
+                }
+            ],
+        },
+        {
+            "primary_window": "1000",
+            "primary_alerts": ["regime_shift"],
+            "primary_summary": {
+                "win_rate": 0.393,
+                "dominant_regime": "bull",
+                "dominant_regime_share": 0.813,
+                "avg_quality": 0.0767,
+                "avg_pnl": 0.0004,
+            },
+        },
+        {
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "current_live_structure_bucket": "BLOCK|bull_high_bias200_overheat_block|q35",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "no_support_proxy",
+            "runtime_closure_state": "patch_inactive_or_blocked",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {
+            "recommended_patch_profile": "core_plus_macro_plus_all_4h",
+            "recommended_patch_status": "reference_only_until_exact_support_ready",
+            "recommended_patch_reference_scope": "bull|CAUTION",
+        },
+        {},
+        {},
+        {
+            "leaderboard_count": 6,
+            "selected_feature_profile": "core_only",
+            "support_aware_production_profile": "core_plus_macro_plus_all_4h",
+            "governance_contract": "dual_role_governance_active",
+            "current_closure": "global_ranking_vs_support_aware_production_split",
+        },
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+
+    assert "q35 scaling audit 已指出目前不是單點 bias50 closure" in issues_md
+    assert "overall_verdict=bias50_formula_may_be_too_harsh" in issues_md
+    assert "P1. q35 lane still needs formula review / base-stack redesign before deploy" in issues_md
+    assert "q35 scaling audit 已指出目前不是單點 bias50 closure" in roadmap_md

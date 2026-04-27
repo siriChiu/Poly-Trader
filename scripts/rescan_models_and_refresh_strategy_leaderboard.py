@@ -20,6 +20,7 @@ from backtesting.strategy_lab import (  # noqa: E402
     delete_strategy,
     load_all_strategies,
     run_hybrid_backtest,
+    strategy_definition_signature,
 )
 from backtesting.strategy_param_search import expand_search_space, rank_param_search_results  # noqa: E402
 from server.routes import api as api_module  # noqa: E402
@@ -311,33 +312,102 @@ def _build_backtest_request(row: Dict[str, Any], *, rank_within_model: int) -> D
     }
 
 
+
+def _strategy_result_signature(
+    model_name: str,
+    strategy_type: str,
+    *,
+    roi: Any,
+    win_rate: Any,
+    total_trades: Any,
+    profit_factor: Any,
+    max_drawdown: Any,
+) -> str:
+    return json.dumps({
+        "type": strategy_type,
+        "roi": round(float(roi or 0.0), 4),
+        "win_rate": round(float(win_rate or 0.0), 4),
+        "total_trades": int(total_trades or 0),
+        "profit_factor": round(float(profit_factor or 0.0), 4),
+        "max_drawdown": round(float(max_drawdown or 0.0), 4),
+    }, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+
+def _saved_result_signature(model_name: str, strategy_type: str, results: Dict[str, Any]) -> str:
+    return _strategy_result_signature(
+        model_name,
+        strategy_type,
+        roi=results.get("roi"),
+        win_rate=results.get("win_rate"),
+        total_trades=results.get("total_trades"),
+        profit_factor=results.get("profit_factor"),
+        max_drawdown=results.get("max_drawdown"),
+    )
+
+
+
+def _ranked_row_result_signature(model_name: str, strategy_type: str, row: Dict[str, Any]) -> str:
+    return _strategy_result_signature(
+        model_name,
+        strategy_type,
+        roi=row.get("roi"),
+        win_rate=row.get("win_rate"),
+        total_trades=row.get("total_trades"),
+        profit_factor=row.get("profit_factor"),
+        max_drawdown=row.get("max_drawdown"),
+    )
+
+
+
 def _save_best_rows(scan_results: List[Dict[str, Any]], *, top_per_model: int) -> List[Dict[str, Any]]:
     saved: List[Dict[str, Any]] = []
-    ordered = []
+    seen_request_signatures: set[str] = set()
+    seen_result_signatures: set[str] = set()
+
     for result in scan_results:
-        ordered.extend((result.get("top_10") or [])[:top_per_model])
-
-    for index, row in enumerate(ordered, start=1):
-        model_name = str(row.get("model_name") or "unknown")
-        model_rank = 1 + sum(1 for previous in ordered[: index - 1] if previous.get("model_name") == model_name)
-        request = _build_backtest_request(row, rank_within_model=model_rank)
-        payload = api_module._execute_strategy_run(request)
-        if payload.get("error"):
-            print(f"  跳過 {request['name']}：{payload.get('error')}")
-            continue
-        saved.append(
-            {
-                "name": request["name"],
-                "model_name": model_name,
-                "variant": row.get("variant"),
-                "roi": row.get("roi"),
-                "win_rate": row.get("win_rate"),
-                "total_trades": row.get("total_trades"),
-                "results": payload.get("results") or {},
-            }
-        )
+        model_rows = result.get("top_10") or []
+        model_saved_count = 0
+        for row in model_rows:
+            if model_saved_count >= top_per_model:
+                break
+            model_name = str(row.get("model_name") or result.get("model_name") or "unknown")
+            params = copy.deepcopy(row.get("params") or {})
+            strategy_type = "rule_based" if model_name == "rule_baseline" else "hybrid"
+            request_signature = strategy_definition_signature({
+                "type": strategy_type,
+                "params": params,
+            })
+            if request_signature in seen_request_signatures:
+                continue
+            ranked_row_signature = _ranked_row_result_signature(model_name, strategy_type, row)
+            if ranked_row_signature in seen_result_signatures:
+                continue
+            request = _build_backtest_request(row, rank_within_model=model_saved_count + 1)
+            payload = api_module._execute_strategy_run(request)
+            if payload.get("error"):
+                print(f"  跳過 {request['name']}：{payload.get('error')}")
+                continue
+            result_signature = _saved_result_signature(model_name, strategy_type, payload.get("results") or {})
+            seen_request_signatures.add(request_signature)
+            duplicate_result = result_signature in seen_result_signatures
+            seen_result_signatures.add(ranked_row_signature)
+            seen_result_signatures.add(result_signature)
+            if duplicate_result:
+                continue
+            model_saved_count += 1
+            saved.append(
+                {
+                    "name": request["name"],
+                    "model_name": model_name,
+                    "variant": row.get("variant"),
+                    "roi": row.get("roi"),
+                    "win_rate": row.get("win_rate"),
+                    "total_trades": row.get("total_trades"),
+                    "results": payload.get("results") or {},
+                }
+            )
     return saved
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="重新掃描所有模型，並以參數搜尋重建 Strategy Leaderboard。")

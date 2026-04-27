@@ -1,46 +1,46 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-04-19 23:28:34 UTC**
+- generated_at: **2026-04-27 03:29:56 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
-- live context: **chop / CAUTION / D**
-- live structure bucket: `CAUTION|base_caution_regime_or_bias|q00`
+- live context: **bull / BLOCK / D**
+- live structure bucket: `BLOCK|bull_high_bias200_overheat_block|q35`
 - refresh mode: **live_context_only**
 
 ## Cohorts
 
-- bull_all rows: **1539** / win_rate **0.5315** / recommended **`core_plus_macro_plus_all_4h`**
-- bull_collapse_q35 rows: **540** / win_rate **0.4204** / recommended **`core_plus_macro_plus_all_4h`**
-- bull_exact_live_lane_proxy rows: **1015** / win_rate **0.6700** / recommended **`None`**
-- bull_live_exact_lane_bucket_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
-- bull_supported_neighbor_buckets_proxy rows: **649** / win_rate **0.7997** / recommended **`None`**
+- bull_all rows: **2413** / win_rate **0.5168** / recommended **`core_plus_macro_plus_4h_trend`**
+- bull_collapse_q35 rows: **944** / win_rate **0.4809** / recommended **`core_plus_macro_plus_all_4h`**
+- bull_exact_live_lane_proxy rows: **149** / win_rate **0.0336** / recommended **`None`**
+- bull_live_exact_lane_bucket_proxy rows: **64** / win_rate **0.0312** / recommended **`None`**
+- bull_supported_neighbor_buckets_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
 
 ## Bull-all ranking
 
 | profile | n_features | cv_mean | cv_std | cv_worst | brier | top10 |
 |---|---:|---:|---:|---:|---:|---:|
-| core_plus_macro_plus_all_4h | 20 | 0.5626 | 0.3082 | 0.1261 | 0.2474 | 0.8000 |
-| core_plus_macro_plus_4h_trend | 13 | 0.5583 | 0.3091 | 0.1261 | 0.2520 | 0.7043 |
-| core_plus_macro_plus_4h_momentum | 13 | 0.5557 | 0.3111 | 0.1261 | 0.2942 | 0.7043 |
-| core_plus_macro_plus_4h_structure_shift | 13 | 0.5296 | 0.3189 | 0.1261 | 0.3085 | 0.6870 |
-| core_plus_macro | 10 | 0.4974 | 0.2735 | 0.1261 | 0.3211 | 0.6696 |
-| current_full | 131 | 0.4565 | 0.2767 | 0.1261 | 0.2868 | 0.7913 |
-| current_full_minus_4h_structure_shift | 128 | 0.4557 | 0.2751 | 0.1261 | 0.2786 | 0.8000 |
-| current_full_minus_4h | 121 | 0.4330 | 0.2897 | 0.1261 | 0.3031 | 0.8000 |
+| core_plus_macro_plus_4h_trend | 13 | 0.6367 | 0.2700 | 0.1908 | 0.2690 | 0.6000 |
+| core_plus_macro_plus_4h_momentum | 13 | 0.6325 | 0.2792 | 0.1555 | 0.3148 | 0.4759 |
+| core_plus_macro_plus_all_4h | 20 | 0.6134 | 0.2684 | 0.1802 | 0.2611 | 0.7655 |
+| core_plus_macro_plus_4h_structure_shift | 13 | 0.6014 | 0.2848 | 0.1343 | 0.3029 | 0.5724 |
+| current_full | 131 | 0.5929 | 0.2345 | 0.2226 | 0.2832 | 0.7655 |
+| current_full_minus_4h_structure_shift | 128 | 0.5739 | 0.2322 | 0.1873 | 0.3003 | 0.7793 |
+| current_full_minus_4h | 121 | 0.5696 | 0.2289 | 0.1908 | 0.3096 | 0.7793 |
+| core_plus_macro | 10 | 0.5406 | 0.3019 | 0.1519 | 0.3344 | 0.6621 |
 
 ## Bull collapse-pocket ranking
 
 | profile | n_features | cv_mean | cv_std | cv_worst | brier | top10 |
 |---|---:|---:|---:|---:|---:|---:|
-| core_plus_macro_plus_all_4h | 20 | 0.4136 | 0.4012 | 0.0123 | 0.3233 | 0.8889 |
-| core_plus_macro | 10 | 0.4136 | 0.4012 | 0.0123 | 0.3319 | 1.0000 |
-| core_plus_macro_plus_4h_momentum | 13 | 0.4136 | 0.4012 | 0.0123 | 0.3378 | 0.9444 |
-| core_plus_macro_plus_4h_trend | 13 | 0.4136 | 0.4012 | 0.0123 | 0.3390 | 0.9444 |
-| current_full | 131 | 0.4136 | 0.4012 | 0.0123 | 0.3395 | 0.8889 |
-| current_full_minus_4h_structure_shift | 128 | 0.4136 | 0.4012 | 0.0123 | 0.3487 | 0.6667 |
-| current_full_minus_4h | 121 | 0.4136 | 0.4012 | 0.0123 | 0.3523 | 0.7222 |
-| core_plus_macro_plus_4h_structure_shift | 13 | 0.4074 | 0.3951 | 0.0123 | 0.3210 | 0.8889 |
+| core_plus_macro_plus_all_4h | 20 | 0.8586 | 0.0404 | 0.8182 | 0.1463 | 0.9500 |
+| current_full_minus_4h_structure_shift | 128 | 0.7576 | 0.2020 | 0.5556 | 0.1587 | 0.9500 |
+| core_plus_macro_plus_4h_structure_shift | 13 | 0.7424 | 0.1566 | 0.5859 | 0.1446 | 1.0000 |
+| current_full | 131 | 0.7273 | 0.1717 | 0.5556 | 0.1646 | 0.8500 |
+| current_full_minus_4h | 121 | 0.7273 | 0.1717 | 0.5556 | 0.1806 | 0.9500 |
+| core_plus_macro_plus_4h_momentum | 13 | 0.6566 | 0.3434 | 0.3131 | 0.1743 | 0.8500 |
+| core_plus_macro_plus_4h_trend | 13 | 0.4293 | 0.1263 | 0.3030 | 0.3119 | 0.5000 |
+| core_plus_macro | 10 | 0.4040 | 0.1414 | 0.2626 | 0.3184 | 0.8000 |
 
 ## Live-bucket proxy ranking
 
@@ -55,42 +55,42 @@
 ## Support / pathology summary
 
 - blocker_state: **exact_lane_proxy_fallback_only**
-- preferred_support_cohort: **bull_exact_live_lane_proxy**
-- current bucket gap to minimum: **50**
-- exact-bucket proxy gap to minimum: **50**
+- preferred_support_cohort: **bull_live_exact_lane_bucket_proxy**
+- current bucket gap to minimum: **8**
+- exact-bucket proxy gap to minimum: **0**
 - exact-lane proxy gap to minimum: **0**
-- dominant neighbor bucket: `None` rows=0
+- dominant neighbor bucket: `BLOCK|bull_q15_bias50_overextended_block|q15` rows=20
 - bucket gap vs dominant neighbor: **0**
-- exact bucket root cause: **same_lane_exists_but_q65_missing**
-- broader q65 rows / dominant regime: **0 / bull (1.0000)**
-- root cause interpretation: 目前支持資訊不足，需補更多 same-lane / broader-scope 證據。
+- exact bucket root cause: **exact_bucket_present_but_below_minimum**
+- broader q65 rows / dominant regime: **42 / bull (1.0000)**
+- root cause interpretation: bull exact lane 已出現當前 bucket 樣本，但距離 minimum support 仍有缺口；需持續累積 exact rows，不能當成已解 blocker。
 - bucket comparison takeaway: **support_gap_unresolved**
-- proxy boundary verdict: **insufficient_recent_exact_bucket_rows**
-- proxy boundary reason: current live structure bucket 沒有 recent exact rows，無法判斷 proxy cohort 邊界。
-- decision-quality scope / label: **global / D**
-- narrowed pathology scope: **None**
-- worst pathology scope: **entry_quality_label**
+- proxy boundary verdict: **proxy_governance_reference_only_exact_support_blocked**
+- proxy boundary reason: historical same-bucket proxy 可保留作 governance 參考，但 current live structure bucket 仍低於 minimum support；在 exact support 補滿前，proxy 不得當成 deployment 放行依據。
+- decision-quality scope / label: **entry_quality_label / D**
+- narrowed pathology scope: **regime_label+regime_gate+entry_quality_label**
+- worst pathology scope: **None**
 - shared pathology shift features: []
 - broader-bucket pathology shifts: []
-- recommended_action: 維持 0 layers；優先查 exact bucket 缺口與 same-bucket pathology，而不是再重訓。
+- recommended_action: 維持部署 blocker；exact bucket 已出現但仍低於 minimum support，proxy 只可作治理參考。
 
 ## Bucket evidence comparison
 
 | cohort | bucket | rows | win_rate | quality / cv | note |
 |---|---|---:|---:|---:|---|
-| exact live lane | None | 0 | None | None | current bucket rows=0 |
-| exact bucket proxy | CAUTION|base_caution_regime_or_bias|q00 | 0 | 0.0 | None | proxy-vs-broader win Δ=None |
-| broader same bucket | CAUTION|base_caution_regime_or_bias|q00 | 0 | None | None | dominant_regime=bull |
+| exact live lane | BLOCK|bull_high_bias200_overheat_block|q35 | 62 | 0.0323 | -0.1869 | current bucket rows=42 |
+| exact bucket proxy | BLOCK|bull_high_bias200_overheat_block|q35 | 64 | 0.03125 | None | proxy-vs-broader win Δ=-0.0164 |
+| broader same bucket | BLOCK|bull_high_bias200_overheat_block|q35 | 42 | 0.0476 | -0.1939 | dominant_regime=bull |
 
 ## Proxy boundary diagnostics
 
-- recent exact current bucket rows / win_rate: **0 / None**
-- recent exact live lane rows / win_rate: **0 / None**
-- historical exact-bucket proxy rows / win_rate: **0 / None**
-- recent broader same-bucket rows / dominant regime: **0 / None**
-- proxy vs current bucket win Δ / row ratio: **None / None**
-- exact lane vs current bucket win Δ / quality Δ: **None / None**
-- broader same-bucket vs current bucket win Δ / quality Δ: **None / None**
+- recent exact current bucket rows / win_rate: **42 / 0.0476**
+- recent exact live lane rows / win_rate: **62 / 0.0323**
+- historical exact-bucket proxy rows / win_rate: **64 / 0.0312**
+- recent broader same-bucket rows / dominant regime: **42 / bull**
+- proxy vs current bucket win Δ / row ratio: **-0.0164 / 1.5238**
+- exact lane vs current bucket win Δ / quality Δ: **-0.0153 / 0.007**
+- broader same-bucket vs current bucket win Δ / quality Δ: **0.0 / 0.0**
 
 ## Exact lane sub-bucket diagnostics
 
@@ -103,10 +103,10 @@
 ## Notes
 
 - collapse features under inspection: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
-- thresholds (bull q35): {"feat_4h_dist_swing_low": 3.2522, "feat_4h_dist_bb_lower": 1.4729, "feat_4h_bb_pct_b": 0.456}
-- exact live structure bucket: `CAUTION|base_caution_regime_or_bias|q00` rows=0
-- supported neighbor buckets from exact scope: ["CAUTION|structure_quality_caution|q35"]
-- best bull-all profile: **core_plus_macro_plus_all_4h**
+- thresholds (bull q35): {"feat_4h_dist_swing_low": 4.9776, "feat_4h_dist_bb_lower": 4.3617, "feat_4h_bb_pct_b": 0.7045}
+- exact live structure bucket: `BLOCK|bull_high_bias200_overheat_block|q35` rows=42
+- supported neighbor buckets from exact scope: ["BLOCK|bull_q15_bias50_overextended_block|q15"]
+- best bull-all profile: **core_plus_macro_plus_4h_trend**
 - best bull-collapse profile: **core_plus_macro_plus_all_4h**
 - best live-bucket proxy profile: **None**
 - If live-bucket proxy stays tiny and unstable while supported-neighbor buckets remain healthier, the next fix should become a support-aware deployment blocker / fallback policy rather than a broader feature expansion.
