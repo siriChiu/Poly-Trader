@@ -1,41 +1,41 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-04-25 19:55:52.566953**
+- generated_at: **2026-04-27 05:59:12.849264**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_replay_not_applicable_for_current_context**
 - artifact_context_freshness: **current_context** (`[]`)
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q15', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
-- reason: q15 root-cause verdict=runtime_blocker_preempts_bucket_root_cause，不是 boundary_sensitivity_candidate；boundary replay 本輪不適用，舊 boundary counterfactual 不可當 current truth。
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q15', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- reason: q15 root-cause verdict=same_lane_neighbor_bucket_dominates，不是 boundary_sensitivity_candidate；boundary replay 本輪不適用，舊 boundary counterfactual 不可當 current truth。
 
 ## Current live row
-- signal: **CIRCUIT_BREAKER**
+- signal: **ABSTAIN**
 - regime/gate: **chop / CAUTION**
 - structure bucket: **CAUTION|base_caution_regime_or_bias|q15**
-- structure_quality: **0.2038**
-- entry_quality: **0.5019** (trade_floor_gap=-0.0481)
-- support_route: **exact_bucket_present_but_below_minimum**
-- floor_cross_legality: **runtime_blocker_preempts_floor_analysis**
+- structure_quality: **0.1695**
+- entry_quality: **0.4843** (trade_floor_gap=-0.0657)
+- support_route: **exact_bucket_supported**
+- floor_cross_legality: **legal_component_experiment_after_support_ready**
 
 ## Boundary replay
-- legacy bucket rows: **14**
+- legacy bucket rows: **121**
 - replay bucket: **CAUTION|base_caution_regime_or_bias|q65**
 - replay bucket rows: **0**
-- generated_rows_via_boundary_only: **262**
+- generated_rows_via_boundary_only: **389**
 - preexisting_rows_in_replay_bucket: **0**
 - generated_row_share: **None**
-- generated_rows_exceed_replay_scope: **True** (excess=262)
-- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** rows=577
+- generated_rows_exceed_replay_scope: **True** (excess=389)
+- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** rows=572
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.407 → None**
-- structure_quality: **0.2038 → 0.35**
+- raw before/after: **0.3045 → 0.8354**
+- structure_quality: **0.1695 → 0.35**
 - bucket_after: **CAUTION|base_caution_regime_or_bias|q65**
-- entry_quality: **0.5019 → 0.5385**
-- trade_floor_gap_after: **-0.0115**
+- entry_quality: **0.4843 → 0.5295**
+- trade_floor_gap_after: **-0.0205**
 - allowed_layers_after: **0** (entry_quality_below_trade_floor)
 - counterfactual verdict: **counterfactual_not_evaluated**
 - counterfactual reason: boundary replay 不適用於目前 RCA verdict，因此不消費舊 q15 counterfactual。
 
 ## Next
 - next_action: 維持 boundary replay 為 non-applicable，直到 RCA 重新輸出 boundary_sensitivity_candidate。
-- verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 q15 root-cause artifact。
+- verify_next: 比較 current row 與 dominant neighbor bucket 的 4H component 差值，再做最小 counterfactual。

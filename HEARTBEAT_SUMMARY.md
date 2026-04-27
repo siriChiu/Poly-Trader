@@ -1,53 +1,10 @@
-本輪產品化事實摘要 (Heartbeat #1029)
-- 數據收集管線恢復正常：+1 raw, +1 features, +2 labels (Raw=32257, Features=23675, Labels=65085)
-- 完成 regime labels 補齊：所有 23675 筆 features 具備 regime labels
-- 模型訓練完成：Global model Train=67.7%, CV=63.3% ± 8.0%
-- 全面驗證通過：6/6 測試全部通過（檔案結構、語法、模組導入、特徵引擎、前端 TypeScript、數據品質）
-- 自動化文件同步：ISSUES.md、ROADMAP.md、ORID_DECISIONS.md 已 overwrite sync 為 current state
-- 生成 heartbeat summary：data/heartbeat_1029_summary.json
-- 更新 issues.json：包含 P0 與 P1 問題的機器可讀追蹤
-
-六帽摘要
-- 白帽 (事實)：數據增長+1/+1/+2，CV=63.3%，最近 100 筆 win_rate=9.0%，熔斷器激活中（streak=14，需 6 勝）
-- 紅帽 (感覺)：系統顯示出近期信號強度（TW-IC 26/30 通過）但長期穩定性受限，需要解決熔斷器條件
-- 黑帽 (批判)：熔斷器仍是唯一即時部署阻塞點，最近 100 筆 distribution pathology 嚴重，需要優先處理釋放條件
-- 黃帽 (利益)：TW-IC 顯示近期信號強（26/30 通過），N=100 動態窗口 8/8 通過， regime-aware IC 在 chop regime 達 5/8 通過
-- 綠帽 (創意)：考慮 regime-gated feature weighting 來利用近期信號強度；探索縮短特徵窗口以捕捉 N=100 的強信號
-- 藍帽 (控制)：優先解決 P0 熔斷器問題；保持文件 current-state 同步；下一輪聚焦在熔斷器釋放條件達成
-
-ORID 決策
-- O (客觀)：熔斷器觸發條件：recent 50-sample win rate=18.0% < 30%，streak=14，需要 6 勝才能解除
-- R (反應)：系統目前處於被動阻塞狀態，雖有近期信號強度但無法轉換為交易機會
-- I (解釋)：熔斷器是設計用來防止連續虧損的安全機制，當前觸發原因是近期 win rate 過低
-- D (決定)：優先監控並等待熔滾器自然解除（達成 15/50 勝率）；同時準備好在解除後立即驗證交易恢復
-
-Patch 清單
-1. 自動 overwrite sync ISSUES.md、ROADMAP.md、ORID_DECISIONS.md (由 hb_parallel_runner.py v5 完成)
-2. 生成 data/heartbeat_1029_summary.json
-3. 更新 issues.json 當前狀態
-4. 無代碼修改（本輪聚焦在診斷與文件同步）
-
-驗證證據
-- 測試結果：6/6 全通過 (見 terminal 輸出 "總計: 6/6 通過")
-- 數據品質測試：所有特徵標準差 > 0，唯一值充足
-- 前端 TypeScript 編譯：通過
-- 模組導入測試：所有 8 個核心模組成功載入
-- 檔案結構檢查：所有 21 個必要文件存在
-
-文件覆蓋更新確認
-- ISSUES.md：已 overwrite 為 current state (最後更新：2026-04-25 21:38:19 CST)
-- ROADMAP.md：已 overwrite 為 current state
-- ORID_DECISIONS.md：已 overwrite 為 current state
-- HEARTBEAT.md：本文件已更新為 current state
-- issues.json：已更新為機器可讀當前狀態
-
-下一輪 gate
-1. **主要目標**：監控熔斷器解除條件達成 (最近 50 筆 win rate ≥ 30% 且 streak < 50)
-   - 驗證方式：透過 hb_predict_probe.py 檢查 deployment_blocker 變為 false
-   - 失敗升級：若連續 3 次心跳仍未解除，升級為 P0 blocker 需要主動介入方案
-2. **次要目標**：驗證近期信號強度 (TW-IC) 是否可轉換為實際交易勝率提升
-   - 驗證方式：比較解除前後的 simulated_pyramid_win 趨勢
-   - 失敗升級：若熔斷器解除後勝率未顯著改善，啟動 regime-gated feature weighting 調研
-3. **文件目標**：保持 current-state 文件同步自動化（無需人工干預）
-   - 驗證方式：檢查 ISSUES.md 時間戳是否晚於心跳執行時間
-   - 失敗升級：若自動同步失敗 2 次，檢查 hb_parallel_runner.py v5 的 auto_propose_fixes 文件寫入權限
+# Poly-Trader 心跳 #1058 [2026-04-27 06:01:09 UTC]
+- Raw: 32348 / Features: 23766 / Labels: 65290
+- BTC: $77800 | FNG: 47 | 衍生品: LSR=0.747 GSR=0.747
+- 感官 IC (h=4): Eye=-0.0348 / Ear=-0.0218 / Nose=+0.0167 / Tongue=-0.1023 / Body=+0.0254 / Pulse=+0.0595 / Aura=-0.1066 / Mind=-0.1227
+- 六帽會議結論
+- ORID D：[具體行動項目]
+- 本輪修改：[做了什麼]
+- 測試結果：6/6 通過
+- 距 90% 勝率差距：[還差多少，主要障礙]
+- ROADMAP / PRD / ARCHITECTURE：[更新了什麼]
