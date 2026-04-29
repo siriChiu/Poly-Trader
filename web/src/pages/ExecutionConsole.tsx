@@ -812,13 +812,14 @@ export default function ExecutionConsole() {
       .filter((item) => item && item !== "尚未提供阻塞點摘要。")))
       .join(" · ") || primaryBlockedReason);
   const automationEnabled = Boolean(runtimeStatus?.automation);
-  const manualTradeBlocked = runtimeStatusPending || hasBlockedState;
-  const automationEnableBlocked = manualTradeBlocked && !automationEnabled;
-  const operatorShortcutBlockedMessage = runtimeStatusPending
-    ? "正在同步 /api/status：買入 / 減碼 / 自動模式切換暫停；等待目前阻塞點同步後再操作。"
-    : manualTradeBlocked
-      ? "目前阻塞點啟動中：買入 / 減碼 / 自動模式切換暫停；請先查看阻塞原因。"
+  const manualBuyBlocked = runtimeStatusPending || hasBlockedState;
+  const automationEnableBlocked = runtimeStatusPending || (hasBlockedState && !automationEnabled);
+  const manualBuyBlockedMessage = runtimeStatusPending
+    ? "正在同步 /api/status：買入與啟用自動模式暫停；減碼 / 查看阻塞原因仍可使用。"
+    : manualBuyBlocked
+      ? "目前即時阻塞點啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。"
       : null;
+  const operatorShortcutBlockedMessage = manualBuyBlockedMessage;
   const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const deploymentStatusDetail = runtimeStatusPending
     ? "正在向 /api/status 取得目前阻塞點 / 部署閉環摘要。"
@@ -834,8 +835,8 @@ export default function ExecutionConsole() {
   const executionVenueLabel = runtimeStatusPending ? "同步中" : humanizeExecutionVenueLabel(executionSummary?.venue || "unknown");
   const automationStatusLabel = runtimeStatusPending ? "自動交易同步中" : `自動交易 ${automationEnabled ? "開啟" : "關閉"}`;
   const operatorQuickCommands = [
-    { label: manualTradeBlocked ? "買入暫停" : "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualTradeBlocked },
-    { label: manualTradeBlocked ? "減碼暫停" : "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualTradeBlocked },
+    { label: manualBuyBlocked ? "買入暫停" : "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualBuyBlocked },
+    { label: "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" },
     { label: automationEnableBlocked ? "自動模式暫停" : (automationEnabled ? "切到手動模式" : "切到自動模式"), disabled: operatorActionState.tone === "pending" || automationEnableBlocked },
     { label: "查看阻塞原因", disabled: operatorActionState.tone === "pending" },
     { label: "重新整理", disabled: operatorActionState.tone === "pending" },
@@ -923,10 +924,10 @@ export default function ExecutionConsole() {
 
   const handleOperatorTrade = async (side: "buy" | "reduce", qty = 0.001) => {
     const label = side === "buy" ? "買入" : "減碼";
-    if (manualTradeBlocked) {
+    if (side === "buy" && manualBuyBlocked) {
       setOperatorActionState({
         tone: "error",
-        message: operatorShortcutBlockedMessage || "目前阻塞點啟動中：交易指令暫停；請先查看阻塞原因。",
+        message: manualBuyBlockedMessage || "目前即時阻塞點啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。",
       });
       return;
     }

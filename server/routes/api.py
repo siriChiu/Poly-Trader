@@ -6365,6 +6365,12 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
 
     blocker_details = payload.get("deployment_blocker_details") if isinstance(payload.get("deployment_blocker_details"), dict) else {}
     return {
+        "success": False,
+        "trade_blocked": True,
+        "blocked_side": "buy",
+        "reason": "manual_buy_blocked_by_current_live_blocker",
+        "runtime_blocker": deployment_blocker or runtime_closure_state or execution_guardrail_reason or allowed_layers_reason,
+        "allowed_actions": ["reduce", "diagnostics", "mode_toggle"],
         "code": "current_live_deployment_blocker",
         "message": "目前即時部署阻塞啟用：買入 / 加倉已暫停；減倉 / 賣出風險降低路徑仍允許。",
         "context": {
@@ -6390,6 +6396,14 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
     }
 
 
+def _current_live_trade_blocker(live_runtime_truth: Dict[str, Any], side: str) -> Optional[Dict[str, Any]]:
+    """Return a structured blocker only for add-exposure trade sides."""
+    normalized_side = str(side or "").lower().strip()
+    if normalized_side in {"reduce", "sell"}:
+        return None
+    return _current_live_buy_reject_payload(live_runtime_truth)
+
+
 async def _load_current_live_buy_reject_payload() -> Optional[Dict[str, Any]]:
     try:
         maybe_confidence_payload = get_confidence_prediction()
@@ -6397,6 +6411,12 @@ async def _load_current_live_buy_reject_payload() -> Optional[Dict[str, Any]]:
         live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload)
     except Exception as exc:
         return {
+            "success": False,
+            "trade_blocked": True,
+            "blocked_side": "buy",
+            "reason": "manual_buy_blocked_by_current_live_guardrail_unavailable",
+            "runtime_blocker": "current_live_guardrail_unavailable",
+            "allowed_actions": ["reduce", "diagnostics", "mode_toggle"],
             "code": "current_live_guardrail_unavailable",
             "message": "目前即時風控無法取得：買入 / 加倉以失敗關閉暫停；減倉 / 賣出風險降低路徑仍允許。",
             "context": {
@@ -6407,7 +6427,7 @@ async def _load_current_live_buy_reject_payload() -> Optional[Dict[str, Any]]:
                 "operator_action": "重新整理 /execution/status 並恢復 /predict/confidence 後，再重試買入 / 加倉。",
             },
         }
-    return _current_live_buy_reject_payload(live_runtime_truth)
+    return _current_live_trade_blocker(live_runtime_truth, "buy")
 
 
 @router.post("/trade")

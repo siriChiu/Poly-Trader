@@ -205,19 +205,21 @@ def test_execution_surfaces_show_structured_circuit_breaker_release_math_before_
         assert leaked_copy not in console_source
 
 
-def test_execution_console_disables_manual_trade_and_auto_enable_shortcuts_while_syncing_or_blocked():
+def test_execution_console_blocks_only_add_exposure_while_syncing_or_blocked_and_keeps_derisk_actions_available():
     source = _read("pages/ExecutionConsole.tsx")
     required_snippets = [
-        'const manualTradeBlocked = runtimeStatusPending || hasBlockedState;',
-        'const automationEnableBlocked = manualTradeBlocked && !automationEnabled;',
-        'const operatorShortcutBlockedMessage = runtimeStatusPending',
-        '正在同步 /api/status：買入 / 減碼 / 自動模式切換暫停；等待目前阻塞點同步後再操作。',
-        '目前阻塞點啟動中：買入 / 減碼 / 自動模式切換暫停；請先查看阻塞原因。',
+        'const manualBuyBlocked = runtimeStatusPending || hasBlockedState;',
+        'const automationEnableBlocked = runtimeStatusPending || (hasBlockedState && !automationEnabled);',
+        'const manualBuyBlockedMessage = runtimeStatusPending',
+        '正在同步 /api/status：買入與啟用自動模式暫停；減碼 / 查看阻塞原因仍可使用。',
+        '目前即時阻塞點啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。',
+        'const operatorShortcutBlockedMessage = manualBuyBlockedMessage;',
         'const operatorQuickCommands = [',
-        '{ label: manualTradeBlocked ? "買入暫停" : "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualTradeBlocked },',
-        '{ label: manualTradeBlocked ? "減碼暫停" : "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualTradeBlocked },',
+        '{ label: manualBuyBlocked ? "買入暫停" : "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualBuyBlocked },',
+        '{ label: "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" },',
         '{ label: automationEnableBlocked ? "自動模式暫停" : (automationEnabled ? "切到手動模式" : "切到自動模式"), disabled: operatorActionState.tone === "pending" || automationEnableBlocked },',
-        'if (manualTradeBlocked) {',
+        'if (side === "buy" && manualBuyBlocked) {',
+        'message: manualBuyBlockedMessage || "目前即時阻塞點啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。",',
         'if (enabled && automationEnableBlocked) {',
         '{operatorShortcutBlockedMessage && (',
         '{operatorQuickCommands.map((command) => (',
@@ -225,6 +227,15 @@ def test_execution_console_disables_manual_trade_and_auto_enable_shortcuts_while
     ]
     for snippet in required_snippets:
         assert snippet in source
+    forbidden_snippets = [
+        'const manualTradeBlocked = runtimeStatusPending || hasBlockedState;',
+        '減碼暫停',
+        'if (manualTradeBlocked) {',
+        '買入 / 減碼 / 自動模式切換暫停',
+        'current live blocker 啟動中',
+    ]
+    for snippet in forbidden_snippets:
+        assert snippet not in source
 
 
 def test_operator_surfaces_do_not_render_raw_blocker_copy():
@@ -2093,6 +2104,11 @@ def test_fetch_api_formats_structured_reject_payloads_for_trade_guardrails():
         'function formatApiErrorDetail(detail: unknown): string {',
         'const code = typeof payload.code === "string" ? payload.code : null;',
         'const message = typeof payload.message === "string" ? payload.message : null;',
+        'const tradeBlocked = payload.trade_blocked === true;',
+        'const context = payload.context && typeof payload.context === "object" ? payload.context as Record<string, unknown> : null;',
+        'const operatorAction = typeof context?.operator_action === "string" ? context.operator_action : null;',
+        'if (tradeBlocked && message) {',
+        'return [message, operatorAction].filter(Boolean).join(" ");',
         'return [code ? `[${code}]` : null, message].filter(Boolean).join(" ");',
         'throw new Error(formatApiErrorDetail(err.detail ?? err) || `${resp.status}`);',
     ]

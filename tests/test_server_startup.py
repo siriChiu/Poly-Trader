@@ -744,6 +744,12 @@ def test_api_trade_rejects_buy_when_current_live_blocker_active(monkeypatch):
         asyncio.run(api_module.api_trade(req, request=_local_request()))
     except HTTPException as exc:
         assert exc.status_code == 409
+        assert exc.detail["success"] is False
+        assert exc.detail["trade_blocked"] is True
+        assert exc.detail["blocked_side"] == "buy"
+        assert exc.detail["reason"] == "manual_buy_blocked_by_current_live_blocker"
+        assert exc.detail["runtime_blocker"] == "circuit_breaker_active"
+        assert exc.detail["allowed_actions"] == ["reduce", "diagnostics", "mode_toggle"]
         assert exc.detail["code"] == "current_live_deployment_blocker"
         assert "目前即時部署阻塞" in exc.detail["message"]
         assert "Current live" not in exc.detail["message"]
@@ -778,6 +784,12 @@ def test_api_trade_rejects_buy_with_chinese_copy_when_current_live_guardrail_una
         asyncio.run(api_module.api_trade(req, request=_local_request()))
     except HTTPException as exc:
         assert exc.status_code == 409
+        assert exc.detail["success"] is False
+        assert exc.detail["trade_blocked"] is True
+        assert exc.detail["blocked_side"] == "buy"
+        assert exc.detail["reason"] == "manual_buy_blocked_by_current_live_guardrail_unavailable"
+        assert exc.detail["runtime_blocker"] == "current_live_guardrail_unavailable"
+        assert exc.detail["allowed_actions"] == ["reduce", "diagnostics", "mode_toggle"]
         assert exc.detail["code"] == "current_live_guardrail_unavailable"
         assert "目前即時風控無法取得" in exc.detail["message"]
         assert "Current live" not in exc.detail["message"]
@@ -788,6 +800,24 @@ def test_api_trade_rejects_buy_with_chinese_copy_when_current_live_guardrail_una
         assert "Refresh /execution/status" not in exc.detail["context"]["operator_action"]
     else:
         raise AssertionError("buy/add-exposure trade must fail closed when current-live guardrail is unavailable")
+
+
+def test_current_live_trade_blocker_is_add_exposure_only():
+    live_runtime_truth = {
+        "deployment_blocker": "circuit_breaker_active",
+        "runtime_closure_state": "circuit_breaker_active",
+        "signal": "CIRCUIT_BREAKER",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "circuit_breaker_active",
+    }
+
+    buy_blocker = api_module._current_live_trade_blocker(live_runtime_truth, "buy")
+
+    assert buy_blocker["trade_blocked"] is True
+    assert buy_blocker["reason"] == "manual_buy_blocked_by_current_live_blocker"
+    assert buy_blocker["allowed_actions"] == ["reduce", "diagnostics", "mode_toggle"]
+    assert api_module._current_live_trade_blocker(live_runtime_truth, "reduce") is None
+    assert api_module._current_live_trade_blocker(live_runtime_truth, "sell") is None
 
 
 def test_api_trade_allows_reduce_when_current_live_blocker_active(monkeypatch):

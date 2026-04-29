@@ -337,6 +337,12 @@ function formatApiErrorDetail(detail: unknown): string {
     const payload = detail as Record<string, unknown>;
     const code = typeof payload.code === "string" ? payload.code : null;
     const message = typeof payload.message === "string" ? payload.message : null;
+    const tradeBlocked = payload.trade_blocked === true;
+    const context = payload.context && typeof payload.context === "object" ? payload.context as Record<string, unknown> : null;
+    const operatorAction = typeof context?.operator_action === "string" ? context.operator_action : null;
+    if (tradeBlocked && message) {
+      return [message, operatorAction].filter(Boolean).join(" ");
+    }
     if (code || message) {
       return [code ? `[${code}]` : null, message].filter(Boolean).join(" ");
     }
