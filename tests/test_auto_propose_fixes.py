@@ -1550,11 +1550,14 @@ def test_main_promotes_live_predictor_runtime_pathology(monkeypatch, capsys):
     assert "runtime-blocked by recent pathology" in live_issue[2]
     assert "live_scope=entry_quality_label" in live_issue[3]
     assert "top_shifts=feat_4h_dist_swing_low(8.58→2.0)/feat_4h_dist_bb_lower(6.89→1.33)" in live_issue[3]
-    assert "scope_matrix=regime_gate+entry_quality_label:rows=315,wr=0.1429,q=-0.1491,dd=0.2612,tuw=0.7321,alerts=['label_imbalance'],recent500_dominant=bull@0.4476,recent500_gate_dominant=ALLOW@1.0,recent500_regime_gate_dominant=bull|ALLOW@0.4476,recent500_regimes=bull:141/neutral:114/bear:60,recent500_gates=ALLOW:315,recent500_regime_gates=bull|ALLOW:141/neutral|ALLOW:114/bear|ALLOW:60" in live_issue[3]
-    assert "regime_label+entry_quality_label:rows=140,wr=0.05,q=-0.2333,dd=0.3111,tuw=0.9444,alerts=['label_imbalance'],recent500_dominant=bull@1.0,recent500_gate_dominant=CAUTION@0.7143,recent500_regime_gate_dominant=bull|CAUTION@0.7143,recent500_regimes=bull:140,recent500_gates=CAUTION:100/ALLOW:40,recent500_regime_gates=bull|CAUTION:100/bull|ALLOW:40" in live_issue[3]
-    assert "entry_quality_label:rows=3186,wr=0.6152,q=0.2562,dd=0.1211,tuw=0.3112,alerts=[],recent500_dominant=chop@0.718,recent500_gate_dominant=CAUTION@0.718,recent500_regime_gate_dominant=chop|CAUTION@0.718,recent500_regimes=chop:359/bull:141,recent500_gates=CAUTION:359/ALLOW:141,recent500_regime_gates=chop|CAUTION:359/bull|ALLOW:141" in live_issue[3]
+    assert "scope_brief=regime_gate+entry_quality_label:rows=315|wr=0.1429|q=-0.1491|alerts=['label_imbalance']|dom=bull|ALLOW@0.4476" in live_issue[3]
+    assert "regime_label+entry_quality_label:rows=140|wr=0.05|q=-0.2333|alerts=['label_imbalance']|dom=bull|CAUTION@0.7143" in live_issue[3]
+    assert "entry_quality_label:rows=3186|wr=0.6152|q=0.2562|dom=chop|CAUTION@0.718" in live_issue[3]
     assert "shared_shifts=feat_4h_dist_swing_low[x3]/feat_4h_dist_bb_lower[x3]" in live_issue[3]
-    assert "worst_scope=regime_label+entry_quality_label(wr=0.05,q=-0.2333,rows=140,dd=0.3111,tuw=0.9444,recent500_dominant=bull@1.0,recent500_gate_dominant=CAUTION@0.7143,recent500_regime_gate_dominant=bull|CAUTION@0.7143,recent500_regimes=bull:140,recent500_gates=CAUTION:100/ALLOW:40,recent500_regime_gates=bull|CAUTION:100/bull|ALLOW:40)" in live_issue[3]
+    assert "worst_scope=regime_label+entry_quality_label(rows=140,wr=0.05,q=-0.2333,dd=0.3111,tuw=0.9444)" in live_issue[3]
+    assert "scope_matrix=" not in live_issue[3]
+    assert "recent500_regimes=" not in live_issue[3]
+    assert len(live_issue[3]) < 1400
     assert "#H_AUTO_LIVE_DQ_PATHOLOGY" in out
     assert "📊 Live probe：live_scope=entry_quality_label" in out
 
@@ -1838,15 +1841,15 @@ def test_main_promotes_live_dq_pathology_from_narrowed_scope_even_when_broad_sco
     assert "runtime-blocked by recent pathology, a toxic exact live lane, or a severe narrowed pathology lane" in live_issue[2]
     assert "live_scope=entry_quality_label" in live_issue[3]
     assert "shared_shifts=feat_4h_dist_swing_low[x2]/feat_4h_dist_bb_lower[x2]" in live_issue[3]
-    assert "spillover_rows=123" in live_issue[3]
-    assert "spillover_regime_gate_dominant=bull|CAUTION@1.0" in live_issue[3]
-    assert "spillover_regime_gates=bull|CAUTION:123" in live_issue[3]
-    assert "spillover_worst=bull|CAUTION(rows=123,wr=0.0,q=-0.3011,pnl=-0.0112,dd=0.3122,tuw=0.9555)" in live_issue[3]
-    assert "spillover_feature_shift=feat_4h_bias200(2.4→0.9,Δ=-1.5)/feat_4h_dist_bb_lower(7.4→0.4,Δ=-7.0)/feat_4h_dist_swing_low(9.3→1.7,Δ=-7.6)/feat_4h_bb_pct_b(0.87→0.13,Δ=-0.74)" in live_issue[3]
-    assert "spillover_gate_inputs=feat_4h_bias200(2.4→0.9,Δ=-1.5)/feat_4h_bb_pct_b(0.87→0.13,Δ=-0.74)/feat_4h_dist_bb_lower(7.4→0.4,Δ=-7.0)/feat_4h_dist_swing_low(9.3→1.7,Δ=-7.6)" in live_issue[3]
-    assert "spillover_gate_path=final[CAUTION:123]|reason[structure_quality_caution:123]|base[ALLOW:123]|avg_structure=0.2214|structure_q[min:0.2214,p25:0.2214,p50:0.2214,p75:0.2214,max:0.2214]|structure_bands[block:0,caution:123,allow:0]|targets[loss:123]|pnl_signs[negative:123/positive:0/zero:0]|quality_signs[negative:123/positive:0/zero:0]|true_negative_rows=123@1.0|avg_bias200=0.9|missing_rows=0" in live_issue[3]
-    assert "exact_gate_path=final[ALLOW:24]|reason[base_allow:24]|base[ALLOW:24]|avg_structure=0.8125|structure_q[min:0.8125,p25:0.8125,p50:0.8125,p75:0.8125,max:0.8125]|structure_bands[block:0,caution:0,allow:24]|targets[win:24]|pnl_signs[negative:0/positive:24/zero:0]|quality_signs[negative:0/positive:24/zero:0]|true_negative_rows=0@0.0|avg_bias200=2.4|missing_rows=0" in live_issue[3]
-    assert "worst_scope=regime_label+entry_quality_label(wr=0.0748,q=-0.2098,rows=147,dd=0.2877,tuw=0.8811,recent500_dominant=bull@1.0,recent500_gate_dominant=CAUTION@0.8367,recent500_regime_gate_dominant=bull|CAUTION@0.8367,recent500_regimes=bull:147,recent500_gates=CAUTION:123/ALLOW:24,recent500_regime_gates=bull|CAUTION:123/bull|ALLOW:24,spillover_rows=123,spillover_share=0.8367,spillover_wr_delta=-0.5709,spillover_q_delta=-0.5003,spillover_pnl_delta=-0.0098,spillover_gate_dominant=CAUTION@1." in live_issue[3]
+    assert "scope_brief=regime_gate+entry_quality_label:rows=272|wr=0.1728|q=-0.1385|alerts=['label_imbalance']|dom=bull|ALLOW@0.4926|spillover=neutral|ALLOW:rows=102,wr=0.08,q=-0.1821" in live_issue[3]
+    assert "regime_label+entry_quality_label:rows=147|wr=0.0748|q=-0.2098|alerts=['label_imbalance']|dom=bull|CAUTION@0.8367|spillover=bull|CAUTION:rows=123,wr=0.0,q=-0.3011" in live_issue[3]
+    assert "worst_scope=regime_label+entry_quality_label(rows=147,wr=0.0748,q=-0.2098,dd=0.2877,tuw=0.8811)" in live_issue[3]
+    assert "worst_spillover=bull|CAUTION(rows=123,wr=0.0,q=-0.3011)" in live_issue[3]
+    assert "spillover_feature_shift=" not in live_issue[3]
+    assert "spillover_gate_inputs=" not in live_issue[3]
+    assert "spillover_gate_path=" not in live_issue[3]
+    assert "exact_gate_path=" not in live_issue[3]
+    assert len(live_issue[3]) < 1400
 
     assert "#H_AUTO_LIVE_DQ_PATHOLOGY" in out
     assert "📊 Live probe：live_scope=entry_quality_label" in out

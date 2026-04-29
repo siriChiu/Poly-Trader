@@ -1452,18 +1452,31 @@ def summarize_live_predict_probe(report):
                 f"{spillover_gates_text}{spillover_regime_gates_text}"
                 f"{_format_worst_spillover_pocket(spillover)}"
             )
-        scope_bits.append(
-            f"{scope_name}:rows={scope_info.get('rows')}"
-            f",wr={scope_info.get('win_rate')}"
-            f",q={scope_info.get('avg_quality')}"
-            f",dd={scope_info.get('avg_drawdown_penalty')}"
-            f",tuw={scope_info.get('avg_time_underwater')}"
-            f",alerts={scope_info.get('alerts')}"
-            f"{dominant_text}{dominant_gate_text}{dominant_regime_gate_text}"
-            f"{recent_regime_text}{recent_gate_text}{recent_regime_gate_text}"
-            f"{spillover_text}"
-        )
-    scope_matrix_text = f", scope_matrix={'; '.join(scope_bits)}" if scope_bits else ""
+        # Keep auto-proposed issue/action text operator-readable. The full
+        # per-scope diagnostics remain in data/live_predict_probe.json; issues
+        # and stdout should only carry the compact routing facts needed to pick
+        # the next productization gate.
+        compact_bits = [
+            f"{scope_name}:rows={scope_info.get('rows')}",
+            f"wr={scope_info.get('win_rate')}",
+            f"q={scope_info.get('avg_quality')}",
+        ]
+        if scope_info.get("alerts"):
+            compact_bits.append(f"alerts={scope_info.get('alerts')}")
+        if dominant_regime_gate.get("regime_gate"):
+            compact_bits.append(
+                f"dom={dominant_regime_gate.get('regime_gate')}@{dominant_regime_gate.get('share')}"
+            )
+        if spillover:
+            pocket = spillover.get("worst_extra_regime_gate") or {}
+            if pocket.get("regime_gate"):
+                compact_bits.append(
+                    f"spillover={pocket.get('regime_gate')}:rows={pocket.get('rows')},wr={pocket.get('win_rate')},q={pocket.get('avg_quality')}"
+                )
+            elif spillover.get("extra_rows") is not None:
+                compact_bits.append(f"spillover_rows={spillover.get('extra_rows')}")
+        scope_bits.append("|".join(compact_bits))
+    scope_matrix_text = f", scope_brief={'; '.join(scope_bits)}" if scope_bits else ""
 
     consensus = scope_diags.get("pathology_consensus") or {}
     shared_shifts = consensus.get("shared_top_shift_features") or []
@@ -1524,11 +1537,18 @@ def summarize_live_predict_probe(report):
             )
         worst_scope_text = (
             f", worst_scope={worst_scope.get('scope')}"
-            f"(wr={worst_scope.get('win_rate')},q={worst_scope.get('avg_quality')},rows={worst_scope.get('rows')}"
-            f",dd={worst_scope.get('avg_drawdown_penalty')},tuw={worst_scope.get('avg_time_underwater')}"
-            f"{dominant_suffix}{dominant_gate_suffix}{dominant_regime_gate_suffix}"
-            f"{regime_suffix}{gate_suffix}{regime_gate_suffix}{spillover_text})"
+            f"(rows={worst_scope.get('rows')},wr={worst_scope.get('win_rate')},q={worst_scope.get('avg_quality')}"
+            f",dd={worst_scope.get('avg_drawdown_penalty')},tuw={worst_scope.get('avg_time_underwater')})"
         )
+        if spillover:
+            pocket = spillover.get("worst_extra_regime_gate") or {}
+            if pocket.get("regime_gate"):
+                worst_scope_text += (
+                    f", worst_spillover={pocket.get('regime_gate')}"
+                    f"(rows={pocket.get('rows')},wr={pocket.get('win_rate')},q={pocket.get('avg_quality')})"
+                )
+            elif spillover.get("extra_rows") is not None:
+                worst_scope_text += f", spillover_rows={spillover.get('extra_rows')}"
     exact_gate_path_summary = (
         (exact_scope_info.get("spillover_vs_exact_live_lane") or {}).get("exact_live_gate_path_summary")
         or {}

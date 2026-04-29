@@ -1,12 +1,12 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-29 13:01:44.354856**
+- generated_at: **2026-04-29 14:10:17.428971**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
 - signal: **HOLD**
-- regime / gate / label: **bear / CAUTION / D**
+- regime / gate / label: **bear / CAUTION / C**
 - current_live_structure_bucket: **CAUTION|structure_quality_caution|q15**
 - current_live_structure_bucket_rows: **0**
 - allowed_layers: **0** (unsupported_exact_live_structure_bucket)
@@ -36,24 +36,24 @@
 - support_progress.current_rows / minimum: **0 / 50**
 - support_progress.previous_rows: **0**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **5**
+- support_progress.stagnant_run_count: **2**
 - support_progress.escalate_to_blocker: **True**
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 400, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `{'heartbeat': '20260419b', 'timestamp': '2026-04-18T17:55:51.910159+00:00', 'live_current_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'live_current_structure_bucket_rows': 53, 'minimum_support_rows': 50, 'support_route_verdict': 'exact_bucket_supported', 'support_governance_route': 'exact_live_bucket_supported', 'support_identity': None, 'reference_only_reason': 'missing_or_different_support_identity_or_bucket_semantic_signature'}`
 - support_progress.reason: current q15 exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 53/50（heartbeat 20260419b），但該 artifact 缺少相同 support_identity / bucket_semantic_signature，只能當 legacy reference，不能宣稱為 same-identity regression。
 
 ## Floor-cross legality
-- verdict: **math_cross_possible_but_illegal_without_exact_support**
+- verdict: **floor_crossed_but_support_not_ready**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0066**
-- best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.022**
-- best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.022），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- remaining_gap_to_floor: **0.0**
+- best_single_component: **None**
+- best_single_component_required_score_delta: **None**
+- best_single_component_can_cross_floor: **False**
+- reason: 即使 entry floor 已跨過，exact q15 support 仍未達標，不能把 proxy/neighbor 當 deployment 放行證據。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**
-- feature: **feat_4h_bias50**
+- feature: **None**
 - mode: **None**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
