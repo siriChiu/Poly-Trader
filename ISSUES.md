@@ -1,26 +1,26 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-29 23:20:05 CST_
+_最後更新：2026-04-30 00:13:19 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 fast heartbeat #1129-productization-floor-context 已完成 collect + diagnostics refresh**
-  - `Raw=32479 / Features=23897 / Labels=65569`
+- **最新 fast heartbeat #1131-productization-leaderboard-refresh 已完成 collect + diagnostics refresh**
+  - `Raw=32481 / Features=23899 / Labels=65571`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `simulated_pyramid_win=56.74%`
 - **canonical current-live blocker 已切到 current-live exact-support truth**
   - `deployment_blocker=unsupported_exact_live_structure_bucket` / `streak=None` / `recent_window_wins=None/None` / `additional_recent_window_wins_needed=—`
   - `current_live_structure_bucket=BLOCK|structure_quality_block|q00` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_unsupported_block`
 - **recent canonical diagnostics 已刷新**
-  - `latest_window=100` / `win_rate=19.0%` / `dominant_regime=chop(94.0%)` / `avg_quality=-0.1219` / `avg_pnl=-0.0066` / `alerts=label_imbalance,regime_concentration,regime_shift`
+  - `latest_window=100` / `win_rate=20.0%` / `dominant_regime=chop(95.0%)` / `avg_quality=-0.1128` / `avg_pnl=-0.0064` / `alerts=label_imbalance,regime_concentration,regime_shift`
 - **leaderboard / governance 仍維持 dual-role contract**
-  - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=true` / `payload_age=1.3h`
+  - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=7.9m`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3912` / `archive_window_coverage_pct=0.0`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3914` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof；`execution_metadata_smoke.venues[]` 已提供 per-venue `proof_state / blockers / operator_next_action / verify_next` 給 Dashboard / Execution / Lab 直接顯示證據缺口
 - **Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）**
   - 前端快捷：`manual_buy=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間只暫停買入 / 加倉與啟用自動模式，減碼 / 賣出風險降低、切到手動模式、查看阻塞原因與重新整理仍可用。`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`。後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑；`data/live_predict_probe.json` 同步輸出 `api_trade_guardrail_active / api_trade_buy_guardrail / api_trade_allowed_risk_off_sides` 作為 machine-readable proof
@@ -58,14 +58,14 @@ _最後更新：2026-04-29 23:20:05 CST_
 
 ### P1. live predictor decision-quality contract is runtime-blocked by recent pathology, a toxic exact live lane, or a severe narrowed pathology lane
 - 目前真相：`live_scope=global` / `deployment_blocker=unsupported_exact_live_structure_bucket` / `window=100` / `alerts=label_imbalance, regime_concentration, regime_shift` / `allowed_layers=0`
-- 下一步：把 hb_predict_probe 納入每輪 heartbeat 驗證，對 exact live lane、當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；優先檢查 exact lane 是否仍是 ALLOW 但 canonical true-negative share 已偏高，並交叉比對 recent same-scope / narrowed-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。 live_scope=global, regime=bear/BLOCK, label=D, sample_size=200, window=100, alerts=['label_imbalance'], expected_win_rate=0.19, expected_pnl=-0.0066, expected_quality=-0.1219, layers=0→0, top_shifts=feat_4h_dist_swing_low(1…
+- 下一步：把 hb_predict_probe 納入每輪 heartbeat 驗證，對 exact live lane、當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；優先檢查 exact lane 是否仍是 ALLOW 但 canonical true-negative share 已偏高，並交叉比對 recent same-scope / narrowed-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。 live_scope=global, regime=bear/BLOCK, label=D, sample_size=200, window=100, alerts=['label_imbalance'], expected_win_rate=0.2, expected_pnl=-0.0064, expected_quality=-0.1128, layers=0→0, top_shifts=feat_4h_dist_swing_low(1.…
 
 ### P1. model stability still needs work (cv=0.6528, cv_std=0.1033, cv_worst=0.5495)
 - 目前真相：`cv_accuracy=0.6527661357921207` / `cv_std=0.10331098072087175` / `cv_worst=0.549455155071249`
 - 下一步：優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。
 
-### P1. TW-IC 28 vs Global IC 19 — 信號強依賴近期資料
-- 目前真相：`global_pass=19` / `tw_pass=28` / `total_features=30`
+### P1. TW-IC 29 vs Global IC 19 — 信號強依賴近期資料
+- 目前真相：`global_pass=19` / `tw_pass=29` / `total_features=30`
 - 下一步：市場 regime 可能已變化; 考慮 regime-gated feature weighting
 
 ### P1. support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only outside current live scope
@@ -83,14 +83,14 @@ _最後更新：2026-04-29 23:20:05 CST_
   - data/execution_metadata_smoke.json
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3912` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3914` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json
   - /api/features/coverage
 
 ### P1. leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe
-- 目前真相：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=true` / `payload_age=1.3h`
+- 目前真相：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=7.9m`
 - 下一步：Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.
 - 驗證：
   - browser /lab

@@ -46,7 +46,11 @@ FAST_SERIAL_TIMEOUTS = {
     "hb_circuit_breaker_audit": 20,
     "feature_group_ablation": 45,
     "bull_4h_pocket_ablation": 20,
-    "hb_leaderboard_candidate_probe": 20,
+    # Live leaderboard rebuilds regularly take ~30s on the current dataset.  Fast
+    # heartbeats may refresh this lane when the persisted payload is stale, so
+    # give it the same bounded budget as full mode instead of timing out and
+    # leaving Strategy Lab on an old candidate snapshot.
+    "hb_leaderboard_candidate_probe": 45,
     "hb_q15_support_audit": 20,
     "hb_q15_bucket_root_cause": 20,
     "hb_q15_boundary_replay": 20,
@@ -1672,6 +1676,35 @@ def _format_leaderboard_payload_state_for_docs(
     stale = _format_bool_for_docs(context.get("leaderboard_payload_stale"))
     age = _format_duration_seconds_for_docs(context.get("leaderboard_payload_cache_age_sec"))
     return f"`payload_source={source}` / `payload_stale={stale}` / `payload_age={age}`"
+
+
+
+def _leaderboard_payload_fast_refresh_requirement(
+    leaderboard_candidate_diagnostics: Dict[str, Any] | None,
+) -> tuple[bool, str | None]:
+    """Decide whether fast heartbeat must rebuild the leaderboard payload.
+
+    Fast mode normally skips candidate-evaluation lanes, but Strategy Lab is a
+    product surface: if the latest machine-readable probe says its leaderboard
+    payload is stale, missing, or cache-error-backed, a fast heartbeat should
+    spend the bounded leaderboard-probe budget to rebuild that single lane while
+    still skipping the heavier feature-group and bull-pocket grids.
+    """
+
+    context = leaderboard_candidate_diagnostics or {}
+    if not context:
+        return True, "missing_leaderboard_probe_artifact"
+    if context.get("leaderboard_payload_stale") is True:
+        return True, "stale_leaderboard_payload"
+    if context.get("leaderboard_payload_error"):
+        return True, "leaderboard_payload_error"
+    if context.get("leaderboard_payload_cache_error"):
+        return True, "leaderboard_payload_cache_error"
+    if _docs_value_missing(context.get("leaderboard_payload_source")):
+        return True, "missing_leaderboard_payload_source"
+    if _docs_value_missing(context.get("leaderboard_count")):
+        return True, "missing_leaderboard_rows"
+    return False, None
 
 
 
@@ -5619,6 +5652,7 @@ def main(argv=None):
 
     leaderboard_artifact_path = Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json"
     write_progress(run_label, "leaderboard_candidate_probe")
+    leaderboard_fast_refresh_reason = None
     if refresh_candidate_eval_lanes:
         leaderboard_probe_result = run_leaderboard_candidate_probe(run_label)
         leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
@@ -5644,45 +5678,85 @@ def main(argv=None):
             )
             alignment_refresh_applied = alignment_refresh_payload is not None
 
-        leaderboard_probe_result = _build_skipped_serial_result(
-            "hb_leaderboard_candidate_probe",
-            reason=(
-                "fast_mode_alignment_refresh_only"
-                if alignment_refresh_applied
-                else "fast_mode_candidate_refresh_disabled"
-            ),
-            artifact_path=leaderboard_artifact_path,
-        )
-        if alignment_refresh_applied:
-            leaderboard_probe_result["alignment_refresh_only"] = True
-            leaderboard_probe_result["refresh_applied"] = True
-            leaderboard_probe_result["generated_at"] = alignment_refresh_payload.get("generated_at")
         leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
-        write_progress(
-            run_label,
-            "leaderboard_candidate_probe",
-            status="skipped",
-            details={
-                "skip_reason": (
+        leaderboard_fast_refresh_required, leaderboard_fast_refresh_reason = (
+            _leaderboard_payload_fast_refresh_requirement(leaderboard_candidate_diagnostics)
+        )
+        if leaderboard_fast_refresh_required:
+            print(
+                "♻️  Leaderboard candidate probe：fast mode 偵測到 "
+                f"{leaderboard_fast_refresh_reason}，只重建 leaderboard payload，"
+                "仍跳過較重的 feature/bull candidate grids。"
+            )
+            leaderboard_probe_result = run_leaderboard_candidate_probe(run_label)
+            leaderboard_probe_result["fast_payload_refresh"] = True
+            leaderboard_probe_result["fast_payload_refresh_reason"] = leaderboard_fast_refresh_reason
+            leaderboard_probe_result["alignment_refresh_only"] = False
+            leaderboard_candidate_diagnostics = collect_leaderboard_candidate_diagnostics()
+            write_progress(
+                run_label,
+                "leaderboard_candidate_probe",
+                status="completed" if leaderboard_probe_result.get("success") else "failed",
+                details={
+                    "fast_payload_refresh": True,
+                    "refresh_reason": leaderboard_fast_refresh_reason,
+                    "artifact_path": str(leaderboard_artifact_path),
+                    "refresh_with": "--fast --fast-refresh-candidates",
+                    "feature_and_bull_grids_skipped": True,
+                },
+            )
+            print(
+                f"🏁 Leaderboard candidate probe：{'通過' if leaderboard_probe_result['success'] else '失敗'} "
+                f"(rc={leaderboard_probe_result['returncode']})"
+            )
+            if leaderboard_probe_result.get("stdout"):
+                lines = leaderboard_probe_result["stdout"].split("\n")
+                preview = "\n".join(lines[:20])
+                if len(lines) > 20:
+                    preview += "\n...\n" + "\n".join(lines[-8:])
+                print(f"\n--- hb_leaderboard_candidate_probe ---\n{preview}")
+            if leaderboard_probe_result.get("stderr"):
+                print(f"\n--- hb_leaderboard_candidate_probe stderr ---\n{leaderboard_probe_result['stderr']}")
+        else:
+            leaderboard_probe_result = _build_skipped_serial_result(
+                "hb_leaderboard_candidate_probe",
+                reason=(
                     "fast_mode_alignment_refresh_only"
                     if alignment_refresh_applied
                     else "fast_mode_candidate_refresh_disabled"
                 ),
-                "artifact_path": str(leaderboard_artifact_path),
-                "alignment_refresh_only": alignment_refresh_applied,
-                "refresh_with": "--fast --fast-refresh-candidates",
-            },
-        )
-        if alignment_refresh_applied:
-            print(
-                "⏭️  Leaderboard candidate probe：fast mode 僅刷新 current-live alignment snapshot；"
-                "沿用既有 leaderboard payload 並更新 governance 對齊時間戳。"
+                artifact_path=leaderboard_artifact_path,
             )
-        else:
-            print(
-                "⏭️  Leaderboard candidate probe：fast mode 預設跳過 candidate refresh；"
-                "沿用既有 artifact 做 governance 摘要。"
+            if alignment_refresh_applied:
+                leaderboard_probe_result["alignment_refresh_only"] = True
+                leaderboard_probe_result["refresh_applied"] = True
+                leaderboard_probe_result["generated_at"] = alignment_refresh_payload.get("generated_at")
+            write_progress(
+                run_label,
+                "leaderboard_candidate_probe",
+                status="skipped",
+                details={
+                    "skip_reason": (
+                        "fast_mode_alignment_refresh_only"
+                        if alignment_refresh_applied
+                        else "fast_mode_candidate_refresh_disabled"
+                    ),
+                    "artifact_path": str(leaderboard_artifact_path),
+                    "alignment_refresh_only": alignment_refresh_applied,
+                    "payload_refresh_not_required": True,
+                    "refresh_with": "--fast --fast-refresh-candidates",
+                },
             )
+            if alignment_refresh_applied:
+                print(
+                    "⏭️  Leaderboard candidate probe：fast mode 僅刷新 current-live alignment snapshot；"
+                    "leaderboard payload 仍為新鮮，沿用既有 payload。"
+                )
+            else:
+                print(
+                    "⏭️  Leaderboard candidate probe：fast mode 預設跳過 candidate refresh；"
+                    "沿用既有 artifact 做 governance 摘要。"
+                )
     if leaderboard_candidate_diagnostics:
         blocked = leaderboard_candidate_diagnostics.get("blocked_candidate_profiles") or []
         blocked_text = ",".join(

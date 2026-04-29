@@ -4050,7 +4050,7 @@ def test_collect_q15_boundary_replay_diagnostics_reads_replay_and_counterfactual
     assert diag["carry_forward"] == ["先讀 data/q15_boundary_replay.json"]
 
 
-def test_main_fast_mode_skips_candidate_refresh_lanes_by_default(tmp_path, monkeypatch):
+def test_main_fast_mode_repairs_missing_leaderboard_payload_without_heavy_candidate_lanes(tmp_path, monkeypatch):
     order = []
 
     class Args:
@@ -4127,7 +4127,7 @@ def test_main_fast_mode_skips_candidate_refresh_lanes_by_default(tmp_path, monke
 
     hb_parallel_runner.main(["--fast", "--hb", "test"])
 
-    assert order == ["q35", "predict_probe", "drilldown", "q15", "q15_root", "q15_replay"]
+    assert order == ["q35", "predict_probe", "drilldown", "leaderboard", "q15", "q15_root", "q15_replay"]
 
 
 def test_main_fast_mode_refreshes_leaderboard_alignment_snapshot_when_artifact_exists(tmp_path, monkeypatch):
@@ -4203,7 +4203,15 @@ def test_main_fast_mode_refreshes_leaderboard_alignment_snapshot_when_artifact_e
     monkeypatch.setattr(hb_parallel_runner, "collect_bull_4h_pocket_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_leaderboard_candidate_probe", lambda run_label=None: order.append("leaderboard") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "_refresh_leaderboard_candidate_alignment_snapshot", lambda path, allow_rebuild=True: order.append(f"leaderboard_refresh:{allow_rebuild}") or {"generated_at": "2026-04-21T09:20:00Z"})
-    monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", lambda: {})
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "collect_leaderboard_candidate_diagnostics",
+        lambda: {
+            "leaderboard_payload_source": "latest_persisted_snapshot",
+            "leaderboard_payload_stale": False,
+            "leaderboard_count": 6,
+        },
+    )
     monkeypatch.setattr(hb_parallel_runner, "run_q15_support_audit", lambda: order.append("q15") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_audit_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_q15_bucket_root_cause", lambda: order.append("q15_root") or _ok())
@@ -4262,10 +4270,16 @@ def test_main_fast_mode_recollects_leaderboard_diagnostics_after_q15_audit(tmp_p
     stale_diag = {
         "support_progress": {"status": "accumulating", "delta_vs_previous": None},
         "current_alignment_recency": {"inputs_current": False},
+        "leaderboard_payload_source": "latest_persisted_snapshot",
+        "leaderboard_payload_stale": False,
+        "leaderboard_count": 6,
     }
     fresh_diag = {
         "support_progress": {"status": "stalled_under_minimum", "delta_vs_previous": 0},
         "current_alignment_recency": {"inputs_current": True},
+        "leaderboard_payload_source": "latest_persisted_snapshot",
+        "leaderboard_payload_stale": False,
+        "leaderboard_count": 6,
     }
     diag_calls = []
     captured = {}

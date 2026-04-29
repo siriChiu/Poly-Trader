@@ -1,11 +1,30 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts import hb_parallel_runner
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "hb_parallel_runner.py"
+
+
+@pytest.mark.parametrize(
+    ("diagnostics", "expected_required", "expected_reason"),
+    [
+        ({}, True, "missing_leaderboard_probe_artifact"),
+        ({"leaderboard_payload_stale": True, "leaderboard_payload_source": "latest_persisted_snapshot", "leaderboard_count": 6}, True, "stale_leaderboard_payload"),
+        ({"leaderboard_payload_error": "cache read failed", "leaderboard_payload_source": "latest_persisted_snapshot", "leaderboard_count": 6}, True, "leaderboard_payload_error"),
+        ({"leaderboard_payload_source": None, "leaderboard_payload_stale": False, "leaderboard_count": 6}, True, "missing_leaderboard_payload_source"),
+        ({"leaderboard_payload_source": "live_rebuild", "leaderboard_payload_stale": False, "leaderboard_count": 6}, False, None),
+    ],
+)
+def test_leaderboard_payload_fast_refresh_requirement(diagnostics, expected_required, expected_reason):
+    required, reason = hb_parallel_runner._leaderboard_payload_fast_refresh_requirement(diagnostics)
+
+    assert required is expected_required
+    assert reason == expected_reason
 
 
 def test_parallel_runner_elapsed_contract_uses_stable_run_baseline_and_total_run_summary():
