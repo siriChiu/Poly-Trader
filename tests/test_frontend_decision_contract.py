@@ -189,12 +189,16 @@ def test_execution_surfaces_show_structured_circuit_breaker_release_math_before_
         '熔斷解除條件',
         '最近 {breakerRecentWindow ?? 50} 筆目前 {breakerWins ?? "—"}/{breakerRecentWindow ?? 50} 勝；解除門檻 {breakerRequiredWins ?? "—"} 勝',
         '至少還差 {breakerWinsGap ?? "—"} 勝；連敗需低於 {breakerStreakLimit ?? 50}。',
-        '這是目前即時路徑唯一部署阻塞點；支持樣本 / q15 修補不可取代熔斷解除條件。',
+        'const currentLiveSupportScopeLabel = runtimeStatusPending',
+        'humanizeCurrentLiveSupportScopeLabel(',
+        'const breakerSupportCaveatLabel = `${currentLiveSupportScopeLabel}支持樣本 / 候選修補不可取代熔斷解除條件。`;',
+        '這是目前即時路徑唯一部署阻塞點；{breakerSupportCaveatLabel}',
     ]
     for snippet in shared_snippets:
         assert snippet in status_source
         assert snippet in console_source
     for leaked_copy in [
+        '支持樣本 / q15 修補不可取代熔斷解除條件',
         'current-live 唯一部署 blocker',
         'breaker release',
         'canonical 1440m breaker',

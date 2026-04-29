@@ -1,6 +1,6 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-29 05:02:27.964479**
+- feature_timestamp: **2026-04-29 06:20:08.381936**
 - target: `simulated_pyramid_win`
 - live path: **bear / CAUTION / D**
 - signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
@@ -8,10 +8,10 @@
 - allowed_layers_raw_reason: `entry_quality_below_trade_floor`
 - allowed_layers_reason: `decision_quality_below_trade_floor; circuit_breaker_active`
 - execution_guardrail_reason: `decision_quality_below_trade_floor; circuit_breaker_active`
-- runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 12.00% < 30%`
-- deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 12.00% < 30%`
+- runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 20.00% < 30%`
+- deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 20.00% < 30%`
 - q15 exact-supported patch: **inactive** | support_route `insufficient_support_everywhere` | floor_cross `runtime_blocker_preempts_floor_analysis`
-- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 12.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 6/50，至少還差 9 勝。 exact-vs-spillover=同 quality 寬 scope 出現 bull|ALLOW spillover，396 rows / WR 0.0% / 品質 -0.129，明顯劣於 exact live lane WR — / 品質 —。**
+- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 20.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 10/50，至少還差 5 勝。 exact-vs-spillover=同 quality 寬 scope 出現 bull|BLOCK spillover，396 rows / WR 15.2% / 品質 -0.102，明顯劣於 exact live lane WR — / 品質 —。**
 - q35 scaling audit: overall=`None` / redesign=`None` / runtime_gap=`None` / mode=`None` / next_patch=`None`
 - q35 audit action: None
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
@@ -22,18 +22,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.4956** / trade_floor **0.55** / gap **-0.0544**
-- base_quality: **0.545** × weight **0.75**
-- structure_quality: **0.3475** × weight **0.25**
-- base components: feat_4h_bias50=0.5385 (w=0.4, contrib=0.2154), feat_nose=0.19 (w=0.18, contrib=0.0342), feat_pulse=0.5617 (w=0.27, contrib=0.1517), feat_ear=0.9585 (w=0.15, contrib=0.1438)
-- structure components: feat_4h_bb_pct_b=0.7636 (w=0.34, contrib=0.2596), feat_4h_dist_bb_lower=0.2558 (w=0.33, contrib=0.0844), feat_4h_dist_swing_low=0.0103 (w=0.33, contrib=0.0034)
+- final entry_quality: **0.5252** / trade_floor **0.55** / gap **-0.0248**
+- base_quality: **0.5852** × weight **0.75**
+- structure_quality: **0.3453** × weight **0.25**
+- base components: feat_4h_bias50=0.5409 (w=0.4, contrib=0.2164), feat_nose=0.2395 (w=0.18, contrib=0.0431), feat_pulse=0.6897 (w=0.27, contrib=0.1862), feat_ear=0.9302 (w=0.15, contrib=0.1395)
+- structure components: feat_4h_bb_pct_b=0.7598 (w=0.34, contrib=0.2583), feat_4h_dist_bb_lower=0.2545 (w=0.33, contrib=0.084), feat_4h_dist_swing_low=0.0091 (w=0.33, contrib=0.003)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0544**
-- base_group_max_entry_gain: **0.3414** | structure_group_max_entry_gain: **0.1632**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.1813, max_gain≈0.1385）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.1813), feat_pulse (Δscore≈0.2686), feat_nose (Δscore≈0.403), feat_4h_dist_bb_lower (Δscore≈0.6594)
+- remaining_gap_to_floor: **0.0248**
+- base_group_max_entry_gain: **0.3111** | structure_group_max_entry_gain: **0.1636**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.0827, max_gain≈0.1377）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.0827), feat_pulse (Δscore≈0.1225), feat_nose (Δscore≈0.1837), feat_4h_dist_bb_lower (Δscore≈0.3006)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -41,15 +41,15 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_gate+entry_quality_label` | 227 | 0.4978 | 0.1358 | 0.1567 | 0.5499 | 28 | False |
+| chosen `regime_gate+entry_quality_label` | 231 | 0.5065 | 0.1404 | 0.1575 | 0.5555 | 28 | False |
 | exact `regime_label+regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
 | narrow `regime_label+entry_quality_label` | 0 | None | None | None | None | 0 | False |
-| broad `regime_gate+entry_quality_label` | 227 | 0.4978 | 0.1358 | 0.1567 | 0.5499 | 28 | False |
+| broad `regime_gate+entry_quality_label` | 231 | 0.5065 | 0.1404 | 0.1575 | 0.5555 | 28 | False |
 
 ## Shared shifts
 
 - None
-- worst_pathology_scope: **entry_quality_label** rows=396 win_rate=0.3485 quality=0.0343
+- worst_pathology_scope: **entry_quality_label** rows=396 win_rate=0.3586 quality=0.0396
 
 ## Interpretation
 

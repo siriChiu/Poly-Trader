@@ -659,6 +659,14 @@ export function humanizeStructureBucketLabel(value?: string | null): string {
   );
 }
 
+export function humanizeCurrentLiveSupportScopeLabel(value?: string | null): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "當前分桶";
+  const laneMatch = normalized.match(/q\d+/i);
+  if (laneMatch) return `當前 ${laneMatch[0].toLowerCase()} 分桶`;
+  return "當前分桶";
+}
+
 export function humanizeExecutionReason(value?: string | null): string {
   const normalized = String(value || "").trim();
   if (!normalized) return "尚未提供阻塞點摘要。";

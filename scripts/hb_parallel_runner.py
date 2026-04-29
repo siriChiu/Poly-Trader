@@ -378,9 +378,18 @@ def _support_truth_context(
 
 def _support_scope_label(current_bucket: str | None) -> str:
     bucket = str(current_bucket or "").strip()
-    if "q15" in bucket:
-        return "q15 current-live bucket"
+    lane_match = re.search(r"q\d+", bucket, flags=re.IGNORECASE)
+    if lane_match:
+        return f"{lane_match.group(0).lower()} current-live bucket"
     return "current live bucket"
+
+
+def _support_scope_operator_label(current_bucket: str | None) -> str:
+    bucket = str(current_bucket or "").strip()
+    lane_match = re.search(r"q\d+", bucket, flags=re.IGNORECASE)
+    if lane_match:
+        return f"當前 {lane_match.group(0).lower()} 分桶"
+    return "當前分桶"
 
 
 def _support_truth_label(current_bucket: str | None) -> str:
@@ -1414,6 +1423,7 @@ def overwrite_current_state_docs(
     q35_scaling_doc_line = _q35_scaling_doc_line(q35_scaling_issue)
     current_support_bucket = _current_support_bucket(live_predictor_diagnostics, q15_support_audit)
     support_scope_label = _support_scope_label(current_support_bucket)
+    support_scope_operator_label = _support_scope_operator_label(current_support_bucket)
     support_truth_label = _support_truth_label(current_support_bucket)
     support_context = _support_truth_context(live_predictor_diagnostics, q15_support_audit)
     support_current_rows = support_context.get(
@@ -1462,7 +1472,7 @@ def overwrite_current_state_docs(
         f"`additional_recent_window_wins_needed={release_gap}`"
     )
     breaker_release_ui_line = (
-        f"`最近 {release_window} 筆目前 {release_wins}/{release_window}，還差 {release_gap} 勝；支持樣本 / q15 修補不可取代熔斷解除條件`"
+        f"`最近 {release_window} 筆目前 {release_wins}/{release_window}，還差 {release_gap} 勝；{support_scope_operator_label}支持樣本 / 候選修補不可取代熔斷解除條件`"
     )
     support_line = (
         f"`current_live_structure_bucket={live_predictor_diagnostics.get('current_live_structure_bucket') or '—'}` / "
@@ -1722,7 +1732,7 @@ def overwrite_current_state_docs(
         "- **Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）**",
         "  - 前端快捷：`manual_buy=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間只暫停買入 / 加倉與啟用自動模式，減碼 / 賣出風險降低、切到手動模式、查看阻塞原因與重新整理仍可用。`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`。後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑",
         "- **Execution Status / Bot 營運 已顯示熔斷解除條件**",
-        f"  - {breaker_release_ui_line}；`/execution/status` 與 `/execution` 會先顯示熔斷解除條件，再顯示 support / q15 治理背景",
+        f"  - {breaker_release_ui_line}；`/execution/status` 與 `/execution` 會先顯示熔斷解除條件，再顯示 {support_scope_operator_label} support / 治理背景",
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
@@ -1793,7 +1803,7 @@ def overwrite_current_state_docs(
         "- **Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）**",
         "  - `/api/status` 初次同步前或部署阻塞存在時，買入 / 加倉與啟用自動模式快捷操作顯示暫停並保持 disabled；減碼 / 賣出風險降低、切到手動模式、查看阻塞原因與重新整理仍可用；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`；後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點，阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑",
         "- **Execution Status / Bot 營運 已顯示熔斷解除條件**",
-        f"  - {breaker_release_ui_line}；操作員執行介面先看熔斷解除條件，再看 support / q15 背景治理",
+        f"  - {breaker_release_ui_line}；操作員執行介面先看熔斷解除條件，再看 {support_scope_operator_label} support / 背景治理",
         "- **本輪 current-state docs 已同步到最新 artifacts**",
         "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊",
         *parallel_failure_roadmap_lines,

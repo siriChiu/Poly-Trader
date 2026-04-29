@@ -1675,7 +1675,7 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點" in issues_md
     assert "runtime/API guardrail：`POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點" in issues_md
     assert "Execution Status / Bot 營運 已顯示熔斷解除條件" in issues_md
-    assert "最近 50 筆目前 0/50，還差 15 勝；支持樣本 / q15 修補不可取代熔斷解除條件" in issues_md
+    assert "最近 50 筆目前 0/50，還差 15 勝；當前 q15 分桶支持樣本 / 候選修補不可取代熔斷解除條件" in issues_md
     assert "manual_buy=paused_when_status_syncing_or_deployment_blocked" in issues_md
     assert "manual_trade=paused_when_status_syncing_or_deployment_blocked" not in issues_md
     assert "metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next" in orid_md
@@ -2069,7 +2069,7 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
     issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
     roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
     orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
-    assert "current live bucket support rows 可 machine-read" in issues_md
+    assert "q35 current-live bucket support rows 可 machine-read" in issues_md
     assert "recommended_patch=core_plus_macro_plus_all_4h" in roadmap_md
     assert "status=reference_only_until_exact_support_ready" in roadmap_md
     assert (
@@ -2783,6 +2783,13 @@ def test_overwrite_current_state_docs_prefers_fresh_drift_blocking_window_over_s
     assert "### P0. recent canonical window 250 rows = distribution_pathology" in issues_md
     assert "目前真相：`window=500` / `win_rate=25.0%` / `dominant_regime=bull(71.6%)` / `avg_quality=-0.0335` / `avg_pnl=-0.0015` / `alerts=regime_shift`" in issues_md
     assert "病態切片：`alerts=regime_shift` / `tail_streak=—` / `top_shift=feat_4h_bias20,feat_4h_rsi14,feat_4h_bias50` / `new_compressed=feat_atr_pct`" in issues_md
+
+
+
+def test_support_scope_labels_follow_current_live_lane_not_stale_q15():
+    assert hb_parallel_runner._support_scope_label("CAUTION|structure_quality_caution|q35") == "q35 current-live bucket"
+    assert hb_parallel_runner._support_scope_operator_label("CAUTION|structure_quality_caution|q35") == "當前 q35 分桶"
+    assert hb_parallel_runner._support_scope_operator_label("CAUTION|base_caution_regime_or_bias|q15") == "當前 q15 分桶"
 
 
 
