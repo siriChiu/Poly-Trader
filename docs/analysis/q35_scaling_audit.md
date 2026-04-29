@@ -1,25 +1,19 @@
 # Q35 Scaling Audit
 
-- generated_at: **2026-04-29 09:02:08.729911**
-- overall_verdict: **runtime_blocker_preempts_q35_scaling**
-- structure_scaling_verdict: **runtime_blocker_preempts_q35_scaling**
-- scope_applicability: **current_live_q35_lane_active**
-- reason: Recent 50-sample win rate: 26.00% < 30%
-- applicability_note: current live row 仍位於 q35 lane；本輪 q35 scaling / bias50 calibration 結論可直接視為 live governance 主路徑。
+- generated_at: **2026-04-29 13:01:44.354856**
+- overall_verdict: **reference_only_current_bucket_outside_q35**
+- structure_scaling_verdict: **reference_only_current_bucket_outside_q35**
+- scope_applicability: **reference_only_current_bucket_outside_q35**
+- reason: current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。
+- applicability_note: current live row 已不在 q35 lane；q35 scaling audit 只能保留為 reference-only calibration artifact，不得誤寫成當前 live blocker 已落在 q35 formula review。
 
-## Runtime blocker preempt
-
-- blocker: **circuit_breaker_active** from **circuit_breaker**
-- summary: circuit breaker active：Recent 50-sample win rate: 26.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 13/50，至少還差 2 勝。 exact-vs-spillover=同 quality 寬 scope 出現 bull|BLOCK spillover，394 rows / WR 15.4% / 品質 -0.101，明顯劣於 exact live lane WR — / 品質 —。
-- allowed_layers: **0** (`decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`)
-
-## Current live row
+## Reference-only current row
 
 - regime/gate/quality: **bear / CAUTION / D**
-- structure_bucket: **CAUTION|structure_quality_caution|q35**
-- feat_4h_bias50: **-0.5345**
-- structure_quality: **0.3559**
+- structure_bucket: **CAUTION|structure_quality_caution|q15**
+- feat_4h_bias50: **-0.3989**
+- structure_quality: **0.3477**
 
 ## Recommended action
 
-- 先解除 canonical circuit breaker 或至少接近 release condition，再重跑 q35 scaling audit；在 breaker 仍有效時，不得把 q35 formula / calibration 當成本輪 live blocker 主敘事。
+- current live row 已離開 q35 lane；本輪 q35 audit 保留為 reference-only。下一步應直接跟 current live bucket 的 support / runtime blocker，而不是再為 q35 calibration 重跑 historical lane 分析。
