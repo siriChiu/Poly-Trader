@@ -1,23 +1,23 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-29 14:10:17.428971**
+- generated_at: **2026-04-29 15:18:44.070928**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
 - signal: **HOLD**
-- regime / gate / label: **bear / CAUTION / C**
-- current_live_structure_bucket: **CAUTION|structure_quality_caution|q15**
+- regime / gate / label: **bear / BLOCK / C**
+- current_live_structure_bucket: **BLOCK|structure_quality_block|q00**
 - current_live_structure_bucket_rows: **0**
 - allowed_layers: **0** (unsupported_exact_live_structure_bucket)
 - execution_guardrail_reason: **unsupported_exact_live_structure_bucket**
 
 ## Scope applicability
-- status: **current_live_q15_lane_active**
-- active_for_current_live_row: **True**
-- current_structure_bucket: **CAUTION|structure_quality_caution|q15**
+- status: **current_live_not_q15_lane**
+- active_for_current_live_row: **False**
+- current_structure_bucket: **BLOCK|structure_quality_block|q00**
 - target_structure_bucket: **CAUTION|structure_quality_caution|q15**
-- reason: current live row 正位於 q15 lane；q15 support / component verify 可直接視為 current-live deployment 檢查。
+- reason: current live row 已不在 q15 lane；q15 support audit 只能描述 standby q15 route readiness，不可當成 current-live deployment closure。
 
 ## Support route verdict
 - support_governance_route: **exact_live_bucket_proxy_available**
@@ -29,18 +29,18 @@
 - exact-bucket proxy rows: **687**
 - exact-lane proxy rows: **822**
 - supported neighbor rows: **132**
-- reason: current q15 exact bucket 仍為 0 rows；即使已有 exact-bucket proxy，也只能作治理參考，不能作 deployment 放行證據。
-- release_condition: 先把 current q15 exact bucket 補到 minimum support，再重查 entry floor；proxy / neighbor 只能保留為比較與校準參考。
-- support_progress.status: **semantic_rebaseline_under_minimum**
-- support_progress.regression_basis: **legacy_or_different_semantic_signature**
+- reason: current live exact bucket 仍為 0 rows；即使已有 exact-bucket proxy，也只能作治理參考，不能作 deployment 放行證據。
+- release_condition: 先把 current live exact bucket 補到 minimum support，再重查 entry floor；proxy / neighbor 只能保留為比較與校準參考。
+- support_progress.status: **stalled_under_minimum**
+- support_progress.regression_basis: **same_identity_same_semantic_signature**
 - support_progress.current_rows / minimum: **0 / 50**
 - support_progress.previous_rows: **0**
 - support_progress.delta_vs_previous: **0**
 - support_progress.stagnant_run_count: **2**
-- support_progress.escalate_to_blocker: **True**
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
-- legacy_supported_reference: `{'heartbeat': '20260419b', 'timestamp': '2026-04-18T17:55:51.910159+00:00', 'live_current_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'live_current_structure_bucket_rows': 53, 'minimum_support_rows': 50, 'support_route_verdict': 'exact_bucket_supported', 'support_governance_route': 'exact_live_bucket_supported', 'support_identity': None, 'reference_only_reason': 'missing_or_different_support_identity_or_bucket_semantic_signature'}`
-- support_progress.reason: current q15 exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 53/50（heartbeat 20260419b），但該 artifact 缺少相同 support_identity / bucket_semantic_signature，只能當 legacy reference，不能宣稱為 same-identity regression。
+- support_progress.escalate_to_blocker: **False**
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'BLOCK|structure_quality_block|q00', 'regime_label': 'bear', 'regime_gate': 'BLOCK', 'entry_quality_label': 'C', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- legacy_supported_reference: `None`
+- support_progress.reason: current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。
 
 ## Floor-cross legality
 - verdict: **floor_crossed_but_support_not_ready**
@@ -52,16 +52,20 @@
 - reason: 即使 entry floor 已跨過，exact q15 support 仍未達標，不能把 proxy/neighbor 當 deployment 放行證據。
 
 ## Exact-supported component experiment
-- verdict: **reference_only_until_exact_support_ready**
+- verdict: **reference_only_current_live_not_q15_and_support_not_ready**
 - feature: **None**
-- mode: **None**
+- mode: **reference_only_non_current_live_scope**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
+- current_entry_quality: **0.6185**
+- trade_floor: **0.55**
+- current_trade_floor_gap: **0.0685**
+- current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
-- preserves_positive_discrimination: **None** (not_measured_support_missing)
-- reason: exact support 尚未達 deployment 門檻；component experiment 只能作 reference-only 研究。
-- verify_next: 先把 current q15 exact bucket rows 補到 minimum support，再回來做 component experiment。
+- preserves_positive_discrimination: **None** (not_applicable_current_live_not_q15_lane)
+- reason: current live row 目前停在 BLOCK|structure_quality_block|q00，不在 q15 target lane CAUTION|structure_quality_caution|q15；本 artifact 只能描述非 current-live 的 q15/reference route，不得當成 current-live deployment closure。
+- verify_next: 先處理 current-live bucket BLOCK|structure_quality_block|q00 的 exact-support / runtime blocker；只有 live row 回到 q15 lane 且 exact support deployable 時，q15 component experiment 才可進入 deployment verify。
 
 ## Next action
-- 先補 current q15 exact bucket 真樣本到 minimum support，再重跑 live_decision_quality_drilldown / hb_q15_support_audit；在 support 未達標前，bias50 只能當 calibration research，不得解除 runtime blocker。
+- current live row 目前不在 q15 lane（current=BLOCK|structure_quality_block|q00, target=CAUTION|structure_quality_caution|q15）；q15 audit 只保留 standby/reference route readiness。下一輪主焦點應回到 current-live exact-support blocker / deployment verify，除非 live row 再次回到 q15 bucket。
 

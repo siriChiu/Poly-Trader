@@ -752,6 +752,53 @@ def _scope_applicability(live_context: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _current_floor_context(component_gap: dict[str, Any]) -> dict[str, Any]:
+    """Expose current-row floor truth separately from component-experiment truth.
+
+    `entry_quality_ge_0_55` in the component experiment answers whether a candidate
+    patch/counterfactual is ready. Operators also need to know whether the current
+    row already cleared the trade floor but is blocked only by exact-support gates.
+    """
+    entry_quality = _as_float(component_gap.get("entry_quality"))
+    trade_floor = _as_float(component_gap.get("trade_floor"))
+    gap = _as_float(component_gap.get("remaining_gap_to_floor"))
+    if entry_quality is not None and trade_floor is not None:
+        crossed = entry_quality >= trade_floor
+    elif gap is not None:
+        crossed = gap <= 0
+    else:
+        crossed = None
+    return {
+        "current_entry_quality": entry_quality,
+        "trade_floor": trade_floor,
+        "current_trade_floor_gap": None if entry_quality is None or trade_floor is None else round(entry_quality - trade_floor, 4),
+        "current_entry_quality_ge_trade_floor": crossed,
+    }
+
+
+def _component_experiment_answer(
+    *,
+    support_ready: bool,
+    entry_quality_ge_0_55: bool,
+    allowed_layers_gt_0: bool,
+    preserves_positive_discrimination: Any,
+    preserves_positive_discrimination_status: str,
+    floor_context: dict[str, Any],
+    **extra: Any,
+) -> dict[str, Any]:
+    answer = {
+        "support_ready": support_ready,
+        # Candidate/counterfactual readiness, not the current row's baseline floor truth.
+        "entry_quality_ge_0_55": entry_quality_ge_0_55,
+        "allowed_layers_gt_0": allowed_layers_gt_0,
+        "preserves_positive_discrimination": preserves_positive_discrimination,
+        "preserves_positive_discrimination_status": preserves_positive_discrimination_status,
+        **floor_context,
+    }
+    answer.update(extra)
+    return answer
+
+
 def _component_experiment(
     support_route: dict[str, Any],
     floor_legality: dict[str, Any],
@@ -769,21 +816,61 @@ def _component_experiment(
     layers_after = _as_int(bias50_counterfactual.get("layers_if_bias50_fully_relaxed"), 0)
     can_cross = bool(best_single.get("can_single_component_cross_floor"))
     required_delta = _as_float(best_single.get("required_score_delta_to_cross_floor"))
+    floor_context = _current_floor_context(component_gap)
 
     if runtime_blocker:
         return {
             "verdict": "runtime_blocker_preempts_component_experiment",
             "feature": feature,
             "reason": f"目前先被 runtime blocker 擋下（{runtime_blocker.get('reason') or runtime_blocker.get('type')}），q15 component experiment 只能保留為背景研究。",
-            "machine_read_answer": {
-                "support_ready": bool(support_route.get("deployable")),
-                "entry_quality_ge_0_55": False,
-                "allowed_layers_gt_0": False,
-                "preserves_positive_discrimination": None,
-                "preserves_positive_discrimination_status": "not_measured_runtime_blocked",
-            },
+            "machine_read_answer": _component_experiment_answer(
+                support_ready=bool(support_route.get("deployable")),
+                entry_quality_ge_0_55=False,
+                allowed_layers_gt_0=False,
+                preserves_positive_discrimination=None,
+                preserves_positive_discrimination_status="not_measured_runtime_blocked",
+                floor_context=floor_context,
+            ),
             "positive_discrimination_evidence": positive_discrimination,
             "verify_next": "先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。",
+        }
+
+    if not scope_applicability.get("active_for_current_live_row"):
+        support_ready = bool(support_route.get("deployable"))
+        experiment_ready = support_ready and bool(can_cross)
+        current_bucket = scope_applicability.get("current_structure_bucket")
+        target_bucket = scope_applicability.get("target_structure_bucket")
+        return {
+            "verdict": (
+                "exact_supported_component_experiment_ready_but_current_live_not_q15"
+                if support_ready
+                else "reference_only_current_live_not_q15_and_support_not_ready"
+            ),
+            "feature": feature,
+            "mode": "standby_q15_route" if support_ready else "reference_only_non_current_live_scope",
+            "remaining_gap_to_floor": remaining_gap,
+            "required_score_delta_to_cross_floor": required_delta,
+            "bias50_floor_counterfactual": bias50_counterfactual if feature == "feat_4h_bias50" else None,
+            "reason": (
+                f"current live row 目前停在 {current_bucket}，不在 q15 target lane {target_bucket}；"
+                "本 artifact 只能描述非 current-live 的 q15/reference route，不得當成 current-live deployment closure。"
+            ),
+            "machine_read_answer": _component_experiment_answer(
+                support_ready=support_ready,
+                entry_quality_ge_0_55=bool(experiment_ready),
+                allowed_layers_gt_0=bool(experiment_ready),
+                preserves_positive_discrimination=None,
+                preserves_positive_discrimination_status="not_applicable_current_live_not_q15_lane",
+                floor_context=floor_context,
+                active_for_current_live_row=False,
+                current_structure_bucket=current_bucket,
+                target_structure_bucket=target_bucket,
+            ),
+            "positive_discrimination_evidence": positive_discrimination,
+            "verify_next": (
+                f"先處理 current-live bucket {current_bucket} 的 exact-support / runtime blocker；"
+                "只有 live row 回到 q15 lane 且 exact support deployable 時，q15 component experiment 才可進入 deployment verify。"
+            ),
         }
 
     if not support_route.get("deployable"):
@@ -791,13 +878,14 @@ def _component_experiment(
             "verdict": "reference_only_until_exact_support_ready",
             "feature": feature,
             "reason": "exact support 尚未達 deployment 門檻；component experiment 只能作 reference-only 研究。",
-            "machine_read_answer": {
-                "support_ready": False,
-                "entry_quality_ge_0_55": False,
-                "allowed_layers_gt_0": False,
-                "preserves_positive_discrimination": None,
-                "preserves_positive_discrimination_status": "not_measured_support_missing",
-            },
+            "machine_read_answer": _component_experiment_answer(
+                support_ready=False,
+                entry_quality_ge_0_55=False,
+                allowed_layers_gt_0=False,
+                preserves_positive_discrimination=None,
+                preserves_positive_discrimination_status="not_measured_support_missing",
+                floor_context=floor_context,
+            ),
             "positive_discrimination_evidence": positive_discrimination,
             "verify_next": "先把 current q15 exact bucket rows 補到 minimum support，再回來做 component experiment。",
         }
@@ -807,40 +895,16 @@ def _component_experiment(
             "verdict": "no_component_candidate",
             "feature": None,
             "reason": "component_gap_attribution 未提供最佳單點 component，無法形成 exact-supported experiment。",
-            "machine_read_answer": {
-                "support_ready": True,
-                "entry_quality_ge_0_55": False,
-                "allowed_layers_gt_0": False,
-                "preserves_positive_discrimination": None,
-                "preserves_positive_discrimination_status": "not_measured_no_candidate",
-            },
+            "machine_read_answer": _component_experiment_answer(
+                support_ready=True,
+                entry_quality_ge_0_55=False,
+                allowed_layers_gt_0=False,
+                preserves_positive_discrimination=None,
+                preserves_positive_discrimination_status="not_measured_no_candidate",
+                floor_context=floor_context,
+            ),
             "positive_discrimination_evidence": positive_discrimination,
             "verify_next": "先修復 live_decision_quality_drilldown 的 component gap attribution，再重跑 q15 audit。",
-        }
-
-    if not scope_applicability.get("active_for_current_live_row"):
-        return {
-            "verdict": "exact_supported_component_experiment_ready_but_current_live_not_q15",
-            "feature": feature,
-            "mode": "standby_q15_route",
-            "remaining_gap_to_floor": remaining_gap,
-            "required_score_delta_to_cross_floor": required_delta,
-            "bias50_floor_counterfactual": bias50_counterfactual if feature == "feat_4h_bias50" else None,
-            "reason": (
-                f"exact q15 support 雖已達標，且 {feature} 仍是最佳 q15 component candidate；"
-                "但 current live row 目前停在非 q15 bucket，故本 artifact 只能描述 standby q15 route readiness，"
-                "不得當成 current-live deployment closure。"
-            ),
-            "machine_read_answer": {
-                "support_ready": True,
-                "entry_quality_ge_0_55": bool(can_cross),
-                "allowed_layers_gt_0": bool(can_cross),
-                "preserves_positive_discrimination": None,
-                "preserves_positive_discrimination_status": "not_applicable_current_live_not_q15_lane",
-                "active_for_current_live_row": False,
-            },
-            "positive_discrimination_evidence": positive_discrimination,
-            "verify_next": "若 live row 回到 q15 lane，再執行 q15 exact-supported deployment verify；目前應以 q35 current-live blocker 為主。",
         }
 
     entry_quality_ge_trade_floor = bool(can_cross)
@@ -870,13 +934,14 @@ def _component_experiment(
             f"exact support 已達標，{feature} 可作為保守的 q15 component experiment；"
             "但是否保留正向 discrimination，仍需靠 pytest / fast heartbeat / live probe 做回歸驗證。"
         ),
-        "machine_read_answer": {
-            "support_ready": True,
-            "entry_quality_ge_0_55": bool(entry_quality_ge_trade_floor),
-            "allowed_layers_gt_0": bool(allowed_layers_gt_0),
-            "preserves_positive_discrimination": preserves_positive_discrimination,
-            "preserves_positive_discrimination_status": preserves_positive_discrimination_status,
-        },
+        "machine_read_answer": _component_experiment_answer(
+            support_ready=True,
+            entry_quality_ge_0_55=bool(entry_quality_ge_trade_floor),
+            allowed_layers_gt_0=bool(allowed_layers_gt_0),
+            preserves_positive_discrimination=preserves_positive_discrimination,
+            preserves_positive_discrimination_status=preserves_positive_discrimination_status,
+            floor_context=floor_context,
+        ),
         "positive_discrimination_evidence": positive_discrimination,
         "verify_next": "用 exact-supported component patch + pytest + fast heartbeat 驗證 allowed_layers / execution_guardrail / live probe 是否仍一致。",
     }
@@ -990,7 +1055,17 @@ def build_report(
     calibration_window = probe.get("decision_quality_calibration_window")
     support_summary = bull_pocket.get("support_pathology_summary") or {}
     alignment = leaderboard_probe.get("alignment") or {}
-    component_gap = drilldown.get("component_gap_attribution") or {}
+    component_gap = dict(drilldown.get("component_gap_attribution") or {})
+    if component_gap.get("entry_quality") is None:
+        component_gap["entry_quality"] = probe.get("entry_quality") or live_context.get("entry_quality")
+    if component_gap.get("trade_floor") is None:
+        entry_components = probe.get("entry_quality_components") or {}
+        component_gap["trade_floor"] = entry_components.get("trade_floor")
+    if component_gap.get("remaining_gap_to_floor") is None:
+        entry_quality = _as_float(component_gap.get("entry_quality"))
+        trade_floor = _as_float(component_gap.get("trade_floor"))
+        if entry_quality is not None and trade_floor is not None:
+            component_gap["remaining_gap_to_floor"] = round(max(0.0, trade_floor - entry_quality), 4)
     runtime_blocker = drilldown.get("runtime_blocker") or None
     best_single = component_gap.get("best_single_component") or None
     minimum_support_rows = _as_int(support_summary.get("minimum_support_rows"), 50)
@@ -1078,9 +1153,12 @@ def build_report(
             "並以 pytest + fast heartbeat 驗證 runtime guardrail 不回歸。"
         )
     if not scope_applicability.get("active_for_current_live_row"):
+        current_bucket = live_context.get("current_live_structure_bucket")
+        target_bucket = scope_applicability.get("target_structure_bucket")
         next_action = (
-            "current live row 目前不在 q15 lane；q15 audit 只保留 standby route readiness。"
-            "下一輪主焦點應回到 q35 current-live blocker / deployment verify，除非 live row 再次回到 q15 bucket。"
+            f"current live row 目前不在 q15 lane（current={current_bucket}, target={target_bucket}）；"
+            "q15 audit 只保留 standby/reference route readiness。下一輪主焦點應回到 current-live exact-support blocker / deployment verify，"
+            "除非 live row 再次回到 q15 bucket。"
         )
 
     return {
@@ -1225,6 +1303,10 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- mode: **{experiment.get('mode')}**",
             f"- support_ready: **{experiment_answer.get('support_ready')}**",
             f"- entry_quality_ge_0_55: **{experiment_answer.get('entry_quality_ge_0_55')}**",
+            f"- current_entry_quality: **{experiment_answer.get('current_entry_quality')}**",
+            f"- trade_floor: **{experiment_answer.get('trade_floor')}**",
+            f"- current_trade_floor_gap: **{experiment_answer.get('current_trade_floor_gap')}**",
+            f"- current_entry_quality_ge_trade_floor: **{experiment_answer.get('current_entry_quality_ge_trade_floor')}**",
             f"- allowed_layers_gt_0: **{experiment_answer.get('allowed_layers_gt_0')}**",
             f"- preserves_positive_discrimination: **{experiment_answer.get('preserves_positive_discrimination')}** ({experiment_answer.get('preserves_positive_discrimination_status')})",
             f"- reason: {experiment.get('reason')}",
