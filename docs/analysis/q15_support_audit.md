@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-29 02:02:16.939621**
+- generated_at: **2026-04-29 03:01:44.926070**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -34,9 +34,9 @@
 - support_progress.status: **semantic_rebaseline_under_minimum**
 - support_progress.regression_basis: **legacy_or_different_semantic_signature**
 - support_progress.current_rows / minimum: **0 / 50**
-- support_progress.previous_rows: **None**
-- support_progress.delta_vs_previous: **None**
-- support_progress.stagnant_run_count: **0**
+- support_progress.previous_rows: **0**
+- support_progress.delta_vs_previous: **0**
+- support_progress.stagnant_run_count: **2**
 - support_progress.escalate_to_blocker: **True**
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 400, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `{'heartbeat': '20260419b', 'timestamp': '2026-04-18T17:55:51.910159+00:00', 'live_current_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'live_current_structure_bucket_rows': 53, 'minimum_support_rows': 50, 'support_route_verdict': 'exact_bucket_supported', 'support_governance_route': 'exact_live_bucket_supported', 'support_identity': None, 'reference_only_reason': 'missing_or_different_support_identity_or_bucket_semantic_signature'}`
@@ -49,7 +49,7 @@
 - best_single_component: **None**
 - best_single_component_required_score_delta: **None**
 - best_single_component_can_cross_floor: **False**
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 106 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 108 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
@@ -59,7 +59,7 @@
 - entry_quality_ge_0_55: **False**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 106 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 108 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
 - verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Next action

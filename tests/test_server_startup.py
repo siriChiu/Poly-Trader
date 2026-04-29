@@ -345,10 +345,46 @@ def test_load_recent_canonical_drift_summary_maps_nested_reference_window_compar
             },
         },
     }
+    artifact["canonical_tail_root_cause"] = {
+        "generated_at": "2026-04-22T03:24:15.971116+00:00",
+        "window": 100,
+        "rows": 100,
+        "losses": 99,
+        "wins": 1,
+        "loss_path_breakdown": {
+            "tp_miss_count": 97,
+            "dd_breach_count": 0,
+            "high_underwater_count": 91,
+            "avg_time_underwater": 0.84,
+        },
+        "regime_breakdown": {
+            "chop": {"rows": 66, "losses": 66, "loss_rate": 1.0},
+            "bull": {"rows": 19, "losses": 18, "loss_rate": 0.9474},
+            "bear": {"rows": 15, "losses": 15, "loss_rate": 1.0},
+        },
+        "dominant_loss_regime": "chop",
+        "top_4h_shift_features": ["feat_4h_bias200", "feat_4h_dist_swing_low"],
+        "feature_shift": {
+            "loss_vs_reference": {
+                "feat_4h_bias200": {"current_loss_mean": 7.66, "reference_mean": 4.19, "mean_delta": 3.47}
+            },
+            "loss_vs_recent_wins": {
+                "feat_4h_bb_pct_b": {"loss_mean": 0.88, "win_mean": 0.41, "mean_delta": 0.47}
+            },
+        },
+        "key_findings": ["recent 100 canonical tail is dominated by chop losses"],
+    }
     artifact_path = tmp_path / "recent_drift_report.json"
     artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
 
     summary = api_module._load_recent_canonical_drift_summary(artifact_path)
+
+    root_cause = summary["canonical_tail_root_cause"]
+    assert root_cause["window"] == 100
+    assert root_cause["loss_path_breakdown"]["tp_miss_count"] == 97
+    assert root_cause["regime_breakdown"]["chop"]["losses"] == 66
+    assert root_cause["top_4h_shift_features"] == ["feat_4h_bias200", "feat_4h_dist_swing_low"]
+    assert root_cause["feature_shift"]["loss_vs_reference"]["feat_4h_bias200"]["mean_delta"] == 3.47
 
     comparison = summary["primary_window"]["summary"]["reference_window_comparison"]
     assert comparison["prev_win_rate"] == 0.915

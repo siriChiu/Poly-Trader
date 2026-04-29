@@ -1501,3 +1501,124 @@ def test_find_blocking_window_prefers_negative_pathology_over_supported_extreme_
 
     assert label == "500"
     assert summary["drift_interpretation"] == "regime_concentration"
+
+
+def test_build_report_includes_canonical_tail_root_cause_loss_path_breakdown(tmp_path, monkeypatch):
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE labels (
+            id INTEGER PRIMARY KEY,
+            timestamp TEXT,
+            symbol TEXT,
+            horizon_minutes INTEGER,
+            simulated_pyramid_win INTEGER,
+            label_spot_long_win REAL,
+            simulated_pyramid_pnl REAL,
+            simulated_pyramid_quality REAL,
+            simulated_pyramid_drawdown_penalty REAL,
+            simulated_pyramid_time_underwater REAL,
+            future_return_pct REAL,
+            future_max_drawdown REAL,
+            future_max_runup REAL,
+            regime_label TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE features_normalized (
+            timestamp TEXT,
+            symbol TEXT,
+            regime_label TEXT,
+            feat_4h_bias200 REAL,
+            feat_4h_dist_swing_low REAL,
+            feat_4h_dist_swing_high REAL,
+            feat_4h_bb_pct_b REAL,
+            feat_4h_rsi14 REAL,
+            feat_4h_bias50 REAL
+        )
+        """
+    )
+
+    label_rows = []
+    feature_rows = []
+    for i in range(200):
+        recent = i >= 100
+        recent_idx = i - 100 if recent else i
+        target = 0 if recent and recent_idx < 80 else 1
+        regime = "chop" if recent_idx < 50 else ("bull" if recent_idx < 70 else "bear")
+        if not recent:
+            target = 1 if i % 3 else 0
+            regime = "bull" if i < 60 else "chop"
+        tp_miss_runup = 0.012 if target == 0 and recent_idx < 60 else 0.028
+        max_drawdown = -0.061 if target == 0 and 30 <= recent_idx < 48 else (-0.028 if target == 0 else -0.014)
+        time_underwater = 0.86 if target == 0 and recent_idx < 45 else (0.42 if target == 0 else 0.16)
+        ts = f"2026-04-12 00:{i:03d}:00"
+        label_rows.append(
+            (
+                i + 1,
+                ts,
+                "BTCUSDT",
+                1440,
+                target,
+                float(target),
+                0.014 if target else -0.012,
+                0.58 if target else -0.22,
+                0.08 if target else 0.31,
+                time_underwater,
+                0.014 if target else -0.012,
+                max_drawdown,
+                tp_miss_runup,
+                regime,
+            )
+        )
+        bias200 = 2.0 + (0.02 * i) + (4.0 if recent and target == 0 else 0.0)
+        feature_rows.append(
+            (
+                ts,
+                "BTCUSDT",
+                regime,
+                bias200,
+                -0.8 if recent and target == 0 else 1.4,
+                1.1 if recent and target == 0 else -0.2,
+                0.91 if recent and target == 0 else 0.42,
+                72.0 if recent and target == 0 else 48.0,
+                6.0 if recent and target == 0 else 1.0,
+            )
+        )
+
+    conn.executemany(
+        "INSERT INTO labels VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        label_rows,
+    )
+    conn.executemany(
+        "INSERT INTO features_normalized VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        feature_rows,
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(recent_drift_report, "DB_PATH", db_path)
+    monkeypatch.setattr(recent_drift_report, "WINDOWS", [100])
+
+    report = recent_drift_report.build_report()
+    root_cause = report["canonical_tail_root_cause"]
+
+    assert root_cause["window"] == 100
+    assert root_cause["rows"] == 100
+    assert root_cause["losses"] == 80
+    assert root_cause["wins"] == 20
+    assert root_cause["loss_path_breakdown"]["tp_miss_count"] == 60
+    assert root_cause["loss_path_breakdown"]["dd_breach_count"] == 18
+    assert root_cause["loss_path_breakdown"]["high_underwater_count"] == 45
+    assert root_cause["loss_path_breakdown"]["avg_time_underwater"] > 0.5
+    assert root_cause["regime_breakdown"]["chop"]["losses"] == 50
+    assert root_cause["regime_breakdown"]["bull"]["losses"] == 20
+    assert root_cause["regime_breakdown"]["bear"]["losses"] == 10
+    assert root_cause["dominant_loss_regime"] == "chop"
+    assert root_cause["feature_shift"]["loss_vs_reference"]["feat_4h_bias200"]["current_loss_mean"] > root_cause["feature_shift"]["loss_vs_reference"]["feat_4h_bias200"]["reference_mean"]
+    assert root_cause["feature_shift"]["loss_vs_recent_wins"]["feat_4h_bb_pct_b"]["loss_mean"] > root_cause["feature_shift"]["loss_vs_recent_wins"]["feat_4h_bb_pct_b"]["win_mean"]
+    assert "feat_4h_bias200" in root_cause["top_4h_shift_features"]
+    assert root_cause["key_findings"]

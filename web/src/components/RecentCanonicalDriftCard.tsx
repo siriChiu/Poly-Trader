@@ -12,6 +12,36 @@ type TargetStreak = {
   end_timestamp?: string | null;
 };
 
+type CanonicalTailRegimeBreakdown = {
+  rows?: number | null;
+  losses?: number | null;
+  wins?: number | null;
+  loss_rate?: number | null;
+};
+
+type CanonicalTailRootCause = {
+  window?: number | string | null;
+  rows?: number | null;
+  losses?: number | null;
+  wins?: number | null;
+  loss_path_breakdown?: {
+    tp_miss_count?: number | null;
+    dd_breach_count?: number | null;
+    high_underwater_count?: number | null;
+    avg_time_underwater?: number | null;
+  } | null;
+  regime_breakdown?: {
+    chop?: CanonicalTailRegimeBreakdown | null;
+    bull?: CanonicalTailRegimeBreakdown | null;
+    bear?: CanonicalTailRegimeBreakdown | null;
+    [key: string]: CanonicalTailRegimeBreakdown | null | undefined;
+  } | null;
+  dominant_loss_regime?: string | null;
+  top_4h_shift_features?: string[] | null;
+  feature_shift?: Record<string, unknown> | null;
+  key_findings?: string[] | null;
+};
+
 type RecentCanonicalDriftWindowSummary = {
   rows?: number | null;
   win_rate?: number | null;
@@ -73,6 +103,7 @@ export type RecentCanonicalDriftSummary = {
   horizon_minutes?: number | null;
   primary_window?: RecentCanonicalDriftWindowPayload | null;
   blocking_window?: RecentCanonicalDriftWindowPayload | null;
+  canonical_tail_root_cause?: CanonicalTailRootCause | null;
 };
 
 type RecentCanonicalDriftCardProps = {
@@ -121,6 +152,37 @@ function formatFeatureLabels(features?: string[] | null): string {
     .slice(0, 3)
     .map((value) => humanizeFeatureKey(value, { preferShortLabel: true }))
     .join(" / ") || "—";
+}
+
+function formatRegimeLossLabel(_label: string, payload?: CanonicalTailRegimeBreakdown | null): string {
+  if (!payload) return "—";
+  const rows = payload.rows ?? "—";
+  const losses = payload.losses ?? "—";
+  return `${losses}/${rows} (${formatPct(payload.loss_rate)})`;
+}
+
+function renderCanonicalTailRootCause(rootCause?: CanonicalTailRootCause | null) {
+  if (!rootCause) return null;
+  const pathBreakdown = rootCause.loss_path_breakdown ?? {};
+  const regimeBreakdown = rootCause.regime_breakdown ?? {};
+  const topShiftLabels = formatFeatureLabels(rootCause.top_4h_shift_features ?? null);
+  const keyFindings = Array.isArray(rootCause.key_findings) ? rootCause.key_findings.filter(Boolean).slice(0, 2) : [];
+  return (
+    <div className="rounded-lg border border-rose-400/20 bg-rose-500/8 px-3 py-2">
+      <div className="font-medium text-rose-100">最近 100 筆 loss path 根因</div>
+      <div>
+        樣本 {rootCause.rows ?? "—"} · loss {rootCause.losses ?? "—"} · win {rootCause.wins ?? "—"} · dominant loss regime {humanizeRecentDriftDominantRegimeLabel(rootCause.dominant_loss_regime)}
+      </div>
+      <div>
+        TP miss {pathBreakdown.tp_miss_count ?? "—"} · DD breach {pathBreakdown.dd_breach_count ?? "—"} · underwater {pathBreakdown.high_underwater_count ?? "—"} · 平均 underwater {formatPct(pathBreakdown.avg_time_underwater)}
+      </div>
+      <div>
+        盤整 {formatRegimeLossLabel("chop", regimeBreakdown?.chop)} · 牛市 {formatRegimeLossLabel("bull", regimeBreakdown?.bull)} · 熊市 {formatRegimeLossLabel("bear", regimeBreakdown?.bear)}
+      </div>
+      <div>4H shift {topShiftLabels}</div>
+      {keyFindings.length ? <div>結論 {keyFindings.join(" · ")}</div> : null}
+    </div>
+  );
 }
 
 function humanizeRecentDriftInterpretationLabel(value?: string | null): string {
@@ -266,6 +328,7 @@ export default function RecentCanonicalDriftCard({
         </div>
       ) : (
         <div className="mt-3 space-y-3 text-[12px] leading-6 text-slate-100/90">
+          {renderCanonicalTailRootCause(summary?.canonical_tail_root_cause ?? null)}
           {renderWindowSummary("最新近期視窗", latestWindow)}
           {hasDistinctBlockingWindow
             ? renderWindowSummary("當前阻塞口袋", blockingWindow, { emphasize: true })

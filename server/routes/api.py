@@ -3810,6 +3810,33 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
             }
         )
 
+    def _normalize_canonical_tail_root_cause(root_cause_payload: Any) -> Optional[Dict[str, Any]]:
+        if not isinstance(root_cause_payload, dict):
+            return None
+        loss_path = root_cause_payload.get("loss_path_breakdown") if isinstance(root_cause_payload.get("loss_path_breakdown"), dict) else {}
+        regime_breakdown = root_cause_payload.get("regime_breakdown") if isinstance(root_cause_payload.get("regime_breakdown"), dict) else {}
+        feature_shift = root_cause_payload.get("feature_shift") if isinstance(root_cause_payload.get("feature_shift"), dict) else {}
+        top_features = root_cause_payload.get("top_4h_shift_features")
+        key_findings = root_cause_payload.get("key_findings")
+        return {
+            "generated_at": root_cause_payload.get("generated_at"),
+            "window": root_cause_payload.get("window"),
+            "rows": root_cause_payload.get("rows"),
+            "losses": root_cause_payload.get("losses"),
+            "wins": root_cause_payload.get("wins"),
+            "loss_path_breakdown": {
+                "tp_miss_count": loss_path.get("tp_miss_count"),
+                "dd_breach_count": loss_path.get("dd_breach_count"),
+                "high_underwater_count": loss_path.get("high_underwater_count"),
+                "avg_time_underwater": loss_path.get("avg_time_underwater"),
+            },
+            "regime_breakdown": regime_breakdown,
+            "dominant_loss_regime": root_cause_payload.get("dominant_loss_regime"),
+            "top_4h_shift_features": top_features if isinstance(top_features, list) else [],
+            "feature_shift": feature_shift,
+            "key_findings": key_findings if isinstance(key_findings, list) else [],
+        }
+
     primary = _normalize_recent_drift_window(payload.get("primary_window"))
     blocking = _normalize_recent_drift_window(payload.get("blocking_window"))
     if not _has_recent_drift_window_truth(blocking):
@@ -3825,6 +3852,9 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
         "target_col": payload.get("target_col"),
         "horizon_minutes": payload.get("horizon_minutes"),
     }
+    canonical_tail_root_cause = _normalize_canonical_tail_root_cause(payload.get("canonical_tail_root_cause"))
+    if canonical_tail_root_cause is not None:
+        result["canonical_tail_root_cause"] = canonical_tail_root_cause
     if primary is not None:
         result["primary_window"] = primary
     if blocking is not None:

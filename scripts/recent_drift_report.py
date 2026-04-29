@@ -21,12 +21,26 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
+from data_ingestion.labeling import DEFAULT_LONG_MAX_DD_PCT, DEFAULT_LONG_TP_PCT
 from feature_engine.feature_history_policy import FEATURE_KEY_MAP, SOURCE_FEATURE_KEYS
 DB_PATH = PROJECT_ROOT / "poly_trader.db"
 OUT_PATH = PROJECT_ROOT / "data" / "recent_drift_report.json"
+TAIL_ROOT_CAUSE_OUT_PATH = PROJECT_ROOT / "data" / "canonical_tail_root_cause.json"
 TARGET_COL = "simulated_pyramid_win"
 CANONICAL_HORIZON_MINUTES = 1440
 WINDOWS = [100, 250, 500, 1000]
+TAIL_ROOT_CAUSE_WINDOW = 100
+HIGH_UNDERWATER_RATIO_THRESHOLD = 0.50
+TAIL_ROOT_CAUSE_FEATURES = [
+    "feat_4h_bias200",
+    "feat_4h_dist_swing_low",
+    "feat_4h_dist_swing_high",
+    "feat_4h_bias50",
+    "feat_4h_bias20",
+    "feat_4h_rsi14",
+    "feat_4h_bb_pct_b",
+    "feat_4h_macd_hist",
+]
 LOW_VARIANCE_STD_RATIO_THRESHOLD = 0.15
 LOW_DISTINCT_RATIO_THRESHOLD = 0.10
 LOW_DISTINCT_MAX_COUNT = 5
@@ -1084,6 +1098,210 @@ def _find_blocking_window(window_summaries: dict[str, dict[str, Any]]) -> tuple[
     return label, summary
 
 
+def _row_target(row: sqlite3.Row) -> int | None:
+    try:
+        return int(row["target"])
+    except (TypeError, ValueError, IndexError, KeyError):
+        return None
+
+
+def _mean_for_rows(rows: list[sqlite3.Row], key: str) -> float | None:
+    vals = [_safe_float(row[key]) for row in rows if key in row.keys()]
+    vals = [value for value in vals if value is not None]
+    if not vals:
+        return None
+    return _round(sum(vals) / len(vals))
+
+
+def _std_for_rows(rows: list[sqlite3.Row], key: str) -> float | None:
+    vals = [_safe_float(row[key]) for row in rows if key in row.keys()]
+    vals = [value for value in vals if value is not None]
+    if len(vals) < 2:
+        return None
+    return _round(pstdev(vals))
+
+
+def _count_loss_path_flags(loss_rows: list[sqlite3.Row]) -> dict[str, Any]:
+    tp_miss = 0
+    dd_breach = 0
+    high_underwater = 0
+    for row in loss_rows:
+        max_runup = _safe_float(row["future_max_runup"])
+        max_drawdown = _safe_float(row["future_max_drawdown"])
+        drawdown_penalty = _safe_float(row["simulated_pyramid_drawdown_penalty"])
+        underwater = _safe_float(row["simulated_pyramid_time_underwater"])
+        if max_runup is not None and max_runup < DEFAULT_LONG_TP_PCT:
+            tp_miss += 1
+        if (
+            (max_drawdown is not None and max_drawdown <= -DEFAULT_LONG_MAX_DD_PCT)
+            or (drawdown_penalty is not None and drawdown_penalty >= 1.0)
+        ):
+            dd_breach += 1
+        if underwater is not None and underwater >= HIGH_UNDERWATER_RATIO_THRESHOLD:
+            high_underwater += 1
+
+    total_losses = len(loss_rows)
+    return {
+        "losses": total_losses,
+        "tp_miss_count": tp_miss,
+        "tp_miss_share": _pct(tp_miss, total_losses),
+        "dd_breach_count": dd_breach,
+        "dd_breach_share": _pct(dd_breach, total_losses),
+        "high_underwater_count": high_underwater,
+        "high_underwater_share": _pct(high_underwater, total_losses),
+        "avg_time_underwater": _mean_for_rows(loss_rows, "simulated_pyramid_time_underwater"),
+        "avg_future_max_runup": _mean_for_rows(loss_rows, "future_max_runup"),
+        "avg_future_max_drawdown": _mean_for_rows(loss_rows, "future_max_drawdown"),
+        "avg_simulated_pnl": _mean_for_rows(loss_rows, "simulated_pyramid_pnl"),
+        "avg_simulated_quality": _mean_for_rows(loss_rows, "simulated_pyramid_quality"),
+    }
+
+
+def _regime_loss_breakdown(rows: list[sqlite3.Row]) -> dict[str, dict[str, Any]]:
+    buckets: dict[str, dict[str, Any]] = {}
+    total_rows = len(rows)
+    total_losses = sum(1 for row in rows if _row_target(row) == 0)
+    for row in rows:
+        regime = str(row["regime"] or "unknown")
+        entry = buckets.setdefault(regime, {"rows": 0, "wins": 0, "losses": 0})
+        entry["rows"] += 1
+        if _row_target(row) == 0:
+            entry["losses"] += 1
+        elif _row_target(row) == 1:
+            entry["wins"] += 1
+    for entry in buckets.values():
+        entry["row_share"] = _pct(entry["rows"], total_rows)
+        entry["loss_rate"] = _pct(entry["losses"], entry["rows"])
+        entry["share_of_losses"] = _pct(entry["losses"], total_losses)
+    return dict(sorted(buckets.items(), key=lambda item: (-int(item[1].get("losses") or 0), item[0])))
+
+
+def _feature_shift_for_tail_root_cause(
+    *,
+    loss_rows: list[sqlite3.Row],
+    recent_win_rows: list[sqlite3.Row],
+    reference_rows: list[sqlite3.Row],
+    feature_cols: list[str],
+) -> dict[str, Any]:
+    available_features = [feature for feature in TAIL_ROOT_CAUSE_FEATURES if feature in feature_cols]
+    loss_vs_reference: dict[str, dict[str, Any]] = {}
+    loss_vs_recent_wins: dict[str, dict[str, Any]] = {}
+    scored_features: list[tuple[float, str]] = []
+
+    for feature in available_features:
+        loss_mean = _mean_for_rows(loss_rows, feature)
+        reference_mean = _mean_for_rows(reference_rows, feature)
+        reference_std = _std_for_rows(reference_rows, feature)
+        win_mean = _mean_for_rows(recent_win_rows, feature)
+        reference_delta = None
+        delta_vs_reference_std = None
+        if loss_mean is not None and reference_mean is not None:
+            reference_delta = _round(loss_mean - reference_mean)
+            if reference_std not in (None, 0):
+                delta_vs_reference_std = _round(reference_delta / reference_std)
+        win_delta = None
+        if loss_mean is not None and win_mean is not None:
+            win_delta = _round(loss_mean - win_mean)
+
+        loss_vs_reference[feature] = {
+            "current_loss_mean": loss_mean,
+            "reference_mean": reference_mean,
+            "reference_std": reference_std,
+            "mean_delta": reference_delta,
+            "delta_vs_reference_std": delta_vs_reference_std,
+        }
+        loss_vs_recent_wins[feature] = {
+            "loss_mean": loss_mean,
+            "win_mean": win_mean,
+            "mean_delta": win_delta,
+        }
+        score = abs(delta_vs_reference_std) if delta_vs_reference_std is not None else (abs(reference_delta) if reference_delta is not None else 0.0)
+        if score > 0:
+            scored_features.append((float(score), feature))
+
+    top_features = [feature for _, feature in sorted(scored_features, key=lambda item: (-item[0], item[1]))[:5]]
+    return {
+        "loss_vs_reference": loss_vs_reference,
+        "loss_vs_recent_wins": loss_vs_recent_wins,
+        "top_4h_shift_features": top_features,
+    }
+
+
+def _build_canonical_tail_root_cause(
+    rows: list[sqlite3.Row],
+    feature_cols: list[str],
+    *,
+    generated_at: str,
+    window: int = TAIL_ROOT_CAUSE_WINDOW,
+) -> dict[str, Any]:
+    recent_rows = rows[-window:] if len(rows) >= window else list(rows)
+    reference_rows = rows[-(window * 2):-window] if len(rows) >= window * 2 else []
+    loss_rows = [row for row in recent_rows if _row_target(row) == 0]
+    win_rows = [row for row in recent_rows if _row_target(row) == 1]
+    regime_breakdown = _regime_loss_breakdown(recent_rows)
+    dominant_loss_regime = None
+    if regime_breakdown:
+        dominant_loss_regime = max(regime_breakdown.items(), key=lambda item: int(item[1].get("losses") or 0))[0]
+    feature_shift = _feature_shift_for_tail_root_cause(
+        loss_rows=loss_rows,
+        recent_win_rows=win_rows,
+        reference_rows=reference_rows,
+        feature_cols=feature_cols,
+    )
+    path_breakdown = _count_loss_path_flags(loss_rows)
+    top_features = feature_shift.get("top_4h_shift_features") or []
+    key_findings: list[str] = []
+    if dominant_loss_regime and loss_rows:
+        share = (regime_breakdown.get(dominant_loss_regime) or {}).get("share_of_losses")
+        key_findings.append(f"最近 {len(recent_rows)} 筆 canonical losses 主要集中在 {dominant_loss_regime}（loss share={share}）。")
+    if loss_rows:
+        key_findings.append(
+            f"loss path：TP miss {path_breakdown['tp_miss_count']}/{len(loss_rows)}、"
+            f"DD breach {path_breakdown['dd_breach_count']}/{len(loss_rows)}、"
+            f"高 underwater {path_breakdown['high_underwater_count']}/{len(loss_rows)}。"
+        )
+    if top_features:
+        key_findings.append(f"4H feature shift 以 {' / '.join(top_features[:3])} 最明顯。")
+
+    examples = [
+        {
+            "timestamp": row["timestamp"],
+            "regime": row["regime"],
+            "future_max_runup": _round(_safe_float(row["future_max_runup"])),
+            "future_max_drawdown": _round(_safe_float(row["future_max_drawdown"])),
+            "time_underwater": _round(_safe_float(row["simulated_pyramid_time_underwater"])),
+        }
+        for row in loss_rows[-5:]
+    ]
+
+    return {
+        "generated_at": generated_at,
+        "target_col": TARGET_COL,
+        "horizon_minutes": CANONICAL_HORIZON_MINUTES,
+        "window": window,
+        "rows": len(recent_rows),
+        "wins": len(win_rows),
+        "losses": len(loss_rows),
+        "loss_rate": _pct(len(loss_rows), len(recent_rows)),
+        "reference_rows": len(reference_rows),
+        "thresholds": {
+            "tp_pct": DEFAULT_LONG_TP_PCT,
+            "max_dd_pct": DEFAULT_LONG_MAX_DD_PCT,
+            "high_underwater_ratio": HIGH_UNDERWATER_RATIO_THRESHOLD,
+        },
+        "loss_path_breakdown": path_breakdown,
+        "regime_breakdown": regime_breakdown,
+        "dominant_loss_regime": dominant_loss_regime,
+        "feature_shift": {
+            "loss_vs_reference": feature_shift.get("loss_vs_reference") or {},
+            "loss_vs_recent_wins": feature_shift.get("loss_vs_recent_wins") or {},
+        },
+        "top_4h_shift_features": top_features,
+        "key_findings": key_findings,
+        "recent_loss_examples": examples,
+    }
+
+
 def build_report() -> dict[str, Any]:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -1195,6 +1413,13 @@ def build_report() -> dict[str, Any]:
             "summary": blocking_summary or {},
         },
     }
+    canonical_tail_root_cause = _build_canonical_tail_root_cause(
+        rows,
+        feature_cols,
+        generated_at=report["generated_at"],
+    )
+    if canonical_tail_root_cause is not None:
+        report["canonical_tail_root_cause"] = canonical_tail_root_cause
     return report
 
 
@@ -1202,6 +1427,10 @@ def main() -> int:
     report = build_report()
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(json.dumps(report, indent=2, default=str))
+    canonical_tail_root_cause = report.get("canonical_tail_root_cause")
+    if isinstance(canonical_tail_root_cause, dict):
+        TAIL_ROOT_CAUSE_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        TAIL_ROOT_CAUSE_OUT_PATH.write_text(json.dumps(canonical_tail_root_cause, indent=2, default=str))
 
     primary = report.get("primary_window", {})
     primary_window = primary.get("window")
@@ -1311,6 +1540,8 @@ def main() -> int:
             f"avg_pnl={blocking_quality.get('avg_simulated_pnl')} avg_quality={blocking_quality.get('avg_simulated_quality')}"
         )
     print(f"已儲存至 {OUT_PATH}")
+    if isinstance(report.get("canonical_tail_root_cause"), dict):
+        print(f"canonical tail root cause 已儲存至 {TAIL_ROOT_CAUSE_OUT_PATH}")
 
     return 0
 

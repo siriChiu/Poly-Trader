@@ -1,6 +1,6 @@
 # q15 Bucket Root Cause
 
-- generated_at: **2026-04-29 02:02:16.939621**
+- generated_at: **2026-04-29 03:01:44.926070**
 - target_col: **simulated_pyramid_win**
 - verdict: **runtime_blocker_preempts_bucket_root_cause**
 - candidate_patch_type: **None**
@@ -11,8 +11,8 @@
 ## Current live
 - live path: **bear / CAUTION / C**
 - structure_bucket: `CAUTION|structure_quality_caution|q15`
-- structure_quality: **0.239**
-- gap_to_q35_boundary: **0.111**
+- structure_quality: **0.2424**
+- gap_to_q35_boundary: **0.1076**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `decision_quality_below_trade_floor; circuit_breaker_active`
 - support rows/minimum/gap: **0 / 50 / 50**
@@ -30,9 +30,9 @@
 - verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 q15 root-cause artifact。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.528 / norm=0.528 / Δto_cross_q35=0.3265 / target_p25=None / target_median=None
-- `feat_4h_dist_bb_lower`: current=1.4421 / norm=0.1803 / Δto_cross_q35=2.6909 / target_p25=None / target_median=None
-- `feat_4h_dist_swing_low`: current=-0.7789 / norm=0.0 / Δto_cross_q35=4.1425 / target_p25=None / target_median=None
+- `feat_4h_bb_pct_b`: current=0.5356 / norm=0.5356 / Δto_cross_q35=0.3165 / target_p25=None / target_median=None
+- `feat_4h_dist_bb_lower`: current=1.4616 / norm=0.1827 / Δto_cross_q35=2.6085 / target_p25=None / target_median=None
+- `feat_4h_dist_swing_low`: current=-0.7533 / norm=0.0 / Δto_cross_q35=4.0139 / target_p25=None / target_median=None
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 verdict 與 candidate_patch_feature。

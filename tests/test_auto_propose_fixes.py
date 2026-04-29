@@ -243,6 +243,32 @@ def test_load_recent_tw_history_prefers_timestamped_cron_runs_over_legacy_numeri
     ]
 
 
+def test_load_recent_tw_history_keeps_numbered_current_run_on_numbered_lineage(tmp_path, monkeypatch):
+    monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    (data_dir / "heartbeat_1114_summary.json").write_text(
+        '{"heartbeat":"1114","ic_diagnostics":{"tw_pass":23,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_1113_summary.json").write_text(
+        '{"heartbeat":"1113","ic_diagnostics":{"tw_pass":22,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_20260425_1528_summary.json").write_text(
+        '{"heartbeat":"20260425_1528","ic_diagnostics":{"tw_pass":27,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_fast_summary.json").write_text(
+        '{"heartbeat":"fast","ic_diagnostics":{"tw_pass":12,"total_features":30}}'
+    )
+
+    history = auto_propose_fixes.load_recent_tw_history(
+        limit=3,
+        current_entry={"heartbeat": "1115", "tw_pass": 24, "total_features": 30},
+    )
+
+    assert [row["heartbeat"] for row in history] == ["1115", "1114", "1113"]
+
+
 def test_summarize_recent_drift_formats_primary_window():
     summary = auto_propose_fixes.summarize_recent_drift(
         {

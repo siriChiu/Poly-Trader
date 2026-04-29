@@ -219,6 +219,9 @@ def load_recent_tw_history(limit=3, current_entry=None):
     history = []
     data_dir = ROOT / "data"
 
+    current_label = str((current_entry or {}).get("heartbeat") or "")
+    current_is_numbered = current_label.isdigit()
+
     if current_entry and current_entry.get("tw_pass") is not None:
         history.append(current_entry)
 
@@ -230,19 +233,23 @@ def load_recent_tw_history(limit=3, current_entry=None):
         if timestamp_match:
             # Cron heartbeats use timestamp labels (YYYYMMDD_HHMM[_SS]). Treat
             # them as stable numbered runs and prefer the newest timestamped
-            # summaries before older legacy numeric IDs. Otherwise TW history
-            # can mix the fresh cron run with stale #1024/#1023 artifacts.
+            # summaries before older legacy numeric IDs unless the current run
+            # itself is numeric. Numeric cron jobs (#1115 → #1114 → #1113) must
+            # not be mixed with stale timestamped one-off summaries from prior
+            # days, or TW-drift governance compares fresh facts against old runs.
             sortable = int(
                 timestamp_match.group(1)
                 + timestamp_match.group(2)
                 + (timestamp_match.group(3) or "00")
             )
-            return (0, -sortable, "")
+            family_rank = 1 if current_is_numbered else 0
+            return (family_rank, -sortable, "")
         if label_text.isdigit():
-            # Prefer legacy numbered heartbeats over aliases like "fast" so the
-            # drift issue compares against stable chronological runs instead of
-            # anonymous helper summaries from ad-hoc fast checks.
-            return (1, -int(label_text), "")
+            # Prefer same-family numbered heartbeats right after a numbered
+            # current_entry; otherwise timestamped cron labels still outrank
+            # legacy numeric IDs. Aliases like "fast" remain last.
+            family_rank = 0 if current_is_numbered else 1
+            return (family_rank, -int(label_text), "")
         return (2, 0, label_text)
 
     for path in sorted(data_dir.glob("heartbeat_*_summary.json"), key=_sort_key):

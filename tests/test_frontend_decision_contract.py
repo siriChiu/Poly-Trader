@@ -1389,6 +1389,16 @@ def test_recent_canonical_drift_card_surfaces_latest_and_blocking_windows():
         '最長連續 {formatStreak(targetPath?.longest_target_streak)}',
         'function humanizeTargetStreakTarget(',
         'return `${streak.count} 筆${targetLabel}${span}`;',
+        'type CanonicalTailRootCause = {',
+        'canonical_tail_root_cause?: CanonicalTailRootCause | null;',
+        'function renderCanonicalTailRootCause(rootCause?: CanonicalTailRootCause | null)',
+        '最近 100 筆 loss path 根因',
+        'TP miss {pathBreakdown.tp_miss_count ?? "—"}',
+        'DD breach {pathBreakdown.dd_breach_count ?? "—"}',
+        'underwater {pathBreakdown.high_underwater_count ?? "—"}',
+        '4H shift {topShiftLabels}',
+        '盤整 {formatRegimeLossLabel("chop", regimeBreakdown?.chop)}',
+        '{renderCanonicalTailRootCause(summary?.canonical_tail_root_cause ?? null)}',
     ]
     for snippet in required_snippets:
         assert snippet in source
