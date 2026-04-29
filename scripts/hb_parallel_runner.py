@@ -2218,6 +2218,19 @@ def _leaderboard_candidate_semantic_signature(payload: Dict[str, Any]) -> Dict[s
 
 
 
+def _leaderboard_payload_cache_is_stale(payload: Dict[str, Any]) -> bool:
+    if payload.get("leaderboard_payload_stale") is True:
+        return True
+    cache_age = payload.get("leaderboard_payload_cache_age_sec")
+    if cache_age is None:
+        return False
+    try:
+        return float(cache_age) > 900.0
+    except (TypeError, ValueError):
+        return False
+
+
+
 def _current_leaderboard_candidate_semantic_signature() -> Dict[str, Any]:
     data_dir = Path(PROJECT_ROOT) / "data"
     model_dir = Path(PROJECT_ROOT) / "model"
@@ -2340,6 +2353,13 @@ def _leaderboard_candidate_cache_hit() -> Dict[str, Any] | None:
     if artifact_signature is None or artifact_signature != current_signature:
         return None
 
+    if _leaderboard_payload_cache_is_stale(payload):
+        _attempt_refresh(allow_rebuild=True)
+    if _leaderboard_payload_cache_is_stale(payload):
+        return None
+    if artifact_signature is None or artifact_signature != current_signature:
+        return None
+
     artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
     stale_dependencies = _stale_dependency_paths(artifact_time, dependency_paths)
     if stale_dependencies:
@@ -2359,6 +2379,8 @@ def _leaderboard_candidate_cache_hit() -> Dict[str, Any] | None:
             "refresh_applied": refresh_applied,
             "leaderboard_payload_source": payload.get("leaderboard_payload_source"),
             "leaderboard_payload_updated_at": payload.get("leaderboard_payload_updated_at"),
+            "leaderboard_payload_stale": payload.get("leaderboard_payload_stale"),
+            "leaderboard_payload_cache_age_sec": payload.get("leaderboard_payload_cache_age_sec"),
         },
     }
 

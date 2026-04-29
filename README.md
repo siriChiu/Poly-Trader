@@ -366,16 +366,17 @@ Poly-Trader/
 ├── backtesting/               # Strategy Lab 與 leaderboard 核心
 ├── database/                  # SQLite / ORM schema
 ├── web/                       # React 前端（Dashboard / Strategy Lab）
-├── scripts/                   # heartbeat / probe / analysis / maintenance
-├── tests/                     # pytest
+├── scripts/                   # heartbeat / probe / analysis / maintenance CLIs
+│   └── legacy_checks/         # 歷史一次性診斷腳本（不作正式入口）
+├── tests/                     # pytest contract / regression tests
 ├── docs/
 │   ├── plans/                 # 實作計畫
-│   └── analysis/              # 分析報告與 sweep 結果
-├── HEARTBEAT.md
-├── ARCHITECTURE.md
-├── ISSUES.md
+│   └── analysis/              # 可重跑分析摘要與 sweep 結果
+├── HEARTBEAT.md               # 心跳流程規範（不是每輪 log）
+├── ARCHITECTURE.md            # 目前有效架構與操作契約
+├── ISSUES.md                  # current-state issue view
 ├── PRD.md
-└── ROADMAP.md
+└── ROADMAP.md                 # current-state roadmap
 ```
 
 ---
@@ -384,12 +385,13 @@ Poly-Trader/
 
 | File | 說明 |
 |---|---|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | 系統架構與核心 contract |
-| [ROADMAP.md](ROADMAP.md) | 開發進度與已完成項目 |
-| [ISSUES.md](ISSUES.md) | 目前問題與治理狀態 |
-| [HEARTBEAT.md](HEARTBEAT.md) | heartbeat 閉環流程 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 目前有效架構與核心 contract；不保留 heartbeat 流水帳 |
+| [ROADMAP.md](ROADMAP.md) | Current plan only，由 heartbeat overwrite sync |
+| [ISSUES.md](ISSUES.md) | Current issues only，由 heartbeat overwrite sync |
+| [HEARTBEAT.md](HEARTBEAT.md) | heartbeat 執行流程規範；每輪 `data/heartbeat_*` log 不進 git |
 | `docs/plans/` | 實作規劃 |
-| `docs/analysis/` | 分析報告、sweep 與研究結果 |
+| `docs/analysis/` | 可重跑分析摘要、sweep 與研究結果 |
+| `scripts/legacy_checks/` | 歷史一次性診斷腳本；正式 workflow 不應依賴 |
 
 ---
 

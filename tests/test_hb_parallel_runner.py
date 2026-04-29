@@ -4762,6 +4762,74 @@ def test_leaderboard_candidate_cache_hit_uses_semantic_alignment_signature(tmp_p
     assert hit["details"]["selected_feature_profile"] == "core_only"
 
 
+def test_leaderboard_candidate_cache_hit_live_rebuilds_stale_payload_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    alignment = {
+        "current_alignment_inputs_stale": False,
+        "global_recommended_profile": "core_only",
+        "train_selected_profile": "core_plus_macro",
+        "train_selected_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+        "support_governance_route": "no_support_proxy",
+        "minimum_support_rows": 50,
+        "live_current_structure_bucket": None,
+        "live_current_structure_bucket_rows": 0,
+        "live_execution_guardrail_reason": "circuit_breaker_blocks_trade",
+        "live_regime_gate": None,
+        "live_entry_quality_label": None,
+    }
+    current_signature = {
+        key: value
+        for key, value in alignment.items()
+        if key != "current_alignment_inputs_stale"
+    }
+    artifact_path = data_dir / "leaderboard_feature_profile_probe.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2099-04-17T10:30:00+00:00",
+                "leaderboard_payload_source": "latest_persisted_snapshot",
+                "leaderboard_payload_stale": True,
+                "leaderboard_payload_cache_age_sec": 4001,
+                "top_model": {"selected_feature_profile": "core_only"},
+                "alignment": alignment,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "_current_leaderboard_candidate_semantic_signature",
+        lambda: current_signature,
+    )
+    monkeypatch.setattr(hb_parallel_runner, "_stale_dependency_paths", lambda *_args, **_kwargs: [])
+    called = {}
+
+    def _fake_refresh(path, *, allow_rebuild=False):
+        called["allow_rebuild"] = allow_rebuild
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["generated_at"] = "2099-04-17T10:35:00+00:00"
+        payload["leaderboard_payload_source"] = "live_rebuild"
+        payload["leaderboard_payload_stale"] = False
+        payload["leaderboard_payload_cache_age_sec"] = 0
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return payload
+
+    monkeypatch.setattr(hb_parallel_runner, "_refresh_leaderboard_candidate_alignment_snapshot", _fake_refresh)
+
+    hit = hb_parallel_runner._leaderboard_candidate_cache_hit()
+
+    assert hit is not None
+    assert called["allow_rebuild"] is True
+    assert hit["reason"] == "refreshed_leaderboard_candidate_artifact_reused"
+    assert hit["details"]["leaderboard_payload_source"] == "live_rebuild"
+    assert hit["details"]["leaderboard_payload_stale"] is False
+    assert hit["details"]["leaderboard_payload_cache_age_sec"] == 0
+
+
 def test_leaderboard_candidate_cache_hit_refreshes_semantic_drift_when_probe_artifact_can_be_realigned(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"

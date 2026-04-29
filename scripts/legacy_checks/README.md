@@ -14,7 +14,8 @@ the repo root and `scripts/`.
 
 ## Layout
 
-- `root/` — old root-level `check_*.py`, `_check_*.py`, and heartbeat-style scripts
+- `root/` — old root-level `check_*.py`, `_check_*.py`, heartbeat-style scripts,
+  historical IC/pulse/regime experiments, and superseded root helpers
 - `scripts/` — old `scripts/check_*.py`, `scripts/_check_*.py`, and related diagnostics
 
 ## Notes
@@ -23,3 +24,7 @@ the repo root and `scripts/`.
 - If a diagnostic becomes part of the real workflow, it should be promoted into a
   proper module or CLI command instead of staying here.
 - New temporary checks should not be added to the project root.
+- `tests/comprehensive_test.py` is the maintained comprehensive smoke test; the old
+  root-level copy is kept here only as historical reference.
+- If a moved script is needed again, promote it into `scripts/` with tests and a
+  documented CLI contract instead of importing it from `legacy_checks/`.

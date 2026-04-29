@@ -1,19 +1,19 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-04-29 12:04:55 CST_
+_最後更新：2026-04-29 13:11:24 CST_
 
 ---
 
-## 心跳 #1116 ORID
+## 心跳 #1117 ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=32459 / Features=23877 / Labels=65537`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=56.73%`。
-- 即時部署阻塞點：`deployment_blocker=circuit_breaker_active` / `streak=0` / `recent_window_wins=4/50` / `additional_recent_window_wins_needed=11`。
+- diagnostics refresh 完成（collect skipped）：`Raw=32460 / Features=23878 / Labels=65540`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=56.73%`。
+- 即時部署阻塞點：`deployment_blocker=circuit_breaker_active` / `streak=0` / `recent_window_wins=6/50` / `additional_recent_window_wins_needed=9`。
 - q15 current-live bucket truth：`current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=0/50` / `gap=50` / `support_route_verdict=insufficient_support_everywhere`。
 - support progress：`status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `legacy_supported_reference=53/50@20260419b`。
-- latest recent-window diagnostics：`latest_window=100` / `win_rate=4.0%` / `dominant_regime=chop(79.0%)` / `avg_quality=-0.2558` / `avg_pnl=-0.0107` / `alerts=label_imbalance,regime_shift`。
-- leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=0.1m`。
-- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3892` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle；metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next。
+- latest recent-window diagnostics：`latest_window=100` / `win_rate=6.0%` / `dominant_regime=chop(81.0%)` / `avg_quality=-0.2414` / `avg_pnl=-0.0103` / `alerts=label_imbalance,regime_shift`。
+- leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=4.2m`。
+- source / venue blockers：`blocked_sparse_features=8`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3893` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle；metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，減碼保留；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留減倉 / 賣出風險降低路徑；`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`。
 
 ### R｜感受直覺
