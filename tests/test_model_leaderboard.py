@@ -646,6 +646,66 @@ def test_build_model_leaderboard_payload_includes_high_conviction_topk(monkeypat
 
 
 
+def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatch, tmp_path: Path):
+    artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
+    live_probe = tmp_path / "live_predict_probe.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T10:15:21Z",
+                "target_col": "simulated_pyramid_win",
+                "samples": 1234,
+                "support_context": {
+                    "support_route_verdict": "exact_bucket_unsupported_block",
+                    "support_governance_route": "exact_live_lane_proxy_available",
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                    "current_live_structure_bucket_rows": 12,
+                    "minimum_support_rows": 50,
+                    "deployment_blocker": "unsupported_exact_live_structure_bucket",
+                    "runtime_closure_state": "patch_inactive_or_blocked",
+                },
+                "rows": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    live_probe.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T19:03:45Z",
+                "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+                "support_route_verdict": "exact_bucket_unsupported_block",
+                "support_governance_route": "no_support_proxy",
+                "deployment_blocker": "unsupported_exact_live_structure_bucket",
+                "runtime_closure_state": "patch_inactive_or_blocked",
+                "allowed_layers": 0,
+                "signal": "HOLD",
+                "support_progress": {
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_LIVE_PREDICT_PROBE_PATH", live_probe, raising=False)
+
+    summary = api_module._load_high_conviction_topk_summary(artifact)
+
+    support_context = summary["support_context"]
+    assert support_context["current_live_structure_bucket"] == "BLOCK|structure_quality_block|q00"
+    assert support_context["support_governance_route"] == "no_support_proxy"
+    assert support_context["current_live_structure_bucket_rows"] == 0
+    assert support_context["minimum_support_rows"] == 50
+    assert support_context["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert support_context["allowed_layers"] == 0
+    assert support_context["signal"] == "HOLD"
+    assert support_context["live_truth_overlay_applied"] is True
+    assert support_context["live_truth_source_artifact"] == str(live_probe)
+
+
+
 def test_build_model_leaderboard_payload_includes_strategy_param_scan_when_placeholder_only(monkeypatch):
     df = pd.DataFrame(
         {

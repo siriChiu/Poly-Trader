@@ -1,75 +1,75 @@
 {
-  "generated_at": "2026-04-29 18:26:39.963959",
+  "generated_at": "2026-04-29 19:01:58.329086",
   "target_col": "simulated_pyramid_win",
   "signal": "HOLD",
-  "confidence": 0.479454,
+  "confidence": 0.477764,
   "should_trade": false,
   "regime_label": "bear",
   "regime_gate": "BLOCK",
-  "entry_quality": 0.6232,
+  "entry_quality": 0.6274,
   "entry_quality_label": "C",
   "entry_quality_components": {
     "base_components": [
       {
         "feature": "feat_4h_bias50",
         "weight": 0.4,
-        "raw_value": -2.7941,
-        "normalized_score": 1.0,
-        "weighted_contribution": 0.4
+        "raw_value": -2.5158,
+        "normalized_score": 0.9832,
+        "weighted_contribution": 0.3933
       },
       {
         "feature": "feat_nose",
         "weight": 0.18,
-        "raw_value": 0.1608,
-        "normalized_score": 0.8392,
-        "weighted_contribution": 0.1511
+        "raw_value": 0.2172,
+        "normalized_score": 0.7828,
+        "weighted_contribution": 0.1409
       },
       {
         "feature": "feat_pulse",
         "weight": 0.27,
-        "raw_value": 0.5486,
-        "normalized_score": 0.5486,
-        "weighted_contribution": 0.1481
+        "raw_value": 0.5939,
+        "normalized_score": 0.5939,
+        "weighted_contribution": 0.1604
       },
       {
         "feature": "feat_ear",
         "weight": 0.15,
-        "raw_value": -0.0244,
-        "normalized_score": 0.8781,
-        "weighted_contribution": 0.1317
+        "raw_value": -0.0194,
+        "normalized_score": 0.903,
+        "weighted_contribution": 0.1354
       }
     ],
-    "base_quality": 0.8309,
+    "base_quality": 0.83,
     "base_quality_weight": 0.75,
-    "structure_quality": 0.0,
+    "structure_quality": 0.0197,
     "structure_quality_weight": 0.25,
     "structure_components": [
       {
         "feature": "feat_4h_bb_pct_b",
         "weight": 0.34,
-        "raw_value": -0.0323,
-        "normalized_score": 0.0,
-        "weighted_contribution": 0.0
+        "raw_value": 0.0432,
+        "normalized_score": 0.0432,
+        "weighted_contribution": 0.0147
       },
       {
         "feature": "feat_4h_dist_bb_lower",
         "weight": 0.33,
-        "raw_value": -0.0936,
-        "normalized_score": 0.0,
-        "weighted_contribution": 0.0
+        "raw_value": 0.1227,
+        "normalized_score": 0.0153,
+        "weighted_contribution": 0.0051
       },
       {
         "feature": "feat_4h_dist_swing_low",
         "weight": 0.33,
-        "raw_value": -0.5001,
+        "raw_value": -0.2075,
         "normalized_score": 0.0,
         "weighted_contribution": 0.0
       }
     ],
     "bias50_calibration": {
       "applied": false,
-      "score": 1.0,
-      "legacy_score": 1.0,
+      "score": 0.983154007838251,
+      "legacy_score": 0.983154007838251,
       "score_delta_vs_legacy": 0.0,
       "mode": "legacy_linear",
       "segment": null,
@@ -78,117 +78,117 @@
       "exact_p90": null,
       "reference_p90": null
     },
-    "entry_quality": 0.6232,
+    "entry_quality": 0.6274,
     "trade_floor": 0.55,
-    "trade_floor_gap": 0.0732
+    "trade_floor_gap": 0.0774
   },
   "component_gap_attribution": {
     "trade_floor": 0.55,
-    "entry_quality": 0.6232,
+    "entry_quality": 0.6274,
     "remaining_gap_to_floor": 0.0,
     "reconstructed_from_q15_patch": false,
     "runtime_entry_quality_after_patch": null,
     "runtime_trade_floor_gap_after_patch": null,
-    "base_group_max_entry_gain": 0.1268,
-    "structure_group_max_entry_gain": 0.25,
+    "base_group_max_entry_gain": 0.1274,
+    "structure_group_max_entry_gain": 0.245,
     "best_single_component": null,
     "single_component_floor_crossers": [],
     "components_by_headroom": [
       {
+        "group": "structure",
+        "feature": "feat_4h_dist_swing_low",
+        "raw_value": -0.2075,
+        "normalized_score": 0.0,
+        "weight": 0.33,
+        "outer_weight": 0.25,
+        "effective_weight": 0.0825,
+        "weighted_contribution": 0.0,
+        "headroom_to_perfect_score": 1.0,
+        "max_entry_gain_if_perfect": 0.0825,
+        "required_score_delta_to_cross_floor": null,
+        "can_single_component_cross_floor": false
+      },
+      {
         "group": "base",
         "feature": "feat_pulse",
-        "raw_value": 0.5486,
-        "normalized_score": 0.5486,
+        "raw_value": 0.5939,
+        "normalized_score": 0.5939,
         "weight": 0.27,
         "outer_weight": 0.75,
         "effective_weight": 0.2025,
-        "weighted_contribution": 0.1481,
-        "headroom_to_perfect_score": 0.4514,
-        "max_entry_gain_if_perfect": 0.0914,
+        "weighted_contribution": 0.1604,
+        "headroom_to_perfect_score": 0.4061,
+        "max_entry_gain_if_perfect": 0.0822,
         "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_bb_pct_b",
-        "raw_value": -0.0323,
-        "normalized_score": 0.0,
+        "raw_value": 0.0432,
+        "normalized_score": 0.0432,
         "weight": 0.34,
         "outer_weight": 0.25,
         "effective_weight": 0.085,
-        "weighted_contribution": 0.0,
-        "headroom_to_perfect_score": 1.0,
-        "max_entry_gain_if_perfect": 0.085,
+        "weighted_contribution": 0.0147,
+        "headroom_to_perfect_score": 0.9568,
+        "max_entry_gain_if_perfect": 0.0813,
         "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_dist_bb_lower",
-        "raw_value": -0.0936,
-        "normalized_score": 0.0,
+        "raw_value": 0.1227,
+        "normalized_score": 0.0153,
         "weight": 0.33,
         "outer_weight": 0.25,
         "effective_weight": 0.0825,
-        "weighted_contribution": 0.0,
-        "headroom_to_perfect_score": 1.0,
-        "max_entry_gain_if_perfect": 0.0825,
-        "required_score_delta_to_cross_floor": null,
-        "can_single_component_cross_floor": false
-      },
-      {
-        "group": "structure",
-        "feature": "feat_4h_dist_swing_low",
-        "raw_value": -0.5001,
-        "normalized_score": 0.0,
-        "weight": 0.33,
-        "outer_weight": 0.25,
-        "effective_weight": 0.0825,
-        "weighted_contribution": 0.0,
-        "headroom_to_perfect_score": 1.0,
-        "max_entry_gain_if_perfect": 0.0825,
+        "weighted_contribution": 0.0051,
+        "headroom_to_perfect_score": 0.9847,
+        "max_entry_gain_if_perfect": 0.0812,
         "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       },
       {
         "group": "base",
         "feature": "feat_nose",
-        "raw_value": 0.1608,
-        "normalized_score": 0.8392,
+        "raw_value": 0.2172,
+        "normalized_score": 0.7828,
         "weight": 0.18,
         "outer_weight": 0.75,
         "effective_weight": 0.135,
-        "weighted_contribution": 0.1511,
-        "headroom_to_perfect_score": 0.1608,
-        "max_entry_gain_if_perfect": 0.0217,
+        "weighted_contribution": 0.1409,
+        "headroom_to_perfect_score": 0.2172,
+        "max_entry_gain_if_perfect": 0.0293,
         "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       },
       {
         "group": "base",
         "feature": "feat_ear",
-        "raw_value": -0.0244,
-        "normalized_score": 0.8781,
+        "raw_value": -0.0194,
+        "normalized_score": 0.903,
         "weight": 0.15,
         "outer_weight": 0.75,
         "effective_weight": 0.1125,
-        "weighted_contribution": 0.1317,
-        "headroom_to_perfect_score": 0.1219,
-        "max_entry_gain_if_perfect": 0.0137,
+        "weighted_contribution": 0.1354,
+        "headroom_to_perfect_score": 0.097,
+        "max_entry_gain_if_perfect": 0.0109,
         "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       },
       {
         "group": "base",
         "feature": "feat_4h_bias50",
-        "raw_value": -2.7941,
-        "normalized_score": 1.0,
+        "raw_value": -2.5158,
+        "normalized_score": 0.9832,
         "weight": 0.4,
         "outer_weight": 0.75,
         "effective_weight": 0.3,
-        "weighted_contribution": 0.4,
-        "headroom_to_perfect_score": 0.0,
-        "max_entry_gain_if_perfect": 0.0,
+        "weighted_contribution": 0.3933,
+        "headroom_to_perfect_score": 0.0168,
+        "max_entry_gain_if_perfect": 0.005,
         "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       }
@@ -197,7 +197,7 @@
       "entry_if_bias50_fully_relaxed": null,
       "layers_if_bias50_fully_relaxed": 0,
       "required_bias50_cap_for_floor": null,
-      "current_bias50_value": -2.7941
+      "current_bias50_value": -2.5158
     }
   },
   "runtime_blocker": null,
@@ -272,20 +272,20 @@
       {
         "feature": "feat_4h_bias200",
         "current_mean": 8.2977,
-        "reference_mean": 3.79,
-        "mean_delta": 4.5077
+        "reference_mean": 4.0915,
+        "mean_delta": 4.2062
       },
       {
         "feature": "feat_4h_dist_swing_low",
         "current_mean": 1.1395,
-        "reference_mean": -0.5001,
-        "mean_delta": 1.6396
+        "reference_mean": -0.2075,
+        "mean_delta": 1.347
       },
       {
         "feature": "feat_4h_dist_bb_lower",
         "current_mean": 1.2225,
-        "reference_mean": -0.0936,
-        "mean_delta": 1.3161
+        "reference_mean": 0.1227,
+        "mean_delta": 1.0998
       }
     ],
     "exact_gate_path": null,
@@ -439,20 +439,20 @@
         {
           "feature": "feat_4h_bias200",
           "current_mean": 9.8909,
-          "reference_mean": 3.79,
-          "mean_delta": 6.1009
+          "reference_mean": 4.0915,
+          "mean_delta": 5.7994
         },
         {
           "feature": "feat_4h_dist_swing_low",
           "current_mean": 2.4953,
-          "reference_mean": -0.5001,
-          "mean_delta": 2.9954
+          "reference_mean": -0.2075,
+          "mean_delta": 2.7028
         },
         {
           "feature": "feat_4h_dist_bb_lower",
           "current_mean": 2.4782,
-          "reference_mean": -0.0936,
-          "mean_delta": 2.5718
+          "reference_mean": 0.1227,
+          "mean_delta": 2.3555
         }
       ]
     },

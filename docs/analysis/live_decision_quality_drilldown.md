@@ -1,9 +1,9 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-29 18:26:39.963959**
+- feature_timestamp: **2026-04-29 19:01:58.329086**
 - target: `simulated_pyramid_win`
 - live path: **bear / BLOCK / C**
-- signal: **HOLD** @ confidence **0.4795**
+- signal: **HOLD** @ confidence **0.4778**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: `regime_gate_block`
 - allowed_layers_reason: `unsupported_exact_live_structure_bucket`
@@ -22,16 +22,16 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.6232** / trade_floor **0.55** / gap **0.0732**
-- base_quality: **0.8309** × weight **0.75**
-- structure_quality: **0.0** × weight **0.25**
-- base components: feat_4h_bias50=1.0 (w=0.4, contrib=0.4), feat_nose=0.8392 (w=0.18, contrib=0.1511), feat_pulse=0.5486 (w=0.27, contrib=0.1481), feat_ear=0.8781 (w=0.15, contrib=0.1317)
-- structure components: feat_4h_bb_pct_b=0.0 (w=0.34, contrib=0.0), feat_4h_dist_bb_lower=0.0 (w=0.33, contrib=0.0), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
+- final entry_quality: **0.6274** / trade_floor **0.55** / gap **0.0774**
+- base_quality: **0.83** × weight **0.75**
+- structure_quality: **0.0197** × weight **0.25**
+- base components: feat_4h_bias50=0.9832 (w=0.4, contrib=0.3933), feat_nose=0.7828 (w=0.18, contrib=0.1409), feat_pulse=0.5939 (w=0.27, contrib=0.1604), feat_ear=0.903 (w=0.15, contrib=0.1354)
+- structure components: feat_4h_bb_pct_b=0.0432 (w=0.34, contrib=0.0147), feat_4h_dist_bb_lower=0.0153 (w=0.33, contrib=0.0051), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
 - remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.1268** | structure_group_max_entry_gain: **0.25**
+- base_group_max_entry_gain: **0.1274** | structure_group_max_entry_gain: **0.245**
 - best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
 - single-component floor crossers: None
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**

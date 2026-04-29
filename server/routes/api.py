@@ -3682,6 +3682,135 @@ def _compact_high_conviction_topk_row(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+
+def _load_high_conviction_live_support_overlay(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    artifact_path = path or _LIVE_PREDICT_PROBE_PATH
+    payload = _load_live_predict_probe_payload(artifact_path, log_context="live predict probe for high-conviction Top-K overlay")
+    if not isinstance(payload, dict):
+        return None
+
+    blocker_details = payload.get("deployment_blocker_details") if isinstance(payload.get("deployment_blocker_details"), dict) else {}
+    support_progress = payload.get("support_progress") if isinstance(payload.get("support_progress"), dict) else {}
+    if not support_progress:
+        support_progress = blocker_details.get("support_progress") if isinstance(blocker_details.get("support_progress"), dict) else {}
+    support_identity = (
+        payload.get("support_identity")
+        or blocker_details.get("support_identity")
+        or support_progress.get("support_identity")
+    )
+
+    current_bucket = (
+        payload.get("current_live_structure_bucket")
+        or blocker_details.get("current_live_structure_bucket")
+        or payload.get("structure_bucket")
+    )
+    current_rows = support_progress.get("current_rows")
+    if current_rows is None:
+        current_rows = payload.get("current_live_structure_bucket_rows")
+    if current_rows is None:
+        current_rows = blocker_details.get("current_live_structure_bucket_rows")
+    minimum_rows = support_progress.get("minimum_support_rows")
+    if minimum_rows is None:
+        minimum_rows = payload.get("minimum_support_rows")
+    if minimum_rows is None:
+        minimum_rows = blocker_details.get("minimum_support_rows")
+    gap_to_minimum = payload.get("current_live_structure_bucket_gap_to_minimum")
+    if gap_to_minimum is None:
+        gap_to_minimum = blocker_details.get("current_live_structure_bucket_gap_to_minimum")
+    if gap_to_minimum is None:
+        gap_to_minimum = support_progress.get("gap_to_minimum")
+    if gap_to_minimum is None and current_rows is not None and minimum_rows is not None:
+        try:
+            gap_to_minimum = max(int(minimum_rows) - int(current_rows), 0)
+        except (TypeError, ValueError):
+            gap_to_minimum = None
+
+    support_route = payload.get("support_route_verdict") or blocker_details.get("support_route_verdict")
+    support_governance_route = payload.get("support_governance_route") or blocker_details.get("support_governance_route")
+    deployment_blocker = payload.get("deployment_blocker") or blocker_details.get("deployment_blocker")
+    runtime_closure_state = payload.get("runtime_closure_state") or blocker_details.get("runtime_closure_state")
+    if (
+        current_bucket is None
+        and current_rows is None
+        and minimum_rows is None
+        and support_route is None
+        and support_governance_route is None
+        and deployment_blocker is None
+        and runtime_closure_state is None
+    ):
+        return None
+
+    support_route_deployable = payload.get("support_route_deployable")
+    if support_route_deployable is None:
+        support_route_deployable = blocker_details.get("support_route_deployable")
+
+    return {
+        "generated_at": payload.get("generated_at") or payload.get("feature_timestamp"),
+        "source_artifact": str(artifact_path),
+        "current_live_structure_bucket": current_bucket,
+        "current_live_structure_bucket_rows": current_rows,
+        "minimum_support_rows": minimum_rows,
+        "current_live_structure_bucket_gap_to_minimum": gap_to_minimum,
+        "support_route_verdict": support_route,
+        "support_governance_route": support_governance_route,
+        "support_route_deployable": support_route_deployable,
+        "deployment_blocker": deployment_blocker,
+        "runtime_closure_state": runtime_closure_state,
+        "allowed_layers": payload.get("allowed_layers"),
+        "signal": payload.get("signal"),
+        "support_progress": support_progress or None,
+        "support_identity": support_identity if isinstance(support_identity, dict) else None,
+        "regime_gate": payload.get("regime_gate"),
+        "entry_quality_label": payload.get("entry_quality_label"),
+        "execution_guardrail_reason": payload.get("execution_guardrail_reason") or payload.get("allowed_layers_reason"),
+    }
+
+
+
+def _overlay_high_conviction_support_context(
+    context: Dict[str, Any],
+    *,
+    topk_generated_at: Any,
+    live_truth: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    if not isinstance(live_truth, dict):
+        return context
+    topk_dt = _parse_utc_datetime(topk_generated_at)
+    live_dt = _parse_utc_datetime(live_truth.get("generated_at"))
+    if live_dt is None:
+        return context
+    if topk_dt is not None and live_dt < topk_dt:
+        return context
+
+    merged = dict(context)
+    for key in (
+        "current_live_structure_bucket",
+        "current_live_structure_bucket_rows",
+        "minimum_support_rows",
+        "current_live_structure_bucket_gap_to_minimum",
+        "support_route_verdict",
+        "support_governance_route",
+        "support_route_deployable",
+        "deployment_blocker",
+        "runtime_closure_state",
+        "allowed_layers",
+        "signal",
+        "support_progress",
+        "support_identity",
+        "regime_gate",
+        "entry_quality_label",
+        "execution_guardrail_reason",
+    ):
+        value = live_truth.get(key)
+        if value is not None:
+            merged[key] = value
+    merged["live_truth_generated_at"] = live_truth.get("generated_at")
+    merged["live_truth_source_artifact"] = live_truth.get("source_artifact")
+    merged["live_truth_overlay_applied"] = True
+    return merged
+
+
+
 def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int = 12) -> Optional[Dict[str, Any]]:
     artifact_path = path or HIGH_CONVICTION_TOPK_PATH
     try:
@@ -3718,6 +3847,12 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
         for row in rows
         if _topk_row_gate_parts(row)[4] or str(row.get("deployable_verdict") or "") == "deployable"
     ][:limit]
+    support_context = payload.get("support_context") if isinstance(payload.get("support_context"), dict) else {}
+    support_context = _overlay_high_conviction_support_context(
+        support_context,
+        topk_generated_at=payload.get("generated_at"),
+        live_truth=_load_high_conviction_live_support_overlay(),
+    )
     return {
         "source_artifact": str(artifact_path),
         "generated_at": payload.get("generated_at"),
@@ -3725,7 +3860,7 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
         "samples": payload.get("samples"),
         "top_k_grid": payload.get("top_k_grid") if isinstance(payload.get("top_k_grid"), list) else [],
         "minimum_deployment_gates": payload.get("minimum_deployment_gates") if isinstance(payload.get("minimum_deployment_gates"), dict) else {},
-        "support_context": payload.get("support_context") if isinstance(payload.get("support_context"), dict) else {},
+        "support_context": support_context,
         "row_count": len(rows),
         "deployable_count": deployable_count,
         "risk_qualified_count": risk_qualified_count,
