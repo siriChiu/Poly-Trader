@@ -1850,6 +1850,12 @@ def overwrite_current_state_docs(
         else "diagnostics refresh 完成（collect skipped）"
     )
     release = (live_predictor_diagnostics.get("deployment_blocker_details") or {}).get("release_condition") or {}
+    deployment_blocker = str(live_predictor_diagnostics.get("deployment_blocker") or "—")
+    breaker_root_cause = str(((circuit_breaker_audit.get("root_cause") or {}).get("verdict")) or "")
+    breaker_is_primary = deployment_blocker == "circuit_breaker_active" or breaker_root_cause in {
+        "canonical_breaker_active",
+        "breaker_active",
+    }
     primary_summary = drift_diagnostics.get("primary_summary") or {}
     primary_window = drift_diagnostics.get("primary_window") or primary_summary.get("window") or "—"
     governance_contract = leaderboard_candidate_diagnostics.get("governance_contract") or {}
@@ -1925,15 +1931,30 @@ def overwrite_current_state_docs(
         f"`features_start={feature_history.get('start') or '—'}` / "
         f"`labels_start={label_history.get('start') or '—'}`"
     )
-    release_window = release.get("recent_window", live_predictor_diagnostics.get("window_size", "—"))
-    release_wins = release.get(
-        "current_recent_window_wins",
-        live_predictor_diagnostics.get("recent_window_wins", "—"),
+    def _doc_value(value: Any, default: str = "—") -> Any:
+        if value is None:
+            return default
+        if isinstance(value, str) and value.strip().lower() in {"", "none", "null"}:
+            return default
+        return value
+
+    release_window = _doc_value(
+        release.get("recent_window") if breaker_is_primary else None,
     )
-    release_gap = release.get("additional_recent_window_wins_needed", "—")
+    if release_window == "—" and breaker_is_primary:
+        release_window = _doc_value(live_predictor_diagnostics.get("window_size"))
+    release_wins = _doc_value(
+        release.get("current_recent_window_wins") if breaker_is_primary else None,
+    )
+    if release_wins == "—" and breaker_is_primary:
+        release_wins = _doc_value(live_predictor_diagnostics.get("recent_window_wins"))
+    release_gap = _doc_value(
+        release.get("additional_recent_window_wins_needed") if breaker_is_primary else None,
+    )
+    has_release_math = breaker_is_primary and release_window != "—" and release_wins != "—"
     blocker_line = (
         f"`deployment_blocker={live_predictor_diagnostics.get('deployment_blocker') or '—'}` / "
-        f"`streak={live_predictor_diagnostics.get('streak', '—')}` / "
+        f"`streak={_doc_value(live_predictor_diagnostics.get('streak'))}` / "
         f"`recent_window_wins={release_wins}/"
         f"{release_window}` / "
         f"`additional_recent_window_wins_needed={release_gap}`"
@@ -1947,6 +1968,31 @@ def overwrite_current_state_docs(
         f"`gap={support_gap}` / "
         f"`support_route_verdict={support_route_verdict}`"
     )
+    current_live_blocker_ui_line = (
+        f"`即時部署阻塞點={deployment_blocker}`；"
+        f"{support_scope_operator_label}支持樣本={support_current_rows}/{support_minimum_rows}，缺口={support_gap}；"
+        "目前不是熔斷解除數學，候選修補不可取代同分桶最低樣本門檻"
+    )
+    if has_release_math:
+        execution_status_fact_heading = "- **Execution Status / Bot 營運 已顯示熔斷解除條件**"
+        execution_status_fact_line = (
+            f"  - {breaker_release_ui_line}；`/execution/status` 與 `/execution` 會先顯示熔斷解除條件，再顯示 {support_scope_operator_label} support / 治理背景"
+        )
+        execution_status_roadmap_heading = "- **Execution Status / Bot 營運 已顯示熔斷解除條件**"
+        execution_status_roadmap_line = (
+            f"  - {breaker_release_ui_line}；操作員執行介面先看熔斷解除條件，再看 {support_scope_operator_label} support / 背景治理"
+        )
+        execution_status_docs_sync_clause = "`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡"
+    else:
+        execution_status_fact_heading = "- **Execution Status / Bot 營運 已顯示即時部署阻塞條件**"
+        execution_status_fact_line = (
+            f"  - {current_live_blocker_ui_line}；`/execution/status` 與 `/execution` 會先顯示即時部署阻塞點，再顯示 {support_scope_operator_label} support / 治理背景"
+        )
+        execution_status_roadmap_heading = "- **Execution Status / Bot 營運 已顯示即時部署阻塞條件**"
+        execution_status_roadmap_line = (
+            f"  - {current_live_blocker_ui_line}；操作員執行介面先看即時部署阻塞點，再看 {support_scope_operator_label} support / 背景治理"
+        )
+        execution_status_docs_sync_clause = "`/execution/status` 與 `/execution` 已顯示即時部署阻塞條件卡"
     primary_alerts = drift_diagnostics.get("primary_alerts") or []
     pathology_line = _format_recent_pathology_docs_line(
         "latest_window",
@@ -2108,12 +2154,6 @@ def overwrite_current_state_docs(
             f"1. **support truth ≠ deployment closure**：`support={support_current_rows}/{support_minimum_rows}` 且 "
             f"`support_route_verdict={support_route_verdict}` 只代表 same-bucket support 狀態，真正 deployment blocker 仍由 latest runtime truth 決定。"
         )
-    deployment_blocker = str(live_predictor_diagnostics.get("deployment_blocker") or "—")
-    breaker_root_cause = str(((circuit_breaker_audit.get("root_cause") or {}).get("verdict")) or "")
-    breaker_is_primary = deployment_blocker == "circuit_breaker_active" or breaker_root_cause in {
-        "canonical_breaker_active",
-        "breaker_active",
-    }
     if breaker_is_primary:
         facts_blocker_heading = "- **canonical 即時部署阻塞仍是熔斷優先真相**"
         current_priority_line1 = f"1. **維持熔斷優先真相，同時保留 {support_scope_label} support rows 可 machine-read**"
@@ -2198,8 +2238,8 @@ def overwrite_current_state_docs(
         "  - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof；`execution_metadata_smoke.venues[]` 已提供 per-venue `proof_state / blockers / operator_next_action / verify_next` 給 Dashboard / Execution / Lab 直接顯示證據缺口",
         "- **Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）**",
         "  - 前端快捷：`manual_buy=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間只暫停買入 / 加倉與啟用自動模式，減碼 / 賣出風險降低、切到手動模式、查看阻塞原因與重新整理仍可用。`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`。後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑；`data/live_predict_probe.json` 同步輸出 `api_trade_guardrail_active / api_trade_buy_guardrail / api_trade_allowed_risk_off_sides` 作為 machine-readable proof",
-        "- **Execution Status / Bot 營運 已顯示熔斷解除條件**",
-        f"  - {breaker_release_ui_line}；`/execution/status` 與 `/execution` 會先顯示熔斷解除條件，再顯示 {support_scope_operator_label} support / 治理背景",
+        execution_status_fact_heading,
+        execution_status_fact_line,
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
@@ -2304,8 +2344,8 @@ def overwrite_current_state_docs(
         "  - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫",
         "- **Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）**",
         "  - `/api/status` 初次同步前或部署阻塞存在時，買入 / 加倉與啟用自動模式快捷操作顯示暫停並保持 disabled；減碼 / 賣出風險降低、切到手動模式、查看阻塞原因與重新整理仍可用；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`；後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點，阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑；`data/live_predict_probe.json` 同步輸出 `api_trade_guardrail_active / api_trade_buy_guardrail / api_trade_allowed_risk_off_sides` 作為 machine-readable proof",
-        "- **Execution Status / Bot 營運 已顯示熔斷解除條件**",
-        f"  - {breaker_release_ui_line}；操作員執行介面先看熔斷解除條件，再看 {support_scope_operator_label} support / 背景治理",
+        execution_status_roadmap_heading,
+        execution_status_roadmap_line,
         "- **本輪 current-state docs 已同步到最新 artifacts**",
         "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊",
         *parallel_failure_roadmap_lines,
@@ -2411,7 +2451,7 @@ def overwrite_current_state_docs(
     live_regime = live_predictor_diagnostics.get("regime_label") or "—"
     live_gate = live_predictor_diagnostics.get("regime_gate") or "—"
     live_bucket = live_predictor_diagnostics.get("current_live_structure_bucket") or "—"
-    docs_sync_line = "current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，減碼保留；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留減倉 / 賣出風險降低路徑；`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口"
+    docs_sync_line = f"current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，減碼保留；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留減倉 / 賣出風險降低路徑；{execution_status_docs_sync_clause}；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口"
 
     orid_lines = [
         "# ORID_DECISIONS.md — Current ORID Only",

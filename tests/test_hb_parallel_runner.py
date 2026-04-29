@@ -1717,6 +1717,70 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "heartbeat runner 現在會在 `auto_propose_fixes.py` 後自動 overwrite sync" not in orid_md
 
 
+
+def test_overwrite_current_state_docs_does_not_render_breaker_math_when_exact_support_blocks(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text('{"issues": []}', encoding="utf-8")
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260430_exact_support",
+        {
+            "raw_market_data": 32489,
+            "features_normalized": 23907,
+            "labels": 65588,
+            "simulated_pyramid_win_rate": 0.5673,
+        },
+        {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []},
+        {
+            "primary_window": "100",
+            "primary_alerts": ["regime_concentration"],
+            "primary_summary": {"win_rate": 0.23, "dominant_regime": "chop", "dominant_regime_share": 0.92},
+        },
+        {
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "streak": None,
+            "window_size": None,
+            "recent_window_wins": None,
+            "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "no_support_proxy",
+        },
+        {},
+        {},
+        {"root_cause": {"verdict": "not_circuit_breaker"}},
+        {
+            "leaderboard_count": 6,
+            "selected_feature_profile": "core_only",
+            "support_aware_production_profile": "current_full_no_bull_collapse_4h",
+            "governance_contract": {"verdict": "dual_role_governance_active"},
+        },
+        run_mode="full",
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+    combined_docs = "\n".join([issues_md, roadmap_md, orid_md])
+
+    assert "Execution Status / Bot 營運 已顯示即時部署阻塞條件" in issues_md
+    assert "即時部署阻塞點=unsupported_exact_live_structure_bucket" in combined_docs
+    assert "目前不是熔斷解除數學" in combined_docs
+    assert "recent_window_wins=—/—" in combined_docs
+    assert "streak=—" in combined_docs
+    assert "最近 None" not in combined_docs
+    assert "None/None" not in combined_docs
+    assert "Execution Status / Bot 營運 已顯示熔斷解除條件" not in combined_docs
+
+
+
 def test_overwrite_current_state_docs_marks_no_collect_verification_runs(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"

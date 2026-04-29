@@ -1,6 +1,6 @@
 # q15 Bucket Root Cause
 
-- generated_at: **2026-04-29 20:01:15.469703**
+- generated_at: **2026-04-29 21:16:07.738776**
 - target_col: **simulated_pyramid_win**
 - verdict: **no_exact_live_lane_rows**
 - candidate_patch_type: **scope_generation**
@@ -11,8 +11,8 @@
 ## Current live
 - live path: **bear / BLOCK / C**
 - structure_bucket: `BLOCK|structure_quality_block|q00`
-- structure_quality: **0.0742**
-- gap_to_q35_boundary: **0.2758**
+- structure_quality: **0.1254**
+- gap_to_q35_boundary: **0.2246**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `unsupported_exact_live_structure_bucket`
 - support rows/minimum/gap: **0 / 50 / 50**
@@ -26,13 +26,13 @@
 
 ## Decision
 - reason: 連 exact live lane 都沒有資料，先補 same regime/gate/entry-quality lane，而不是只修 bucket 邊界。
-- candidate_patch: `{'type': 'scope_generation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.1623, 'current_normalized': 0.1623, 'needed_raw_delta_to_cross_q35': 0.8112, 'target_bucket_p25': None, 'target_bucket_median': None, 'needed_raw_delta_to_target_p25': None, 'needed_raw_delta_to_target_median': None}`
+- candidate_patch: `{'type': 'scope_generation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.2588, 'current_normalized': 0.2588, 'needed_raw_delta_to_cross_q35': 0.6606, 'target_bucket_p25': None, 'target_bucket_median': None, 'needed_raw_delta_to_target_p25': None, 'needed_raw_delta_to_target_median': None}`
 - verify_next: 重跑 bull_4h_pocket_ablation.py，確認 exact_scope_rows > 0。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.1623 / norm=0.1623 / Δto_cross_q35=0.8112 / target_p25=None / target_median=None
-- `feat_4h_dist_bb_lower`: current=0.461 / norm=0.0576 / Δto_cross_q35=6.6861 / target_p25=None / target_median=None
-- `feat_4h_dist_swing_low`: current=-0.1166 / norm=0.0 / Δto_cross_q35=8.4742 / target_p25=None / target_median=None
+- `feat_4h_bb_pct_b`: current=0.2588 / norm=0.2588 / Δto_cross_q35=0.6606 / target_p25=None / target_median=None
+- `feat_4h_dist_bb_lower`: current=0.7291 / norm=0.0911 / Δto_cross_q35=5.4448 / target_p25=None / target_median=None
+- `feat_4h_dist_swing_low`: current=0.2222 / norm=0.0222 / Δto_cross_q35=6.8061 / target_p25=None / target_median=None
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 verdict 與 candidate_patch_feature。
