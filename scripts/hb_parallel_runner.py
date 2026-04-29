@@ -46,11 +46,12 @@ FAST_SERIAL_TIMEOUTS = {
     "hb_circuit_breaker_audit": 20,
     "feature_group_ablation": 45,
     "bull_4h_pocket_ablation": 20,
-    # Live leaderboard rebuilds regularly take ~30s on the current dataset.  Fast
-    # heartbeats may refresh this lane when the persisted payload is stale, so
-    # give it the same bounded budget as full mode instead of timing out and
-    # leaving Strategy Lab on an old candidate snapshot.
-    "hb_leaderboard_candidate_probe": 45,
+    # Live leaderboard rebuilds now regularly exceed 45s on the current two-year
+    # dataset when the persisted payload is stale.  Fast heartbeats may refresh
+    # this lane to keep Strategy Lab off stale snapshots, so give it enough
+    # bounded budget to finish while still staying below half of the 240s cron
+    # envelope.
+    "hb_leaderboard_candidate_probe": 90,
     "hb_q15_support_audit": 20,
     "hb_q15_bucket_root_cause": 20,
     "hb_q15_boundary_replay": 20,
@@ -62,7 +63,7 @@ FULL_SERIAL_TIMEOUTS = {
     # governance artifact instead of letting one lane consume the whole run.
     "feature_group_ablation": 90,
     "bull_4h_pocket_ablation": 45,
-    "hb_leaderboard_candidate_probe": 45,
+    "hb_leaderboard_candidate_probe": 90,
 }
 FAST_PARALLEL_TASK_TIMEOUTS = {
     "full_ic": 90,

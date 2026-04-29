@@ -4577,6 +4577,12 @@ def test_full_serial_timeout_caps_expensive_candidate_lanes(monkeypatch):
     assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["feature_group_ablation"] == 90
     assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["feature_group_ablation"] < 600
     assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/hb_leaderboard_candidate_probe.py"],
+        None,
+    ) == hb_parallel_runner.FULL_SERIAL_TIMEOUTS["hb_leaderboard_candidate_probe"]
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["hb_leaderboard_candidate_probe"] == 90
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["hb_leaderboard_candidate_probe"] < 600
+    assert hb_parallel_runner._resolve_serial_timeout(
         ["python", "scripts/hb_predict_probe.py"],
         None,
     ) == 600
@@ -4586,6 +4592,15 @@ def test_full_serial_timeout_caps_expensive_candidate_lanes(monkeypatch):
         ["python", "scripts/feature_group_ablation.py"],
         None,
     ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["feature_group_ablation"]
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/hb_leaderboard_candidate_probe.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["hb_leaderboard_candidate_probe"]
+    assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["hb_leaderboard_candidate_probe"] == 90
+    assert (
+        hb_parallel_runner.FAST_SERIAL_TIMEOUTS["hb_leaderboard_candidate_probe"]
+        < hb_parallel_runner.FAST_HEARTBEAT_CRON_BUDGET_SECONDS / 2
+    )
 
 
 def test_parallel_task_timeouts_are_bounded_for_full_cron_budget():
