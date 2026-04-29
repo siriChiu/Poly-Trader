@@ -1,0 +1,90 @@
+import pandas as pd
+import pytest
+
+from scripts import topk_walkforward_precision as topk
+
+
+def test_summarize_subset_includes_oos_roi_profit_factor_and_drawdown():
+    subset = pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime([
+                "2026-01-01T00:00:00Z",
+                "2026-01-02T00:00:00Z",
+                "2026-01-03T00:00:00Z",
+            ]),
+            "simulated_pyramid_win": [1, 0, 1],
+            "simulated_pyramid_pnl": [0.05, -0.02, 0.04],
+            "score": [0.91, 0.88, 0.84],
+            "regime_label": ["bull", "bull", "chop"],
+        }
+    )
+
+    summary = topk.summarize_subset(subset, "simulated_pyramid_win")
+
+    assert summary["trade_count"] == 3
+    assert summary["oos_roi"] == pytest.approx(0.07)
+    assert summary["profit_factor"] == pytest.approx(4.5)
+    assert summary["max_drawdown"] == pytest.approx(0.02)
+    assert summary["regime_mix"] == {"bull": 2, "chop": 1}
+
+
+def test_build_high_conviction_oos_matrix_keeps_current_live_blocker_fail_closed():
+    passing_metrics = {
+        "trade_count": 80,
+        "n": 80,
+        "win_rate": 0.64,
+        "oos_roi": 0.18,
+        "profit_factor": 1.8,
+        "max_drawdown": 0.05,
+        "avg_score": 0.82,
+        "wins": 51,
+        "losses": 29,
+        "regime_mix": {"bull": 80},
+    }
+    report = {
+        "folds": [
+            {"fold": 0, "top_slices": {"top_1pct": {**passing_metrics, "oos_roi": 0.05}}},
+            {"fold": 1, "top_slices": {"top_1pct": {**passing_metrics, "oos_roi": 0.04}}},
+        ],
+        "aggregate_top_slices": {"top_1pct": passing_metrics},
+        "aggregate_regime_top_slices": {},
+    }
+
+    rows = topk.build_high_conviction_oos_matrix_rows(
+        "catboost",
+        report,
+        support_context={
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "deployment_blocker": "circuit_breaker_active",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+        },
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["model"] == "catboost"
+    assert row["feature_profile"] == "current_full"
+    assert row["regime"] == "all"
+    assert row["top_k"] == "top_1pct"
+    assert row["oos_roi"] == pytest.approx(0.18)
+    assert row["worst_fold"] == pytest.approx(0.04)
+    assert row["support_route"] == "exact_bucket_unsupported_block"
+    assert row["deployment_blocker"] == "circuit_breaker_active"
+    assert row["deployable_verdict"] == "not_deployable"
+    assert "support_route_not_deployable" in row["gate_failures"]
+    assert "deployment_blocker_active" in row["gate_failures"]
+
+
+def test_coalesce_regime_label_handles_merge_suffixes():
+    frame = pd.DataFrame(
+        {
+            "regime_label_x": ["bull", None],
+            "regime_label_y": [None, "chop"],
+        }
+    )
+
+    coalesced = topk._coalesce_regime_label(frame)
+
+    assert list(coalesced["regime_label"]) == ["bull", "chop"]
+    assert "regime_label_x" not in coalesced.columns
+    assert "regime_label_y" not in coalesced.columns

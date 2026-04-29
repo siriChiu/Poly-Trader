@@ -6367,3 +6367,96 @@ def test_overwrite_current_state_docs_surfaces_q35_scaling_no_deploy_issue(tmp_p
     assert "overall_verdict=bias50_formula_may_be_too_harsh" in issues_md
     assert "P1. q35 lane still needs formula review / base-stack redesign before deploy" in issues_md
     assert "q35 scaling audit 已指出目前不是單點 bias50 closure" in roadmap_md
+
+
+def test_overwrite_current_state_docs_surfaces_high_conviction_topk_gate(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_high_conviction_topk_roi_gate",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "建立 high-conviction top-k OOS ROI gate，讓 APP 從研究轉實戰",
+                        "action": "產出 OOS top-k matrix 並 fail-closed",
+                        "summary": {
+                            "current_go_no_go": "paper_shadow_only_until_oos_and_support_deployable",
+                            "required_validation": "walk_forward_oos_topk_matrix",
+                            "output_artifact": "data/high_conviction_topk_oos_matrix.json",
+                            "research_basis": [
+                                "walk_forward_oos",
+                                "triple_barrier_pyramid_label",
+                                "meta_labeling_take_skip",
+                                "conformal_uncertainty_reject",
+                            ],
+                            "top_k_grid": ["1%", "2%", "5%", "10%"],
+                            "minimum_deployment_gates": {
+                                "min_trades": 50,
+                                "min_win_rate": 0.6,
+                                "max_drawdown": 0.08,
+                                "min_profit_factor": 1.5,
+                                "worst_fold": "non_negative_or_above_baseline",
+                                "support_route": "deployable",
+                            },
+                            "current_scan_clue": {
+                                "model": "catboost",
+                                "roi": 0.1978,
+                                "win_rate": 0.6216,
+                                "max_drawdown": 0.0655,
+                                "trades": 37,
+                            },
+                        },
+                        "verify": ["data/high_conviction_topk_oos_matrix.json"],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260429_research",
+        {"raw_market_data": 32466, "features_normalized": 23884, "labels": 65551, "simulated_pyramid_win_rate": 0.5674},
+        {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []},
+        {},
+        {
+            "deployment_blocker": "circuit_breaker_active",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "exact_live_bucket_proxy_available",
+            "deployment_blocker_details": {"release_condition": {"recent_window": 50, "current_recent_window_wins": 13, "additional_recent_window_wins_needed": 2}},
+        },
+        {},
+        {},
+        {},
+        {"leaderboard_count": 6, "selected_feature_profile": "core_only", "support_aware_production_profile": "current_full_no_bull_collapse_4h"},
+        run_mode="full",
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+
+    assert "P0. 建立 high-conviction top-k OOS ROI gate，讓 APP 從研究轉實戰" in issues_md
+    assert "output_artifact=data/high_conviction_topk_oos_matrix.json" in issues_md
+    assert "min_trades>=50" in issues_md
+    assert "status=research_only_not_deployable" in issues_md
+    assert "P0 實戰化：建立 high-conviction top-k OOS ROI gate" in issues_md
+    assert "目標 E：建立 high-conviction top-k OOS ROI gate" in roadmap_md
+    assert "model=catboost" in roadmap_md
+    assert "research_only_not_deployable" in roadmap_md
+    assert "Strategy Lab leaderboard top-k OOS ROI / win-rate / DD / trades / deployable verdict" in roadmap_md
+    assert "high-conviction top-k OOS ROI gate 已進入 current-state issues" in orid_md
+    assert "walk-forward OOS top-k matrix" in orid_md
+    assert "Research-to-production gate" in orid_md
