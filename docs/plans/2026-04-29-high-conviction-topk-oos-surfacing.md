@@ -2,9 +2,9 @@
 
 > **For Hermes:** Execute this plan task-by-task with strict TDD. Keep current-live blockers fail-closed and do not promote any research-only candidate to live deployment.
 
-**Goal:** Productize `data/high_conviction_topk_oos_matrix.json` into `/api/models/leaderboard` and Strategy Lab so operators can see OOS ROI / win-rate / drawdown / profit factor / worst fold / deployable verdict before considering deployment.
+**Goal:** Productize `data/high_conviction_topk_oos_matrix.json` into `/api/models/leaderboard` and Strategy Lab so operators can see 離線 ROI / 勝率 / 最大回撤 / 盈虧比 / 最差分折 / 部署判定 before considering deployment.
 
-**Architecture:** Keep the existing walk-forward matrix generator as the offline evidence producer. Add a small backend loader that compactly validates and attaches the artifact to the model leaderboard payload. Add a Strategy Lab read-only card that renders the best high-conviction rows and explains why candidates remain paper/shadow when gates fail.
+**Architecture:** Keep the existing walk-forward matrix generator as the offline evidence producer. Add a small backend loader that compactly validates and attaches the artifact to the model leaderboard payload. Add a Strategy Lab read-only card that renders the best high-conviction rows and explains why candidates remain 模擬觀察 / 影子驗證 / 僅觀察 when gates fail.
 
 **Tech Stack:** Python FastAPI route helpers, pytest, React/TypeScript Strategy Lab, Vite build, graphify.
 
@@ -177,9 +177,9 @@ Add assertions that `StrategyLab.tsx`:
 
 - Defines `HighConvictionTopKSummary` / row fields.
 - Copies `data?.high_conviction_topk` into `nextModelMeta`.
-- Renders the card title `高信心 OOS Top-K Gate`.
-- Shows Traditional Chinese fail-closed copy such as `未通過前維持 paper / shadow / hold-only`.
-- Renders metrics: `OOS ROI`, `勝率`, `最大回撤`, `profit factor`, `worst fold`, `部署判定`.
+- Renders the card title `高信心 OOS Top-K 部署門檻`.
+- Shows Traditional Chinese fail-closed copy such as `未通過前維持模擬觀察 / 影子驗證 / 僅觀察`.
+- Renders metrics: `離線 ROI`, `勝率`, `最大回撤`, `盈虧比`, `最差分折`, `部署判定`.
 
 **Step 2: Run RED**
 
@@ -226,11 +226,11 @@ const highConvictionRows = Array.isArray(highConvictionTopK?.best_rows) ? highCo
 
 5. Render card in the leaderboard panel before the model table:
 
-- Title: `高信心 OOS Top-K Gate`
-- Status badge: `paper / shadow only` or `可部署候選`
+- Title: `高信心 OOS Top-K 部署門檻`
+- Status badge: `研究觀察 / 影子驗證` or `可部署候選`
 - Summary: generated time, row count, deployable count, support/blocker reason.
-- Rows: model, regime, top-k, OOS ROI, win rate, max DD, profit factor, worst fold, trade count, deployable verdict, gate failures.
-- Copy must explicitly state that failed gates remain paper/shadow/hold-only and do not open new exposure.
+- Rows: model, regime, top-k, 離線 ROI, 勝率, 最大回撤, 盈虧比, 最差分折, 交易數, 部署判定, 門檻失敗。
+- Copy must explicitly state that failed gates remain 模擬觀察 / 影子驗證 / 僅觀察 and do not open new exposure.
 
 **Step 3: Run GREEN**
 

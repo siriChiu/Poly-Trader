@@ -1351,21 +1351,46 @@ def test_strategy_lab_surfaces_high_conviction_topk_gate_contract():
         'blocked_only_by_live_guardrails?: boolean;',
         'model_gate_failures?: string[];',
         'live_gate_failures?: string[];',
+        'support_route?: string | null;',
+        'support_governance_route?: string | null;',
+        'deployment_blocker?: string | null;',
+        'runtime_closure_state?: string | null;',
+        'const highConvictionSupportContext = highConvictionTopK?.support_context ?? null;',
+        'const highConvictionSupportRouteLabel = highConvictionSupportContext ? humanizeSupportRouteLabel(highConvictionSupportContext.support_route_verdict || highConvictionSupportContext.support_route || null) : "—";',
         '最接近部署候選',
-        'OOS/風控 gates 已過',
-        '只剩 current-live / support 阻塞',
-        '高信心 OOS Top-K Gate',
-        '最接近部署候選優先顯示；OOS/風控 gates 已過但只剩 current-live / support 阻塞時，仍維持 paper / shadow / hold-only，不開新倉。',
-        'OOS ROI',
+        '離線驗證 / 風控門檻已過',
+        '只剩即時分桶 / 支持樣本阻塞',
+        '高信心 OOS Top-K 部署門檻',
+        '最接近部署候選優先顯示；離線驗證 / 風控門檻已過但只剩即時分桶 / 支持樣本阻塞時，仍維持模擬觀察 / 影子驗證 / 僅觀察，不開新倉。',
+        '即時支持脈絡',
+        '支持狀態 {highConvictionSupportRouteLabel} · 治理 {highConvictionSupportGovernanceLabel} · 部署阻塞 {highConvictionDeploymentBlockerLabel}',
+        '即時分桶 {highConvictionSupportBucketLabel} · 樣本 {highConvictionSupportRowsLabel} · 閉環 {highConvictionRuntimeClosureLabel}',
+        'Top-K 分層',
+        '離線 ROI',
         '勝率',
         '最大回撤',
-        'profit factor',
-        'worst fold',
-        '部署判定',
-        'gate failures',
+        '盈虧比',
+        '最差分折',
+        '部署判定 {humanizeRuntimeDetailText(row.deployable_verdict || "not_deployable")}',
+        '支持 {row.support_route ? humanizeSupportRouteLabel(row.support_route) : "—"} · 阻塞 {row.deployment_blocker ? humanizeCurrentLiveBlockerLabel(row.deployment_blocker) : "—"} · 閉環 {row.runtime_closure_state ? humanizeRuntimeClosureStateLabel(row.runtime_closure_state) : "—"}',
+        '未通過門檻',
     ]
     for snippet in required_snippets:
         assert snippet in source
+    forbidden_snippets = [
+        'research-only / paper-shadow',
+        '最接近部署候選優先顯示；OOS/風控 gates 已過但只剩 current-live / support 阻塞時，仍維持 paper / shadow / hold-only，不開新倉。',
+        'top-k grid',
+        '{highConvictionTopK.target_col || "—"}',
+        'profit factor',
+        'worst fold',
+        '{row.feature_profile || "feature —"} · {row.regime || "regime —"} · {row.top_k || "top-k —"}',
+        '部署判定 {row.deployable_verdict || "not_deployable"}',
+        'gate failures',
+        'high-conviction rows',
+    ]
+    for snippet in forbidden_snippets:
+        assert snippet not in source
 
 
 

@@ -6734,15 +6734,19 @@ def test_overwrite_current_state_docs_surfaces_high_conviction_topk_gate(tmp_pat
     assert "P0. 建立 high-conviction top-k OOS ROI gate，讓 APP 從研究轉實戰" in issues_md
     assert "output_artifact=data/high_conviction_topk_oos_matrix.json" in issues_md
     assert "min_trades>=50" in issues_md
-    assert "status=research_only_not_deployable" in issues_md
+    assert "status_label=研究觀察_不可部署" in issues_md
     assert "P0 實戰化：建立 high-conviction top-k OOS ROI gate" in issues_md
     assert "目標 E：建立 high-conviction top-k OOS ROI gate" in roadmap_md
     assert "model=logistic_regression" in roadmap_md
     assert "tier=runtime_blocked_oos_pass" in roadmap_md
     assert "runtime_blocked_candidates=6" in roadmap_md
     assert "最接近部署候選優先" in roadmap_md
-    assert "Strategy Lab 高信心 OOS Top-K Gate panel" in roadmap_md
+    assert "Strategy Lab 高信心 OOS Top-K 部署門檻面板" in roadmap_md
+    assert "支持狀態、治理路徑、部署阻塞、即時分桶與樣本數" in roadmap_md
+    assert "research→paper→shadow→canary" not in roadmap_md
+    assert "Strategy Lab 高信心 OOS Top-K Gate panel" not in roadmap_md
     assert "`/api/models/leaderboard`" in roadmap_md
     assert "operator 現在會先看到最接近部署候選" in orid_md
     assert "walk-forward OOS top-k matrix" in orid_md
-    assert "Research-to-production gate" in orid_md
+    assert "研究到產品 gate" in orid_md
+    assert "Research-to-production gate" not in orid_md

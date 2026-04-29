@@ -746,6 +746,10 @@ interface HighConvictionTopKRow {
   max_drawdown?: number | null;
   worst_fold?: number | null;
   trade_count?: number | null;
+  support_route?: string | null;
+  support_governance_route?: string | null;
+  deployment_blocker?: string | null;
+  runtime_closure_state?: string | null;
   deployable_verdict?: string | null;
   deployment_candidate_tier?: string | null;
   gate_failures?: string[];
@@ -1006,6 +1010,24 @@ const formatDelta = (value: number | null | undefined, digits = 3, suffix = "") 
   if (!isFiniteNumber(value)) return "—";
   const prefix = value > 0 ? "+" : "";
   return `${prefix}${value.toFixed(digits)}${suffix}`;
+};
+const formatHighConvictionGateValue = (key: string, value: unknown) => {
+  if (value === null || typeof value === "undefined") return "—";
+  const normalizedKey = String(key || "").toLowerCase();
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (normalizedKey.includes("win_rate") || normalizedKey.includes("drawdown")) return formatPct(value);
+    if (normalizedKey.includes("profit_factor")) return formatDecimal(value, 2);
+    return formatDecimal(value, Number.isInteger(value) ? 0 : 2);
+  }
+  if (typeof value === "boolean") return value ? "是" : "否";
+  if (normalizedKey === "support_route" && String(value).trim().toLowerCase() === "deployable") return "可部署";
+  return humanizeRuntimeDetailText(String(value));
+};
+const formatHighConvictionRegimeLabel = (value?: string | null) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "市場 —";
+  if (normalized.toLowerCase() === "all") return "全市場";
+  return regimeLabelMap[normalized.toLowerCase()] || humanizeRuntimeDetailText(normalized);
 };
 const deltaTone = (value: number | null | undefined, preferLower = false) => {
   if (!isFiniteNumber(value) || value === 0) return "text-slate-400";
@@ -1813,10 +1835,19 @@ export default function StrategyLab() {
   const highConvictionDeployable = (highConvictionTopK?.deployable_count ?? 0) > 0;
   const highConvictionRuntimeBlockedCount = highConvictionTopK?.runtime_blocked_candidate_count ?? highConvictionRows.filter((row) => row.blocked_only_by_live_guardrails).length;
   const highConvictionRiskQualifiedCount = highConvictionTopK?.risk_qualified_count ?? highConvictionRows.filter((row) => row.oos_gate_passed).length;
-  const highConvictionStatusLabel = highConvictionDeployable ? "已有候選，但仍需人工灰度確認" : "research-only / paper-shadow";
-  const highConvictionGridLabel = Array.isArray(highConvictionTopK?.top_k_grid) && highConvictionTopK.top_k_grid.length > 0 ? highConvictionTopK.top_k_grid.join(" / ") : "top-k grid —";
+  const highConvictionStatusLabel = highConvictionDeployable ? "已有候選，但仍需人工灰度確認" : "研究觀察 / 影子驗證";
+  const highConvictionGridLabel = Array.isArray(highConvictionTopK?.top_k_grid) && highConvictionTopK.top_k_grid.length > 0 ? highConvictionTopK.top_k_grid.map((label) => humanizeRuntimeDetailText(label)).join(" / ") : "Top-K 分層 —";
   const highConvictionGeneratedAtLabel = highConvictionTopK?.generated_at ? new Date(highConvictionTopK.generated_at).toLocaleString("zh-TW") : "生成時間 —";
-  const highConvictionGateSummary = highConvictionTopK?.minimum_deployment_gates ? Object.entries(highConvictionTopK.minimum_deployment_gates).map(([key, value]) => `${humanizeRuntimeDetailText(key)}=${String(value)}`).join(" · ") : "gate —";
+  const highConvictionGateSummary = highConvictionTopK?.minimum_deployment_gates ? Object.entries(highConvictionTopK.minimum_deployment_gates).map(([key, value]) => `${humanizeRuntimeDetailText(key)}=${formatHighConvictionGateValue(key, value)}`).join(" · ") : "部署門檻 —";
+  const highConvictionSupportContext = highConvictionTopK?.support_context ?? null;
+  const highConvictionSupportRouteLabel = highConvictionSupportContext ? humanizeSupportRouteLabel(highConvictionSupportContext.support_route_verdict || highConvictionSupportContext.support_route || null) : "—";
+  const highConvictionSupportGovernanceLabel = highConvictionSupportContext ? humanizeSupportGovernanceRouteLabel(highConvictionSupportContext.support_governance_route || null) : "—";
+  const highConvictionDeploymentBlockerLabel = highConvictionSupportContext ? humanizeCurrentLiveBlockerLabel(highConvictionSupportContext.deployment_blocker || null) : "—";
+  const highConvictionRuntimeClosureLabel = highConvictionSupportContext?.runtime_closure_state ? humanizeRuntimeClosureStateLabel(highConvictionSupportContext.runtime_closure_state) : "—";
+  const highConvictionSupportBucketLabel = highConvictionSupportContext?.current_live_structure_bucket ? humanizeStructureBucketLabel(highConvictionSupportContext.current_live_structure_bucket) : "—";
+  const highConvictionSupportRows = highConvictionSupportContext?.current_live_structure_bucket_rows;
+  const highConvictionMinimumRows = highConvictionSupportContext?.minimum_support_rows;
+  const highConvictionSupportRowsLabel = isFiniteNumber(highConvictionSupportRows) && isFiniteNumber(highConvictionMinimumRows) ? `${formatDecimal(highConvictionSupportRows, 0)} / ${formatDecimal(highConvictionMinimumRows, 0)}` : "—";
   const governanceContract = leaderboardGovernance?.governance_contract ?? null;
   const profileSplit = leaderboardGovernance?.profile_split ?? null;
   const modelLeaderboardStaleStateLabel = modelMeta.refreshing
@@ -3548,9 +3579,9 @@ export default function StrategyLab() {
                     <div className={`rounded-lg border px-3 py-3 text-xs space-y-3 ${highConvictionDeployable ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-50" : "border-violet-500/30 bg-violet-500/10 text-violet-50"}`}>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <div className="font-semibold text-violet-100">高信心 OOS Top-K Gate</div>
+                          <div className="font-semibold text-violet-100">高信心 OOS Top-K 部署門檻</div>
                           <div className="mt-1 text-[11px] text-violet-100/80">
-                            最接近部署候選優先顯示；OOS/風控 gates 已過但只剩 current-live / support 阻塞時，仍維持 paper / shadow / hold-only，不開新倉。
+                            最接近部署候選優先顯示；離線驗證 / 風控門檻已過但只剩即時分桶 / 支持樣本阻塞時，仍維持模擬觀察 / 影子驗證 / 僅觀察，不開新倉。
                           </div>
                         </div>
                         <div className="text-right text-[11px] text-violet-100/80">
@@ -3558,22 +3589,27 @@ export default function StrategyLab() {
                           <div>{highConvictionGeneratedAtLabel}</div>
                         </div>
                       </div>
+                      <div className="rounded-lg border border-violet-300/20 bg-slate-950/20 px-3 py-2 text-[11px] text-violet-50">
+                        <div className="font-semibold text-violet-100">即時支持脈絡</div>
+                        <div className="mt-1">支持狀態 {highConvictionSupportRouteLabel} · 治理 {highConvictionSupportGovernanceLabel} · 部署阻塞 {highConvictionDeploymentBlockerLabel}</div>
+                        <div className="mt-1 text-violet-100/75">即時分桶 {highConvictionSupportBucketLabel} · 樣本 {highConvictionSupportRowsLabel} · 閉環 {highConvictionRuntimeClosureLabel}</div>
+                      </div>
                       <div className="grid gap-2 xl:grid-cols-4">
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                          <div className="text-[11px] text-slate-300">top-k grid</div>
+                          <div className="text-[11px] text-slate-300">Top-K 分層</div>
                           <div className="mt-1 font-medium text-slate-100">{highConvictionGridLabel}</div>
                         </div>
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                           <div className="text-[11px] text-slate-300">部署樣本</div>
-                          <div className="mt-1 font-medium text-slate-100">{formatDecimal(highConvictionTopK.row_count, 0)} rows · deployable {formatDecimal(highConvictionTopK.deployable_count, 0)}</div>
-                          <div className="mt-1 text-[10px] text-violet-100/70">OOS/風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} · 只剩即時阻塞 {formatDecimal(highConvictionRuntimeBlockedCount, 0)}</div>
+                          <div className="mt-1 font-medium text-slate-100">{formatDecimal(highConvictionTopK.row_count, 0)} 筆 · 可部署 {formatDecimal(highConvictionTopK.deployable_count, 0)}</div>
+                          <div className="mt-1 text-[10px] text-violet-100/70">離線驗證 / 風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} · 只剩即時阻塞 {formatDecimal(highConvictionRuntimeBlockedCount, 0)}</div>
                         </div>
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                          <div className="text-[11px] text-slate-300">target</div>
-                          <div className="mt-1 font-medium text-slate-100">{highConvictionTopK.target_col || "—"}</div>
+                          <div className="text-[11px] text-slate-300">目標</div>
+                          <div className="mt-1 font-medium text-slate-100">{humanizeRuntimeDetailText(highConvictionTopK.target_col || "目標 —")}</div>
                         </div>
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                          <div className="text-[11px] text-slate-300">minimum gates</div>
+                          <div className="text-[11px] text-slate-300">部署門檻</div>
                           <div className="mt-1 font-medium text-slate-100">{highConvictionGateSummary}</div>
                         </div>
                       </div>
@@ -3583,11 +3619,11 @@ export default function StrategyLab() {
                             <thead className="border-b border-violet-300/20 text-violet-100/70">
                               <tr>
                                 <th className="px-2 py-2 text-left">候選</th>
-                                <th className="px-2 py-2 text-right">OOS ROI</th>
+                                <th className="px-2 py-2 text-right">離線 ROI</th>
                                 <th className="px-2 py-2 text-right">勝率</th>
                                 <th className="px-2 py-2 text-right">最大回撤</th>
-                                <th className="px-2 py-2 text-right">profit factor</th>
-                                <th className="px-2 py-2 text-right">worst fold</th>
+                                <th className="px-2 py-2 text-right">盈虧比</th>
+                                <th className="px-2 py-2 text-right">最差分折</th>
                                 <th className="px-2 py-2 text-right">交易數</th>
                               </tr>
                             </thead>
@@ -3596,10 +3632,13 @@ export default function StrategyLab() {
                                 <tr key={`${row.model || row.model_name || "model"}-${row.top_k || "topk"}-${index}`} className="border-b border-violet-300/10">
                                   <td className="px-2 py-2 text-left text-slate-100">
                                     <div className="font-medium">{row.model_name || row.model || "未命名模型"}</div>
-                                    <div className="mt-1 text-[10px] text-violet-100/70">{row.feature_profile || "feature —"} · {row.regime || "regime —"} · {row.top_k || "top-k —"}</div>
-                                    <div className="mt-1 text-[10px] text-violet-100/60">部署判定 {row.deployable_verdict || "not_deployable"}</div>
+                                    <div className="mt-1 text-[10px] text-violet-100/70">{humanizeRuntimeDetailText(row.feature_profile || "特徵設定 —")} · {formatHighConvictionRegimeLabel(row.regime)} · {humanizeRuntimeDetailText(row.top_k || "Top-K —")}</div>
+                                    <div className="mt-1 text-[10px] text-violet-100/60">部署判定 {humanizeRuntimeDetailText(row.deployable_verdict || "not_deployable")}</div>
+                                    {(row.support_route || row.deployment_blocker || row.runtime_closure_state) && (
+                                      <div className="mt-1 text-[10px] text-violet-100/60">支持 {row.support_route ? humanizeSupportRouteLabel(row.support_route) : "—"} · 阻塞 {row.deployment_blocker ? humanizeCurrentLiveBlockerLabel(row.deployment_blocker) : "—"} · 閉環 {row.runtime_closure_state ? humanizeRuntimeClosureStateLabel(row.runtime_closure_state) : "—"}</div>
+                                    )}
                                     {row.blocked_only_by_live_guardrails && (
-                                      <div className="mt-1 text-[10px] text-amber-200">OOS/風控 gates 已過 · 只剩 current-live / support 阻塞</div>
+                                      <div className="mt-1 text-[10px] text-amber-200">離線驗證 / 風控門檻已過 · 只剩即時分桶 / 支持樣本阻塞</div>
                                     )}
                                   </td>
                                   <td className={`px-2 py-2 text-right ${isFiniteNumber(row.oos_roi) && row.oos_roi >= 0 ? "text-green-300" : "text-red-300"}`}>{formatPct(row.oos_roi, 1, true)}</td>
@@ -3614,13 +3653,13 @@ export default function StrategyLab() {
                           </table>
                         </div>
                       ) : (
-                        <div className="rounded-lg border border-violet-300/20 bg-slate-950/20 px-3 py-2 text-violet-100/80">尚未產生可排序的 high-conviction rows。</div>
+                        <div className="rounded-lg border border-violet-300/20 bg-slate-950/20 px-3 py-2 text-violet-100/80">尚未產生可排序的高信心候選。</div>
                       )}
                       <div className="rounded-lg border border-rose-300/20 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-50">
-                        <div className="font-semibold text-rose-100">gate failures</div>
-                        <div className="mt-1">{highConvictionGateFailures.length > 0 ? highConvictionGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "目前沒有額外失敗碼；仍需確認 current-live blocker 與 support route 後才可部署。"}</div>
-                        <div className="mt-1 text-rose-50/80">模型/風控 gate：{highConvictionModelGateFailures.length > 0 ? highConvictionModelGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "已過"}</div>
-                        <div className="mt-1 text-rose-50/80">即時/支持 gate：{highConvictionLiveGateFailures.length > 0 ? highConvictionLiveGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "待確認"}</div>
+                        <div className="font-semibold text-rose-100">未通過門檻</div>
+                        <div className="mt-1">{highConvictionGateFailures.length > 0 ? highConvictionGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "目前沒有額外失敗碼；仍需確認即時阻塞點與支持路徑後才可部署。"}</div>
+                        <div className="mt-1 text-rose-50/80">模型 / 風控門檻：{highConvictionModelGateFailures.length > 0 ? highConvictionModelGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "已過"}</div>
+                        <div className="mt-1 text-rose-50/80">即時 / 支持門檻：{highConvictionLiveGateFailures.length > 0 ? highConvictionLiveGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "待確認"}</div>
                       </div>
                     </div>
                   )}
