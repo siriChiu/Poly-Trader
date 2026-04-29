@@ -1429,6 +1429,39 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
 
 
 
+def test_generic_issue_current_lines_compacts_large_auto_payloads():
+    huge_scope_matrix = "scope_matrix=" + ";".join(
+        f"regime_gate+entry_quality_label:rows={idx},wr=0.0,q=-0.14,alerts=['constant_target'],spillover_feature_shift=feat_{idx}(1→0)"
+        for idx in range(30)
+    )
+    issue = {
+        "id": "#H_AUTO_LIVE_PREDICTOR_CONTRACT",
+        "summary": {
+            "live_scope": "regime_gate",
+            "deployment_blocker": "circuit_breaker_active",
+            "scope_matrix": huge_scope_matrix,
+            "top_shifts": [
+                "feat_4h_dist_swing_low(0.7615→0.3835)",
+                "feat_4h_dist_bb_lower(1.2729→1.0314)",
+                "feat_4h_bb_pct_b(0.4235→0.3412)",
+                "feat_4h_bias200(5.76→6.38)",
+                "feat_4h_extra(1→2)",
+            ],
+        },
+    }
+
+    lines = hb_parallel_runner._generic_issue_current_lines(issue)
+
+    assert len(lines) == 1
+    line = lines[0]
+    assert "`live_scope=regime_gate`" in line
+    assert "`deployment_blocker=circuit_breaker_active`" in line
+    assert "`scope_matrix=scope_matrix=regime_gate+entry_quality_label" in line
+    assert "…" in line
+    assert "feat_4h_extra" not in line
+    assert len(line) < 1100
+
+
 def test_load_open_current_state_issues_keeps_non_duplicate_auto_issues(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     (tmp_path / "issues.json").write_text(

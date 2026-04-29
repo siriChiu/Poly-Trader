@@ -1,17 +1,17 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-29 09:10:12 CST_
+_最後更新：2026-04-29 10:11:12 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **full heartbeat #1113 已完成 collect + diagnostics refresh**
-  - `Raw=32456 / Features=23874 / Labels=65522`
+- **full heartbeat #1114 已完成 collect + diagnostics refresh**
+  - `Raw=32457 / Features=23875 / Labels=65526`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
-  - `deployment_blocker=circuit_breaker_active` / `streak=102` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
-  - `latest_window=100` / `win_rate=0.0%` / `dominant_regime=chop(69.0%)` / `avg_quality=-0.2831` / `avg_pnl=-0.0113` / `alerts=constant_target,regime_shift`
+  - `deployment_blocker=circuit_breaker_active` / `streak=106` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
+  - `latest_window=100` / `win_rate=0.0%` / `dominant_regime=chop(73.0%)` / `avg_quality=-0.2810` / `avg_pnl=-0.0111` / `alerts=constant_target,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
@@ -28,7 +28,7 @@ _最後更新：2026-04-29 09:10:12 CST_
 
 ### 目標 A：維持熔斷解除條件作為唯一即時部署阻塞點
 **目前真相**
-- `deployment_blocker=circuit_breaker_active` / `streak=102` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
+- `deployment_blocker=circuit_breaker_active` / `streak=106` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
 - `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_proxy_reference_only`
 support progress：`status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `legacy_supported_reference=53/50@20260419b`
 **成功標準**
@@ -37,22 +37,22 @@ support progress：`status=semantic_rebaseline_under_minimum` / `regression_basi
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=100` / `win_rate=0.0%` / `dominant_regime=chop(69.0%)` / `avg_quality=-0.2831` / `avg_pnl=-0.0113` / `alerts=constant_target,regime_shift`
+- `latest_window=100` / `win_rate=0.0%` / `dominant_regime=chop(73.0%)` / `avg_quality=-0.2810` / `avg_pnl=-0.0111` / `alerts=constant_target,regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
-### 目標 C：守住 q15 current-live bucket support + reference-only patch 真相
+### 目標 C：守住 q15 current-live bucket support truth 與 deployment closure 邊界
 **目前真相**
 - `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_proxy_reference_only`
 support progress：`status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `legacy_supported_reference=53/50@20260419b`
-- `recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`
+- `recommended_patch=—` / `status=—` / `reference_scope=—`（本輪無 active recommended patch）
 **成功標準**
 - probe / drilldown / `/api/status` / `/execution/status` / `/lab` / docs 全都承認 q15 current-live bucket exact support 未達 minimum rows，recommended patch 只能作治理 / 訓練參考。
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
-- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=true` / `payload_age=5.9h`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3889` / `archive_window_coverage_pct=0.0`
+- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=true` / `payload_age=6.9h`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3890` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證；API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
@@ -67,15 +67,15 @@ support progress：`status=semantic_rebaseline_under_minimum` / `regression_basi
 2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**
    - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`
    - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據
-3. **守住 q15 current-live bucket support / reference-only patch、leaderboard governance、venue/source blockers 與 docs automation 閉環**
+3. **守住 q15 current-live bucket support truth / blocker truth、leaderboard governance、venue/source blockers 與 docs automation 閉環**
    - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status
-   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts
+   - 升級 blocker：若 support closure 被誤讀成 deployment closure、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts
 
 ---
 
 ## 成功標準
 - 即時部署阻塞點清楚且唯一：**熔斷解除條件**
-- current live q15 truth 維持：**0/50 + exact_bucket_missing_proxy_reference_only + reference_only_non_current_live_scope**
+- current live q15 truth 維持：**0/50 + exact_bucket_missing_proxy_reference_only + —**
 - recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋
 - leaderboard dual-role governance 維持；venue/source blockers 持續可見
 - heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**

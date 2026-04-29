@@ -826,10 +826,43 @@ def _verification_lines(issue: Dict[str, Any]) -> list[str]:
     return []
 
 
+def _truncate_issue_docs_text(text: str, *, max_chars: int = 360) -> str:
+    """Keep current-state issue markdown concise even when auto issues contain large payloads."""
+    normalized = re.sub(r"\s+", " ", str(text or "")).strip()
+    if len(normalized) <= max_chars:
+        return normalized
+    return normalized[: max_chars - 1].rstrip() + "…"
+
+
+def _compact_issue_value_for_docs(value: Any, *, max_chars: int = 360) -> str:
+    if isinstance(value, dict):
+        rendered_parts: list[str] = []
+        items = list(value.items())
+        for key, nested in items[:4]:
+            nested_limit = 90 if isinstance(nested, (dict, list)) else 140
+            rendered_parts.append(
+                f"{key}:{_compact_issue_value_for_docs(nested, max_chars=nested_limit)}"
+            )
+        if len(items) > 4:
+            rendered_parts.append(f"…(+{len(items) - 4})")
+        rendered = "{" + ", ".join(rendered_parts) + "}"
+    elif isinstance(value, list):
+        rendered_parts = [
+            _compact_issue_value_for_docs(item, max_chars=90)
+            for item in value[:4]
+        ]
+        if len(value) > 4:
+            rendered_parts.append(f"…(+{len(value) - 4})")
+        rendered = ", ".join(rendered_parts)
+    else:
+        rendered = str(value)
+    return _truncate_issue_docs_text(rendered, max_chars=max_chars)
+
+
 def _issue_action_text(issue: Dict[str, Any]) -> str:
     action = issue.get("action") or issue.get("next_action")
     if isinstance(action, str) and action.strip():
-        return action.strip()
+        return _truncate_issue_docs_text(action.strip(), max_chars=520)
     return "待補 current-state action"
 
 
@@ -839,12 +872,7 @@ def _generic_issue_current_lines(issue: Dict[str, Any]) -> list[str]:
         return []
     parts: list[str] = []
     for key, value in summary.items():
-        if isinstance(value, list):
-            rendered = ", ".join(str(item) for item in value[:4])
-            if len(value) > 4:
-                rendered += f" … (+{len(value) - 4})"
-        else:
-            rendered = str(value)
+        rendered = _compact_issue_value_for_docs(value)
         parts.append(f"`{key}={rendered}`")
         if len(parts) >= 6:
             break
