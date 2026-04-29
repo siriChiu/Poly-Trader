@@ -1915,6 +1915,10 @@ def main():
                 f"Train-CV gap = {gap:.1f}pp ({train:.1%} vs {cv:.1%})",
                 "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數",
             )
+        else:
+            tracker.resolve("#H_AUTO_GAP")
+    else:
+        tracker.resolve("#H_AUTO_GAP")
 
     tracker.save()
 

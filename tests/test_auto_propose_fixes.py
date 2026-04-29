@@ -683,6 +683,53 @@ def test_main_resolves_regime_drift_when_tw_gap_falls_below_threshold(monkeypatc
 
 
 
+def test_main_resolves_stale_train_cv_gap_when_current_gap_is_safe(monkeypatch, capsys):
+    events = []
+
+    class DummyTracker:
+        def add(self, priority, issue_id, title, action="", status="open"):
+            events.append(("add", issue_id, title, status))
+
+        def resolve(self, issue_id):
+            events.append(("resolve", issue_id, "resolved"))
+            return True
+
+        def save(self):
+            return None
+
+        def by_priority(self, priority):
+            return []
+
+    monkeypatch.setattr(auto_propose_fixes, "check_db", lambda: {
+        "simulated_win_avg": 0.577,
+        "losing_streak": 0,
+        "raw_latest_age_min": 0.9,
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_full_ic_data", lambda: {"global_pass": 17, "tw_pass": 18, "total_features": 30})
+    monkeypatch.setattr(auto_propose_fixes, "check_ic", lambda ic_data, full_ic_data=None: {
+        "global_pass": 17,
+        "tw_pass": 18,
+        "total_core": 15,
+        "total_features": 30,
+        "no_data": [],
+        "low_data": [],
+        "best_ic": ("feat_vix", 0.18),
+        "worst_ic": ("feat_ear", 0.001),
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_tw_history", lambda limit=3, current_entry=None: [])
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_drift_report", lambda: {})
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {})
+    monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.62, "cv_accuracy": 0.61})
+    monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: DummyTracker())}))
+
+    auto_propose_fixes.main()
+    _ = capsys.readouterr().out
+
+    assert ("resolve", "#H_AUTO_GAP", "resolved") in events
+    assert not any(event[0] == "add" and event[1] == "#H_AUTO_GAP" for event in events)
+
+
+
 def test_main_resolves_tw_drift_and_streak_when_current_run_recovers(monkeypatch, capsys):
     events = []
 

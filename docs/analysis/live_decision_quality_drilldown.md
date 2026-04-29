@@ -1,39 +1,39 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-29 07:14:23.032632**
+- feature_timestamp: **2026-04-29 08:01:45.258474**
 - target: `simulated_pyramid_win`
-- live path: **bear / CAUTION / C**
+- live path: **bear / CAUTION / D**
 - signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
-- layers: **1 → 0**
-- allowed_layers_raw_reason: `entry_quality_C_single_layer`
-- allowed_layers_reason: `decision_quality_below_trade_floor; circuit_breaker_active`
-- execution_guardrail_reason: `decision_quality_below_trade_floor; circuit_breaker_active`
-- runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 22.00% < 30%`
-- deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 22.00% < 30%`
-- q15 exact-supported patch: **inactive** | support_route `insufficient_support_everywhere` | floor_cross `runtime_blocker_preempts_floor_analysis`
-- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 22.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 11/50，至少還差 4 勝。 同時 recent pathology=recent scope slice 100 rows shows distribution_pathology alerts=['label_imbalance'] win_rate=0.18 avg_pnl=-0.0068 avg_quality=-0.1289 window=2026-04-26 00:23:53.820788->2026-04-28 08:00:00 adverse_streak=82x0 (2026-04-27 05:15:51.099763->2026-04-28 03:45:03.734300) vs sibling prev_win_rate=0.86 Δwin_rate=-0.68 prev_quality=0.4154 Δquality=-0.5443 prev_pnl=0.0067 Δpnl=-0.0135 top_shifts=feat_4h_dist_swing_low(0.7173→0.2234), feat_4h_dist_bb_lower(1.3153→0.9494), feat_4h_bb_pct_b(0.439→0.3152)。 exact-vs-spillover=同 quality 寬 scope 出現 chop|CAUTION spillover，5 rows / WR 20.0% / 品質 -0.012，明顯劣於 exact live lane WR — / 品質 —。**
-- q35 scaling audit: overall=`None` / redesign=`None` / runtime_gap=`None` / mode=`None` / next_patch=`None`
-- q35 audit action: None
+- layers: **0 → 0**
+- allowed_layers_raw_reason: `entry_quality_below_trade_floor`
+- allowed_layers_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
+- execution_guardrail_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
+- runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 24.00% < 30%`
+- deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 24.00% < 30%`
+- q15 exact-supported patch: **inactive** | support_route `exact_bucket_unsupported_block` | floor_cross `None`
+- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 24.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 12/50，至少還差 3 勝。 exact-vs-spillover=同 quality 寬 scope 出現 bull|BLOCK spillover，395 rows / WR 15.3% / 品質 -0.101，明顯劣於 exact live lane WR — / 品質 —。**
+- q35 scaling audit: overall=`runtime_blocker_preempts_q35_scaling` / redesign=`runtime_blocker_preempts_q35_scaling` / runtime_gap=`None` / mode=`defer_until_circuit_breaker_releases` / next_patch=`release_circuit_breaker_then_rerun_q35_scaling_audit`
+- q35 audit action: 先解除 canonical circuit breaker 或至少接近 release condition，再重跑 q35 scaling audit；在 breaker 仍有效時，不得把 q35 formula / calibration 當成本輪 live blocker 主敘事。
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
-- recommended_patch: **None** / status `None` / support_route `None` / gap `None` / reference_scope `None` / source `None`
-- recommended_patch_features: None
-- recommended_patch_reason: None
-- recommended_patch_action: None
+- recommended_patch: **core_plus_macro_plus_all_4h** / status `reference_only_non_current_live_scope` / support_route `exact_bucket_unsupported_block` / gap `50` / reference_scope `bull|CAUTION` / source `bull_4h_pocket_ablation.bull_collapse_q35`
+- recommended_patch_features: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
+- recommended_patch_reason: 參考 patch 來自 bull|CAUTION（source: bull_4h_pocket_ablation.bull_collapse_q35），但 current live scope 是 bear|CAUTION；這代表 patch 描述的是 spillover / broader lane，而不是目前 current-live row 的 deploy patch。 current live exact support 目前仍是 0/50，因此這條 patch 同時不具備 same-scope 與 exact-support 放行條件。 即使 exact support 已達 minimum rows，也只能作治理 / 訓練參考，不可直接放行 runtime。
+- recommended_patch_action: 維持 reference-only patch 可見性；目前 current live 是 bear|CAUTION，但 patch 來自 bull|CAUTION spillover。 在 scope 對齊前，只可作治理 / 訓練參考，不可把它升級成 current-live deploy patch。
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5617** / trade_floor **0.55** / gap **0.0117**
-- base_quality: **0.6418** × weight **0.75**
-- structure_quality: **0.3215** × weight **0.25**
-- base components: feat_4h_bias50=0.5707 (w=0.4, contrib=0.2283), feat_nose=0.3209 (w=0.18, contrib=0.0578), feat_pulse=0.7986 (w=0.27, contrib=0.2156), feat_ear=0.9341 (w=0.15, contrib=0.1401)
-- structure components: feat_4h_bb_pct_b=0.7137 (w=0.34, contrib=0.2426), feat_4h_dist_bb_lower=0.239 (w=0.33, contrib=0.0789), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
+- final entry_quality: **0.4751** / trade_floor **0.55** / gap **-0.0749**
+- base_quality: **0.5136** × weight **0.75**
+- structure_quality: **0.3596** × weight **0.25**
+- base components: feat_4h_bias50=0.5826 (w=0.4, contrib=0.2331), feat_nose=0.2811 (w=0.18, contrib=0.0506), feat_pulse=0.3331 (w=0.27, contrib=0.0899), feat_ear=0.9332 (w=0.15, contrib=0.14)
+- structure components: feat_4h_bb_pct_b=0.6644 (w=0.34, contrib=0.2259), feat_4h_dist_bb_lower=0.2227 (w=0.33, contrib=0.0735), feat_4h_dist_swing_low=0.1824 (w=0.33, contrib=0.0602)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.2687** | structure_group_max_entry_gain: **0.1696**
-- best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
-- single-component floor crossers: None
+- remaining_gap_to_floor: **0.0749**
+- base_group_max_entry_gain: **0.3648** | structure_group_max_entry_gain: **0.1601**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.2497, max_gain≈0.1252）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.2497), feat_pulse (Δscore≈0.3699), feat_nose (Δscore≈0.5548)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -41,15 +41,15 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_gate` | 236 | 0.5 | 0.1372 | 0.1579 | 0.5579 | 28 | True |
+| chosen `regime_gate+entry_quality_label` | 232 | 0.5086 | 0.1416 | 0.1575 | 0.5563 | 0 | False |
 | exact `regime_label+regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
 | narrow `regime_label+entry_quality_label` | 0 | None | None | None | None | 0 | False |
-| broad `regime_gate+entry_quality_label` | 5 | 0.2 | -0.0116 | 0.1727 | 0.6695 | 0 | False |
+| broad `regime_gate+entry_quality_label` | 232 | 0.5086 | 0.1416 | 0.1575 | 0.5563 | 0 | False |
 
 ## Shared shifts
 
 - None
-- worst_pathology_scope: **None** rows=None win_rate=None quality=None
+- worst_pathology_scope: **entry_quality_label** rows=395 win_rate=0.362 quality=0.0413
 
 ## Interpretation
 

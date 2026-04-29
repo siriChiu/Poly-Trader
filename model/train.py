@@ -245,11 +245,17 @@ def _select_support_aware_profile(
             }
         return None
 
+    # When the exact live bucket is unsupported, only allow progressively wider
+    # *proxy lanes* to steer production training. Broad reference cohorts such as
+    # bull_collapse_q35 are useful diagnostics, but they can overfit the global
+    # model to a non-current pocket and hurt live win-rate / ROI. If no exact-lane
+    # or neighbor-bucket proxy has enough support, use the weak-4H-veto profile
+    # (keeps broad feature diversity while dropping bull-collapse structure
+    # features) instead of treating a broad q35 reference as deployable evidence.
     for cohort_name in (
         "bull_live_exact_lane_bucket_proxy",
         "bull_exact_live_lane_proxy",
         "bull_supported_neighbor_buckets_proxy",
-        "bull_collapse_q35",
     ):
         cohort = cohorts.get(cohort_name) or {}
         profile_name = cohort.get("recommended_profile")
@@ -273,6 +279,32 @@ def _select_support_aware_profile(
             "minimum_support_rows": MIN_SUPPORT_AWARE_BUCKET_ROWS,
             "exact_bucket_root_cause": exact_bucket_root_cause or None,
             "support_profile_rank": _rank_feature_profile(profile_name, profiles[profile_name]),
+        }
+
+    for cohort_name in ("bull_collapse_q35", "bull_all"):
+        cohort = cohorts.get(cohort_name) or {}
+        row_count = _parse_int(cohort.get("rows"), default=0)
+        ignored_profile = cohort.get("recommended_profile")
+        fallback_name = "current_full_no_bull_collapse_4h"
+        if (
+            row_count < MIN_SUPPORT_AWARE_BUCKET_ROWS
+            or fallback_name not in profile_columns
+            or fallback_name not in profiles
+        ):
+            continue
+        columns = profile_columns.get(fallback_name) or []
+        if not columns:
+            continue
+        return fallback_name, columns, {
+            "source": "feature_group_ablation.weak_4h_veto_fallback",
+            "generated_at": bull_pocket_payload.get("generated_at") or ablation_payload.get("generated_at"),
+            "support_cohort": cohort_name,
+            "support_rows": row_count,
+            "exact_live_bucket_rows": live_bucket_rows,
+            "minimum_support_rows": MIN_SUPPORT_AWARE_BUCKET_ROWS,
+            "exact_bucket_root_cause": exact_bucket_root_cause or None,
+            "ignored_broad_support_profile": ignored_profile,
+            "support_profile_rank": _rank_feature_profile(fallback_name, profiles[fallback_name]),
         }
 
     return None

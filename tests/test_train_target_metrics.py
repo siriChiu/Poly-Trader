@@ -277,6 +277,54 @@ def test_select_feature_profile_prefers_support_aware_bull_profile_when_exact_bu
 
 
 
+def test_select_feature_profile_ignores_broad_q35_reference_when_exact_bucket_has_no_support():
+    all_columns = train_module.FEATURE_COLS + ["feat_eye_lag12", "feat_vix_x_eye"]
+    profile, columns, meta = train_module.select_feature_profile(
+        all_columns,
+        target_col="simulated_pyramid_win",
+        ablation_payload={
+            "target_col": "simulated_pyramid_win",
+            "generated_at": "2026-04-29 04:03:58",
+            "recommended_profile": "core_plus_macro",
+            "profiles": {
+                "core_plus_macro": {
+                    "cv_mean_accuracy": 0.58,
+                    "cv_worst_accuracy": 0.54,
+                    "cv_std_accuracy": 0.02,
+                    "cv_mean_brier": 0.21,
+                },
+                "core_plus_macro_plus_all_4h": {
+                    "cv_mean_accuracy": 0.67,
+                    "cv_worst_accuracy": 0.50,
+                    "cv_std_accuracy": 0.16,
+                    "cv_mean_brier": 0.25,
+                },
+            },
+        },
+        bull_pocket_payload={
+            "target_col": "simulated_pyramid_win",
+            "generated_at": "2026-04-29 04:03:58",
+            "live_context": {
+                "current_live_structure_bucket_rows": 0,
+            },
+            "support_pathology_summary": {
+                "exact_bucket_root_cause": "same_lane_exists_but_q65_missing",
+            },
+            "cohorts": {
+                "bull_collapse_q35": {
+                    "rows": 943,
+                    "recommended_profile": "core_plus_macro_plus_all_4h",
+                },
+            },
+        },
+    )
+
+    assert profile == "core_plus_macro"
+    assert set(columns) == set(train_module.CORE_FEATURES + train_module.MACRO_FEATURES)
+    assert meta["source"] == "feature_group_ablation.recommended_profile"
+
+
+
 def test_select_support_aware_profile_prefers_exact_live_bucket_proxy_when_available():
     all_columns = train_module.FEATURE_COLS + ["feat_eye_lag12", "feat_vix_x_eye"]
     profile, columns, meta = train_module.select_feature_profile(
