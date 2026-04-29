@@ -145,6 +145,7 @@ def collect_current_state_docs_sync_status() -> Dict[str, Any]:
     doc_paths = {
         "ISSUES.md": root / "ISSUES.md",
         "ROADMAP.md": root / "ROADMAP.md",
+        "ORID_DECISIONS.md": root / "ORID_DECISIONS.md",
     }
     reference_paths = [
         ("issues.json", root / "issues.json"),

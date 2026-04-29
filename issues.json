@@ -3,17 +3,17 @@
     {
       "id": "#H_AUTO_STREAK",
       "priority": "P0",
-      "title": "連續 99 筆 1440m simulated_pyramid_win=0",
+      "title": "連續 102 筆 1440m simulated_pyramid_win=0",
       "action": "檢查 recent canonical labels / regime breakdown / circuit breaker；必要時升級為 distribution-aware drift 調查",
       "status": "open",
       "created_at": "2026-04-29T00:24:16.142607",
-      "updated_at": "2026-04-29T00:29:12.264911",
+      "updated_at": "2026-04-29T01:03:34.798513",
       "hb_detected": null,
       "next_action": "檢查 recent canonical labels / regime breakdown / circuit breaker；必要時升級為 distribution-aware drift 調查",
       "summary": {
         "canonical_horizon_minutes": 1440,
-        "losing_streak": 99,
-        "all_horizon_losing_streak": 3
+        "losing_streak": 102,
+        "all_horizon_losing_streak": 0
       }
     },
     {
@@ -23,7 +23,7 @@
       "action": "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆需至少 15 勝，當前 0 勝，還差 15 勝；同時連續虧損必須 < 50。",
       "status": "open",
       "created_at": "2026-04-28T02:42:11.301050",
-      "updated_at": "2026-04-29T00:29:12.264885",
+      "updated_at": "2026-04-29T01:03:34.798487",
       "hb_detected": null,
       "next_action": "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆需至少 15 勝，當前 0 勝，還差 15 勝；同時連續虧損必須 < 50。",
       "summary": {
@@ -33,7 +33,7 @@
         "current_recent_window_wins": 0,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 15,
-        "streak": 99,
+        "streak": 102,
         "streak_must_be_below": 50,
         "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
         "current_live_structure_bucket_rows": 0,
@@ -64,17 +64,17 @@
     {
       "id": "#H_AUTO_MODEL_STABILITY",
       "priority": "P1",
-      "title": "model stability still needs work (cv=0.5214, cv_std=0.0296, cv_worst=0.4918)",
+      "title": "model stability still needs work (cv=0.5235, cv_std=0.0258, cv_worst=0.4977)",
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-04-29T00:29:12.264906",
+      "updated_at": "2026-04-29T01:03:34.798509",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
-        "cv_accuracy": 0.5214015946286195,
-        "cv_std": 0.029584557280738555,
-        "cv_worst": 0.49181703734788085
+        "cv_accuracy": 0.5234997901804448,
+        "cv_std": 0.0258078052874528,
+        "cv_worst": 0.49769198489299205
       }
     },
     {
@@ -84,7 +84,7 @@
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132306",
-      "updated_at": "2026-04-29T00:29:12.264934",
+      "updated_at": "2026-04-29T01:03:34.798537",
       "hb_detected": null,
       "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "summary": {
@@ -100,7 +100,7 @@
       "action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
       "status": "open",
       "created_at": "2026-04-28T04:06:36.069214",
-      "updated_at": "2026-04-29T00:29:12.264871",
+      "updated_at": "2026-04-29T01:03:34.798470",
       "hb_detected": null,
       "next_action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
       "summary": {
@@ -158,7 +158,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3888,
+        "forward_archive_rows": 3889,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -166,7 +166,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-29T00:29:13.227128",
+      "updated_at": "2026-04-29T01:03:35.761627",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -185,7 +185,7 @@
         "current_closure": "global_ranking_vs_support_aware_production_split",
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": true,
-        "leaderboard_payload_cache_age_sec": 19142,
+        "leaderboard_payload_cache_age_sec": 21205,
         "leaderboard_payload_updated_at": "2026-04-28T19:10:05.254292Z",
         "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
@@ -195,7 +195,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-29T00:29:12.264900",
+      "updated_at": "2026-04-29T01:03:34.798502",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -205,7 +205,7 @@
       "action": "Treat legacy supported rows as reference-only: keep support_identity/regression_basis/legacy_supported_reference visible in probe/API/UI/docs, keep the current-live exact-support blocker open, and do not describe this as same-identity support regression unless the semantic signature matches.",
       "status": "open",
       "created_at": "2026-04-28T20:05:29.556969",
-      "updated_at": "2026-04-29T00:29:12.264859",
+      "updated_at": "2026-04-29T01:03:34.798457",
       "hb_detected": null,
       "next_action": "Treat legacy supported rows as reference-only: keep support_identity/regression_basis/legacy_supported_reference visible in probe/API/UI/docs, keep the current-live exact-support blocker open, and do not describe this as same-identity support regression unless the semantic signature matches.",
       "summary": {
@@ -240,8 +240,8 @@
         },
         "breaker_context": "circuit_breaker_active",
         "circuit_breaker_active": true,
-        "previous_rows": null,
-        "delta_vs_previous": null,
+        "previous_rows": 0,
+        "delta_vs_previous": 0,
         "recent_supported_rows": null,
         "recent_supported_heartbeat": null,
         "delta_vs_recent_supported": null,
@@ -257,31 +257,32 @@
       "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "status": "open",
       "created_at": "2026-04-29T00:29:12.264927",
-      "updated_at": "2026-04-29T00:29:12.264929",
+      "updated_at": "2026-04-29T01:03:34.798532",
       "hb_detected": null,
       "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "summary": {
         "window": "100",
         "interpretation": "distribution_pathology",
-        "win_rate": 0.01,
+        "win_rate": 0.0,
         "dominant_regime": "chop",
-        "dominant_regime_share": 0.66,
+        "dominant_regime_share": 0.69,
         "avg_pnl": -0.0113,
-        "avg_quality": -0.2774,
-        "avg_drawdown_penalty": 0.324,
+        "avg_quality": -0.2831,
+        "avg_drawdown_penalty": 0.3244,
         "spot_long_win_rate": 0.0,
-        "avg_time_underwater": 0.7619,
+        "avg_time_underwater": 0.7721,
         "alerts": [
-          "label_imbalance"
+          "constant_target",
+          "regime_shift"
         ],
         "top_shift_features": [
           "feat_4h_vol_ratio",
-          "feat_turning_point_score",
-          "feat_choppiness"
+          "feat_choppiness",
+          "feat_turning_point_score"
         ],
         "new_compressed_feature": "feat_adx",
-        "tail_streak": "99x0",
-        "adverse_streak": "99x0",
+        "tail_streak": "100x0",
+        "adverse_streak": "100x0",
         "live_regime_label": "bear",
         "current_live_scope": false,
         "blocking_basis": [

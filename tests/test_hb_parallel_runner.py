@@ -1396,12 +1396,14 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
 
     issues_md = tmp_path / "ISSUES.md"
     roadmap_md = tmp_path / "ROADMAP.md"
+    orid_md = tmp_path / "ORID_DECISIONS.md"
     issues_json = tmp_path / "issues.json"
     probe_json = data_dir / "live_predict_probe.json"
     drilldown_json = data_dir / "live_decision_quality_drilldown.json"
 
     issues_md.write_text("old issues", encoding="utf-8")
     roadmap_md.write_text("old roadmap", encoding="utf-8")
+    orid_md.write_text("old orid", encoding="utf-8")
     issues_json.write_text("{}", encoding="utf-8")
     probe_json.write_text("{}", encoding="utf-8")
     drilldown_json.write_text("{}", encoding="utf-8")
@@ -1409,6 +1411,7 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
     now = time.time()
     os.utime(issues_md, (now - 20, now - 20))
     os.utime(roadmap_md, (now - 10, now - 10))
+    os.utime(orid_md, (now - 8, now - 8))
     os.utime(issues_json, (now + 5, now + 5))
     os.utime(probe_json, (now + 6, now + 6))
     os.utime(drilldown_json, (now + 7, now + 7))
@@ -1416,7 +1419,8 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
     status = hb_parallel_runner.collect_current_state_docs_sync_status()
 
     assert status["ok"] is False
-    assert status["stale_docs"] == ["ISSUES.md", "ROADMAP.md"]
+    assert status["stale_docs"] == ["ISSUES.md", "ROADMAP.md", "ORID_DECISIONS.md"]
+    assert set(status["docs"]) == {"ISSUES.md", "ROADMAP.md", "ORID_DECISIONS.md"}
     assert status["reference_artifacts"] == [
         "issues.json",
         "data/live_predict_probe.json",

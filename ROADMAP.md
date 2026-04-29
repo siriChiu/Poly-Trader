@@ -1,17 +1,17 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-29 08:29:13 CST_
+_最後更新：2026-04-29 09:10:12 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **full heartbeat #1112 已完成 collect + diagnostics refresh**
-  - `Raw=32455 / Features=23873 / Labels=65518`
+- **full heartbeat #1113 已完成 collect + diagnostics refresh**
+  - `Raw=32456 / Features=23874 / Labels=65522`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
-  - `deployment_blocker=circuit_breaker_active` / `streak=99` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
-  - `latest_window=100` / `win_rate=1.0%` / `dominant_regime=chop(66.0%)` / `avg_quality=-0.2774` / `avg_pnl=-0.0113` / `alerts=label_imbalance`
+  - `deployment_blocker=circuit_breaker_active` / `streak=102` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
+  - `latest_window=100` / `win_rate=0.0%` / `dominant_regime=chop(69.0%)` / `avg_quality=-0.2831` / `avg_pnl=-0.0113` / `alerts=constant_target,regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
@@ -28,7 +28,7 @@ _最後更新：2026-04-29 08:29:13 CST_
 
 ### 目標 A：維持熔斷解除條件作為唯一即時部署阻塞點
 **目前真相**
-- `deployment_blocker=circuit_breaker_active` / `streak=99` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
+- `deployment_blocker=circuit_breaker_active` / `streak=102` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
 - `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=0/50` / `gap=50` / `support_route_verdict=exact_bucket_missing_proxy_reference_only`
 support progress：`status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `legacy_supported_reference=53/50@20260419b`
 **成功標準**
@@ -37,7 +37,7 @@ support progress：`status=semantic_rebaseline_under_minimum` / `regression_basi
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=100` / `win_rate=1.0%` / `dominant_regime=chop(66.0%)` / `avg_quality=-0.2774` / `avg_pnl=-0.0113` / `alerts=label_imbalance`
+- `latest_window=100` / `win_rate=0.0%` / `dominant_regime=chop(69.0%)` / `avg_quality=-0.2831` / `avg_pnl=-0.0113` / `alerts=constant_target,regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
@@ -51,8 +51,8 @@ support progress：`status=semantic_rebaseline_under_minimum` / `regression_basi
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
-- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=true` / `payload_age=5.3h`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3888` / `archive_window_coverage_pct=0.0`
+- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=core_plus_macro_plus_all_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=true` / `payload_age=5.9h`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3889` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證；API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
