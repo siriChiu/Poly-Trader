@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-29 08:01:45.258474**
+- generated_at: **2026-04-29 09:02:08.729911**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -20,17 +20,17 @@
 - reason: current live row 已不在 q15 lane；q15 support audit 只能描述 standby q15 route readiness，不可當成 current-live deployment closure。
 
 ## Support route verdict
-- support_governance_route: **exact_live_lane_proxy_available**
-- verdict: **insufficient_support_everywhere**
+- support_governance_route: **exact_live_bucket_proxy_available**
+- verdict: **exact_bucket_missing_proxy_reference_only**
 - deployable: **False**
 - governance_reference_only: **True**
-- preferred_support_cohort: **None**
+- preferred_support_cohort: **bull_live_exact_bucket_proxy**
 - current bucket gap to minimum: **50**
-- exact-bucket proxy rows: **0**
-- exact-lane proxy rows: **8**
-- supported neighbor rows: **0**
-- reason: current live path 在 exact bucket / proxy / neighbor 都沒有 deployment 級支撐。
-- release_condition: 先擴充 exact bucket 或縮小治理範圍，否則不得調整 runtime gate。
+- exact-bucket proxy rows: **687**
+- exact-lane proxy rows: **822**
+- supported neighbor rows: **132**
+- reason: current live exact bucket 仍為 0 rows；即使已有 exact-bucket proxy，也只能作治理參考，不能作 deployment 放行證據。
+- release_condition: 先把 current live exact bucket 補到 minimum support，再重查 entry floor；proxy / neighbor 只能保留為比較與校準參考。
 - support_progress.status: **semantic_rebaseline_under_minimum**
 - support_progress.regression_basis: **legacy_or_different_semantic_signature**
 - support_progress.current_rows / minimum: **0 / 50**
@@ -45,11 +45,11 @@
 ## Floor-cross legality
 - verdict: **runtime_blocker_preempts_floor_analysis**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0749**
+- remaining_gap_to_floor: **0.0619**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.2497**
+- best_single_component_required_score_delta: **0.2063**
 - best_single_component_can_cross_floor: **True**
-- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 24.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
+- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 26.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
@@ -59,7 +59,7 @@
 - entry_quality_ge_0_55: **False**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
-- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 24.00% < 30%），q15 component experiment 只能保留為背景研究。
+- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 26.00% < 30%），q15 component experiment 只能保留為背景研究。
 - verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Next action

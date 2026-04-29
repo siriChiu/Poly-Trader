@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-04-29T08:03:30.714279Z",
-  "leaderboard_snapshot_created_at": "2026-04-29T08:03:29.086977Z",
+  "generated_at": "2026-04-29T09:04:15.637743Z",
+  "leaderboard_snapshot_created_at": "2026-04-29T09:04:14.325175Z",
   "leaderboard_payload_source": "latest_persisted_snapshot",
-  "leaderboard_payload_updated_at": "2026-04-29T08:03:29.086977Z",
+  "leaderboard_payload_updated_at": "2026-04-29T09:04:14.325175Z",
   "leaderboard_payload_cache_age_sec": 1,
   "leaderboard_payload_stale": false,
   "leaderboard_payload_error": null,
@@ -26,7 +26,7 @@
     "selected_feature_profile_source": "leaderboard.fixed_feature_candidate",
     "feature_profiles_evaluated": [
       "core_only",
-      "core_plus_macro_plus_all_4h"
+      "current_full_no_bull_collapse_4h"
     ],
     "selected_feature_profile_blocker_applied": false,
     "selected_feature_profile_blocker_reason": null,
@@ -78,8 +78,8 @@
         "deployment_profile": "scan_backed_best",
         "deployment_profile_label": "Auto Scan Candidate",
         "deployment_profile_source": "artifact_scan",
-        "feature_profile": "core_plus_macro_plus_all_4h",
-        "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+        "feature_profile": "current_full_no_bull_collapse_4h",
+        "feature_profile_source": "feature_group_ablation.weak_4h_veto_fallback",
         "support_cohort": "bull_collapse_q35",
         "support_rows": 943,
         "exact_live_bucket_rows": 0,
@@ -97,8 +97,8 @@
         "deployment_profile": "standard",
         "deployment_profile_label": "Standard",
         "deployment_profile_source": "code_backed",
-        "feature_profile": "core_plus_macro_plus_all_4h",
-        "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+        "feature_profile": "current_full_no_bull_collapse_4h",
+        "feature_profile_source": "feature_group_ablation.weak_4h_veto_fallback",
         "support_cohort": "bull_collapse_q35",
         "support_rows": 943,
         "exact_live_bucket_rows": 0,
@@ -122,24 +122,24 @@
     "placeholder_count": 0
   },
   "alignment": {
-    "global_recommended_profile": "core_only",
-    "train_selected_profile": "core_plus_macro_plus_all_4h",
-    "train_selected_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+    "global_recommended_profile": "core_plus_macro",
+    "train_selected_profile": "current_full_no_bull_collapse_4h",
+    "train_selected_profile_source": "feature_group_ablation.weak_4h_veto_fallback",
     "train_support_cohort": "bull_collapse_q35",
     "train_support_rows": 943,
     "train_exact_live_bucket_rows": 0,
     "leaderboard_selected_profile": "core_only",
     "leaderboard_selected_profile_source": "leaderboard.fixed_feature_candidate",
-    "leaderboard_snapshot_created_at": "2026-04-29T08:03:29.086977Z",
-    "alignment_evaluated_at": "2026-04-29T08:03:30.714279Z",
+    "leaderboard_snapshot_created_at": "2026-04-29T09:04:14.325175Z",
+    "alignment_evaluated_at": "2026-04-29T09:04:15.637743Z",
     "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
     "profile_split": {
-      "global_profile": "core_only",
+      "global_profile": "core_plus_macro",
       "global_profile_role": "global_shrinkage_winner",
       "global_profile_source": "feature_group_ablation.recommended_profile",
-      "production_profile": "core_plus_macro_plus_all_4h",
-      "production_profile_role": "support_aware_production_profile",
-      "production_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+      "production_profile": "current_full_no_bull_collapse_4h",
+      "production_profile_role": "production_profile_unspecified",
+      "production_profile_source": "feature_group_ablation.weak_4h_veto_fallback",
       "split_required": true,
       "verdict": "dual_role_required",
       "reason": "global winner 代表 recent global shrinkage / CV 穩定度；production winner 代表 current live bull lane 的支撐與治理語義，兩者不應再被混成同一個 profile。"
@@ -150,42 +150,51 @@
       "current_closure": "global_ranking_vs_support_aware_production_split",
       "reason": "目前 global winner 與 production winner 扮演不同角色：leaderboard 保留 global shrinkage winner 作排名基線，train / runtime 則沿用 support-aware 或 exact-supported production profile 描述 current live bull lane。這是治理分工，不是 parity drift。",
       "recommended_action": "current live exact support 已連續停滯，下一輪若仍未增加應升級成 #PROFILE_GOVERNANCE_STALLED blocker。",
-      "global_profile": "core_only",
+      "global_profile": "core_plus_macro",
       "global_profile_role": "global_shrinkage_winner",
-      "production_profile": "core_plus_macro_plus_all_4h",
-      "production_profile_role": "support_aware_production_profile",
-      "support_governance_route": "exact_live_lane_proxy_available",
+      "production_profile": "current_full_no_bull_collapse_4h",
+      "production_profile_role": "production_profile_unspecified",
+      "support_governance_route": "exact_live_bucket_proxy_available",
       "split_required": true,
       "minimum_support_rows": 50,
       "live_current_structure_bucket_rows": 0,
       "live_current_structure_bucket_gap_to_minimum": 50,
       "support_progress": {
         "status": "regressed_under_minimum",
-        "reason": "current live exact support 自最近一次已就緒 74/50（heartbeat 20260422n） 回落，需檢查 lane/bucket 是否切換或 support artifact 是否退化。",
+        "reason": "current live exact support 最近曾達 minimum support（最近一次 74/50，heartbeat 20260422n），但目前仍停在 0/50；這不是一般停滯，而是 support regression。",
         "current_rows": 0,
         "minimum_support_rows": 50,
         "gap_to_minimum": 50,
-        "delta_vs_previous": -74,
-        "previous_rows": 74,
+        "delta_vs_previous": 0,
+        "previous_rows": 0,
         "previous_route_changed": true,
-        "previous_support_governance_route": "exact_live_bucket_supported",
+        "previous_support_governance_route": "no_support_proxy",
         "regressed_from_supported": true,
         "recent_supported_rows": 74,
         "recent_supported_heartbeat": "20260422n",
         "recent_supported_timestamp": "2026-04-22T01:11:25.238924+00:00",
         "delta_vs_recent_supported": -74,
-        "stagnant_run_count": 0,
+        "stagnant_run_count": 2,
         "stalled_support_accumulation": false,
         "escalate_to_blocker": true,
         "history": [
           {
             "heartbeat": "current",
-            "timestamp": "2026-04-29T08:03:30.714891+00:00",
+            "timestamp": "2026-04-29T09:04:15.639034+00:00",
             "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
             "live_current_structure_bucket_rows": 0,
             "minimum_support_rows": 50,
-            "support_governance_route": "exact_live_lane_proxy_available",
+            "support_governance_route": "exact_live_bucket_proxy_available",
             "governance_verdict": null
+          },
+          {
+            "heartbeat": "1121",
+            "timestamp": "2026-04-29T08:03:38.002862+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_governance_route": "no_support_proxy",
+            "governance_verdict": "dual_role_governance_active"
           },
           {
             "heartbeat": "20260422n",
@@ -213,15 +222,6 @@
             "minimum_support_rows": 50,
             "support_governance_route": "exact_live_bucket_supported",
             "governance_verdict": "dual_role_governance_active"
-          },
-          {
-            "heartbeat": "20260422k",
-            "timestamp": "2026-04-22T00:20:21.057872+00:00",
-            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
-            "live_current_structure_bucket_rows": 71,
-            "minimum_support_rows": 50,
-            "support_governance_route": "exact_live_bucket_supported",
-            "governance_verdict": "dual_role_governance_active"
           }
         ]
       }
@@ -232,31 +232,31 @@
       "evaluated_before_train": false,
       "evaluated_before_bull_pocket": false,
       "evaluated_before_feature_ablation": false,
-      "train_trained_at": "2026-04-29T08:02:50.920057",
-      "bull_pocket_generated_at": "2026-04-29 04:03:58",
-      "feature_ablation_generated_at": "2026-04-29 04:03:55"
+      "train_trained_at": "2026-04-29T09:03:21.907548",
+      "bull_pocket_generated_at": "2026-04-29 09:03:16",
+      "feature_ablation_generated_at": "2026-04-29 09:03:13"
     },
     "artifact_recency": {
       "alignment_snapshot_stale": false,
       "stale_against_train": false,
       "stale_against_bull_pocket": false,
       "stale_against_feature_ablation": false,
-      "train_trained_at": "2026-04-29T08:02:50.920057",
-      "bull_pocket_generated_at": "2026-04-29 04:03:58",
-      "feature_ablation_generated_at": "2026-04-29 04:03:55"
+      "train_trained_at": "2026-04-29T09:03:21.907548",
+      "bull_pocket_generated_at": "2026-04-29 09:03:16",
+      "feature_ablation_generated_at": "2026-04-29 09:03:13"
     },
     "blocked_candidate_profiles": [
       {
-        "feature_profile": "core_plus_macro_plus_all_4h",
-        "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+        "feature_profile": "current_full_no_bull_collapse_4h",
+        "feature_profile_source": "feature_group_ablation.weak_4h_veto_fallback",
         "support_cohort": "bull_collapse_q35",
         "support_rows": 943,
         "exact_live_bucket_rows": 0,
         "blocker_reason": "unsupported_exact_live_structure_bucket"
       },
       {
-        "feature_profile": "core_plus_macro_plus_all_4h",
-        "feature_profile_source": "bull_4h_pocket_ablation.support_aware_profile",
+        "feature_profile": "current_full_no_bull_collapse_4h",
+        "feature_profile_source": "feature_group_ablation.weak_4h_veto_fallback",
         "support_cohort": "bull_collapse_q35",
         "support_rows": 943,
         "exact_live_bucket_rows": 0,
@@ -272,31 +272,40 @@
     "live_current_structure_bucket_gap_to_minimum": 50,
     "support_progress": {
       "status": "regressed_under_minimum",
-      "reason": "current live exact support 自最近一次已就緒 74/50（heartbeat 20260422n） 回落，需檢查 lane/bucket 是否切換或 support artifact 是否退化。",
+      "reason": "current live exact support 最近曾達 minimum support（最近一次 74/50，heartbeat 20260422n），但目前仍停在 0/50；這不是一般停滯，而是 support regression。",
       "current_rows": 0,
       "minimum_support_rows": 50,
       "gap_to_minimum": 50,
-      "delta_vs_previous": -74,
-      "previous_rows": 74,
+      "delta_vs_previous": 0,
+      "previous_rows": 0,
       "previous_route_changed": true,
-      "previous_support_governance_route": "exact_live_bucket_supported",
+      "previous_support_governance_route": "no_support_proxy",
       "regressed_from_supported": true,
       "recent_supported_rows": 74,
       "recent_supported_heartbeat": "20260422n",
       "recent_supported_timestamp": "2026-04-22T01:11:25.238924+00:00",
       "delta_vs_recent_supported": -74,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
       "history": [
         {
           "heartbeat": "current",
-          "timestamp": "2026-04-29T08:03:30.714891+00:00",
+          "timestamp": "2026-04-29T09:04:15.639034+00:00",
           "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
           "live_current_structure_bucket_rows": 0,
           "minimum_support_rows": 50,
-          "support_governance_route": "exact_live_lane_proxy_available",
+          "support_governance_route": "exact_live_bucket_proxy_available",
           "governance_verdict": null
+        },
+        {
+          "heartbeat": "1121",
+          "timestamp": "2026-04-29T08:03:38.002862+00:00",
+          "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+          "live_current_structure_bucket_rows": 0,
+          "minimum_support_rows": 50,
+          "support_governance_route": "no_support_proxy",
+          "governance_verdict": "dual_role_governance_active"
         },
         {
           "heartbeat": "20260422n",
@@ -324,34 +333,27 @@
           "minimum_support_rows": 50,
           "support_governance_route": "exact_live_bucket_supported",
           "governance_verdict": "dual_role_governance_active"
-        },
-        {
-          "heartbeat": "20260422k",
-          "timestamp": "2026-04-22T00:20:21.057872+00:00",
-          "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
-          "live_current_structure_bucket_rows": 71,
-          "minimum_support_rows": 50,
-          "support_governance_route": "exact_live_bucket_supported",
-          "governance_verdict": "dual_role_governance_active"
         }
       ]
     },
     "exact_bucket_root_cause": "same_lane_exists_but_q65_missing",
-    "support_blocker_state": "insufficient_support_everywhere",
+    "support_blocker_state": "exact_live_bucket_proxy_ready_but_exact_missing",
     "proxy_boundary_verdict": "insufficient_recent_exact_bucket_rows",
     "proxy_boundary_reason": "current live structure bucket 沒有 recent exact rows，無法判斷 proxy cohort 邊界。",
     "exact_lane_bucket_verdict": "no_exact_lane_sub_bucket_split",
     "exact_lane_toxic_bucket": null,
     "supported_neighbor_buckets": [
-      "CAUTION|base_caution_regime_or_bias|q00"
+      "CAUTION|base_caution_regime_or_bias|q00",
+      "CAUTION|base_caution_regime_or_bias|q15",
+      "CAUTION|structure_quality_caution|q15"
     ],
     "bull_support_aware_profile": null,
-    "bull_support_neighbor_rows": 0,
+    "bull_support_neighbor_rows": 132,
     "bull_exact_live_lane_proxy_profile": null,
-    "bull_exact_live_lane_proxy_rows": 8,
+    "bull_exact_live_lane_proxy_rows": 822,
     "bull_live_exact_bucket_proxy_profile": null,
-    "bull_live_exact_bucket_proxy_rows": 0,
-    "bull_exact_live_bucket_proxy_rows": 0,
-    "support_governance_route": "exact_live_lane_proxy_available"
+    "bull_live_exact_bucket_proxy_rows": 687,
+    "bull_exact_live_bucket_proxy_rows": 687,
+    "support_governance_route": "exact_live_bucket_proxy_available"
   }
 }

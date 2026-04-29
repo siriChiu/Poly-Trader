@@ -1,6 +1,6 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-29 08:01:45.258474**
+- feature_timestamp: **2026-04-29 09:02:08.729911**
 - target: `simulated_pyramid_win`
 - live path: **bear / CAUTION / D**
 - signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
@@ -8,10 +8,10 @@
 - allowed_layers_raw_reason: `entry_quality_below_trade_floor`
 - allowed_layers_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
 - execution_guardrail_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
-- runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 24.00% < 30%`
-- deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 24.00% < 30%`
+- runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 26.00% < 30%`
+- deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 26.00% < 30%`
 - q15 exact-supported patch: **inactive** | support_route `exact_bucket_unsupported_block` | floor_cross `None`
-- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 24.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 12/50，至少還差 3 勝。 exact-vs-spillover=同 quality 寬 scope 出現 bull|BLOCK spillover，395 rows / WR 15.3% / 品質 -0.101，明顯劣於 exact live lane WR — / 品質 —。**
+- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 26.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 13/50，至少還差 2 勝。 exact-vs-spillover=同 quality 寬 scope 出現 bull|BLOCK spillover，394 rows / WR 15.4% / 品質 -0.101，明顯劣於 exact live lane WR — / 品質 —。**
 - q35 scaling audit: overall=`runtime_blocker_preempts_q35_scaling` / redesign=`runtime_blocker_preempts_q35_scaling` / runtime_gap=`None` / mode=`defer_until_circuit_breaker_releases` / next_patch=`release_circuit_breaker_then_rerun_q35_scaling_audit`
 - q35 audit action: 先解除 canonical circuit breaker 或至少接近 release condition，再重跑 q35 scaling audit；在 breaker 仍有效時，不得把 q35 formula / calibration 當成本輪 live blocker 主敘事。
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
@@ -22,18 +22,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.4751** / trade_floor **0.55** / gap **-0.0749**
-- base_quality: **0.5136** × weight **0.75**
-- structure_quality: **0.3596** × weight **0.25**
-- base components: feat_4h_bias50=0.5826 (w=0.4, contrib=0.2331), feat_nose=0.2811 (w=0.18, contrib=0.0506), feat_pulse=0.3331 (w=0.27, contrib=0.0899), feat_ear=0.9332 (w=0.15, contrib=0.14)
-- structure components: feat_4h_bb_pct_b=0.6644 (w=0.34, contrib=0.2259), feat_4h_dist_bb_lower=0.2227 (w=0.33, contrib=0.0735), feat_4h_dist_swing_low=0.1824 (w=0.33, contrib=0.0602)
+- final entry_quality: **0.4881** / trade_floor **0.55** / gap **-0.0619**
+- base_quality: **0.5321** × weight **0.75**
+- structure_quality: **0.3559** × weight **0.25**
+- base components: feat_4h_bias50=0.5869 (w=0.4, contrib=0.2348), feat_nose=0.2336 (w=0.18, contrib=0.0421), feat_pulse=0.4268 (w=0.27, contrib=0.1152), feat_ear=0.9338 (w=0.15, contrib=0.1401)
+- structure components: feat_4h_bb_pct_b=0.6577 (w=0.34, contrib=0.2236), feat_4h_dist_bb_lower=0.2205 (w=0.33, contrib=0.0728), feat_4h_dist_swing_low=0.1803 (w=0.33, contrib=0.0595)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0749**
-- base_group_max_entry_gain: **0.3648** | structure_group_max_entry_gain: **0.1601**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.2497, max_gain≈0.1252）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.2497), feat_pulse (Δscore≈0.3699), feat_nose (Δscore≈0.5548)
+- remaining_gap_to_floor: **0.0619**
+- base_group_max_entry_gain: **0.3509** | structure_group_max_entry_gain: **0.161**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.2063, max_gain≈0.1239）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.2063), feat_pulse (Δscore≈0.3057), feat_nose (Δscore≈0.4585), feat_4h_dist_bb_lower (Δscore≈0.7503)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -49,7 +49,7 @@
 ## Shared shifts
 
 - None
-- worst_pathology_scope: **entry_quality_label** rows=395 win_rate=0.362 quality=0.0413
+- worst_pathology_scope: **entry_quality_label** rows=394 win_rate=0.3629 quality=0.0418
 
 ## Interpretation
 

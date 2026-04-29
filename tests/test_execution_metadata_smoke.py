@@ -59,6 +59,17 @@ def test_run_metadata_smoke_collects_contract_for_public_venues(monkeypatch):
     assert payload["results"]["binance"]["contract"]["step_size"] == "0.001"
     assert payload["results"]["okx"]["enabled_in_config"] is False
     assert payload["results"]["binance"]["credentials_configured"] is True
+    assert payload["results"]["binance"]["proof_state"] == "credentials_configured_missing_runtime_lifecycle"
+    assert payload["results"]["binance"]["readiness_scope"] == "venue_runtime_proof_required"
+    assert payload["results"]["binance"]["blockers"] == [
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+    ]
+    assert payload["results"]["binance"]["operator_next_action"].startswith("使用 binance 沙盒")
+    assert "委託確認 / 成交 / 取消證據" in payload["results"]["binance"]["verify_next"]
+    assert payload["results"]["okx"]["proof_state"] == "config_disabled_metadata_only"
+    assert "場館設定停用" in payload["results"]["okx"]["blockers"]
+    assert "live exchange credential 尚未驗證" in payload["results"]["okx"]["blockers"]
 
 
 def test_run_metadata_smoke_surfaces_failures_without_hiding_venue(monkeypatch):
@@ -77,3 +88,8 @@ def test_run_metadata_smoke_surfaces_failures_without_hiding_venue(monkeypatch):
     assert payload["all_ok"] is False
     assert payload["results"]["okx"]["ok"] is False
     assert "metadata unavailable" in payload["results"]["okx"]["error"]
+    assert payload["results"]["okx"]["proof_state"] == "metadata_contract_failed"
+    assert payload["results"]["okx"]["readiness_scope"] == "venue_runtime_proof_required"
+    assert "元資料契約尚未通過" in payload["results"]["okx"]["blockers"]
+    assert "order ack lifecycle 尚未驗證" in payload["results"]["okx"]["blockers"]
+    assert payload["results"]["okx"]["operator_next_action"].startswith("先修復 okx 元資料檢查")
