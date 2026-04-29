@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Machine-readable root-cause artifact for current q15 exact-bucket gap.
+"""Machine-readable root-cause artifact for the current live exact-bucket gap.
 
 Purpose:
-- decide whether the current q15 exact-bucket miss is mainly a boundary issue,
-  a structure-scoring issue, or a live-row/projection issue
-- point to the smallest next patch target instead of repeating generic q15 blocker text
+- decide whether the current live exact-bucket miss is mainly a boundary issue,
+  a structure-scoring issue, support accumulation, or a live-row/projection issue
+- point to the smallest next patch target without repeating stale q15-only blocker text
 - leave behind JSON + markdown for heartbeat Step 0.5 carry-forward
 
 Inputs:
@@ -12,7 +12,7 @@ Inputs:
 - data/live_decision_quality_drilldown.json
 - data/bull_4h_pocket_ablation.json
 
-Outputs:
+Outputs (legacy filenames retained for downstream compatibility):
 - data/q15_bucket_root_cause.json
 - docs/analysis/q15_bucket_root_cause.md
 """
@@ -85,6 +85,21 @@ def _probe_current_bucket(probe: dict[str, Any]) -> Any:
     )
 
 
+def _bucket_scope_label(current_bucket: Any) -> str:
+    """Return operator-facing copy for the current live bucket under analysis.
+
+    The artifact filenames still contain q15 for compatibility, but operator copy must
+    follow the fresh live bucket (for example q00) so docs do not imply a q15-only
+    blocker when current-live support truth has moved.
+    """
+
+    bucket_text = str(current_bucket or "").strip()
+    bucket_token = bucket_text.rsplit("|", 1)[-1] if bucket_text else ""
+    if bucket_token.startswith("q") and bucket_token[1:].isdigit():
+        return f"current-live {bucket_token} bucket"
+    return "current-live bucket"
+
+
 def _support_identity_from_probe(probe: dict[str, Any], current_bucket: Any) -> dict[str, Any] | None:
     support_progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
     identity = support_progress.get("support_identity")
@@ -105,11 +120,11 @@ def _support_identity_from_probe(probe: dict[str, Any], current_bucket: Any) -> 
 def _probe_has_current_support_truth(probe: dict[str, Any]) -> bool:
     """Return True when the live probe already carries current exact-support rows/minimum.
 
-    q15 root-cause can compute current-bucket support truth from the fresh probe +
-    training frame without depending on bull_4h_pocket_ablation's live_context. In
-    fast heartbeats that bull artifact is often intentionally reused as a
-    reference-only governance artifact, so a stale bull live_context must not
-    erase fresh current-live q15 support truth when rows/minimum are present.
+    The root-cause artifact can compute current-bucket support truth from the fresh
+    probe + training frame without depending on bull_4h_pocket_ablation's
+    live_context. In fast heartbeats that bull artifact is often intentionally reused
+    as a reference-only governance artifact, so a stale bull live_context must not
+    erase fresh current-live support truth when rows/minimum are present.
     """
 
     support_progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
@@ -158,7 +173,7 @@ def _artifact_context_freshness(
         "mismatched_fields": sorted(set(mismatches)),
         "reference_mismatched_fields": sorted(set(reference_mismatches)),
         "reference_artifact_warning": (
-            "bull_4h_pocket_ablation live_context is stale/reference-only; current q15 root-cause used fresh live_predict_probe support truth."
+            "bull_4h_pocket_ablation live_context is stale/reference-only; root-cause used fresh live_predict_probe support truth."
             if reference_mismatches
             else None
         ),
@@ -290,7 +305,7 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
             "verdict": "missing_live_probe",
             "candidate_patch_type": None,
             "candidate_patch_feature": None,
-            "reason": "缺少 data/live_predict_probe.json，無法分析 q15 exact-bucket root cause。",
+            "reason": "缺少 data/live_predict_probe.json，無法分析 current-live exact-bucket root cause。",
         }
 
     loaded = feature_group_module._load_training_frame()
@@ -306,6 +321,7 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
         _probe_current_bucket(probe)
         or ((bull_pocket.get("live_context") or {}).get("current_live_structure_bucket"))
     )
+    bucket_scope_label = _bucket_scope_label(current_bucket)
     support_identity = _support_identity_from_probe(probe, current_bucket)
     artifact_context_freshness = _artifact_context_freshness(
         probe,
@@ -412,8 +428,7 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
     support_current_rows_float = _safe_float(support_current_rows)
     support_minimum_rows_float = _safe_float(support_minimum_rows)
     current_exact_support_under_minimum = bool(
-        "q15" in str(current_bucket or "")
-        and support_current_rows_float is not None
+        support_current_rows_float is not None
         and support_minimum_rows_float is not None
         and support_current_rows_float > 0
         and support_current_rows_float < support_minimum_rows_float
@@ -421,25 +436,25 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
 
     verdict = "insufficient_scope_data"
     candidate_patch_type = None
-    reason = "目前資料不足，尚無法判定 q15 exact bucket 0-row 的最小可修補原因。"
-    verify_next = "先確保 live probe / bull pocket artifacts 完整，再重跑 q15 root-cause artifact。"
+    reason = f"目前資料不足，尚無法判定 {bucket_scope_label} 0-row 的最小可修補原因。"
+    verify_next = "先確保 live probe / support artifacts 完整，再重跑 current-live bucket root-cause artifact。"
 
     if artifact_context_freshness.get("verdict") == "stale_or_non_current_context":
         verdict = "stale_or_non_current_context"
         candidate_patch_type = None
         reason = (
-            "q15 root-cause 的輸入 artifact 與最新 live_predict_probe 在 bucket / timestamp / regime context 不一致；"
+            f"{bucket_scope_label} root-cause 的輸入 artifact 與最新 live_predict_probe 在 bucket / timestamp / regime context 不一致；"
             "本輪不得沿用舊 boundary 或 structure_quality 結論。"
         )
-        verify_next = "先重跑 hb_predict_probe.py、hb_q15_support_audit.py、bull_4h_pocket_ablation.py，再重建 q15 root-cause artifact。"
+        verify_next = "先重跑 hb_predict_probe.py、hb_q15_support_audit.py、bull_4h_pocket_ablation.py，再重建 current-live bucket root-cause artifact。"
     elif runtime_blocker_preempts:
         verdict = "runtime_blocker_preempts_bucket_root_cause"
-        reason = "目前 live runtime 已先被 circuit breaker 擋下；q15 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。"
-        verify_next = "先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 q15 root-cause artifact。"
+        reason = f"目前 live runtime 已先被 circuit breaker 擋下；{bucket_scope_label} root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。"
+        verify_next = "先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。"
     elif projection_issue:
         verdict = "live_row_projection_missing_4h_inputs"
         candidate_patch_type = "live_row_projection"
-        reason = "live row 的 4H 欄位 non-null 數不足，應先修投影/對齊，而不是討論 q15↔q35 分桶。"
+        reason = "live row 的 4H 欄位 non-null 數不足，應先修投影/對齊，而不是討論 current bucket↔q35 分桶。"
         verify_next = "修 projection 後重跑 hb_predict_probe.py，確認 non_null_4h_feature_count >= 3。"
     elif current_structure_quality is None:
         verdict = "missing_structure_quality"
@@ -450,7 +465,7 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
         verdict = "current_bucket_exact_support_already_closed"
         candidate_patch_type = "deployment_blocker_verification"
         reason = (
-            f"目前 live row 已不在 q15/q35 邊界下方，且 exact support 已 closure（{support_rows_text}）；"
+            f"目前 live row 已高於 q35 boundary，且 exact support 已 closure（{support_rows_text}）；"
             "current bucket root cause 不應再回報 support 累積，應回到當前 deployment blocker / execution guardrail 真相。"
         )
         blocker_focus = deployment_blocker or execution_guardrail_reason or "active_runtime_blocker"
@@ -463,7 +478,7 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
         candidate_patch_type = "support_accumulation_or_semantic_rebaseline"
         candidate_patch_feature = None
         reason = (
-            f"current q15 exact support 目前為 {support_rows_text}，低於 minimum；"
+            f"{bucket_scope_label} exact support 目前為 {support_rows_text}，低於 minimum；"
             "這是 current exact support under minimum，不是 boundary candidate。"
         )
         verify_next = (
@@ -473,7 +488,7 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
     elif current_structure_quality >= Q35_THRESHOLD:
         verdict = "current_row_already_above_q35_boundary"
         candidate_patch_type = "support_accumulation"
-        reason = "目前 live row 已不在 q15/q35 邊界下方，問題改成 exact support 累積，不是 bucket repair。"
+        reason = "目前 live row 已高於 q35 boundary，問題改成 exact support 累積，不是 bucket repair。"
         verify_next = "確認 current_live_structure_bucket_rows 是否增加到 minimum_support_rows。"
     elif exact_lane_rows <= 0:
         verdict = "no_exact_live_lane_rows"
@@ -485,10 +500,10 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
         candidate_patch_type = "structure_component_scoring"
         reason = (
             "exact live lane 的樣本全部落在鄰近 bucket，且 current_structure_quality 與 q35 邊界之間沒有 exact-lane 緩衝列；"
-            "這代表單純放寬 q15/q35 boundary 不能生成 exact rows，應優先查結構 component scoring。"
+            "這代表單純放寬 current bucket / q35 boundary 不能生成 exact rows，應優先查結構 component scoring。"
         )
         verify_next = (
-            "優先用 q15 root-cause artifact 鎖定的 component 做 counterfactual，"
+            "優先用 current-live bucket root-cause artifact 鎖定的 component 做 counterfactual，"
             "確認 current row 是否能跨到 q35，且 exact-lane 仍不會因 boundary tweak 產生虛假支持。"
         )
     elif (Q35_THRESHOLD - current_structure_quality) <= BOUNDARY_EPSILON and near_boundary_rows > 0:
@@ -496,7 +511,7 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
         candidate_patch_type = "bucket_boundary_review"
         reason = (
             "current_structure_quality 已貼近 q35 邊界，且 exact-lane 存在 near-boundary rows；"
-            "可把 q15↔q35 分桶公式列入候選，但仍需先做 exact-support legality 驗證。"
+            "可把 current bucket↔q35 分桶公式列入候選，但仍需先做 exact-support legality 驗證。"
         )
         verify_next = "以歷史 lane 回放驗證 boundary review 不會把 0-row blocker 假裝成已解。"
     elif dominant_neighbor_bucket and dominant_neighbor_rows > 0:
@@ -536,6 +551,7 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
     return {
         "generated_at": probe.get("feature_timestamp") or drilldown.get("generated_at"),
         "target_col": probe.get("target_col") or bull_pocket.get("target_col"),
+        "bucket_scope_label": bucket_scope_label,
         "support_identity": support_identity,
         "artifact_context_freshness": artifact_context_freshness,
         "current_live": {
@@ -572,10 +588,10 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
         "component_deltas": component_deltas,
         "verify_next": verify_next,
         "carry_forward": [
-            "先讀 data/q15_bucket_root_cause.json，確認本輪 verdict 與 candidate_patch_feature。",
+            "先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。",
             "若 verdict=structure_scoring_gap_not_boundary，下一輪不得把主焦點退回 generic q35/breaker；必須直接做 structure component counterfactual。",
             "若 verdict=boundary_sensitivity_candidate，先驗證 boundary review 是否真的增加 exact-lane current bucket rows，再決定是否 patch。",
-            "若 verdict=live_row_projection_missing_4h_inputs，先修 projection / 4H 對齊，再重跑 q15 support audit。",
+            "若 verdict=live_row_projection_missing_4h_inputs，先修 projection / 4H 對齊，再重跑 current-live support audit。",
         ],
     }
 
@@ -597,10 +613,11 @@ def _markdown(report: dict[str, Any]) -> str:
     carry_forward = "\n".join(f"- {item}" for item in report.get("carry_forward") or [])
     return "\n".join(
         [
-            "# q15 Bucket Root Cause",
+            "# Current-Live Bucket Root Cause",
             "",
             f"- generated_at: **{report.get('generated_at')}**",
             f"- target_col: **{report.get('target_col')}**",
+            f"- bucket_scope: **{report.get('bucket_scope_label') or 'current-live bucket'}**",
             f"- verdict: **{report.get('verdict')}**",
             f"- candidate_patch_type: **{report.get('candidate_patch_type')}**",
             f"- candidate_patch_feature: **{report.get('candidate_patch_feature')}**",

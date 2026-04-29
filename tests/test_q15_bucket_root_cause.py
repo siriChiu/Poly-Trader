@@ -546,3 +546,147 @@ def test_build_report_stops_support_accumulation_copy_after_exact_support_closur
     assert "69/50" in report["reason"]
     assert "decision_quality_below_trade_floor" in report["verify_next"]
     assert "minimum_support_rows" in report["verify_next"]
+
+
+def test_build_report_uses_current_bucket_scope_copy_for_q00_live_blocker(monkeypatch):
+    empty_frame = q15_bucket_root_cause.pd.DataFrame(
+        {
+            "regime_label": [],
+            "regime_gate": [],
+            "entry_quality_label": [],
+            "structure_bucket": [],
+            "structure_quality": [],
+            "feat_4h_bb_pct_b": [],
+            "feat_4h_dist_bb_lower": [],
+            "feat_4h_dist_swing_low": [],
+        }
+    )
+    monkeypatch.setattr(
+        q15_bucket_root_cause.feature_group_module,
+        "_load_training_frame",
+        lambda: (
+            empty_frame[["feat_4h_bb_pct_b", "feat_4h_dist_bb_lower", "feat_4h_dist_swing_low"]].copy(),
+            q15_bucket_root_cause.pd.Series(dtype=float),
+            q15_bucket_root_cause.pd.Series(dtype=object),
+        ),
+    )
+    monkeypatch.setattr(
+        q15_bucket_root_cause.bull_pocket_module,
+        "_derive_live_bucket_columns",
+        lambda frame: empty_frame.copy(),
+    )
+
+    probe = {
+        "feature_timestamp": "2026-04-30 07:03:25",
+        "target_col": "simulated_pyramid_win",
+        "signal": "HOLD",
+        "deployment_blocker": "unsupported_exact_live_structure_bucket",
+        "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+        "support_route_verdict": "exact_bucket_unsupported_block",
+        "support_progress": {
+            "status": "stalled_under_minimum",
+            "current_rows": 0,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 50,
+        },
+        "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+        "current_live_structure_bucket_rows": 0,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 50,
+        "regime_label": "bear",
+        "regime_gate": "BLOCK",
+        "entry_quality_label": "C",
+        "non_null_4h_feature_count": 10,
+        "entry_quality_components": {
+            "structure_quality": 0.146,
+            "structure_components": [
+                {"feature": "feat_4h_bb_pct_b", "raw_value": 0.295, "normalized_score": 0.295, "weighted_contribution": 0.1003},
+                {"feature": "feat_4h_dist_bb_lower", "raw_value": 0.497, "normalized_score": 0.0621, "weighted_contribution": 0.0205},
+                {"feature": "feat_4h_dist_swing_low", "raw_value": 0.763, "normalized_score": 0.0763, "weighted_contribution": 0.0252},
+            ],
+        },
+    }
+
+    report = q15_bucket_root_cause.build_report(
+        probe,
+        {"generated_at": "2026-04-30 07:03:25"},
+        {"live_context": {"current_live_structure_bucket": "BLOCK|structure_quality_block|q00"}},
+    )
+    markdown = q15_bucket_root_cause._markdown(report)
+
+    assert report["bucket_scope_label"] == "current-live q00 bucket"
+    assert report["verdict"] == "no_exact_live_lane_rows"
+    assert "q15 Bucket Root Cause" not in markdown
+    assert "current-live q00 bucket" in markdown
+    for text in [report["reason"], report["verify_next"], " ".join(report["carry_forward"])]:
+        assert "current q15" not in text
+        assert "q15 exact" not in text
+        assert "q15 root-cause" not in text
+
+
+def test_build_report_reports_non_q15_current_support_under_minimum(monkeypatch):
+    buckets = ["BLOCK|structure_quality_block|q00"] * 10 + ["BLOCK|structure_quality_block|q15"] * 40
+    exact_lane_frame = q15_bucket_root_cause.pd.DataFrame(
+        {
+            "regime_label": ["bear"] * 50,
+            "regime_gate": ["BLOCK"] * 50,
+            "entry_quality_label": ["C"] * 50,
+            "structure_bucket": buckets,
+            "structure_quality": [0.12] * 10 + [0.22] * 40,
+            "feat_4h_bb_pct_b": [0.29] * 50,
+            "feat_4h_dist_bb_lower": [0.5] * 50,
+            "feat_4h_dist_swing_low": [0.8] * 50,
+        }
+    )
+    monkeypatch.setattr(
+        q15_bucket_root_cause.feature_group_module,
+        "_load_training_frame",
+        lambda: (
+            exact_lane_frame[["feat_4h_bb_pct_b", "feat_4h_dist_bb_lower", "feat_4h_dist_swing_low"]].copy(),
+            q15_bucket_root_cause.pd.Series([1] * 50),
+            exact_lane_frame["regime_label"].copy(),
+        ),
+    )
+    monkeypatch.setattr(
+        q15_bucket_root_cause.bull_pocket_module,
+        "_derive_live_bucket_columns",
+        lambda frame: exact_lane_frame.copy(),
+    )
+
+    probe = {
+        "feature_timestamp": "2026-04-30 07:04:25",
+        "target_col": "simulated_pyramid_win",
+        "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_progress": {
+            "status": "stalled_under_minimum",
+            "current_rows": 10,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 40,
+        },
+        "regime_label": "bear",
+        "regime_gate": "BLOCK",
+        "entry_quality_label": "C",
+        "non_null_4h_feature_count": 10,
+        "entry_quality_components": {
+            "structure_quality": 0.12,
+            "structure_components": [
+                {"feature": "feat_4h_bb_pct_b", "raw_value": 0.29, "weighted_contribution": 0.0986},
+                {"feature": "feat_4h_dist_bb_lower", "raw_value": 0.5, "weighted_contribution": 0.0206},
+                {"feature": "feat_4h_dist_swing_low", "raw_value": 0.8, "weighted_contribution": 0.0264},
+            ],
+        },
+    }
+
+    report = q15_bucket_root_cause.build_report(
+        probe,
+        {"generated_at": "2026-04-30 07:04:25"},
+        {"live_context": {"current_live_structure_bucket": "BLOCK|structure_quality_block|q00"}},
+    )
+
+    assert report["verdict"] == "current_exact_support_under_minimum"
+    assert report["candidate_patch_type"] == "support_accumulation_or_semantic_rebaseline"
+    assert report["candidate_patch_feature"] is None
+    assert report["current_live"]["support_current_rows"] == 10
+    assert "current-live q00 bucket" in report["reason"]
+    assert "q15" not in report["reason"]
