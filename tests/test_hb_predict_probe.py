@@ -115,6 +115,13 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
     assert payload["best_single_component"] == "feat_4h_bias50"
     assert payload["component_experiment_verdict"] == "reference_only_until_exact_support_ready"
     assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
+    assert payload["api_trade_guardrail_active"] is True
+    assert payload["api_trade_buy_guardrail"] == "current_live_deployment_blocker_409"
+    assert payload["api_trade_add_exposure_guardrail"] == "current_live_deployment_blocker_409"
+    assert payload["api_trade_guardrail_code"] == "current_live_deployment_blocker"
+    assert payload["api_trade_allowed_risk_off_sides"] == ["reduce", "sell"]
+    assert payload["api_trade_allowed_actions"] == ["reduce", "sell", "diagnostics", "mode_toggle"]
+    assert "ExecutionService.submit_order" in payload["api_trade_guardrail_context"]
     assert "q35 discriminative redesign 已啟用並把 entry_quality 拉到 0.5621" in payload["runtime_closure_summary"]
     assert json.loads(out_path.read_text()) == payload
 

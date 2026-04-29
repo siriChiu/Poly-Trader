@@ -33,6 +33,15 @@ OUT_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 Q15_SUPPORT_AUDIT_PATH = PROJECT_ROOT / "data" / "q15_support_audit.json"
 Q35_SCALING_AUDIT_PATH = PROJECT_ROOT / "data" / "q35_scaling_audit.json"
 BULL_4H_POCKET_ABLATION_PATH = PROJECT_ROOT / "data" / "bull_4h_pocket_ablation.json"
+NO_DEPLOY_RUNTIME_CLOSURE_STATES = {
+    "circuit_breaker_active",
+    "decision_quality_below_trade_floor",
+    "patch_active_but_execution_blocked",
+    "support_closed_but_trade_floor_blocked",
+    "unsupported_exact_live_structure_bucket",
+    "under_minimum_exact_live_structure_bucket",
+}
+API_TRADE_RISK_OFF_SIDES = ["reduce", "sell"]
 FOUR_H_COLS = [
     "feat_4h_bias50",
     "feat_4h_bias20",
@@ -353,6 +362,59 @@ def _runtime_closure_summary(
 
 
 
+def _api_trade_guardrail_surface(runtime_result: dict, runtime_closure_state: str | None) -> dict:
+    """Mirror /api/trade add-exposure fail-closed semantics in the probe artifact.
+
+    The route-level guardrail is the production contract, but heartbeat artifacts
+    are the machine-readable governance source.  Keep the same decision inputs
+    here so Dashboard / Strategy Lab / docs can prove buy/add exposure is paused
+    while reduce/sell risk-off actions remain available.
+    """
+    payload = runtime_result if isinstance(runtime_result, dict) else {}
+    deployment_blocker = payload.get("deployment_blocker")
+    signal = str(payload.get("signal") or "").upper()
+    allowed_layers = payload.get("allowed_layers")
+    allowed_layers_reason = payload.get("allowed_layers_reason")
+    execution_guardrail_reason = payload.get("execution_guardrail_reason")
+
+    try:
+        numeric_allowed_layers = int(allowed_layers) if allowed_layers is not None else None
+    except (TypeError, ValueError):
+        numeric_allowed_layers = None
+
+    guardrail_active = bool(deployment_blocker) or signal == "CIRCUIT_BREAKER"
+    guardrail_active = guardrail_active or runtime_closure_state in NO_DEPLOY_RUNTIME_CLOSURE_STATES
+    guardrail_active = guardrail_active or (
+        numeric_allowed_layers is not None
+        and numeric_allowed_layers <= 0
+        and bool(allowed_layers_reason)
+    )
+    runtime_blocker = deployment_blocker or runtime_closure_state or execution_guardrail_reason or allowed_layers_reason
+    if not guardrail_active:
+        return {
+            "api_trade_guardrail_active": False,
+            "api_trade_buy_guardrail": "not_blocked",
+            "api_trade_add_exposure_guardrail": "not_blocked",
+            "api_trade_guardrail_code": None,
+            "api_trade_guardrail_runtime_blocker": runtime_blocker,
+            "api_trade_allowed_risk_off_sides": API_TRADE_RISK_OFF_SIDES,
+            "api_trade_allowed_actions": ["buy", "reduce", "sell", "diagnostics", "mode_toggle"],
+            "api_trade_guardrail_context": "即時部署阻塞未啟用；/api/trade 可送出買入，risk-off sides 仍維持 reduce/sell。",
+        }
+
+    return {
+        "api_trade_guardrail_active": True,
+        "api_trade_buy_guardrail": "current_live_deployment_blocker_409",
+        "api_trade_add_exposure_guardrail": "current_live_deployment_blocker_409",
+        "api_trade_guardrail_code": "current_live_deployment_blocker",
+        "api_trade_guardrail_runtime_blocker": runtime_blocker,
+        "api_trade_allowed_risk_off_sides": API_TRADE_RISK_OFF_SIDES,
+        "api_trade_allowed_actions": ["reduce", "sell", "diagnostics", "mode_toggle"],
+        "api_trade_guardrail_context": "買入 / 加倉會在 ExecutionService.submit_order 前先檢查即時部署阻塞點；阻塞時 /api/trade 回 409 current_live_deployment_blocker，只保留 reduce/sell 風險降低路徑。",
+    }
+
+
+
 def _build_probe_payload(
     *,
     latest: dict,
@@ -499,6 +561,17 @@ def _build_probe_payload(
     release_wins = breaker_release.get("required_recent_window_wins")
     release_gap = breaker_release.get("additional_recent_window_wins_needed")
     current_wins = breaker_release.get("current_recent_window_wins")
+    runtime_closure_state = _runtime_closure_state(runtime_result)
+    runtime_closure_summary = _runtime_closure_summary(
+        runtime_result,
+        release_window=release_window,
+        release_floor=release_floor,
+        release_gap=release_gap,
+        current_wins=current_wins,
+        breaker_release=breaker_release,
+        scope_pathology_summary=scope_pathology_summary,
+    )
+    api_trade_guardrail = _api_trade_guardrail_surface(runtime_result, runtime_closure_state)
     return {
         "db_url": DB_URL,
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -571,16 +644,9 @@ def _build_probe_payload(
         "best_single_component": floor_cross.get("best_single_component"),
         "best_single_component_required_score_delta": floor_cross.get("best_single_component_required_score_delta"),
         "component_experiment_verdict": component_experiment.get("verdict"),
-        "runtime_closure_state": _runtime_closure_state(runtime_result),
-        "runtime_closure_summary": _runtime_closure_summary(
-            runtime_result,
-            release_window=release_window,
-            release_floor=release_floor,
-            release_gap=release_gap,
-            current_wins=current_wins,
-            breaker_release=breaker_release,
-            scope_pathology_summary=scope_pathology_summary,
-        ),
+        "runtime_closure_state": runtime_closure_state,
+        "runtime_closure_summary": runtime_closure_summary,
+        **api_trade_guardrail,
         "q15_support_audit": q15_support_audit,
         "q35_scaling_audit": q35_scaling_audit,
         "q35_overall_verdict": q35_scaling_audit.get("overall_verdict") if isinstance(q35_scaling_audit, dict) else None,
