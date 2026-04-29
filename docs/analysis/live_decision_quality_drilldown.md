@@ -1,9 +1,9 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-29 19:01:58.329086**
+- feature_timestamp: **2026-04-29 20:01:15.469703**
 - target: `simulated_pyramid_win`
 - live path: **bear / BLOCK / C**
-- signal: **HOLD** @ confidence **0.4778**
+- signal: **HOLD** @ confidence **0.4658**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: `regime_gate_block`
 - allowed_layers_reason: `unsupported_exact_live_structure_bucket`
@@ -11,27 +11,27 @@
 - runtime_blocker: `None` | reason: `None`
 - deployment_blocker: `unsupported_exact_live_structure_bucket` | reason: `current live structure bucket 缺少 exact live lane 歷史支持；在 exact bucket 出現前，broader / proxy rows 只能作治理參考，不可作 deployment 放行依據。`
 - q15 exact-supported patch: **inactive** | support_route `exact_bucket_unsupported_block` | floor_cross `None`
-- runtime closure summary: **current live bucket BLOCK|structure_quality_block|q00 的 exact support 仍未就緒（0/50，route=exact_bucket_unsupported_block / governance=no_support_proxy）；broader / proxy rows 與 recommended patch 目前都只屬 reference-only 治理，不可視為 deployment closure。 recommended_patch=core_plus_macro_plus_all_4h (reference_only_non_current_live_scope). blocker=current live structure bucket 缺少 exact live lane 歷史支持；在 exact bucket 出現前，broader / proxy rows 只能作治理參考，不可作 deployment 放行依據。. exact-vs-spillover=同 gate 寬 scope 出現 bull|BLOCK spillover，38 rows / WR 7.9% / 品質 -0.196，明顯劣於 exact live lane WR — / 品質 —。**
+- runtime closure summary: **current live bucket BLOCK|structure_quality_block|q00 的 exact support 仍未就緒（0/50，route=exact_bucket_unsupported_block / governance=no_support_proxy）；broader / proxy rows 目前都只屬 reference-only 治理，不可視為 deployment closure。 blocker=current live structure bucket 缺少 exact live lane 歷史支持；在 exact bucket 出現前，broader / proxy rows 只能作治理參考，不可作 deployment 放行依據。. exact-vs-spillover=同 regime 寬 scope 出現 bear|CAUTION spillover，2 rows / WR 0.0% / 品質 -0.239，明顯劣於 exact live lane WR — / 品質 —。**
 - q35 scaling audit: overall=`None` / redesign=`None` / runtime_gap=`None` / mode=`None` / next_patch=`None`
 - q35 audit action: None
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
-- recommended_patch: **core_plus_macro_plus_all_4h** / status `reference_only_non_current_live_scope` / support_route `exact_bucket_unsupported_block` / gap `50` / reference_scope `bull|CAUTION` / source `bull_4h_pocket_ablation.bull_collapse_q35`
-- recommended_patch_features: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
-- recommended_patch_reason: 參考 patch 來自 bull|CAUTION（source: bull_4h_pocket_ablation.bull_collapse_q35），但 current live scope 是 bear|BLOCK；這代表 patch 描述的是 spillover / broader lane，而不是目前 current-live row 的 deploy patch。 current live exact support 目前仍是 0/50，因此這條 patch 同時不具備 same-scope 與 exact-support 放行條件。 即使 exact support 已達 minimum rows，也只能作治理 / 訓練參考，不可直接放行 runtime。
-- recommended_patch_action: 維持 reference-only patch 可見性；目前 current live 是 bear|BLOCK，但 patch 來自 bull|CAUTION spillover。 在 scope 對齊前，只可作治理 / 訓練參考，不可把它升級成 current-live deploy patch。
+- recommended_patch: **None** / status `None` / support_route `None` / gap `None` / reference_scope `None` / source `None`
+- recommended_patch_features: None
+- recommended_patch_reason: None
+- recommended_patch_action: None
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.6274** / trade_floor **0.55** / gap **0.0774**
-- base_quality: **0.83** × weight **0.75**
-- structure_quality: **0.0197** × weight **0.25**
-- base components: feat_4h_bias50=0.9832 (w=0.4, contrib=0.3933), feat_nose=0.7828 (w=0.18, contrib=0.1409), feat_pulse=0.5939 (w=0.27, contrib=0.1604), feat_ear=0.903 (w=0.15, contrib=0.1354)
-- structure components: feat_4h_bb_pct_b=0.0432 (w=0.34, contrib=0.0147), feat_4h_dist_bb_lower=0.0153 (w=0.33, contrib=0.0051), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
+- final entry_quality: **0.5764** / trade_floor **0.55** / gap **0.0264**
+- base_quality: **0.7438** × weight **0.75**
+- structure_quality: **0.0742** × weight **0.25**
+- base components: feat_4h_bias50=0.9644 (w=0.4, contrib=0.3858), feat_nose=0.7566 (w=0.18, contrib=0.1362), feat_pulse=0.321 (w=0.27, contrib=0.0867), feat_ear=0.9008 (w=0.15, contrib=0.1351)
+- structure components: feat_4h_bb_pct_b=0.1623 (w=0.34, contrib=0.0552), feat_4h_dist_bb_lower=0.0576 (w=0.33, contrib=0.019), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
 - remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.1274** | structure_group_max_entry_gain: **0.245**
+- base_group_max_entry_gain: **0.1923** | structure_group_max_entry_gain: **0.2314**
 - best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
 - single-component floor crossers: None
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
@@ -41,7 +41,7 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `global` | 200 | 0.415 | 0.0732 | 0.2068 | 0.5777 | 0 | False |
+| chosen `global` | 400 | 0.3825 | 0.0611 | 0.1738 | 0.5733 | 0 | False |
 | exact `regime_label+regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
 | narrow `regime_label+entry_quality_label` | 0 | None | None | None | None | 0 | False |
 | broad `regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
