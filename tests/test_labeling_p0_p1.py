@@ -2,12 +2,55 @@ from datetime import datetime
 from pathlib import Path
 
 from database.models import FeaturesNormalized, RawMarketData, init_db
-from data_ingestion.labeling import generate_future_return_labels
+from data_ingestion.labeling import (
+    DEFAULT_LONG_MAX_DD_PCT,
+    DEFAULT_LONG_TP_PCT,
+    generate_future_return_labels,
+)
 from feature_engine.preprocessor import save_features_to_db
 
 
 def _sqlite_url(path: Path) -> str:
     return f"sqlite:///{path}"
+
+
+def test_default_pyramid_label_budget_stays_aligned_with_prd_risk_controls():
+    assert DEFAULT_LONG_TP_PCT == 0.02
+    assert DEFAULT_LONG_MAX_DD_PCT == 0.05
+
+
+def test_generate_future_return_labels_default_rejects_low_tp_high_drawdown_path(tmp_path: Path):
+    session = init_db(_sqlite_url(tmp_path / "p1_default_label_budget.db"))
+    try:
+        ts0 = datetime(2026, 1, 3, 0, 0, 0)
+        session.add(FeaturesNormalized(timestamp=ts0, symbol="BTCUSDT"))
+        session.add_all(
+            [
+                RawMarketData(timestamp=ts0, symbol="BTCUSDT", close_price=100.0),
+                RawMarketData(timestamp=ts0.replace(hour=6), symbol="BTCUSDT", close_price=100.8),
+                RawMarketData(timestamp=ts0.replace(hour=12), symbol="BTCUSDT", close_price=70.0),
+                RawMarketData(timestamp=ts0.replace(day=4), symbol="BTCUSDT", close_price=100.6),
+            ]
+        )
+        session.commit()
+
+        labels_df = generate_future_return_labels(session, symbol="BTCUSDT")
+
+        assert not labels_df.empty
+        row = labels_df.iloc[0]
+        assert row["future_max_runup"] < DEFAULT_LONG_TP_PCT
+        assert row["future_max_drawdown"] < -DEFAULT_LONG_MAX_DD_PCT
+        assert row["label_spot_long_tp_hit"] == 0
+        assert row["label_spot_long_win"] == 0
+        assert row["simulated_pyramid_win"] == 0
+    finally:
+        session.close()
+
+
+def test_p0_relabel_retrain_uses_canonical_label_defaults():
+    script_text = Path("scripts/p0_relabel_retrain.py").read_text()
+    assert "DEFAULT_LONG_TP_PCT" in script_text
+    assert "threshold_pct=0.005" not in script_text
 
 
 def test_save_features_to_db_persists_symbol_and_upgrades_legacy_null_symbol(tmp_path: Path):

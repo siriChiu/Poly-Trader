@@ -14,7 +14,13 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import pandas as pd
 from database.models import RawMarketData, FeaturesNormalized, Labels
-from data_ingestion.labeling import generate_future_return_labels, save_labels_to_db
+from data_ingestion.labeling import (
+    DEFAULT_LABEL_HORIZON_HOURS,
+    DEFAULT_LONG_MAX_DD_PCT,
+    DEFAULT_LONG_TP_PCT,
+    generate_future_return_labels,
+    save_labels_to_db,
+)
 
 db_path = str(Path('/home/kazuha/Poly-Trader/poly_trader.db'))
 engine = create_engine(f'sqlite:///{db_path}')
@@ -26,7 +32,13 @@ print("=== Part 1: Generating labels with corrected spot-long target ===")
 count_before = session.query(Labels).count()
 print(f"  Labels in DB before relabeling: {count_before}")
 
-labels_df = generate_future_return_labels(session, symbol="BTCUSDT", horizon_hours=24, threshold_pct=0.02)
+labels_df = generate_future_return_labels(
+    session,
+    symbol="BTCUSDT",
+    horizon_hours=DEFAULT_LABEL_HORIZON_HOURS,
+    threshold_pct=DEFAULT_LONG_TP_PCT,
+    neutral_band=DEFAULT_LONG_MAX_DD_PCT,
+)
 
 if labels_df.empty:
     print("ERROR: No labels generated!")
@@ -43,7 +55,13 @@ if len(labels_df) > 0 and 'regime_label' in labels_df.columns:
 
 # === Part 2: Save ALL labels with force_update_all ===
 print(f"\n=== Part 2: Force-updating ALL {len(labels_df)} labels in DB ===")
-save_labels_to_db(session, labels_df, symbol="BTCUSDT", horizon_hours=24, force_update_all=True)
+save_labels_to_db(
+    session,
+    labels_df,
+    symbol="BTCUSDT",
+    horizon_hours=DEFAULT_LABEL_HORIZON_HOURS,
+    force_update_all=True,
+)
 
 # Verify
 count_after = session.query(Labels).count()
