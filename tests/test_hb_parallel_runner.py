@@ -2916,6 +2916,223 @@ def test_overwrite_current_state_docs_refreshes_fin_netflow_issue_summary_from_l
 
 
 
+def test_overwrite_current_state_docs_refreshes_current_live_issue_summary_from_live_probe(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    (tmp_path / "data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_current_live_deployment_blocker",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "stale current live bucket title",
+                        "summary": {
+                            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+                            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                            "current_live_structure_bucket_rows": 7,
+                            "minimum_support_rows": 50,
+                        },
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    live_predictor_diagnostics = {
+        "deployment_blocker": "circuit_breaker_active",
+        "deployment_blocker_reason": "Recent 50-sample win rate: 26.00% < 30%",
+        "deployment_blocker_source": "circuit_breaker",
+        "signal": "CIRCUIT_BREAKER",
+        "runtime_closure_state": "circuit_breaker_active",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+        "current_live_structure_bucket_rows": 0,
+        "minimum_support_rows": 50,
+        "support_route_verdict": "exact_bucket_unsupported_block",
+        "support_governance_route": "exact_live_bucket_proxy_available",
+        "support_route_deployable": False,
+        "allowed_layers": 0,
+        "allowed_layers_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
+        "recent_window_win_rate": 0.26,
+        "recent_window_wins": 13,
+        "window_size": 50,
+        "entry_quality_label": "D",
+        "deployment_blocker_details": {
+            "release_condition": {
+                "release_ready": False,
+                "blocked_by": ["recent_win_rate"],
+                "recent_window": 50,
+                "current_recent_window_wins": 13,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 2,
+                "current_recent_window_win_rate": 0.26,
+                "recent_win_rate_must_be_at_least": 0.3,
+            }
+        },
+    }
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "1125test",
+        {},
+        {},
+        {"primary_summary": {}},
+        live_predictor_diagnostics,
+        {},
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_payload = json.loads((tmp_path / "issues.json").read_text(encoding="utf-8"))
+    issue = issues_payload["issues"][0]
+    assert issue["summary"]["deployment_blocker"] == "circuit_breaker_active"
+    assert issue["summary"]["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q35"
+    assert issue["summary"]["current_live_structure_bucket_rows"] == 0
+    assert issue["summary"]["gap_to_minimum"] == 50
+    assert issue["summary"]["release_condition"]["additional_recent_window_wins_needed"] == 2
+    assert "CAUTION|structure_quality_caution|q35" in issue["title"]
+    assert "0/50" in issue["title"]
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    assert "CAUTION|structure_quality_caution|q35" in issues_md
+    assert "CAUTION|base_caution_regime_or_bias|q35" not in issues_md
+
+
+
+def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matrix_from_artifact(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "high_conviction_topk_oos_matrix.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T11:20:00+00:00",
+                "artifact": "data/high_conviction_topk_oos_matrix.json",
+                "samples": 1234,
+                "models": {"xgboost": {}, "random_forest": {}},
+                "support_context": {
+                    "support_route_verdict": "exact_bucket_unsupported_block",
+                    "support_governance_route": "exact_live_lane_proxy_available",
+                    "support_route_deployable": False,
+                    "deployment_blocker": "unsupported_exact_live_structure_bucket",
+                    "runtime_closure_state": "patch_inactive_or_blocked",
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                    "current_live_structure_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                },
+                "rows": [
+                    {
+                        "model": "xgboost",
+                        "feature_profile": "current_full",
+                        "regime": "all",
+                        "top_k": "top_10pct",
+                        "oos_roi": 3.8544,
+                        "win_rate": 0.7774,
+                        "profit_factor": 8.2654,
+                        "max_drawdown": 0.2179,
+                        "worst_fold": -0.0611,
+                        "trade_count": 292,
+                        "deployable_verdict": "not_deployable",
+                        "gate_failures": [
+                            "max_drawdown_too_high",
+                            "worst_fold_negative",
+                            "support_route_not_deployable",
+                            "deployment_blocker_active",
+                        ],
+                        "support_route": "exact_bucket_unsupported_block",
+                        "deployment_blocker": "unsupported_exact_live_structure_bucket",
+                    },
+                    {
+                        "model": "random_forest",
+                        "feature_profile": "current_full_no_bull_collapse_4h",
+                        "regime": "all",
+                        "top_k": "top_5pct",
+                        "oos_roi": 1.215,
+                        "win_rate": 0.684,
+                        "profit_factor": 2.42,
+                        "max_drawdown": 0.041,
+                        "worst_fold": 0.037,
+                        "trade_count": 88,
+                        "deployable_verdict": "not_deployable",
+                        "gate_failures": ["support_route_not_deployable", "deployment_blocker_active"],
+                        "support_route": "exact_bucket_unsupported_block",
+                        "deployment_blocker": "unsupported_exact_live_structure_bucket",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "P0_high_conviction_topk_roi_gate",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "建立 high-conviction top-k OOS ROI gate，讓 APP 從研究轉實戰",
+                        "summary": {
+                            "output_artifact": "data/high_conviction_topk_oos_matrix.json",
+                            "latest_matrix": {
+                                "deployment_blocker": "circuit_breaker_active",
+                                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                            },
+                        },
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    live_predictor_diagnostics = {
+        "deployment_blocker": "unsupported_exact_live_structure_bucket",
+        "runtime_closure_state": "patch_inactive_or_blocked",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+        "current_live_structure_bucket_rows": 0,
+        "minimum_support_rows": 50,
+        "support_route_verdict": "exact_bucket_unsupported_block",
+        "support_governance_route": "exact_live_lane_proxy_available",
+        "support_route_deployable": False,
+    }
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "1125topk",
+        {},
+        {},
+        {"primary_summary": {}},
+        live_predictor_diagnostics,
+        {},
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issue = json.loads((tmp_path / "issues.json").read_text(encoding="utf-8"))["issues"][0]
+    latest = issue["summary"]["latest_matrix"]
+    assert latest["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert latest["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q35"
+    assert latest["deployable_rows"] == 0
+    assert latest["risk_qualified_rows"] == 1
+    assert latest["runtime_blocked_candidate_rows"] == 1
+    assert latest["nearest_deployable_candidate"]["model"] == "random_forest"
+    assert latest["nearest_deployable_candidate"]["blocked_only_by_live_guardrails"] is True
+    assert latest["highest_roi_not_deployable"]["model"] == "xgboost"
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    assert "deployment_blocker=unsupported_exact_live_structure_bucket" in issues_md
+    assert "nearest deployable candidate" in issues_md
+    assert "model=random_forest" in issues_md
+    assert "risk_qualified_rows=1" in issues_md
+    assert "CAUTION|structure_quality_caution|q35" not in issues_md
+
+
+
 def test_sync_fast_heartbeat_timeout_issue_resolves_stale_issue_when_run_finishes_within_budget(monkeypatch):
     tracker = type(
         "DummyTracker",
@@ -6417,8 +6634,24 @@ def test_overwrite_current_state_docs_surfaces_high_conviction_topk_gate(tmp_pat
                                 "samples": 23856,
                                 "rows": 24,
                                 "deployable_rows": 0,
+                                "risk_qualified_rows": 6,
+                                "runtime_blocked_candidate_rows": 6,
                                 "support_route": "exact_bucket_unsupported_block",
                                 "deployment_blocker": "circuit_breaker_active",
+                                "nearest_deployable_candidate": {
+                                    "model": "logistic_regression",
+                                    "regime": "all",
+                                    "top_k": "top_2pct",
+                                    "oos_roi": 0.9324,
+                                    "win_rate": 0.711,
+                                    "profit_factor": 2.84,
+                                    "max_drawdown": 0.022,
+                                    "worst_fold": 0.2068,
+                                    "trade_count": 58,
+                                    "deployable_verdict": "not_deployable",
+                                    "deployment_candidate_tier": "runtime_blocked_oos_pass",
+                                    "oos_gate_passed": True,
+                                },
                                 "best_not_deployable": {
                                     "model": "xgboost",
                                     "regime": "all",
@@ -6475,10 +6708,12 @@ def test_overwrite_current_state_docs_surfaces_high_conviction_topk_gate(tmp_pat
     assert "status=research_only_not_deployable" in issues_md
     assert "P0 實戰化：建立 high-conviction top-k OOS ROI gate" in issues_md
     assert "目標 E：建立 high-conviction top-k OOS ROI gate" in roadmap_md
-    assert "model=xgboost" in roadmap_md
-    assert "verdict=not_deployable" in roadmap_md
+    assert "model=logistic_regression" in roadmap_md
+    assert "tier=runtime_blocked_oos_pass" in roadmap_md
+    assert "runtime_blocked_candidates=6" in roadmap_md
+    assert "最接近部署候選優先" in roadmap_md
     assert "Strategy Lab 高信心 OOS Top-K Gate panel" in roadmap_md
     assert "`/api/models/leaderboard`" in roadmap_md
-    assert "walk-forward OOS top-k matrix 已透過 `/api/models/leaderboard`" in orid_md
+    assert "operator 現在會先看到最接近部署候選" in orid_md
     assert "walk-forward OOS top-k matrix" in orid_md
     assert "Research-to-production gate" in orid_md

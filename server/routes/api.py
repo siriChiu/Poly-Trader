@@ -3580,10 +3580,86 @@ def _coerce_int_or_none(value: Any) -> Optional[int]:
         return None
 
 
+_HIGH_CONVICTION_LIVE_FAILURES = {"support_route_not_deployable", "deployment_blocker_active"}
+
+
+def _string_list(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if item is not None]
+
+
+def _topk_row_gate_parts(row: Dict[str, Any]) -> tuple[List[str], List[str], List[str], bool, bool, str]:
+    gate_failures = _string_list(row.get("gate_failures"))
+    model_gate_failures = _string_list(row.get("model_gate_failures"))
+    live_gate_failures = _string_list(row.get("live_gate_failures"))
+    if not model_gate_failures and not live_gate_failures:
+        model_gate_failures = [item for item in gate_failures if item not in _HIGH_CONVICTION_LIVE_FAILURES]
+        live_gate_failures = [item for item in gate_failures if item in _HIGH_CONVICTION_LIVE_FAILURES]
+    explicit_oos = row.get("oos_gate_passed")
+    oos_gate_passed = bool(explicit_oos) if explicit_oos is not None else not model_gate_failures
+    explicit_runtime_blocked = row.get("blocked_only_by_live_guardrails")
+    blocked_only_by_live_guardrails = (
+        bool(explicit_runtime_blocked)
+        if explicit_runtime_blocked is not None
+        else bool(gate_failures) and oos_gate_passed and bool(live_gate_failures) and not model_gate_failures
+    )
+    deployable_verdict = str(row.get("deployable_verdict") or "not_deployable")
+    deployment_candidate_tier = str(row.get("deployment_candidate_tier") or "")
+    if not deployment_candidate_tier:
+        if deployable_verdict == "deployable":
+            deployment_candidate_tier = "deployable"
+        elif blocked_only_by_live_guardrails:
+            deployment_candidate_tier = "runtime_blocked_oos_pass"
+        else:
+            deployment_candidate_tier = "research_oos_gate_failed"
+    return (
+        gate_failures,
+        model_gate_failures,
+        live_gate_failures,
+        oos_gate_passed,
+        blocked_only_by_live_guardrails,
+        deployment_candidate_tier,
+    )
+
+
+def _high_conviction_row_sort_key(row: Dict[str, Any]) -> tuple:
+    (
+        gate_failures,
+        model_gate_failures,
+        _live_gate_failures,
+        oos_gate_passed,
+        blocked_only_by_live_guardrails,
+        _tier,
+    ) = _topk_row_gate_parts(row)
+    max_drawdown = _coerce_float_or_none(row.get("max_drawdown"))
+    worst_fold = _coerce_float_or_none(row.get("worst_fold"))
+    oos_roi = _coerce_float_or_none(row.get("oos_roi"))
+    win_rate = _coerce_float_or_none(row.get("win_rate"))
+    trade_count = _coerce_int_or_none(row.get("trade_count"))
+    return (
+        str(row.get("deployable_verdict") or "") == "deployable",
+        blocked_only_by_live_guardrails,
+        oos_gate_passed,
+        -len(model_gate_failures),
+        -len(gate_failures),
+        -(max_drawdown if max_drawdown is not None else 999.0),
+        worst_fold if worst_fold is not None else -999.0,
+        oos_roi if oos_roi is not None else -999.0,
+        win_rate if win_rate is not None else -999.0,
+        trade_count if trade_count is not None else 0,
+    )
+
+
 def _compact_high_conviction_topk_row(row: Dict[str, Any]) -> Dict[str, Any]:
-    gate_failures = row.get("gate_failures")
-    if not isinstance(gate_failures, list):
-        gate_failures = []
+    (
+        gate_failures,
+        model_gate_failures,
+        live_gate_failures,
+        oos_gate_passed,
+        blocked_only_by_live_guardrails,
+        deployment_candidate_tier,
+    ) = _topk_row_gate_parts(row)
     return {
         "model": row.get("model") or row.get("model_name"),
         "model_name": row.get("model_name") or row.get("model"),
@@ -3597,7 +3673,12 @@ def _compact_high_conviction_topk_row(row: Dict[str, Any]) -> Dict[str, Any]:
         "worst_fold": _coerce_float_or_none(row.get("worst_fold")),
         "trade_count": _coerce_int_or_none(row.get("trade_count")),
         "deployable_verdict": row.get("deployable_verdict") or "not_deployable",
-        "gate_failures": [str(item) for item in gate_failures if item is not None],
+        "deployment_candidate_tier": deployment_candidate_tier,
+        "gate_failures": gate_failures,
+        "model_gate_failures": model_gate_failures,
+        "live_gate_failures": live_gate_failures,
+        "oos_gate_passed": oos_gate_passed,
+        "blocked_only_by_live_guardrails": blocked_only_by_live_guardrails,
     }
 
 
@@ -3627,16 +3708,16 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
         }
 
     rows = [row for row in payload.get("rows", []) if isinstance(row, dict)]
-    rows.sort(
-        key=lambda row: (
-            str(row.get("deployable_verdict") or "") == "deployable",
-            _coerce_float_or_none(row.get("oos_roi")) if _coerce_float_or_none(row.get("oos_roi")) is not None else -999.0,
-            _coerce_float_or_none(row.get("win_rate")) if _coerce_float_or_none(row.get("win_rate")) is not None else -999.0,
-            _coerce_int_or_none(row.get("trade_count")) if _coerce_int_or_none(row.get("trade_count")) is not None else 0,
-        ),
-        reverse=True,
-    )
+    rows.sort(key=_high_conviction_row_sort_key, reverse=True)
     deployable_count = sum(1 for row in rows if row.get("deployable_verdict") == "deployable")
+    compact_rows = [_compact_high_conviction_topk_row(row) for row in rows[:limit]]
+    risk_qualified_count = sum(1 for row in rows if _topk_row_gate_parts(row)[3])
+    runtime_blocked_candidate_count = sum(1 for row in rows if _topk_row_gate_parts(row)[4])
+    nearest_deployable_rows = [
+        _compact_high_conviction_topk_row(row)
+        for row in rows
+        if _topk_row_gate_parts(row)[4] or str(row.get("deployable_verdict") or "") == "deployable"
+    ][:limit]
     return {
         "source_artifact": str(artifact_path),
         "generated_at": payload.get("generated_at"),
@@ -3647,8 +3728,11 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
         "support_context": payload.get("support_context") if isinstance(payload.get("support_context"), dict) else {},
         "row_count": len(rows),
         "deployable_count": deployable_count,
+        "risk_qualified_count": risk_qualified_count,
+        "runtime_blocked_candidate_count": runtime_blocked_candidate_count,
         "status": "deployable_candidates_available" if deployable_count else "paper_shadow_only",
-        "best_rows": [_compact_high_conviction_topk_row(row) for row in rows[:limit]],
+        "best_rows": compact_rows,
+        "nearest_deployable_rows": nearest_deployable_rows or compact_rows,
     }
 
 

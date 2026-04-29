@@ -581,6 +581,28 @@ def test_build_model_leaderboard_payload_includes_high_conviction_topk(monkeypat
                         "trade_count": 44,
                         "deployable_verdict": "not_deployable",
                         "gate_failures": ["min_trades_not_met", "deployment_blocker_active"],
+                        "model_gate_failures": ["min_trades_not_met"],
+                        "live_gate_failures": ["deployment_blocker_active"],
+                        "oos_gate_passed": False,
+                        "blocked_only_by_live_guardrails": False,
+                    },
+                    {
+                        "model": "random_forest",
+                        "feature_profile": "current_full",
+                        "regime": "bull",
+                        "top_k": "top_5pct",
+                        "oos_roi": 0.18,
+                        "win_rate": 0.78,
+                        "profit_factor": 7.9,
+                        "max_drawdown": 0.069,
+                        "worst_fold": 0.09,
+                        "trade_count": 146,
+                        "deployable_verdict": "not_deployable",
+                        "gate_failures": ["support_route_not_deployable", "deployment_blocker_active"],
+                        "model_gate_failures": [],
+                        "live_gate_failures": ["support_route_not_deployable", "deployment_blocker_active"],
+                        "oos_gate_passed": True,
+                        "blocked_only_by_live_guardrails": True,
                     }
                 ],
             }
@@ -610,13 +632,17 @@ def test_build_model_leaderboard_payload_includes_high_conviction_topk(monkeypat
 
     summary = payload["high_conviction_topk"]
     assert summary["source_artifact"] == str(artifact)
-    assert summary["row_count"] == 1
+    assert summary["row_count"] == 2
     assert summary["deployable_count"] == 0
+    assert summary["risk_qualified_count"] == 1
+    assert summary["runtime_blocked_candidate_count"] == 1
     assert summary["status"] == "paper_shadow_only"
     assert summary["target_col"] == "simulated_pyramid_win"
-    assert summary["best_rows"][0]["model"] == "xgboost"
-    assert summary["best_rows"][0]["oos_roi"] == pytest.approx(0.22)
-    assert summary["best_rows"][0]["gate_failures"] == ["min_trades_not_met", "deployment_blocker_active"]
+    assert summary["nearest_deployable_rows"][0]["model"] == "random_forest"
+    assert summary["nearest_deployable_rows"][0]["oos_gate_passed"] is True
+    assert summary["nearest_deployable_rows"][0]["blocked_only_by_live_guardrails"] is True
+    assert summary["best_rows"][0]["model"] == "random_forest"
+    assert summary["best_rows"][0]["gate_failures"] == ["support_route_not_deployable", "deployment_blocker_active"]
 
 
 

@@ -747,7 +747,12 @@ interface HighConvictionTopKRow {
   worst_fold?: number | null;
   trade_count?: number | null;
   deployable_verdict?: string | null;
+  deployment_candidate_tier?: string | null;
   gate_failures?: string[];
+  model_gate_failures?: string[];
+  live_gate_failures?: string[];
+  oos_gate_passed?: boolean;
+  blocked_only_by_live_guardrails?: boolean;
 }
 
 interface HighConvictionTopKSummary {
@@ -760,8 +765,11 @@ interface HighConvictionTopKSummary {
   support_context?: Record<string, any>;
   row_count?: number | null;
   deployable_count?: number | null;
+  risk_qualified_count?: number | null;
+  runtime_blocked_candidate_count?: number | null;
   status?: string | null;
   best_rows?: HighConvictionTopKRow[];
+  nearest_deployable_rows?: HighConvictionTopKRow[];
   error?: string | null;
 }
 
@@ -1798,9 +1806,13 @@ export default function StrategyLab() {
   const modelStrategyParamScan = modelMeta.strategy_param_scan ?? null;
   const leaderboardGovernance = modelMeta.leaderboard_governance ?? null;
   const highConvictionTopK = modelMeta.high_conviction_topk ?? null;
-  const highConvictionRows = Array.isArray(highConvictionTopK?.best_rows) ? highConvictionTopK.best_rows : [];
+  const highConvictionRows = Array.isArray(highConvictionTopK?.nearest_deployable_rows) ? highConvictionTopK.nearest_deployable_rows : (Array.isArray(highConvictionTopK?.best_rows) ? highConvictionTopK.best_rows : []);
   const highConvictionGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.gate_failures) ? row.gate_failures : []))).slice(0, 6);
+  const highConvictionModelGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.model_gate_failures) ? row.model_gate_failures : []))).slice(0, 6);
+  const highConvictionLiveGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.live_gate_failures) ? row.live_gate_failures : []))).slice(0, 6);
   const highConvictionDeployable = (highConvictionTopK?.deployable_count ?? 0) > 0;
+  const highConvictionRuntimeBlockedCount = highConvictionTopK?.runtime_blocked_candidate_count ?? highConvictionRows.filter((row) => row.blocked_only_by_live_guardrails).length;
+  const highConvictionRiskQualifiedCount = highConvictionTopK?.risk_qualified_count ?? highConvictionRows.filter((row) => row.oos_gate_passed).length;
   const highConvictionStatusLabel = highConvictionDeployable ? "已有候選，但仍需人工灰度確認" : "research-only / paper-shadow";
   const highConvictionGridLabel = Array.isArray(highConvictionTopK?.top_k_grid) && highConvictionTopK.top_k_grid.length > 0 ? highConvictionTopK.top_k_grid.join(" / ") : "top-k grid —";
   const highConvictionGeneratedAtLabel = highConvictionTopK?.generated_at ? new Date(highConvictionTopK.generated_at).toLocaleString("zh-TW") : "生成時間 —";
@@ -3538,7 +3550,7 @@ export default function StrategyLab() {
                         <div>
                           <div className="font-semibold text-violet-100">高信心 OOS Top-K Gate</div>
                           <div className="mt-1 text-[11px] text-violet-100/80">
-                            未通過前維持 paper / shadow / hold-only，不開新倉。
+                            最接近部署候選優先顯示；OOS/風控 gates 已過但只剩 current-live / support 阻塞時，仍維持 paper / shadow / hold-only，不開新倉。
                           </div>
                         </div>
                         <div className="text-right text-[11px] text-violet-100/80">
@@ -3554,6 +3566,7 @@ export default function StrategyLab() {
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                           <div className="text-[11px] text-slate-300">部署樣本</div>
                           <div className="mt-1 font-medium text-slate-100">{formatDecimal(highConvictionTopK.row_count, 0)} rows · deployable {formatDecimal(highConvictionTopK.deployable_count, 0)}</div>
+                          <div className="mt-1 text-[10px] text-violet-100/70">OOS/風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} · 只剩即時阻塞 {formatDecimal(highConvictionRuntimeBlockedCount, 0)}</div>
                         </div>
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                           <div className="text-[11px] text-slate-300">target</div>
@@ -3585,6 +3598,9 @@ export default function StrategyLab() {
                                     <div className="font-medium">{row.model_name || row.model || "未命名模型"}</div>
                                     <div className="mt-1 text-[10px] text-violet-100/70">{row.feature_profile || "feature —"} · {row.regime || "regime —"} · {row.top_k || "top-k —"}</div>
                                     <div className="mt-1 text-[10px] text-violet-100/60">部署判定 {row.deployable_verdict || "not_deployable"}</div>
+                                    {row.blocked_only_by_live_guardrails && (
+                                      <div className="mt-1 text-[10px] text-amber-200">OOS/風控 gates 已過 · 只剩 current-live / support 阻塞</div>
+                                    )}
                                   </td>
                                   <td className={`px-2 py-2 text-right ${isFiniteNumber(row.oos_roi) && row.oos_roi >= 0 ? "text-green-300" : "text-red-300"}`}>{formatPct(row.oos_roi, 1, true)}</td>
                                   <td className="px-2 py-2 text-right text-emerald-200">{formatPct(row.win_rate)}</td>
@@ -3603,6 +3619,8 @@ export default function StrategyLab() {
                       <div className="rounded-lg border border-rose-300/20 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-50">
                         <div className="font-semibold text-rose-100">gate failures</div>
                         <div className="mt-1">{highConvictionGateFailures.length > 0 ? highConvictionGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "目前沒有額外失敗碼；仍需確認 current-live blocker 與 support route 後才可部署。"}</div>
+                        <div className="mt-1 text-rose-50/80">模型/風控 gate：{highConvictionModelGateFailures.length > 0 ? highConvictionModelGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "已過"}</div>
+                        <div className="mt-1 text-rose-50/80">即時/支持 gate：{highConvictionLiveGateFailures.length > 0 ? highConvictionLiveGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "待確認"}</div>
                       </div>
                     </div>
                   )}

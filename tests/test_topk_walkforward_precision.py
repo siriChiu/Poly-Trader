@@ -75,6 +75,47 @@ def test_build_high_conviction_oos_matrix_keeps_current_live_blocker_fail_closed
     assert "deployment_blocker_active" in row["gate_failures"]
 
 
+def test_build_high_conviction_oos_matrix_marks_nearest_deployable_runtime_blocked_candidates():
+    passing_metrics = {
+        "trade_count": 146,
+        "n": 146,
+        "win_rate": 0.78,
+        "oos_roi": 1.72,
+        "profit_factor": 7.9,
+        "max_drawdown": 0.069,
+        "avg_score": 0.78,
+        "wins": 114,
+        "losses": 32,
+        "regime_mix": {"bull": 146},
+    }
+    report = {
+        "folds": [
+            {"fold": 0, "top_slices": {"top_5pct": {**passing_metrics, "oos_roi": 0.14}}},
+            {"fold": 1, "top_slices": {"top_5pct": {**passing_metrics, "oos_roi": 0.09}}},
+        ],
+        "aggregate_top_slices": {"top_5pct": passing_metrics},
+        "aggregate_regime_top_slices": {},
+    }
+
+    rows = topk.build_high_conviction_oos_matrix_rows(
+        "random_forest",
+        report,
+        support_context={
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_route_deployable": False,
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+        },
+    )
+
+    row = rows[0]
+    assert row["deployable_verdict"] == "not_deployable"
+    assert row["oos_gate_passed"] is True
+    assert row["blocked_only_by_live_guardrails"] is True
+    assert row["model_gate_failures"] == []
+    assert row["live_gate_failures"] == ["support_route_not_deployable", "deployment_blocker_active"]
+    assert row["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+
+
 def test_coalesce_regime_label_handles_merge_suffixes():
     frame = pd.DataFrame(
         {

@@ -21,6 +21,7 @@ MINIMUM_DEPLOYMENT_GATES = {
     "worst_fold": "non_negative_or_above_baseline",
     "support_route": "deployable",
 }
+LIVE_GUARDRAIL_FAILURES = {"support_route_not_deployable", "deployment_blocker_active"}
 
 
 def _round_or_none(value: Any, digits: int = 4) -> Optional[float]:
@@ -240,6 +241,17 @@ def build_high_conviction_oos_matrix_rows(
     def _append_row(regime: str, top_key: str, metrics: dict) -> None:
         worst_fold = _worst_fold_roi(report, top_key, regime)
         failures = _gate_failures(metrics, worst_fold, support_context, gates)
+        live_gate_failures = [failure for failure in failures if failure in LIVE_GUARDRAIL_FAILURES]
+        model_gate_failures = [failure for failure in failures if failure not in LIVE_GUARDRAIL_FAILURES]
+        oos_gate_passed = not model_gate_failures
+        blocked_only_by_live_guardrails = bool(failures) and oos_gate_passed and bool(live_gate_failures)
+        deployable_verdict = "deployable" if not failures else "not_deployable"
+        if deployable_verdict == "deployable":
+            deployment_candidate_tier = "deployable"
+        elif blocked_only_by_live_guardrails:
+            deployment_candidate_tier = "runtime_blocked_oos_pass"
+        else:
+            deployment_candidate_tier = "research_oos_gate_failed"
         rows.append(
             {
                 "model": model_name,
@@ -262,8 +274,13 @@ def build_high_conviction_oos_matrix_rows(
                 "runtime_closure_state": support_context.get("runtime_closure_state"),
                 "current_live_structure_bucket": support_context.get("current_live_structure_bucket"),
                 "minimum_deployment_gates": gates,
-                "deployable_verdict": "deployable" if not failures else "not_deployable",
+                "deployable_verdict": deployable_verdict,
+                "deployment_candidate_tier": deployment_candidate_tier,
                 "gate_failures": failures,
+                "model_gate_failures": model_gate_failures,
+                "live_gate_failures": live_gate_failures,
+                "oos_gate_passed": oos_gate_passed,
+                "blocked_only_by_live_guardrails": blocked_only_by_live_guardrails,
             }
         )
 

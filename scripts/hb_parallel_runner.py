@@ -505,31 +505,343 @@ def _find_source_blocker(source_blockers: Dict[str, Any] | None, blocker_key: st
     return None
 
 
+def _int_or_none(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _current_live_blocker_issue_summary(live_predictor_diagnostics: Dict[str, Any] | None) -> Dict[str, Any]:
+    """Compact live runtime truth for issues.json so docs cannot preserve stale buckets."""
+    live_predictor_diagnostics = live_predictor_diagnostics or {}
+    if not live_predictor_diagnostics:
+        return {}
+
+    details = live_predictor_diagnostics.get("deployment_blocker_details") or {}
+    if not isinstance(details, dict):
+        details = {}
+    release = details.get("release_condition") or {}
+    if not isinstance(release, dict):
+        release = {}
+    support_progress = live_predictor_diagnostics.get("support_progress") or details.get("support_progress") or {}
+    if not isinstance(support_progress, dict):
+        support_progress = {}
+
+    current_rows = live_predictor_diagnostics.get("current_live_structure_bucket_rows")
+    minimum_rows = live_predictor_diagnostics.get("minimum_support_rows")
+    if minimum_rows is None:
+        minimum_rows = details.get("minimum_support_rows")
+    gap_to_minimum = live_predictor_diagnostics.get("current_live_structure_bucket_gap_to_minimum")
+    if gap_to_minimum is None:
+        gap_to_minimum = details.get("current_live_structure_bucket_gap_to_minimum")
+    current_rows_int = _int_or_none(current_rows)
+    minimum_rows_int = _int_or_none(minimum_rows)
+    if gap_to_minimum is None and current_rows_int is not None and minimum_rows_int is not None:
+        gap_to_minimum = max(minimum_rows_int - current_rows_int, 0)
+
+    summary: Dict[str, Any] = {
+        "deployment_blocker": live_predictor_diagnostics.get("deployment_blocker"),
+        "deployment_blocker_reason": live_predictor_diagnostics.get("deployment_blocker_reason")
+        or live_predictor_diagnostics.get("reason"),
+        "deployment_blocker_source": live_predictor_diagnostics.get("deployment_blocker_source"),
+        "signal": live_predictor_diagnostics.get("signal"),
+        "runtime_closure_state": live_predictor_diagnostics.get("runtime_closure_state"),
+        "current_live_structure_bucket": live_predictor_diagnostics.get("current_live_structure_bucket"),
+        "current_live_structure_bucket_rows": current_rows,
+        "minimum_support_rows": minimum_rows,
+        "gap_to_minimum": gap_to_minimum,
+        "support_route_verdict": live_predictor_diagnostics.get("support_route_verdict")
+        or details.get("support_route_verdict"),
+        "support_governance_route": live_predictor_diagnostics.get("support_governance_route")
+        or details.get("support_governance_route"),
+        "support_route_deployable": live_predictor_diagnostics.get("support_route_deployable")
+        if live_predictor_diagnostics.get("support_route_deployable") is not None
+        else details.get("support_route_deployable"),
+        "allowed_layers_raw": live_predictor_diagnostics.get("allowed_layers_raw"),
+        "allowed_layers_raw_reason": live_predictor_diagnostics.get("allowed_layers_raw_reason"),
+        "allowed_layers": live_predictor_diagnostics.get("allowed_layers"),
+        "allowed_layers_reason": live_predictor_diagnostics.get("allowed_layers_reason"),
+        "recent_window_win_rate": live_predictor_diagnostics.get("recent_window_win_rate"),
+        "recent_window_wins": live_predictor_diagnostics.get("recent_window_wins"),
+        "window_size": live_predictor_diagnostics.get("window_size"),
+        "entry_quality_label": live_predictor_diagnostics.get("entry_quality_label"),
+    }
+    if release:
+        summary["release_condition"] = {
+            key: release.get(key)
+            for key in [
+                "release_ready",
+                "blocked_by",
+                "recent_window",
+                "current_recent_window_wins",
+                "required_recent_window_wins",
+                "additional_recent_window_wins_needed",
+                "current_recent_window_win_rate",
+                "recent_win_rate_must_be_at_least",
+            ]
+            if key in release
+        }
+    if support_progress:
+        summary["support_progress"] = {
+            key: support_progress.get(key)
+            for key in [
+                "status",
+                "current_rows",
+                "minimum_rows",
+                "delta_to_minimum",
+                "recent_supported_rows",
+                "delta_vs_recent_supported",
+            ]
+            if key in support_progress
+        }
+    return {key: value for key, value in summary.items() if value is not None}
+
+
+def _current_live_blocker_issue_title(summary: Dict[str, Any], fallback: str | None = None) -> str:
+    bucket = summary.get("current_live_structure_bucket") or "unknown current-live bucket"
+    current_rows = summary.get("current_live_structure_bucket_rows")
+    minimum_rows = summary.get("minimum_support_rows")
+    support_text = f" ({current_rows}/{minimum_rows})" if current_rows is not None and minimum_rows is not None else ""
+    blocker = summary.get("deployment_blocker")
+    if blocker == "circuit_breaker_active":
+        return f"current live bucket {bucket} is circuit-breaker blocked; exact support remains non-deployable{support_text}"
+    if summary.get("support_route_deployable") is False:
+        return f"current live bucket {bucket} exact support remains non-deployable{support_text}"
+    if blocker:
+        return f"current live bucket {bucket} remains no-deploy because {blocker}{support_text}"
+    return fallback or f"current live bucket {bucket} current-state deployment blocker"
+
+
+def _should_refresh_current_live_issue_title(current_title: str | None, live_summary: Dict[str, Any]) -> bool:
+    if not current_title:
+        return True
+    bucket = str(live_summary.get("current_live_structure_bucket") or "")
+    lowered = current_title.lower()
+    if "stale" in lowered:
+        return True
+    if ("current live bucket" in lowered or "current-live bucket" in lowered) and bucket and bucket not in current_title:
+        return True
+    return False
+
+
+def _compact_high_conviction_topk_matrix_summary(
+    live_predictor_diagnostics: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """Read the current top-k OOS matrix into the issue summary contract."""
+    matrix_path = Path(PROJECT_ROOT) / "data" / "high_conviction_topk_oos_matrix.json"
+    payload = _read_json_file(matrix_path)
+    if not payload:
+        return {}
+    rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
+    models_payload = payload.get("models") if isinstance(payload.get("models"), dict) else {}
+    evaluated_models = sorted(str(name) for name in models_payload.keys())
+    if not evaluated_models:
+        evaluated_models = sorted({str(row.get("model")) for row in rows if isinstance(row, dict) and row.get("model")})
+    support_context = payload.get("support_context") if isinstance(payload.get("support_context"), dict) else {}
+    live_predictor_diagnostics = live_predictor_diagnostics or {}
+
+    def _support_value(key: str) -> Any:
+        value = live_predictor_diagnostics.get(key)
+        if value is not None:
+            return value
+        return support_context.get(key)
+
+    live_guardrail_failures = {"support_route_not_deployable", "deployment_blocker_active"}
+
+    def _string_list(value: Any) -> list[str]:
+        if isinstance(value, list):
+            return [str(item) for item in value if item is not None]
+        if value is None:
+            return []
+        return [str(value)]
+
+    def _safe_float(value: Any, default: float | None = None) -> float | None:
+        try:
+            if value is None or value == "":
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _row_gate_parts(row: Dict[str, Any]) -> tuple[list[str], list[str], list[str], bool, bool]:
+        gate_failures = _string_list(row.get("gate_failures"))
+        model_gate_failures = _string_list(row.get("model_gate_failures"))
+        live_gate_failures = _string_list(row.get("live_gate_failures"))
+        if not model_gate_failures and not live_gate_failures:
+            model_gate_failures = [item for item in gate_failures if item not in live_guardrail_failures]
+            live_gate_failures = [item for item in gate_failures if item in live_guardrail_failures]
+        oos_gate_passed = bool(row.get("oos_gate_passed")) if row.get("oos_gate_passed") is not None else not model_gate_failures
+        blocked_only_by_live_guardrails = (
+            bool(row.get("blocked_only_by_live_guardrails"))
+            if row.get("blocked_only_by_live_guardrails") is not None
+            else bool(gate_failures) and oos_gate_passed and bool(live_gate_failures) and not model_gate_failures
+        )
+        return gate_failures, model_gate_failures, live_gate_failures, oos_gate_passed, blocked_only_by_live_guardrails
+
+    def _risk_first_sort_key(row: Dict[str, Any]) -> tuple:
+        gate_failures, model_gate_failures, _live_gate_failures, oos_gate_passed, blocked_only_by_live_guardrails = _row_gate_parts(row)
+        max_drawdown = _safe_float(row.get("max_drawdown"), 999.0)
+        worst_fold = _safe_float(row.get("worst_fold"), -999.0)
+        oos_roi = _safe_float(row.get("oos_roi"), -999.0)
+        win_rate = _safe_float(row.get("win_rate"), -999.0)
+        profit_factor = _safe_float(row.get("profit_factor"), -999.0)
+        trade_count = _safe_float(row.get("trade_count"), -999.0)
+        return (
+            str(row.get("deployable_verdict") or "") == "deployable",
+            blocked_only_by_live_guardrails,
+            oos_gate_passed,
+            -len(model_gate_failures),
+            -len(gate_failures),
+            -(max_drawdown if max_drawdown is not None else 999.0),
+            worst_fold if worst_fold is not None else -999.0,
+            oos_roi if oos_roi is not None else -999.0,
+            win_rate if win_rate is not None else -999.0,
+            profit_factor if profit_factor is not None else -999.0,
+            trade_count if trade_count is not None else -999.0,
+        )
+
+    matrix_rows = [row for row in rows if isinstance(row, dict)]
+    ranked_rows = sorted(matrix_rows, key=_risk_first_sort_key, reverse=True)
+    nearest_row = next(
+        (
+            row for row in ranked_rows
+            if str(row.get("deployable_verdict") or "") == "deployable" or _row_gate_parts(row)[4]
+        ),
+        ranked_rows[0] if ranked_rows else {},
+    )
+    highest_roi_row = max(
+        [row for row in matrix_rows if row.get("deployable_verdict") != "deployable"] or matrix_rows,
+        key=lambda row: _safe_float(row.get("oos_roi"), -999.0) or -999.0,
+        default={},
+    )
+    best_keys = [
+        "model",
+        "feature_profile",
+        "regime",
+        "top_k",
+        "oos_roi",
+        "win_rate",
+        "profit_factor",
+        "max_drawdown",
+        "worst_fold",
+        "trade_count",
+        "deployable_verdict",
+        "deployment_candidate_tier",
+        "gate_failures",
+        "model_gate_failures",
+        "live_gate_failures",
+        "oos_gate_passed",
+        "blocked_only_by_live_guardrails",
+        "support_route",
+        "deployment_blocker",
+    ]
+
+    def _compact_row(row: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(row, dict):
+            return {}
+        gate_failures, model_gate_failures, live_gate_failures, oos_gate_passed, blocked_only_by_live_guardrails = _row_gate_parts(row)
+        compact_row = {key: row.get(key) for key in best_keys if key in row}
+        compact_row.setdefault("gate_failures", gate_failures)
+        compact_row.setdefault("model_gate_failures", model_gate_failures)
+        compact_row.setdefault("live_gate_failures", live_gate_failures)
+        compact_row.setdefault("oos_gate_passed", oos_gate_passed)
+        compact_row.setdefault("blocked_only_by_live_guardrails", blocked_only_by_live_guardrails)
+        if "deployment_candidate_tier" not in compact_row:
+            compact_row["deployment_candidate_tier"] = (
+                "deployable"
+                if str(row.get("deployable_verdict") or "") == "deployable"
+                else "runtime_blocked_oos_pass"
+                if blocked_only_by_live_guardrails
+                else "research_oos_gate_failed"
+            )
+        return compact_row
+
+    compact = {
+        "generated_at": payload.get("generated_at"),
+        "artifact": payload.get("artifact") or "data/high_conviction_topk_oos_matrix.json",
+        "samples": payload.get("samples"),
+        "rows": len(rows),
+        "evaluated_models": evaluated_models,
+        "deployable_rows": sum(1 for row in matrix_rows if row.get("deployable_verdict") == "deployable"),
+        "risk_qualified_rows": sum(1 for row in matrix_rows if _row_gate_parts(row)[3]),
+        "runtime_blocked_candidate_rows": sum(1 for row in matrix_rows if _row_gate_parts(row)[4]),
+        "support_route": _support_value("support_route_verdict"),
+        "support_governance_route": _support_value("support_governance_route"),
+        "support_route_deployable": _support_value("support_route_deployable"),
+        "deployment_blocker": _support_value("deployment_blocker"),
+        "runtime_closure_state": _support_value("runtime_closure_state"),
+        "current_live_structure_bucket": _support_value("current_live_structure_bucket"),
+        "current_live_structure_bucket_rows": _support_value("current_live_structure_bucket_rows"),
+        "minimum_support_rows": _support_value("minimum_support_rows"),
+        "nearest_deployable_candidate": _compact_row(nearest_row),
+        "highest_roi_not_deployable": _compact_row(highest_roi_row),
+        "best_not_deployable": _compact_row(nearest_row),
+    }
+    return {key: value for key, value in compact.items() if value is not None}
+
+
+def _sync_high_conviction_topk_issue_summary(
+    issues: list[Dict[str, Any]],
+    live_predictor_diagnostics: Dict[str, Any] | None = None,
+) -> bool:
+    matrix_summary = _compact_high_conviction_topk_matrix_summary(live_predictor_diagnostics)
+    if not matrix_summary:
+        return False
+    for issue in issues:
+        if issue.get("id") != "P0_high_conviction_topk_roi_gate":
+            continue
+        summary = dict(issue.get("summary") or {})
+        next_summary = {**summary, "latest_matrix": matrix_summary}
+        if summary != next_summary:
+            issue["summary"] = next_summary
+            issue["updated_at"] = datetime.utcnow().isoformat()
+            return True
+        break
+    return False
+
+
 def _sync_live_issue_summaries(
     issues: list[Dict[str, Any]],
     source_blockers: Dict[str, Any] | None,
+    live_predictor_diagnostics: Dict[str, Any] | None = None,
 ) -> bool:
-    fin_blocker = _find_source_blocker(source_blockers, "fin_netflow")
-    if not fin_blocker:
-        return False
-
     updated = False
-    fin_summary = {
-        "feature": "fin_netflow",
-        "quality_flag": fin_blocker.get("quality_flag"),
-        "latest_status": fin_blocker.get("raw_snapshot_latest_status"),
-        "forward_archive_rows": fin_blocker.get("raw_snapshot_events"),
-        "archive_window_coverage_pct": fin_blocker.get("archive_window_coverage_pct"),
-    }
-    for issue in issues:
-        if issue.get("id") != "P1_fin_netflow_auth_blocked":
-            continue
-        current_summary = dict(issue.get("summary") or {})
-        if any(current_summary.get(key) != value for key, value in fin_summary.items()):
-            issue["summary"] = {**current_summary, **fin_summary}
-            issue["updated_at"] = datetime.utcnow().isoformat()
-            updated = True
-        break
+    fin_blocker = _find_source_blocker(source_blockers, "fin_netflow")
+    if fin_blocker:
+        fin_summary = {
+            "feature": "fin_netflow",
+            "quality_flag": fin_blocker.get("quality_flag"),
+            "latest_status": fin_blocker.get("raw_snapshot_latest_status"),
+            "forward_archive_rows": fin_blocker.get("raw_snapshot_events"),
+            "archive_window_coverage_pct": fin_blocker.get("archive_window_coverage_pct"),
+        }
+        for issue in issues:
+            if issue.get("id") != "P1_fin_netflow_auth_blocked":
+                continue
+            current_summary = dict(issue.get("summary") or {})
+            if any(current_summary.get(key) != value for key, value in fin_summary.items()):
+                issue["summary"] = {**current_summary, **fin_summary}
+                issue["updated_at"] = datetime.utcnow().isoformat()
+                updated = True
+            break
+
+    live_summary = _current_live_blocker_issue_summary(live_predictor_diagnostics)
+    if live_summary:
+        for issue in issues:
+            if issue.get("id") != "P0_current_live_deployment_blocker":
+                continue
+            current_summary = dict(issue.get("summary") or {})
+            next_summary = {**current_summary, **live_summary}
+            next_title = issue.get("title")
+            if _should_refresh_current_live_issue_title(next_title, next_summary):
+                next_title = _current_live_blocker_issue_title(next_summary, next_title)
+            if issue.get("summary") != next_summary or issue.get("title") != next_title:
+                issue["summary"] = next_summary
+                issue["title"] = next_title
+                issue["updated_at"] = datetime.utcnow().isoformat()
+                updated = True
+            break
     return updated
 
 
@@ -1112,7 +1424,9 @@ def _issue_current_lines(
             research_basis_text = str(research_basis or "—")
         latest_matrix = summary.get("latest_matrix") if isinstance(summary.get("latest_matrix"), dict) else {}
         best_row = (
-            latest_matrix.get("best_not_deployable")
+            latest_matrix.get("nearest_deployable_candidate")
+            if isinstance(latest_matrix.get("nearest_deployable_candidate"), dict)
+            else latest_matrix.get("best_not_deployable")
             if isinstance(latest_matrix.get("best_not_deployable"), dict)
             else {}
         )
@@ -1128,9 +1442,11 @@ def _issue_current_lines(
                     f"`rows={latest_matrix.get('rows', '—')}` / "
                     f"`models={model_text or '—'}` / "
                     f"`deployable_rows={latest_matrix.get('deployable_rows', '—')}` / "
+                    f"`risk_qualified_rows={latest_matrix.get('risk_qualified_rows', '—')}` / "
+                    f"`runtime_blocked_candidates={latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / "
                     f"`support_route={latest_matrix.get('support_route', '—')}` / "
                     f"`deployment_blocker={latest_matrix.get('deployment_blocker', '—')}`",
-                    "best observed row："
+                    "nearest deployable candidate："
                     f"`model={best_row.get('model', '—')}` / "
                     f"`regime={best_row.get('regime', '—')}` / "
                     f"`top_k={best_row.get('top_k', '—')}` / "
@@ -1140,6 +1456,8 @@ def _issue_current_lines(
                     f"`max_drawdown={best_row.get('max_drawdown', '—')}` / "
                     f"`worst_fold={best_row.get('worst_fold', '—')}` / "
                     f"`trade_count={best_row.get('trade_count', '—')}` / "
+                    f"`tier={best_row.get('deployment_candidate_tier', '—')}` / "
+                    f"`oos_gate_passed={best_row.get('oos_gate_passed', '—')}` / "
                     f"`verdict={best_row.get('deployable_verdict', '—')}`",
                 ]
             )
@@ -1453,7 +1771,9 @@ def overwrite_current_state_docs(
         run_mode=run_mode,
     )
     issues_changed = False
-    if _sync_live_issue_summaries(issues, source_blockers):
+    if _sync_live_issue_summaries(issues, source_blockers, live_predictor_diagnostics):
+        issues_changed = True
+    if _sync_high_conviction_topk_issue_summary(issues, live_predictor_diagnostics):
         issues_changed = True
     if _sync_candidate_artifact_refresh_issue(issues, candidate_refresh_context, run_label=run_label):
         issues_changed = True
@@ -1511,7 +1831,9 @@ def overwrite_current_state_docs(
         else {}
     )
     high_conviction_best_row = (
-        high_conviction_latest_matrix.get("best_not_deployable")
+        high_conviction_latest_matrix.get("nearest_deployable_candidate")
+        if isinstance(high_conviction_latest_matrix.get("nearest_deployable_candidate"), dict)
+        else high_conviction_latest_matrix.get("best_not_deployable")
         if isinstance(high_conviction_latest_matrix.get("best_not_deployable"), dict)
         else {}
     )
@@ -1864,7 +2186,7 @@ def overwrite_current_state_docs(
             "5. **P0 實戰化：建立 high-conviction top-k OOS ROI gate，把研究 winner 轉成可拒單 deployment candidate**",
             (
                 f"   - `data/high_conviction_topk_oos_matrix.json` 已產出 `rows={high_conviction_latest_matrix.get('rows')}` / "
-                f"`deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}`；`/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K Gate panel 已接上 matrix/gate_failures，current-live/support blockers 未解除前仍 fail-closed。"
+                f"`deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}`；`/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K Gate panel 已改為最接近部署候選優先，current-live/support blockers 未解除前仍 fail-closed。"
                 if high_conviction_latest_matrix
                 else "   - 先產出 `data/high_conviction_topk_oos_matrix.json`，用 walk-forward OOS 比較 `model × feature_profile × regime × top_k`；未達 minimum trades / win rate / max drawdown / profit factor / support route 時保持 paper/shadow/hold-only。"
             ),
@@ -1892,8 +2214,8 @@ def overwrite_current_state_docs(
         high_conviction_matrix_lines = []
         if high_conviction_latest_matrix:
             high_conviction_matrix_lines = [
-                f"- 最新 matrix artifact 已產出：`artifact={high_conviction_latest_matrix.get('artifact', 'data/high_conviction_topk_oos_matrix.json')}` / `samples={high_conviction_latest_matrix.get('samples', '—')}` / `rows={high_conviction_latest_matrix.get('rows', '—')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows', '—')}` / `support_route={high_conviction_latest_matrix.get('support_route', '—')}` / `deployment_blocker={high_conviction_latest_matrix.get('deployment_blocker', '—')}`。",
-                f"- 最佳觀測列仍不可部署：`model={high_conviction_best_row.get('model', '—')}` / `regime={high_conviction_best_row.get('regime', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` / `win_rate={high_conviction_best_row.get('win_rate', '—')}` / `profit_factor={high_conviction_best_row.get('profit_factor', '—')}` / `max_drawdown={high_conviction_best_row.get('max_drawdown', '—')}` / `worst_fold={high_conviction_best_row.get('worst_fold', '—')}` / `trades={high_conviction_best_row.get('trade_count', '—')}` / `verdict={high_conviction_best_row.get('deployable_verdict', '—')}`。",
+                f"- 最新 matrix artifact 已產出：`artifact={high_conviction_latest_matrix.get('artifact', 'data/high_conviction_topk_oos_matrix.json')}` / `samples={high_conviction_latest_matrix.get('samples', '—')}` / `rows={high_conviction_latest_matrix.get('rows', '—')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows', '—')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `support_route={high_conviction_latest_matrix.get('support_route', '—')}` / `deployment_blocker={high_conviction_latest_matrix.get('deployment_blocker', '—')}`。",
+                f"- 最接近部署候選優先：`model={high_conviction_best_row.get('model', '—')}` / `regime={high_conviction_best_row.get('regime', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` / `win_rate={high_conviction_best_row.get('win_rate', '—')}` / `profit_factor={high_conviction_best_row.get('profit_factor', '—')}` / `max_drawdown={high_conviction_best_row.get('max_drawdown', '—')}` / `worst_fold={high_conviction_best_row.get('worst_fold', '—')}` / `trades={high_conviction_best_row.get('trade_count', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` / `verdict={high_conviction_best_row.get('deployable_verdict', '—')}`；若只剩 current-live/support gate，仍 paper-shadow / hold-only。",
             ]
         else:
             high_conviction_matrix_lines = [
@@ -1905,8 +2227,8 @@ def overwrite_current_state_docs(
             "- 六色帽會議與研究交叉分析已收斂：下一步不是增加交易頻率，而是用 walk-forward OOS / top-k precision / ROI / max drawdown / meta-labeling / uncertainty gate 決定是否允許 candidate 進入部署候選。",
             *high_conviction_matrix_lines,
             "**成功標準**",
-            "- `data/high_conviction_topk_oos_matrix.json` 必須持續輸出 `model / feature_profile / regime / top_k / OOS ROI / win_rate / profit_factor / max_drawdown / worst_fold / trade_count / support_route / deployable_verdict / gate_failures`。",
-            "- `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K Gate panel 已以 walk-forward OOS top-k matrix、ROI-first / drawdown-aware / top-k precision 顯示部署候選；不達 minimum trades、max drawdown、profit factor、same-bucket support 或 venue proof 時 fail-closed 到 paper/shadow/hold-only。",
+            "- `data/high_conviction_topk_oos_matrix.json` 必須持續輸出 `model / feature_profile / regime / top_k / OOS ROI / win_rate / profit_factor / max_drawdown / worst_fold / trade_count / support_route / deployable_verdict / gate_failures / model_gate_failures / live_gate_failures / deployment_candidate_tier`。",
+            "- `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K Gate panel 以最接近部署候選優先排序：先看 OOS/風控 gates、低回撤、worst fold，再看 ROI；若候選只剩 current-live/support/venue proof 未過，仍 fail-closed 到 paper/shadow/hold-only。",
             "",
         ]
 
@@ -2023,16 +2345,16 @@ def overwrite_current_state_docs(
     if high_conviction_issue:
         high_conviction_orid_fact_lines = [
             (
-                f"- 實戰化 P0：`data/high_conviction_topk_oos_matrix.json` 已產出 `rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}`；最佳列 `model={high_conviction_best_row.get('model', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` 仍因 drawdown/worst-fold/current-live blocker fail-closed。"
+                f"- 實戰化 P0：`data/high_conviction_topk_oos_matrix.json` 已產出 `rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}`；最接近部署候選 `model={high_conviction_best_row.get('model', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` / `max_drawdown={high_conviction_best_row.get('max_drawdown', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` 仍因 current-live/support gate fail-closed。"
                 if high_conviction_latest_matrix
                 else "- 實戰化新 P0：high-conviction top-k OOS ROI gate 已進入 current-state issues；下一步產出 `data/high_conviction_topk_oos_matrix.json`，用 walk-forward OOS top-k matrix 驗證 ROI、勝率、回撤、profit factor、worst fold、minimum trades 與 current-live support。"
             ),
         ]
         high_conviction_orid_insight_lines = [
-            "4. **實戰化不是堆模型，而是可拒單部署治理**：high-conviction top-k OOS ROI gate 把六色帽 / 研究交叉分析轉成 product contract；未通過 OOS top-k、support、drawdown 與 uncertainty gate 時，策略 winner 只能留在 paper/shadow/hold-only。",
+            "4. **實戰化不是堆模型，而是可拒單部署治理**：high-conviction top-k OOS ROI gate 把六色帽 / 研究交叉分析轉成 product contract；排序先分離 OOS/模型風控 gate 與 current-live/support gate，避免最高 ROI 但高回撤/負 worst-fold 的列誤導部署決策。",
         ]
         high_conviction_orid_action_lines = [
-            "- **Research-to-production gate**：walk-forward OOS top-k matrix 已透過 `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K Gate panel 可視化；operator 現在可直接看到 top-k OOS ROI、win-rate、max DD、trades、worst fold、deployable reason 與 no-trade reason，但 current-live/support blockers 未解除前仍維持 fail-closed。",
+            "- **Research-to-production gate**：walk-forward OOS top-k matrix 已透過 `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K Gate panel 可視化；operator 現在會先看到最接近部署候選（OOS/風控已過但只剩 current-live/support gate 的 rows），再看 ROI-only winner；current-live/support blockers 未解除前仍維持 fail-closed。",
         ]
 
     live_regime = live_predictor_diagnostics.get("regime_label") or "—"
