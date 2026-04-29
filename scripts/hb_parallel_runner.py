@@ -1110,12 +1110,46 @@ def _issue_current_lines(
             research_basis_text = ",".join(str(item) for item in research_basis[:6])
         else:
             research_basis_text = str(research_basis or "—")
+        latest_matrix = summary.get("latest_matrix") if isinstance(summary.get("latest_matrix"), dict) else {}
+        best_row = (
+            latest_matrix.get("best_not_deployable")
+            if isinstance(latest_matrix.get("best_not_deployable"), dict)
+            else {}
+        )
+        matrix_lines = []
+        if latest_matrix:
+            evaluated_models = latest_matrix.get("evaluated_models") or []
+            model_text = ",".join(str(item) for item in evaluated_models[:6]) if isinstance(evaluated_models, list) else str(evaluated_models)
+            matrix_lines.extend(
+                [
+                    "latest matrix："
+                    f"`generated_at={latest_matrix.get('generated_at', '—')}` / "
+                    f"`samples={latest_matrix.get('samples', '—')}` / "
+                    f"`rows={latest_matrix.get('rows', '—')}` / "
+                    f"`models={model_text or '—'}` / "
+                    f"`deployable_rows={latest_matrix.get('deployable_rows', '—')}` / "
+                    f"`support_route={latest_matrix.get('support_route', '—')}` / "
+                    f"`deployment_blocker={latest_matrix.get('deployment_blocker', '—')}`",
+                    "best observed row："
+                    f"`model={best_row.get('model', '—')}` / "
+                    f"`regime={best_row.get('regime', '—')}` / "
+                    f"`top_k={best_row.get('top_k', '—')}` / "
+                    f"`oos_roi={best_row.get('oos_roi', '—')}` / "
+                    f"`win_rate={best_row.get('win_rate', '—')}` / "
+                    f"`profit_factor={best_row.get('profit_factor', '—')}` / "
+                    f"`max_drawdown={best_row.get('max_drawdown', '—')}` / "
+                    f"`worst_fold={best_row.get('worst_fold', '—')}` / "
+                    f"`trade_count={best_row.get('trade_count', '—')}` / "
+                    f"`verdict={best_row.get('deployable_verdict', '—')}`",
+                ]
+            )
         return [
             "目前真相："
             f"`mode={summary.get('current_go_no_go') or 'paper_shadow_only_until_oos_and_support_deployable'}` / "
             f"`validation={summary.get('required_validation') or 'walk_forward_oos'}` / "
             f"`top_k_grid={top_k_text}` / "
             f"`output_artifact={summary.get('output_artifact') or 'data/high_conviction_topk_oos_matrix.json'}`",
+            *matrix_lines,
             "研究依據："
             f"`basis={research_basis_text}` / "
             "`目的=只讓高信心、低回撤、經 OOS 驗證的金字塔候選進入部署候選`",
@@ -1471,6 +1505,16 @@ def overwrite_current_state_docs(
         if isinstance(high_conviction_summary.get("current_scan_clue"), dict)
         else {}
     )
+    high_conviction_latest_matrix = (
+        high_conviction_summary.get("latest_matrix")
+        if isinstance(high_conviction_summary.get("latest_matrix"), dict)
+        else {}
+    )
+    high_conviction_best_row = (
+        high_conviction_latest_matrix.get("best_not_deployable")
+        if isinstance(high_conviction_latest_matrix.get("best_not_deployable"), dict)
+        else {}
+    )
     current_support_bucket = _current_support_bucket(live_predictor_diagnostics, q15_support_audit)
     support_scope_label = _support_scope_label(current_support_bucket)
     support_scope_operator_label = _support_scope_operator_label(current_support_bucket)
@@ -1818,7 +1862,12 @@ def overwrite_current_state_docs(
     if high_conviction_issue:
         high_conviction_priority_lines = [
             "5. **P0 實戰化：建立 high-conviction top-k OOS ROI gate，把研究 winner 轉成可拒單 deployment candidate**",
-            "   - 先產出 `data/high_conviction_topk_oos_matrix.json`，用 walk-forward OOS 比較 `model × feature_profile × regime × top_k`；未達 minimum trades / win rate / max drawdown / profit factor / support route 時保持 paper/shadow/hold-only。",
+            (
+                f"   - `data/high_conviction_topk_oos_matrix.json` 已產出 `rows={high_conviction_latest_matrix.get('rows')}` / "
+                f"`deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}`；`/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K Gate panel 已接上 matrix/gate_failures，current-live/support blockers 未解除前仍 fail-closed。"
+                if high_conviction_latest_matrix
+                else "   - 先產出 `data/high_conviction_topk_oos_matrix.json`，用 walk-forward OOS 比較 `model × feature_profile × regime × top_k`；未達 minimum trades / win rate / max drawdown / profit factor / support route 時保持 paper/shadow/hold-only。"
+            ),
         ]
 
     issues_lines.extend(
@@ -1840,14 +1889,24 @@ def overwrite_current_state_docs(
     support_truth_ratio = f"{support_current_rows}/{support_minimum_rows}"
     high_conviction_roadmap_lines: list[str] = []
     if high_conviction_issue:
+        high_conviction_matrix_lines = []
+        if high_conviction_latest_matrix:
+            high_conviction_matrix_lines = [
+                f"- 最新 matrix artifact 已產出：`artifact={high_conviction_latest_matrix.get('artifact', 'data/high_conviction_topk_oos_matrix.json')}` / `samples={high_conviction_latest_matrix.get('samples', '—')}` / `rows={high_conviction_latest_matrix.get('rows', '—')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows', '—')}` / `support_route={high_conviction_latest_matrix.get('support_route', '—')}` / `deployment_blocker={high_conviction_latest_matrix.get('deployment_blocker', '—')}`。",
+                f"- 最佳觀測列仍不可部署：`model={high_conviction_best_row.get('model', '—')}` / `regime={high_conviction_best_row.get('regime', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` / `win_rate={high_conviction_best_row.get('win_rate', '—')}` / `profit_factor={high_conviction_best_row.get('profit_factor', '—')}` / `max_drawdown={high_conviction_best_row.get('max_drawdown', '—')}` / `worst_fold={high_conviction_best_row.get('worst_fold', '—')}` / `trades={high_conviction_best_row.get('trade_count', '—')}` / `verdict={high_conviction_best_row.get('deployable_verdict', '—')}`。",
+            ]
+        else:
+            high_conviction_matrix_lines = [
+                f"- 目前 scan 線索：`model={high_conviction_scan.get('model', 'catboost')}` / `roi={high_conviction_scan.get('roi', 0.1978)}` / `win_rate={high_conviction_scan.get('win_rate', 0.6216)}` / `max_drawdown={high_conviction_scan.get('max_drawdown', 0.0655)}` / `trades={high_conviction_scan.get('trades', 37)}`，因 trades/support/OOS top-k 尚未完成，只能 `research_only_not_deployable`。",
+            ]
         high_conviction_roadmap_lines = [
             "### 目標 E：建立 high-conviction top-k OOS ROI gate，把研究結論轉成實戰部署門檻",
             "**目前真相**",
             "- 六色帽會議與研究交叉分析已收斂：下一步不是增加交易頻率，而是用 walk-forward OOS / top-k precision / ROI / max drawdown / meta-labeling / uncertainty gate 決定是否允許 candidate 進入部署候選。",
-            f"- 目前 scan 線索：`model={high_conviction_scan.get('model', 'catboost')}` / `roi={high_conviction_scan.get('roi', 0.1978)}` / `win_rate={high_conviction_scan.get('win_rate', 0.6216)}` / `max_drawdown={high_conviction_scan.get('max_drawdown', 0.0655)}` / `trades={high_conviction_scan.get('trades', 37)}`，因 trades/support/OOS top-k 尚未完成，只能 `research_only_not_deployable`。",
+            *high_conviction_matrix_lines,
             "**成功標準**",
-            "- 產出 `data/high_conviction_topk_oos_matrix.json`，每列包含 `model / feature_profile / regime / top_k / OOS ROI / win_rate / profit_factor / max_drawdown / worst_fold / trade_count / support_route / deployable_verdict`。",
-            "- Strategy Lab leaderboard 改以 ROI-first / drawdown-aware / top-k precision 顯示部署候選；不達 minimum trades、max drawdown、profit factor、same-bucket support 或 venue proof 時 fail-closed 到 paper/shadow/hold-only。",
+            "- `data/high_conviction_topk_oos_matrix.json` 必須持續輸出 `model / feature_profile / regime / top_k / OOS ROI / win_rate / profit_factor / max_drawdown / worst_fold / trade_count / support_route / deployable_verdict / gate_failures`。",
+            "- `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K Gate panel 已以 walk-forward OOS top-k matrix、ROI-first / drawdown-aware / top-k precision 顯示部署候選；不達 minimum trades、max drawdown、profit factor、same-bucket support 或 venue proof 時 fail-closed 到 paper/shadow/hold-only。",
             "",
         ]
 
@@ -1939,7 +1998,7 @@ def overwrite_current_state_docs(
         *(
             [
                 "4. **建立 high-conviction top-k OOS ROI gate，讓 Strategy Lab winner 先經 research→paper→shadow→canary 分級**",
-                "   - 驗證：`data/high_conviction_topk_oos_matrix.json`、Strategy Lab leaderboard top-k OOS ROI / win-rate / DD / trades / deployable verdict、`python -m pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_hb_parallel_runner.py -q`",
+                "   - 驗證：`data/high_conviction_topk_oos_matrix.json`、`/api/models/leaderboard.high_conviction_topk`、Strategy Lab 高信心 OOS Top-K Gate panel、`python -m pytest tests/test_model_leaderboard.py tests/test_frontend_decision_contract.py -k high_conviction -q`",
                 "   - 升級 blocker：若 scan winner 未經 OOS top-k / minimum support / drawdown gate 就被標成 deployable，或 current-live unsupported 時仍允許 buy/add exposure",
             ]
             if high_conviction_issue
@@ -1963,13 +2022,17 @@ def overwrite_current_state_docs(
     high_conviction_orid_action_lines: list[str] = []
     if high_conviction_issue:
         high_conviction_orid_fact_lines = [
-            "- 實戰化新 P0：high-conviction top-k OOS ROI gate 已進入 current-state issues；下一步產出 `data/high_conviction_topk_oos_matrix.json`，用 walk-forward OOS top-k matrix 驗證 ROI、勝率、回撤、profit factor、worst fold、minimum trades 與 current-live support。",
+            (
+                f"- 實戰化 P0：`data/high_conviction_topk_oos_matrix.json` 已產出 `rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}`；最佳列 `model={high_conviction_best_row.get('model', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` 仍因 drawdown/worst-fold/current-live blocker fail-closed。"
+                if high_conviction_latest_matrix
+                else "- 實戰化新 P0：high-conviction top-k OOS ROI gate 已進入 current-state issues；下一步產出 `data/high_conviction_topk_oos_matrix.json`，用 walk-forward OOS top-k matrix 驗證 ROI、勝率、回撤、profit factor、worst fold、minimum trades 與 current-live support。"
+            ),
         ]
         high_conviction_orid_insight_lines = [
             "4. **實戰化不是堆模型，而是可拒單部署治理**：high-conviction top-k OOS ROI gate 把六色帽 / 研究交叉分析轉成 product contract；未通過 OOS top-k、support、drawdown 與 uncertainty gate 時，策略 winner 只能留在 paper/shadow/hold-only。",
         ]
         high_conviction_orid_action_lines = [
-            "- **Research-to-production gate**：優先建立 high-conviction top-k OOS ROI gate；Strategy Lab / leaderboard 必須顯示 top-k OOS ROI、win-rate、max DD、trades、worst fold、deployable reason 與 no-trade reason。",
+            "- **Research-to-production gate**：walk-forward OOS top-k matrix 已透過 `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K Gate panel 可視化；operator 現在可直接看到 top-k OOS ROI、win-rate、max DD、trades、worst fold、deployable reason 與 no-trade reason，但 current-live/support blockers 未解除前仍維持 fail-closed。",
         ]
 
     live_regime = live_predictor_diagnostics.get("regime_label") or "—"
@@ -2014,8 +2077,8 @@ def overwrite_current_state_docs(
         "- **Owner**：即時執行治理 lane",
         orid_action_line.rstrip("。") + "；`/execution` 操作入口在同步中 / 已阻塞時只對買入 / 加倉與啟用自動模式 fail-closed，減碼保留；直接 API 買入 / 加倉也必須 409 暫停，減倉 / 賣出保留風險降低路徑。",
         *high_conviction_orid_action_lines,
-        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`。",
-        "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python -m pytest tests/test_server_startup.py -k api_trade -q`。",
+        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/high_conviction_topk_oos_matrix.json`。",
+        "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`。",
         orid_fail_line,
         "",
     ]

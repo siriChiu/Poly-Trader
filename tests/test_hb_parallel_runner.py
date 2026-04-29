@@ -6411,6 +6411,27 @@ def test_overwrite_current_state_docs_surfaces_high_conviction_topk_gate(tmp_pat
                                 "max_drawdown": 0.0655,
                                 "trades": 37,
                             },
+                            "surfacing_status": "api_leaderboard_and_strategy_lab_visible_fail_closed",
+                            "latest_matrix": {
+                                "artifact": "data/high_conviction_topk_oos_matrix.json",
+                                "samples": 23856,
+                                "rows": 24,
+                                "deployable_rows": 0,
+                                "support_route": "exact_bucket_unsupported_block",
+                                "deployment_blocker": "circuit_breaker_active",
+                                "best_not_deployable": {
+                                    "model": "xgboost",
+                                    "regime": "all",
+                                    "top_k": "top_10pct",
+                                    "oos_roi": 3.8544,
+                                    "win_rate": 0.7774,
+                                    "profit_factor": 8.2654,
+                                    "max_drawdown": 0.2179,
+                                    "worst_fold": -0.0611,
+                                    "trade_count": 292,
+                                    "deployable_verdict": "not_deployable",
+                                },
+                            },
                         },
                         "verify": ["data/high_conviction_topk_oos_matrix.json"],
                     }
@@ -6454,9 +6475,10 @@ def test_overwrite_current_state_docs_surfaces_high_conviction_topk_gate(tmp_pat
     assert "status=research_only_not_deployable" in issues_md
     assert "P0 實戰化：建立 high-conviction top-k OOS ROI gate" in issues_md
     assert "目標 E：建立 high-conviction top-k OOS ROI gate" in roadmap_md
-    assert "model=catboost" in roadmap_md
-    assert "research_only_not_deployable" in roadmap_md
-    assert "Strategy Lab leaderboard top-k OOS ROI / win-rate / DD / trades / deployable verdict" in roadmap_md
-    assert "high-conviction top-k OOS ROI gate 已進入 current-state issues" in orid_md
+    assert "model=xgboost" in roadmap_md
+    assert "verdict=not_deployable" in roadmap_md
+    assert "Strategy Lab 高信心 OOS Top-K Gate panel" in roadmap_md
+    assert "`/api/models/leaderboard`" in roadmap_md
+    assert "walk-forward OOS top-k matrix 已透過 `/api/models/leaderboard`" in orid_md
     assert "walk-forward OOS top-k matrix" in orid_md
     assert "Research-to-production gate" in orid_md

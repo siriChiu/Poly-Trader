@@ -67,6 +67,7 @@ _LIVE_PREDICT_PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 _RECENT_DRIFT_REPORT_PATH = PROJECT_ROOT / "data" / "recent_drift_report.json"
 _ISSUES_JSON_PATH = PROJECT_ROOT / "issues.json"
 _STRATEGY_PARAM_SCAN_PATH = PROJECT_ROOT / "data" / "model_strategy_param_scan_latest.json"
+HIGH_CONVICTION_TOPK_PATH = PROJECT_ROOT / "data" / "high_conviction_topk_oos_matrix.json"
 _MODEL_LB_STALE_AFTER_SEC = 900
 _MODEL_LB_REFRESH_COOLDOWN_SEC = 300
 _LIVE_PREDICT_PROBE_RUNTIME_STALE_AFTER_SEC = 1800
@@ -3561,6 +3562,97 @@ def _load_strategy_param_scan_summary(path: Optional[Path] = None) -> Optional[D
 
 
 
+def _coerce_float_or_none(value: Any) -> Optional[float]:
+    try:
+        if value is None or value == "":
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_int_or_none(value: Any) -> Optional[int]:
+    try:
+        if value is None or value == "":
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _compact_high_conviction_topk_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    gate_failures = row.get("gate_failures")
+    if not isinstance(gate_failures, list):
+        gate_failures = []
+    return {
+        "model": row.get("model") or row.get("model_name"),
+        "model_name": row.get("model_name") or row.get("model"),
+        "feature_profile": row.get("feature_profile"),
+        "regime": row.get("regime"),
+        "top_k": row.get("top_k"),
+        "oos_roi": _coerce_float_or_none(row.get("oos_roi")),
+        "win_rate": _coerce_float_or_none(row.get("win_rate")),
+        "profit_factor": _coerce_float_or_none(row.get("profit_factor")),
+        "max_drawdown": _coerce_float_or_none(row.get("max_drawdown")),
+        "worst_fold": _coerce_float_or_none(row.get("worst_fold")),
+        "trade_count": _coerce_int_or_none(row.get("trade_count")),
+        "deployable_verdict": row.get("deployable_verdict") or "not_deployable",
+        "gate_failures": [str(item) for item in gate_failures if item is not None],
+    }
+
+
+def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int = 12) -> Optional[Dict[str, Any]]:
+    artifact_path = path or HIGH_CONVICTION_TOPK_PATH
+    try:
+        if not artifact_path.exists():
+            return None
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Failed to load high-conviction top-k matrix: %s", exc)
+        return {
+            "source_artifact": str(artifact_path),
+            "status": "unreadable",
+            "error": str(exc),
+            "row_count": 0,
+            "deployable_count": 0,
+            "best_rows": [],
+        }
+    if not isinstance(payload, dict):
+        return {
+            "source_artifact": str(artifact_path),
+            "status": "invalid_payload",
+            "row_count": 0,
+            "deployable_count": 0,
+            "best_rows": [],
+        }
+
+    rows = [row for row in payload.get("rows", []) if isinstance(row, dict)]
+    rows.sort(
+        key=lambda row: (
+            str(row.get("deployable_verdict") or "") == "deployable",
+            _coerce_float_or_none(row.get("oos_roi")) if _coerce_float_or_none(row.get("oos_roi")) is not None else -999.0,
+            _coerce_float_or_none(row.get("win_rate")) if _coerce_float_or_none(row.get("win_rate")) is not None else -999.0,
+            _coerce_int_or_none(row.get("trade_count")) if _coerce_int_or_none(row.get("trade_count")) is not None else 0,
+        ),
+        reverse=True,
+    )
+    deployable_count = sum(1 for row in rows if row.get("deployable_verdict") == "deployable")
+    return {
+        "source_artifact": str(artifact_path),
+        "generated_at": payload.get("generated_at"),
+        "target_col": payload.get("target_col"),
+        "samples": payload.get("samples"),
+        "top_k_grid": payload.get("top_k_grid") if isinstance(payload.get("top_k_grid"), list) else [],
+        "minimum_deployment_gates": payload.get("minimum_deployment_gates") if isinstance(payload.get("minimum_deployment_gates"), dict) else {},
+        "support_context": payload.get("support_context") if isinstance(payload.get("support_context"), dict) else {},
+        "row_count": len(rows),
+        "deployable_count": deployable_count,
+        "status": "deployable_candidates_available" if deployable_count else "paper_shadow_only",
+        "best_rows": [_compact_high_conviction_topk_row(row) for row in rows[:limit]],
+    }
+
+
+
 def _load_leaderboard_governance_summary(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     artifact_path = path or _LEADERBOARD_GOVERNANCE_PROBE_PATH
     try:
@@ -4054,6 +4146,7 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
     db_path = db_path or DB_PATH
     strategy_param_scan = _load_strategy_param_scan_summary()
     leaderboard_governance = _load_leaderboard_governance_summary()
+    high_conviction_topk = _load_high_conviction_topk_summary()
     data_df = load_model_leaderboard_frame(db_path)
     if data_df.empty:
         return {
@@ -4076,6 +4169,7 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
             "evaluation_max_folds": getattr(ModelLeaderboard, "EVALUATION_MAX_FOLDS", None),
             "strategy_param_scan": strategy_param_scan,
             "leaderboard_governance": leaderboard_governance,
+            "high_conviction_topk": high_conviction_topk,
         }
 
     target_col = "simulated_pyramid_win" if "simulated_pyramid_win" in data_df.columns else "label_spot_long_win"
@@ -4126,6 +4220,7 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
         "data_warning": leaderboard_warning,
         "strategy_param_scan": strategy_param_scan,
         "leaderboard_governance": leaderboard_governance,
+        "high_conviction_topk": high_conviction_topk,
     })
     return payload
 

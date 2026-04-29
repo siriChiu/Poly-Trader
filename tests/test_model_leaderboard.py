@@ -556,6 +556,70 @@ def test_build_model_leaderboard_payload_separates_no_trade_placeholders(monkeyp
     assert payload["leaderboard_warning"] is not None and "no-trade placeholder" in payload["leaderboard_warning"]
 
 
+def test_build_model_leaderboard_payload_includes_high_conviction_topk(monkeypatch, tmp_path: Path):
+    artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T10:15:21Z",
+                "target_col": "simulated_pyramid_win",
+                "samples": 1234,
+                "top_k_grid": ["top_1pct", "top_2pct"],
+                "minimum_deployment_gates": {"min_trades": 50, "min_win_rate": 0.6},
+                "support_context": {"deployment_blocker": "circuit_breaker_active"},
+                "rows": [
+                    {
+                        "model": "xgboost",
+                        "feature_profile": "current_full",
+                        "regime": "all",
+                        "top_k": "top_1pct",
+                        "oos_roi": 0.22,
+                        "win_rate": 0.71,
+                        "profit_factor": 2.4,
+                        "max_drawdown": 0.04,
+                        "worst_fold": -0.02,
+                        "trade_count": 44,
+                        "deployable_verdict": "not_deployable",
+                        "gate_failures": ["min_trades_not_met", "deployment_blocker_active"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=3, freq="D"),
+            "close_price": [50000.0, 50010.0, 50020.0],
+            "simulated_pyramid_win": [1, 0, 1],
+            "feat_4h_bias50": [0.0, 0.0, 0.0],
+            "feat_nose": [0.4, 0.5, 0.6],
+            "feat_pulse": [0.6, 0.5, 0.4],
+            "feat_ear": [0.1, 0.1, 0.1],
+        }
+    )
+
+    monkeypatch.setattr(api_module, "HIGH_CONVICTION_TOPK_PATH", artifact, raising=False)
+    monkeypatch.setattr(api_module, "load_model_leaderboard_frame", lambda db_path=None: df)
+    monkeypatch.setattr(api_module, "_load_model_leaderboard_history", lambda db_path=None: [])
+    monkeypatch.setattr(api_module, "_summarize_target_candidates", lambda *args, **kwargs: [])
+    monkeypatch.setattr(api_module, "_serialize_model_scores", lambda scores, leaderboard: [])
+    monkeypatch.setattr(ModelLeaderboard, "run_all_models", lambda self, model_names=None: [])
+
+    payload = api_module._build_model_leaderboard_payload()
+
+    summary = payload["high_conviction_topk"]
+    assert summary["source_artifact"] == str(artifact)
+    assert summary["row_count"] == 1
+    assert summary["deployable_count"] == 0
+    assert summary["status"] == "paper_shadow_only"
+    assert summary["target_col"] == "simulated_pyramid_win"
+    assert summary["best_rows"][0]["model"] == "xgboost"
+    assert summary["best_rows"][0]["oos_roi"] == pytest.approx(0.22)
+    assert summary["best_rows"][0]["gate_failures"] == ["min_trades_not_met", "deployment_blocker_active"]
+
+
+
 def test_build_model_leaderboard_payload_includes_strategy_param_scan_when_placeholder_only(monkeypatch):
     df = pd.DataFrame(
         {

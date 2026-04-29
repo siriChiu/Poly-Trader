@@ -734,6 +734,37 @@ interface StrategyParamScanSummary {
   warning?: string | null;
 }
 
+interface HighConvictionTopKRow {
+  model?: string | null;
+  model_name?: string | null;
+  feature_profile?: string | null;
+  regime?: string | null;
+  top_k?: string | null;
+  oos_roi?: number | null;
+  win_rate?: number | null;
+  profit_factor?: number | null;
+  max_drawdown?: number | null;
+  worst_fold?: number | null;
+  trade_count?: number | null;
+  deployable_verdict?: string | null;
+  gate_failures?: string[];
+}
+
+interface HighConvictionTopKSummary {
+  source_artifact?: string | null;
+  generated_at?: string | null;
+  target_col?: string | null;
+  samples?: number | null;
+  top_k_grid?: string[];
+  minimum_deployment_gates?: Record<string, any>;
+  support_context?: Record<string, any>;
+  row_count?: number | null;
+  deployable_count?: number | null;
+  status?: string | null;
+  best_rows?: HighConvictionTopKRow[];
+  error?: string | null;
+}
+
 interface LeaderboardGovernanceSummary {
   generated_at?: string | null;
   source_artifact?: string | null;
@@ -799,6 +830,7 @@ interface ModelLeaderboardMeta {
   snapshot_history?: LeaderboardHistoryRow[];
   strategy_param_scan?: StrategyParamScanSummary | null;
   leaderboard_governance?: LeaderboardGovernanceSummary | null;
+  high_conviction_topk?: HighConvictionTopKSummary | null;
 }
 
 interface StrategyQuadrantPoint {
@@ -1765,6 +1797,14 @@ export default function StrategyLab() {
   const placeholderModelRows = Array.isArray(modelMeta.placeholder_rows) ? modelMeta.placeholder_rows : [];
   const modelStrategyParamScan = modelMeta.strategy_param_scan ?? null;
   const leaderboardGovernance = modelMeta.leaderboard_governance ?? null;
+  const highConvictionTopK = modelMeta.high_conviction_topk ?? null;
+  const highConvictionRows = Array.isArray(highConvictionTopK?.best_rows) ? highConvictionTopK.best_rows : [];
+  const highConvictionGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.gate_failures) ? row.gate_failures : []))).slice(0, 6);
+  const highConvictionDeployable = (highConvictionTopK?.deployable_count ?? 0) > 0;
+  const highConvictionStatusLabel = highConvictionDeployable ? "已有候選，但仍需人工灰度確認" : "research-only / paper-shadow";
+  const highConvictionGridLabel = Array.isArray(highConvictionTopK?.top_k_grid) && highConvictionTopK.top_k_grid.length > 0 ? highConvictionTopK.top_k_grid.join(" / ") : "top-k grid —";
+  const highConvictionGeneratedAtLabel = highConvictionTopK?.generated_at ? new Date(highConvictionTopK.generated_at).toLocaleString("zh-TW") : "生成時間 —";
+  const highConvictionGateSummary = highConvictionTopK?.minimum_deployment_gates ? Object.entries(highConvictionTopK.minimum_deployment_gates).map(([key, value]) => `${humanizeRuntimeDetailText(key)}=${String(value)}`).join(" · ") : "gate —";
   const governanceContract = leaderboardGovernance?.governance_contract ?? null;
   const profileSplit = leaderboardGovernance?.profile_split ?? null;
   const modelLeaderboardStaleStateLabel = modelMeta.refreshing
@@ -2133,6 +2173,7 @@ export default function StrategyLab() {
         snapshot_history: Array.isArray(data?.snapshot_history) ? data.snapshot_history : [],
         strategy_param_scan: data?.strategy_param_scan ?? null,
         leaderboard_governance: data?.leaderboard_governance ?? null,
+        high_conviction_topk: data?.high_conviction_topk ?? null,
       };
       setModelLeaderboard(nextModelLeaderboard);
       setModelQuadrantPoints(nextModelQuadrants);
@@ -3488,6 +3529,80 @@ export default function StrategyLab() {
                       <div className="text-[11px] opacity-80">
                         閉環：{governanceContract.current_closure || leaderboardGovernance?.dual_profile_state || "—"}
                         {leaderboardGovernance?.live_current_structure_bucket ? ` · 即時分桶 ${humanizeStructureBucketLabel(leaderboardGovernance.live_current_structure_bucket)}` : ""}
+                      </div>
+                    </div>
+                  )}
+                  {highConvictionTopK && (
+                    <div className={`rounded-lg border px-3 py-3 text-xs space-y-3 ${highConvictionDeployable ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-50" : "border-violet-500/30 bg-violet-500/10 text-violet-50"}`}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-violet-100">高信心 OOS Top-K Gate</div>
+                          <div className="mt-1 text-[11px] text-violet-100/80">
+                            未通過前維持 paper / shadow / hold-only，不開新倉。
+                          </div>
+                        </div>
+                        <div className="text-right text-[11px] text-violet-100/80">
+                          <div>部署判定 {highConvictionStatusLabel}</div>
+                          <div>{highConvictionGeneratedAtLabel}</div>
+                        </div>
+                      </div>
+                      <div className="grid gap-2 xl:grid-cols-4">
+                        <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
+                          <div className="text-[11px] text-slate-300">top-k grid</div>
+                          <div className="mt-1 font-medium text-slate-100">{highConvictionGridLabel}</div>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
+                          <div className="text-[11px] text-slate-300">部署樣本</div>
+                          <div className="mt-1 font-medium text-slate-100">{formatDecimal(highConvictionTopK.row_count, 0)} rows · deployable {formatDecimal(highConvictionTopK.deployable_count, 0)}</div>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
+                          <div className="text-[11px] text-slate-300">target</div>
+                          <div className="mt-1 font-medium text-slate-100">{highConvictionTopK.target_col || "—"}</div>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
+                          <div className="text-[11px] text-slate-300">minimum gates</div>
+                          <div className="mt-1 font-medium text-slate-100">{highConvictionGateSummary}</div>
+                        </div>
+                      </div>
+                      {highConvictionRows.length > 0 ? (
+                        <div className="overflow-auto rounded-lg border border-violet-300/20 bg-slate-950/20">
+                          <table className="w-full min-w-[720px] text-xs">
+                            <thead className="border-b border-violet-300/20 text-violet-100/70">
+                              <tr>
+                                <th className="px-2 py-2 text-left">候選</th>
+                                <th className="px-2 py-2 text-right">OOS ROI</th>
+                                <th className="px-2 py-2 text-right">勝率</th>
+                                <th className="px-2 py-2 text-right">最大回撤</th>
+                                <th className="px-2 py-2 text-right">profit factor</th>
+                                <th className="px-2 py-2 text-right">worst fold</th>
+                                <th className="px-2 py-2 text-right">交易數</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {highConvictionRows.slice(0, 5).map((row, index) => (
+                                <tr key={`${row.model || row.model_name || "model"}-${row.top_k || "topk"}-${index}`} className="border-b border-violet-300/10">
+                                  <td className="px-2 py-2 text-left text-slate-100">
+                                    <div className="font-medium">{row.model_name || row.model || "未命名模型"}</div>
+                                    <div className="mt-1 text-[10px] text-violet-100/70">{row.feature_profile || "feature —"} · {row.regime || "regime —"} · {row.top_k || "top-k —"}</div>
+                                    <div className="mt-1 text-[10px] text-violet-100/60">部署判定 {row.deployable_verdict || "not_deployable"}</div>
+                                  </td>
+                                  <td className={`px-2 py-2 text-right ${isFiniteNumber(row.oos_roi) && row.oos_roi >= 0 ? "text-green-300" : "text-red-300"}`}>{formatPct(row.oos_roi, 1, true)}</td>
+                                  <td className="px-2 py-2 text-right text-emerald-200">{formatPct(row.win_rate)}</td>
+                                  <td className="px-2 py-2 text-right text-red-200">{formatPct(row.max_drawdown)}</td>
+                                  <td className="px-2 py-2 text-right text-violet-100">{formatDecimal(row.profit_factor, 2)}</td>
+                                  <td className={`px-2 py-2 text-right ${isFiniteNumber(row.worst_fold) && row.worst_fold >= 0 ? "text-green-300" : "text-red-200"}`}>{formatPct(row.worst_fold, 1, true)}</td>
+                                  <td className="px-2 py-2 text-right text-slate-200">{formatDecimal(row.trade_count, 0)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-violet-300/20 bg-slate-950/20 px-3 py-2 text-violet-100/80">尚未產生可排序的 high-conviction rows。</div>
+                      )}
+                      <div className="rounded-lg border border-rose-300/20 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-50">
+                        <div className="font-semibold text-rose-100">gate failures</div>
+                        <div className="mt-1">{highConvictionGateFailures.length > 0 ? highConvictionGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "目前沒有額外失敗碼；仍需確認 current-live blocker 與 support route 後才可部署。"}</div>
                       </div>
                     </div>
                   )}

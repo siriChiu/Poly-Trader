@@ -1337,6 +1337,31 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
     assert 'Live 部署同步' not in source
 
 
+
+def test_strategy_lab_surfaces_high_conviction_topk_gate_contract():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'interface HighConvictionTopKRow',
+        'interface HighConvictionTopKSummary',
+        'high_conviction_topk?: HighConvictionTopKSummary | null;',
+        'high_conviction_topk: data?.high_conviction_topk ?? null,',
+        'const highConvictionTopK = modelMeta.high_conviction_topk ?? null;',
+        'const highConvictionRows = Array.isArray(highConvictionTopK?.best_rows) ? highConvictionTopK.best_rows : [];',
+        '高信心 OOS Top-K Gate',
+        '未通過前維持 paper / shadow / hold-only，不開新倉。',
+        'OOS ROI',
+        '勝率',
+        '最大回撤',
+        'profit factor',
+        'worst fold',
+        '部署判定',
+        'gate failures',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
+
 def test_strategy_lab_live_sync_card_keeps_blocked_status_ahead_of_reconciliation_health():
     source = _read("pages/StrategyLab.tsx")
     required_snippets = [
