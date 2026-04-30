@@ -124,15 +124,15 @@
         "support_identity": null,
         "reference_only_reason": "missing_or_different_support_identity_or_bucket_semantic_signature"
       },
-      "comparable_history_count": 9,
-      "legacy_reference_history_count": 52,
+      "comparable_history_count": 10,
+      "legacy_reference_history_count": 53,
       "stagnant_run_count": 5,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
       "history": [
         {
-          "heartbeat": "current",
-          "timestamp": "2026-04-30T11:33:22.271628+00:00",
+          "heartbeat": "1157",
+          "timestamp": "2026-04-30T12:11:57.000322+00:00",
           "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
           "live_current_structure_bucket_rows": 4,
           "minimum_support_rows": 50,
@@ -148,6 +148,26 @@
             "calibration_window": 100,
             "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
           }
+        },
+        {
+          "heartbeat": "1157-docsync2",
+          "timestamp": "2026-04-30T11:33:28.296136+00:00",
+          "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
+          "live_current_structure_bucket_rows": 4,
+          "minimum_support_rows": 50,
+          "support_route_verdict": "exact_bucket_present_but_below_minimum",
+          "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+          "support_identity": {
+            "target_col": "simulated_pyramid_win",
+            "horizon_minutes": 1440,
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "regime_label": "bear",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "C",
+            "calibration_window": 100,
+            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+          },
+          "regression_basis": "legacy_or_different_semantic_signature"
         },
         {
           "heartbeat": "1157-docsync",
@@ -208,26 +228,6 @@
             "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
           },
           "regression_basis": "legacy_or_different_semantic_signature"
-        },
-        {
-          "heartbeat": "1155",
-          "timestamp": "2026-04-30T09:03:55.845181+00:00",
-          "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
-          "live_current_structure_bucket_rows": 4,
-          "minimum_support_rows": 50,
-          "support_route_verdict": "exact_bucket_present_but_below_minimum",
-          "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-          "support_identity": {
-            "target_col": "simulated_pyramid_win",
-            "horizon_minutes": 1440,
-            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
-            "regime_label": "bear",
-            "regime_gate": "CAUTION",
-            "entry_quality_label": "C",
-            "calibration_window": 100,
-            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
-          },
-          "regression_basis": "legacy_or_different_semantic_signature"
         }
       ]
     }
@@ -263,6 +263,59 @@
       "current_bucket": "CAUTION|structure_quality_caution|q15"
     },
     "verify_next": "先把 current q15 exact bucket rows 補到 minimum support，再回來做 component experiment。"
+  },
+  "active_repair_plan": {
+    "phase": "semantic_evidence_backfill_or_exact_accumulation",
+    "primary_objective": "把舊版 supported reference 轉成可審計語義證據；不能補齊 identity 前，就主動累積新版 exact rows。",
+    "component_verify_ready": false,
+    "live_exposure_allowed": false,
+    "shadow_or_paper_allowed": true,
+    "risk_off_allowed_sides": [
+      "reduce",
+      "sell"
+    ],
+    "current_signal": "HOLD",
+    "current_allowed_layers": 0,
+    "current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+    "support_status": "semantic_rebaseline_under_minimum",
+    "current_rows": 4,
+    "minimum_support_rows": 50,
+    "gap_to_minimum": 46,
+    "stagnant_run_count": 5,
+    "legacy_reference_only": true,
+    "entropy_reduction_rules": [
+      "引入外部能量：每輪刷新 current-live rows / venue proof / semantic evidence，而不是重用 under-minimum cache。",
+      "建立系統與規則：support_identity 完全一致且 rows>=minimum 才能進入 deployment verify。",
+      "主動代謝與清理：proxy、neighbor、legacy reference 未補齊語義證據前全部標記 reference-only。"
+    ],
+    "actions": [
+      {
+        "id": "collect_exact_current_bucket_rows",
+        "type": "support_harvest",
+        "priority": "P0",
+        "description": "持續收集與 current support_identity 完全一致的 exact live rows。",
+        "success_condition": "current_rows >= 50",
+        "current_rows": 4,
+        "rows_needed": 46
+      },
+      {
+        "id": "force_q15_support_audit_refresh",
+        "type": "heartbeat_rule",
+        "priority": "P0",
+        "description": "fast heartbeat 在 q15 under-minimum / semantic rebaseline / stagnant 狀態下不得重用舊 q15 support artifact。",
+        "success_condition": "每輪 support_progress.history / stagnant_run_count 反映最新 heartbeat truth。"
+      },
+      {
+        "id": "semantic_legacy_evidence_backfill",
+        "type": "evidence_backfill",
+        "priority": "P0",
+        "description": "回填 legacy supported reference 的 target/horizon/bucket/regime/gate/entry_label/calibration_window 證據；只有完全吻合 current support_identity 才能升級，否則維持 reference-only。",
+        "legacy_heartbeat": "20260419b",
+        "legacy_rows": 53,
+        "success_condition": "legacy artifact 有相同 bucket_semantic_signature 與 support_identity，或明確保留 reference-only。"
+      }
+    ]
   },
   "component_gap_attribution": {
     "trade_floor": 0.55,

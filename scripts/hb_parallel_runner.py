@@ -3493,7 +3493,8 @@ def _bull_4h_pocket_cache_hit() -> Dict[str, Any] | None:
 
 
 def _q15_support_cache_hit() -> Dict[str, Any] | None:
-    return _artifact_cache_hit_from_dependencies(
+    artifact_path = Path(PROJECT_ROOT) / "data" / "q15_support_audit.json"
+    hit = _artifact_cache_hit_from_dependencies(
         artifact_relpath="data/q15_support_audit.json",
         reason="fresh_q15_support_artifact_reused",
         dependency_paths=[
@@ -3507,8 +3508,55 @@ def _q15_support_cache_hit() -> Dict[str, Any] | None:
             "generated_at": payload.get("generated_at"),
             "current_live_structure_bucket": ((payload.get("current_live") or {}).get("current_live_structure_bucket")),
             "support_route_verdict": ((payload.get("support_route") or {}).get("verdict")),
+            "active_repair_phase": ((payload.get("active_repair_plan") or {}).get("phase")),
         },
     )
+    if hit is None:
+        return None
+
+    payload = _read_json_file(artifact_path)
+    support_route = payload.get("support_route") or {}
+    support_progress = support_route.get("support_progress") or {}
+    active_repair_plan = payload.get("active_repair_plan") or {}
+    current_live = payload.get("current_live") or {}
+    verdict = str(support_route.get("verdict") or "")
+    status = str(support_progress.get("status") or active_repair_plan.get("support_status") or "")
+    phase = str(active_repair_plan.get("phase") or "")
+    deployable = bool(support_route.get("deployable"))
+    current_rows = int(
+        support_progress.get("current_rows")
+        or active_repair_plan.get("current_rows")
+        or current_live.get("current_live_structure_bucket_rows")
+        or 0
+    )
+    minimum_rows = int(
+        support_progress.get("minimum_support_rows")
+        or active_repair_plan.get("minimum_support_rows")
+        or support_route.get("minimum_support_rows")
+        or 50
+    )
+    force_refresh_statuses = {
+        "stalled_under_minimum",
+        "semantic_rebaseline_under_minimum",
+        "regressed_under_minimum",
+        "accumulating",
+    }
+    force_refresh_phases = {
+        "active_support_accumulation",
+        "semantic_evidence_backfill_or_exact_accumulation",
+        "exact_support_accumulation",
+    }
+    if (
+        not deployable
+        and (
+            current_rows < minimum_rows
+            or "under_minimum" in verdict
+            or status in force_refresh_statuses
+            or phase in force_refresh_phases
+        )
+    ):
+        return None
+    return hit
 
 
 def _q15_bucket_root_cause_cache_hit() -> Dict[str, Any] | None:

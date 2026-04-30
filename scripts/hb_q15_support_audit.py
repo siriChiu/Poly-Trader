@@ -603,6 +603,143 @@ def _support_route_decision(
     }
 
 
+def _active_repair_plan(
+    *,
+    current_live: dict[str, Any],
+    support_route: dict[str, Any],
+    support_progress: dict[str, Any],
+    floor_legality: dict[str, Any],
+    component_experiment: dict[str, Any],
+    scope_applicability: dict[str, Any],
+) -> dict[str, Any]:
+    """Turn blocker state into an executable, fail-closed live-readiness repair plan.
+
+    This is not a gate relaxer.  The purpose is entropy reduction: when the q15
+    lane is stuck below exact-support minimum, every heartbeat should say which
+    evidence must be added next and which automated lanes must refresh, instead
+    of merely repeating that deployment is blocked.
+    """
+
+    current_rows = _as_int(
+        support_progress.get("current_rows"),
+        _as_int(current_live.get("current_live_structure_bucket_rows"), 0),
+    )
+    minimum_rows = _as_int(
+        support_progress.get("minimum_support_rows"),
+        _as_int(support_route.get("minimum_support_rows"), 50),
+    )
+    gap_to_minimum = max(minimum_rows - current_rows, 0)
+    status = str(support_progress.get("status") or "")
+    legacy_ref = support_progress.get("legacy_supported_reference")
+    stagnant_run_count = _as_int(support_progress.get("stagnant_run_count"), 0)
+    support_ready = bool(support_route.get("deployable")) and current_rows >= minimum_rows
+    current_bucket = current_live.get("current_live_structure_bucket")
+    active_for_current_live_row = bool(scope_applicability.get("active_for_current_live_row"))
+
+    experiment_answer = component_experiment.get("machine_read_answer") or {}
+    current_allowed_layers = _as_int(current_live.get("allowed_layers"), 0)
+    current_signal = str(current_live.get("signal") or "").strip().upper()
+    current_guardrail_reason = current_live.get("execution_guardrail_reason")
+    component_verify_ready = bool(
+        support_ready
+        and active_for_current_live_row
+        and floor_legality.get("legal_to_relax_runtime_gate") is True
+        and experiment_answer.get("allowed_layers_gt_0") is True
+    )
+    live_exposure_allowed = bool(
+        component_verify_ready
+        and current_allowed_layers > 0
+        and current_signal in {"BUY", "LONG", "ADD"}
+        and not current_guardrail_reason
+    )
+
+    if not active_for_current_live_row:
+        phase = "current_bucket_first"
+        primary_objective = "先處理當前 live bucket 的 exact-support / runtime gate；q15 lane 只保留 standby repair。"
+    elif support_ready:
+        phase = "deployment_verify" if live_exposure_allowed else "support_ready_floor_or_execution_verify"
+        primary_objective = "exact support 已達標；下一步驗證 floor / allowed_layers / execution guardrail，而不是再累積 support。"
+    elif status == "semantic_rebaseline_under_minimum" or legacy_ref:
+        phase = "semantic_evidence_backfill_or_exact_accumulation"
+        primary_objective = "把舊版 supported reference 轉成可審計語義證據；不能補齊 identity 前，就主動累積新版 exact rows。"
+    elif stagnant_run_count >= 3 or status == "stalled_under_minimum":
+        phase = "active_support_accumulation"
+        primary_objective = "current q15 exact support 停滯；每輪都要刷新 audit 並收集新 exact rows，不能再只重用 under-minimum artifact。"
+    else:
+        phase = "exact_support_accumulation"
+        primary_objective = "持續累積 current q15 exact rows 到 deployment-grade minimum。"
+
+    actions: list[dict[str, Any]] = []
+    if gap_to_minimum > 0:
+        actions.append(
+            {
+                "id": "collect_exact_current_bucket_rows",
+                "type": "support_harvest",
+                "priority": "P0",
+                "description": "持續收集與 current support_identity 完全一致的 exact live rows。",
+                "success_condition": f"current_rows >= {minimum_rows}",
+                "current_rows": current_rows,
+                "rows_needed": gap_to_minimum,
+            }
+        )
+        actions.append(
+            {
+                "id": "force_q15_support_audit_refresh",
+                "type": "heartbeat_rule",
+                "priority": "P0",
+                "description": "fast heartbeat 在 q15 under-minimum / semantic rebaseline / stagnant 狀態下不得重用舊 q15 support artifact。",
+                "success_condition": "每輪 support_progress.history / stagnant_run_count 反映最新 heartbeat truth。",
+            }
+        )
+    if isinstance(legacy_ref, dict):
+        actions.append(
+            {
+                "id": "semantic_legacy_evidence_backfill",
+                "type": "evidence_backfill",
+                "priority": "P0",
+                "description": "回填 legacy supported reference 的 target/horizon/bucket/regime/gate/entry_label/calibration_window 證據；只有完全吻合 current support_identity 才能升級，否則維持 reference-only。",
+                "legacy_heartbeat": legacy_ref.get("heartbeat"),
+                "legacy_rows": legacy_ref.get("live_current_structure_bucket_rows"),
+                "success_condition": "legacy artifact 有相同 bucket_semantic_signature 與 support_identity，或明確保留 reference-only。",
+            }
+        )
+    if support_ready and not live_exposure_allowed:
+        actions.append(
+            {
+                "id": "verify_floor_and_execution_guardrail",
+                "type": "deployment_verify",
+                "priority": "P0",
+                "description": "support closure 後才檢查 entry floor、allowed_layers 與 execution guardrail 是否一致。",
+                "success_condition": "allowed_layers_gt_0 且 legal_to_relax_runtime_gate=true，並通過 /api/trade guardrail regression。",
+            }
+        )
+
+    return {
+        "phase": phase,
+        "primary_objective": primary_objective,
+        "component_verify_ready": component_verify_ready,
+        "live_exposure_allowed": live_exposure_allowed,
+        "shadow_or_paper_allowed": True,
+        "risk_off_allowed_sides": ["reduce", "sell"],
+        "current_signal": current_signal or None,
+        "current_allowed_layers": current_allowed_layers,
+        "current_execution_guardrail_reason": current_guardrail_reason,
+        "current_live_structure_bucket": current_bucket,
+        "support_status": status,
+        "current_rows": current_rows,
+        "minimum_support_rows": minimum_rows,
+        "gap_to_minimum": gap_to_minimum,
+        "stagnant_run_count": stagnant_run_count,
+        "legacy_reference_only": bool(legacy_ref),
+        "entropy_reduction_rules": [
+            "引入外部能量：每輪刷新 current-live rows / venue proof / semantic evidence，而不是重用 under-minimum cache。",
+            "建立系統與規則：support_identity 完全一致且 rows>=minimum 才能進入 deployment verify。",
+            "主動代謝與清理：proxy、neighbor、legacy reference 未補齊語義證據前全部標記 reference-only。",
+        ],
+        "actions": actions,
+    }
+
+
 def _floor_cross_legality(
     support_route: dict[str, Any],
     runtime_blocker: dict[str, Any] | None,
@@ -1139,6 +1276,41 @@ def build_report(
         positive_discrimination=positive_discrimination,
     )
 
+    current_live_report = {
+        "feature_timestamp": probe.get("feature_timestamp") or drilldown.get("generated_at"),
+        "signal": probe.get("signal"),
+        "regime_label": probe.get("regime_label") or live_context.get("regime_label"),
+        "regime_gate": probe.get("regime_gate") or live_context.get("regime_gate"),
+        "entry_quality": probe.get("entry_quality"),
+        "entry_quality_label": probe.get("entry_quality_label") or live_context.get("entry_quality_label"),
+        "decision_quality_label": probe.get("decision_quality_label"),
+        "decision_quality_horizon_minutes": horizon_minutes,
+        "decision_quality_calibration_scope": probe.get("decision_quality_calibration_scope"),
+        "decision_quality_calibration_window": calibration_window,
+        "allowed_layers": probe.get("allowed_layers"),
+        "allowed_layers_reason": probe.get("allowed_layers_reason"),
+        "execution_guardrail_reason": probe.get("execution_guardrail_reason") if "execution_guardrail_reason" in probe else live_context.get("execution_guardrail_reason"),
+        "current_live_structure_bucket": live_context.get("current_live_structure_bucket"),
+        "current_live_structure_bucket_rows": _as_int(live_context.get("current_live_structure_bucket_rows"), 0),
+        "raw_features": {
+            str(item.get("feature")): item.get("raw_value")
+            for item in ((probe.get("entry_quality_components") or {}).get("base_components") or [])
+            if item.get("feature") is not None
+        },
+    }
+    support_route_with_minimum = {
+        **support_route,
+        "minimum_support_rows": minimum_support_rows,
+    }
+    active_repair_plan = _active_repair_plan(
+        current_live=current_live_report,
+        support_route=support_route_with_minimum,
+        support_progress=support_progress,
+        floor_legality=floor_legality,
+        component_experiment=component_experiment,
+        scope_applicability=scope_applicability,
+    )
+
     remaining_gap = _as_float(component_gap.get("remaining_gap_to_floor"))
     required_delta = (best_single or {}).get("required_score_delta_to_cross_floor")
     best_feature = (best_single or {}).get("feature")
@@ -1166,28 +1338,7 @@ def build_report(
         "target_col": target_col,
         "support_identity": support_identity,
         "artifact_context_freshness": artifact_context_freshness,
-        "current_live": {
-            "feature_timestamp": probe.get("feature_timestamp") or drilldown.get("generated_at"),
-            "signal": probe.get("signal"),
-            "regime_label": probe.get("regime_label") or live_context.get("regime_label"),
-            "regime_gate": probe.get("regime_gate") or live_context.get("regime_gate"),
-            "entry_quality": probe.get("entry_quality"),
-            "entry_quality_label": probe.get("entry_quality_label") or live_context.get("entry_quality_label"),
-            "decision_quality_label": probe.get("decision_quality_label"),
-            "decision_quality_horizon_minutes": horizon_minutes,
-            "decision_quality_calibration_scope": probe.get("decision_quality_calibration_scope"),
-            "decision_quality_calibration_window": calibration_window,
-            "allowed_layers": probe.get("allowed_layers"),
-            "allowed_layers_reason": probe.get("allowed_layers_reason"),
-            "execution_guardrail_reason": probe.get("execution_guardrail_reason") if "execution_guardrail_reason" in probe else live_context.get("execution_guardrail_reason"),
-            "current_live_structure_bucket": live_context.get("current_live_structure_bucket"),
-            "current_live_structure_bucket_rows": _as_int(live_context.get("current_live_structure_bucket_rows"), 0),
-            "raw_features": {
-                str(item.get("feature")): item.get("raw_value")
-                for item in ((probe.get("entry_quality_components") or {}).get("base_components") or [])
-                if item.get("feature") is not None
-            },
-        },
+        "current_live": current_live_report,
         "scope_applicability": scope_applicability,
         "support_route": {
             "support_identity": support_identity,
@@ -1226,6 +1377,7 @@ def build_report(
             "best_single_component_can_cross_floor": bool((best_single or {}).get("can_single_component_cross_floor")),
         },
         "component_experiment": component_experiment,
+        "active_repair_plan": active_repair_plan,
         "component_gap_attribution": component_gap,
         "runtime_blocker": runtime_blocker,
         "next_action": next_action,
@@ -1242,6 +1394,8 @@ def _markdown(report: dict[str, Any]) -> str:
     floor = report.get("floor_cross_legality") or {}
     experiment = report.get("component_experiment") or {}
     experiment_answer = experiment.get("machine_read_answer") or {}
+    repair = report.get("active_repair_plan") or {}
+    repair_actions = repair.get("actions") or []
     return "\n".join(
         [
             "# q15 Support Audit",
@@ -1312,6 +1466,18 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- reason: {experiment.get('reason')}",
             f"- verify_next: {experiment.get('verify_next')}",
             "",
+            "## Active repair plan",
+            f"- phase: **{repair.get('phase')}**",
+            f"- primary_objective: {repair.get('primary_objective')}",
+            f"- component_verify_ready: **{repair.get('component_verify_ready')}**",
+            f"- live_exposure_allowed: **{repair.get('live_exposure_allowed')}**",
+            f"- shadow_or_paper_allowed: **{repair.get('shadow_or_paper_allowed')}**",
+            f"- current_signal / layers / guardrail: **{repair.get('current_signal')} / {repair.get('current_allowed_layers')} / {repair.get('current_execution_guardrail_reason')}**",
+            f"- support rows / minimum / gap: **{repair.get('current_rows')} / {repair.get('minimum_support_rows')} / {repair.get('gap_to_minimum')}**",
+            f"- stagnant_run_count: **{repair.get('stagnant_run_count')}**",
+            f"- actions: `{[item.get('id') for item in repair_actions if isinstance(item, dict)]}`",
+            f"- entropy_reduction_rules: `{repair.get('entropy_reduction_rules')}`",
+            "",
             "## Next action",
             f"- {report.get('next_action')}",
             "",
@@ -1349,6 +1515,7 @@ def main() -> None:
                 "component_experiment_verdict": (report.get("component_experiment") or {}).get("verdict"),
                 "component_experiment_feature": (report.get("component_experiment") or {}).get("feature"),
                 "component_experiment_machine_read_answer": (report.get("component_experiment") or {}).get("machine_read_answer"),
+                "active_repair_plan": report.get("active_repair_plan"),
                 "support_progress": (report.get("support_route") or {}).get("support_progress"),
             },
             indent=2,

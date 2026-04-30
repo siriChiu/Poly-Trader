@@ -66,6 +66,18 @@
 - reason: exact support 尚未達 deployment 門檻；component experiment 只能作 reference-only 研究。
 - verify_next: 先把 current q15 exact bucket rows 補到 minimum support，再回來做 component experiment。
 
+## Active repair plan
+- phase: **semantic_evidence_backfill_or_exact_accumulation**
+- primary_objective: 把舊版 supported reference 轉成可審計語義證據；不能補齊 identity 前，就主動累積新版 exact rows。
+- component_verify_ready: **False**
+- live_exposure_allowed: **False**
+- shadow_or_paper_allowed: **True**
+- current_signal / layers / guardrail: **HOLD / 0 / under_minimum_exact_live_structure_bucket**
+- support rows / minimum / gap: **4 / 50 / 46**
+- stagnant_run_count: **5**
+- actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill']`
+- entropy_reduction_rules: `['引入外部能量：每輪刷新 current-live rows / venue proof / semantic evidence，而不是重用 under-minimum cache。', '建立系統與規則：support_identity 完全一致且 rows>=minimum 才能進入 deployment verify。', '主動代謝與清理：proxy、neighbor、legacy reference 未補齊語義證據前全部標記 reference-only。']`
+
 ## Next action
 - 先補 current q15 exact bucket 真樣本到 minimum support，再重跑 live_decision_quality_drilldown / hb_q15_support_audit；在 support 未達標前，bias50 只能當 calibration research，不得解除 runtime blocker。
 

@@ -72,6 +72,98 @@ def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
 
 
 
+def test_build_report_emits_active_repair_plan_for_stalled_q15_support(monkeypatch):
+    identity = _support_identity()
+
+    def fake_history(*, current_entry, data_dir=None):
+        base = {k: v for k, v in current_entry.items() if k != "observed_at"}
+        previous = {
+            **base,
+            "heartbeat": "1156",
+            "timestamp": "2026-04-30T08:00:00+00:00",
+            "live_current_structure_bucket_rows": 4,
+            "support_identity": identity,
+        }
+        older = {
+            **base,
+            "heartbeat": "1155",
+            "timestamp": "2026-04-30T07:00:00+00:00",
+            "live_current_structure_bucket_rows": 4,
+            "support_identity": identity,
+        }
+        return [base, previous, older]
+
+    monkeypatch.setattr(q15_support_audit, "_load_recent_q15_support_history", fake_history)
+
+    probe = {
+        "feature_timestamp": "2026-04-30 08:30:00",
+        "target_col": "simulated_pyramid_win",
+        "signal": "HOLD",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.48,
+        "entry_quality_label": "D",
+        "decision_quality_calibration_window": 600,
+        "allowed_layers": 0,
+        "allowed_layers_reason": "under_minimum_exact_live_structure_bucket",
+        "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                "current_live_structure_bucket_rows": 4,
+            }
+        },
+    }
+    drilldown = {
+        "component_gap_attribution": {
+            "trade_floor": 0.55,
+            "entry_quality": 0.48,
+            "remaining_gap_to_floor": 0.07,
+            "best_single_component": {
+                "feature": "feat_4h_bias50",
+                "required_score_delta_to_cross_floor": 0.23,
+                "can_single_component_cross_floor": True,
+            },
+        }
+    }
+    bull_pocket = {
+        "target_col": "simulated_pyramid_win",
+        "support_pathology_summary": {
+            "minimum_support_rows": 50,
+            "exact_bucket_root_cause": "exact_bucket_present_but_below_minimum",
+            "preferred_support_cohort": "bull_live_exact_bucket_proxy",
+            "recommended_action": "主動累積 exact rows，不得放寬 deployment gate。",
+        },
+    }
+    leaderboard_probe = {
+        "alignment": {
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "bull_exact_live_bucket_proxy_rows": 4,
+            "bull_exact_live_lane_proxy_rows": 418,
+            "bull_support_neighbor_rows": 155,
+        }
+    }
+
+    report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
+
+    repair = report["active_repair_plan"]
+    assert repair["phase"] == "active_support_accumulation"
+    assert repair["live_exposure_allowed"] is False
+    assert repair["shadow_or_paper_allowed"] is True
+    assert repair["risk_off_allowed_sides"] == ["reduce", "sell"]
+    assert repair["current_rows"] == 4
+    assert repair["gap_to_minimum"] == 46
+    assert repair["stagnant_run_count"] == 3
+    assert {action["id"] for action in repair["actions"]} >= {
+        "collect_exact_current_bucket_rows",
+        "force_q15_support_audit_refresh",
+    }
+    markdown = q15_support_audit._markdown(report)
+    assert "## Active repair plan" in markdown
+    assert "live_exposure_allowed: **False**" in markdown
+
+
+
 def test_summarize_support_progress_treats_legacy_supported_anchor_as_reference_only(tmp_path):
     identity = _support_identity(bucket="BLOCK|bull_q15_bias50_overextended_block|q15", regime_gate="BLOCK")
     (tmp_path / "heartbeat_920_summary.json").write_text(
@@ -770,6 +862,8 @@ def test_build_report_support_ready_exposes_component_experiment_machine_read_an
     assert machine_answer["current_entry_quality"] == 0.4959
     assert machine_answer["trade_floor"] == 0.55
     assert machine_answer["current_entry_quality_ge_trade_floor"] is False
+    assert report["active_repair_plan"]["component_verify_ready"] is True
+    assert report["active_repair_plan"]["live_exposure_allowed"] is False
 
 
 def test_build_report_separates_current_floor_cross_from_blocked_component_experiment():

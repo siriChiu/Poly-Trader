@@ -5761,8 +5761,15 @@ def test_q15_support_cache_hit_tracks_artifact_dependencies(tmp_path, monkeypatc
         json.dumps(
             {
                 "generated_at": "2099-04-17T10:30:00+00:00",
-                "current_live": {"current_live_structure_bucket": "CAUTION|structure_quality_caution|q15"},
-                "support_route": {"verdict": "under_minimum_exact_live_structure_bucket"},
+                "current_live": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                    "current_live_structure_bucket_rows": 50,
+                },
+                "support_route": {
+                    "verdict": "exact_bucket_supported",
+                    "deployable": True,
+                    "minimum_support_rows": 50,
+                },
             }
         ),
         encoding="utf-8",
@@ -5780,11 +5787,59 @@ def test_q15_support_cache_hit_tracks_artifact_dependencies(tmp_path, monkeypatc
 
     assert hit is not None
     assert hit["reason"] == "fresh_q15_support_artifact_reused"
-    assert hit["details"]["support_route_verdict"] == "under_minimum_exact_live_structure_bucket"
+    assert hit["details"]["support_route_verdict"] == "exact_bucket_supported"
 
     dep = data_dir / "live_predict_probe.json"
     os.utime(dep, (4102440000, 4102440000))
     assert hb_parallel_runner._q15_support_cache_hit() is None
+
+
+
+def test_q15_support_cache_hit_forces_refresh_when_support_under_minimum(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    scripts_dir = tmp_path / "scripts"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+
+    (data_dir / "q15_support_audit.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2099-04-17T10:30:00+00:00",
+                "current_live": {
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                    "current_live_structure_bucket_rows": 4,
+                },
+                "support_route": {
+                    "verdict": "exact_bucket_present_but_below_minimum",
+                    "deployable": False,
+                    "minimum_support_rows": 50,
+                    "support_progress": {
+                        "status": "stalled_under_minimum",
+                        "current_rows": 4,
+                        "minimum_support_rows": 50,
+                    },
+                },
+                "active_repair_plan": {
+                    "phase": "active_support_accumulation",
+                    "current_rows": 4,
+                    "minimum_support_rows": 50,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (scripts_dir / "hb_q15_support_audit.py").write_text("# test\n", encoding="utf-8")
+    for name in [
+        "live_predict_probe.json",
+        "live_decision_quality_drilldown.json",
+        "bull_4h_pocket_ablation.json",
+        "leaderboard_feature_profile_probe.json",
+    ]:
+        (data_dir / name).write_text("{}", encoding="utf-8")
+
+    assert hb_parallel_runner._q15_support_cache_hit() is None
+
 
 
 def test_get_fast_serial_cache_hit_dispatches_new_governance_artifacts(monkeypatch):
