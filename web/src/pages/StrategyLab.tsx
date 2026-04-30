@@ -167,6 +167,15 @@ interface SleeveRoutingState {
 }
 
 interface Q15BucketRootCauseSummary {
+  bucket_scope_label?: string | null;
+  support_current_rows?: number | null;
+  support_minimum_rows?: number | null;
+  support_gap_to_minimum?: number | null;
+  support_status?: string | null;
+  support_route_verdict?: string | null;
+  structure_quality?: number | null;
+  q15_threshold?: number | null;
+  q35_threshold?: number | null;
   verdict?: string | null;
   candidate_patch_type?: string | null;
   candidate_patch_feature?: string | null;
@@ -2750,10 +2759,24 @@ export default function StrategyLab() {
   const currentBucketRootCauseTradeFloorGap = currentBucketRootCause?.runtime_remaining_gap_to_floor
     ?? currentBucketRootCause?.remaining_gap_to_floor
     ?? null;
+  const currentBucketRootCauseScopeLabel = liveExecutionSyncPending
+    ? "同步中"
+    : humanizeRuntimeDetailText(currentBucketRootCause?.bucket_scope_label || currentBucketRootCauseBucket);
+  const currentBucketRootCauseSupportRowsLabel = liveExecutionSyncPending
+    ? "同步中"
+    : (isFiniteNumber(currentBucketRootCause?.support_current_rows) && isFiniteNumber(currentBucketRootCause?.support_minimum_rows)
+      ? `${formatDecimal(currentBucketRootCause.support_current_rows, 0)} / ${formatDecimal(currentBucketRootCause.support_minimum_rows, 0)}`
+      : "—");
+  const currentBucketRootCauseSupportGapLabel = liveExecutionSyncPending
+    ? "同步中"
+    : (isFiniteNumber(currentBucketRootCause?.support_gap_to_minimum) ? formatDecimal(currentBucketRootCause.support_gap_to_minimum, 0) : "—");
+  const currentBucketRootCauseIsQ15 = currentBucketRootCauseBucketKey === "q15" || currentBucketRootCauseBucketKey.endsWith("|q15");
   const currentBucketRootCauseIsQ35 = currentBucketRootCauseBucketKey === "q35" || currentBucketRootCauseBucketKey.endsWith("|q35");
   const currentBucketRootCauseDrilldownLabel = currentBucketRootCauseIsQ35
     ? `交易門檻缺口 ${formatDecimal(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考`
-    : `近邊界樣本 ${currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 ${formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}`;
+    : currentBucketRootCauseIsQ15
+      ? `近邊界樣本 ${currentBucketRootCause?.near_boundary_rows ?? "—"} · 距 q35 還差 ${formatDecimal(currentBucketRootCause?.gap_to_q35_boundary, 4)}`
+      : `精準路徑樣本 ${currentBucketRootCauseSupportRowsLabel} · 缺口 ${currentBucketRootCauseSupportGapLabel} · ${currentBucketRootCauseScopeLabel}`;
   const liveSupportCurrentRows = liveDecisionStatus?.support_progress?.current_rows
     ?? liveRuntimeTruth?.support_progress?.current_rows
     ?? null;

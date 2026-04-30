@@ -934,11 +934,20 @@ def _load_q15_bucket_root_cause_summary(current_structure_bucket: Optional[str] 
     return {
         "generated_at": payload.get("generated_at"),
         "current_live_structure_bucket": bucket or current_structure_bucket,
+        "bucket_scope_label": payload.get("bucket_scope_label"),
         "verdict": payload.get("verdict"),
         "candidate_patch_type": payload.get("candidate_patch_type"),
         "candidate_patch_feature": payload.get("candidate_patch_feature"),
         "reason": payload.get("reason"),
         "verify_next": payload.get("verify_next"),
+        "structure_quality": current_live.get("structure_quality"),
+        "q15_threshold": current_live.get("q15_threshold"),
+        "q35_threshold": current_live.get("q35_threshold"),
+        "support_status": current_live.get("support_status"),
+        "support_route_verdict": current_live.get("support_route_verdict"),
+        "support_current_rows": current_live.get("support_current_rows"),
+        "support_minimum_rows": current_live.get("support_minimum_rows"),
+        "support_gap_to_minimum": current_live.get("support_gap_to_minimum"),
         "gap_to_q35_boundary": current_live.get("gap_to_q35_boundary"),
         "dominant_neighbor_bucket": exact_live_lane.get("dominant_neighbor_bucket"),
         "dominant_neighbor_rows": exact_live_lane.get("dominant_neighbor_rows"),
@@ -1462,6 +1471,14 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         deployment_blocker=payload.get("deployment_blocker"),
         execution_guardrail_reason=payload.get("execution_guardrail_reason"),
     )
+    current_bucket_root_cause = (
+        payload.get("current_bucket_root_cause")
+        or payload.get("q15_bucket_root_cause")
+        or _load_q15_bucket_root_cause_summary(
+            str(current_live_structure_bucket) if current_live_structure_bucket is not None else None
+        )
+    )
+    q15_bucket_root_cause = payload.get("q15_bucket_root_cause") or current_bucket_root_cause
     return {
         "runtime_closure_state": runtime_closure_state,
         "runtime_closure_summary": runtime_closure_summary,
@@ -1517,8 +1534,8 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "q35_recommended_mode": payload.get("q35_recommended_mode"),
         "q35_recommended_action": payload.get("q35_recommended_action"),
         "q35_next_patch_target": payload.get("q35_next_patch_target"),
-        "q15_bucket_root_cause": payload.get("q15_bucket_root_cause"),
-        "current_bucket_root_cause": payload.get("current_bucket_root_cause") or payload.get("q15_bucket_root_cause"),
+        "q15_bucket_root_cause": q15_bucket_root_cause,
+        "current_bucket_root_cause": current_bucket_root_cause,
         "decision_quality_recent_pathology_applied": payload.get("decision_quality_recent_pathology_applied"),
         "decision_quality_recent_pathology_reason": payload.get("decision_quality_recent_pathology_reason"),
         "decision_quality_recent_pathology_window": payload.get("decision_quality_recent_pathology_window"),
