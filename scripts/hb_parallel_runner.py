@@ -846,10 +846,211 @@ def _compact_high_conviction_topk_matrix_summary(
     return {key: value for key, value in compact.items() if value is not None}
 
 
+_HIGH_CONVICTION_LIVE_SUPPORT_KEYS = (
+    "support_route_verdict",
+    "support_governance_route",
+    "support_route_deployable",
+    "deployment_blocker",
+    "runtime_closure_state",
+    "current_live_structure_bucket",
+    "current_live_structure_bucket_rows",
+    "minimum_support_rows",
+    "current_live_structure_bucket_gap_to_minimum",
+    "allowed_layers",
+    "signal",
+    "execution_guardrail_reason",
+)
+
+
+def _high_conviction_support_context_from_live(
+    live_predictor_diagnostics: Dict[str, Any] | None,
+) -> Dict[str, Any]:
+    """Normalize fresh live probe truth for the Top-K artifact support contract."""
+    live_predictor_diagnostics = live_predictor_diagnostics or {}
+    persisted_probe = _read_json_file(Path(PROJECT_ROOT) / "data" / "live_predict_probe.json")
+    if persisted_probe:
+        # Callers sometimes pass a compact support summary without generated_at or
+        # nested support_progress.  Merge the fresh probe as a fallback while
+        # letting explicit caller-provided fields win.
+        live_predictor_diagnostics = {**persisted_probe, **live_predictor_diagnostics}
+    if not live_predictor_diagnostics:
+        return {}
+
+    details = live_predictor_diagnostics.get("deployment_blocker_details")
+    if not isinstance(details, dict):
+        details = {}
+    support_progress = live_predictor_diagnostics.get("support_progress")
+    if not isinstance(support_progress, dict):
+        support_progress = details.get("support_progress") if isinstance(details.get("support_progress"), dict) else {}
+
+    context: Dict[str, Any] = {}
+    for key in _HIGH_CONVICTION_LIVE_SUPPORT_KEYS:
+        value = live_predictor_diagnostics.get(key)
+        if value is None:
+            value = details.get(key)
+        if value is None and key == "current_live_structure_bucket_rows":
+            value = support_progress.get("current_rows")
+        if value is None and key == "minimum_support_rows":
+            value = support_progress.get("minimum_support_rows")
+        if value is None and key == "current_live_structure_bucket_gap_to_minimum":
+            value = support_progress.get("gap_to_minimum")
+        if value is None and key == "execution_guardrail_reason":
+            value = (
+                live_predictor_diagnostics.get("allowed_layers_reason")
+                or live_predictor_diagnostics.get("allowed_layers_raw_reason")
+            )
+        if value is not None:
+            context[key] = value
+
+    generated_at = live_predictor_diagnostics.get("generated_at") or live_predictor_diagnostics.get("feature_timestamp")
+    if generated_at:
+        context["source_live_probe_generated_at"] = generated_at
+        context["support_context_current_as_of"] = generated_at
+    if context:
+        context["live_truth_source_artifact"] = "data/live_predict_probe.json"
+    return context
+
+
+def _support_route_context_is_deployable(support_context: Dict[str, Any]) -> bool:
+    explicit = support_context.get("support_route_deployable")
+    if explicit is not None:
+        return bool(explicit)
+    route = str(support_context.get("support_route_verdict") or support_context.get("support_route") or "").strip().lower()
+    return route in {"deployable", "exact_bucket_supported", "support_route_deployable"}
+
+
+def _deployment_blocker_context_is_active(support_context: Dict[str, Any]) -> bool:
+    blocker = support_context.get("deployment_blocker")
+    if blocker is None:
+        blocker = support_context.get("runtime_closure_state")
+    text = str(blocker or "").strip().lower()
+    return text not in {"", "none", "no_deployment_blocker", "breaker_clear", "support_closed_trade_floor_hold_only"}
+
+
+def _unique_string_list(items: list[Any]) -> list[str]:
+    values: list[str] = []
+    for item in items:
+        if item is None:
+            continue
+        text = str(item)
+        if text not in values:
+            values.append(text)
+    return values
+
+
+def _apply_live_support_context_to_high_conviction_row(
+    row: Dict[str, Any],
+    support_context: Dict[str, Any],
+) -> None:
+    live_guardrail_failures = {"support_route_not_deployable", "deployment_blocker_active"}
+    existing_gate_failures = row.get("gate_failures") if isinstance(row.get("gate_failures"), list) else []
+    if isinstance(row.get("model_gate_failures"), list):
+        model_gate_failures = _unique_string_list(row.get("model_gate_failures") or [])
+    else:
+        model_gate_failures = _unique_string_list(
+            [failure for failure in existing_gate_failures if failure not in live_guardrail_failures]
+        )
+
+    live_gate_failures: list[str] = []
+    if not _support_route_context_is_deployable(support_context):
+        live_gate_failures.append("support_route_not_deployable")
+    if _deployment_blocker_context_is_active(support_context):
+        live_gate_failures.append("deployment_blocker_active")
+    live_gate_failures = _unique_string_list(live_gate_failures)
+
+    gate_failures = _unique_string_list(model_gate_failures + live_gate_failures)
+    oos_gate_passed = not model_gate_failures
+    blocked_only_by_live_guardrails = bool(gate_failures) and oos_gate_passed and bool(live_gate_failures)
+
+    support_row_keys = {
+        "support_route": "support_route_verdict",
+        "support_governance_route": "support_governance_route",
+        "support_route_deployable": "support_route_deployable",
+        "deployment_blocker": "deployment_blocker",
+        "runtime_closure_state": "runtime_closure_state",
+        "current_live_structure_bucket": "current_live_structure_bucket",
+        "current_live_structure_bucket_rows": "current_live_structure_bucket_rows",
+        "minimum_support_rows": "minimum_support_rows",
+        "current_live_structure_bucket_gap_to_minimum": "current_live_structure_bucket_gap_to_minimum",
+        "allowed_layers": "allowed_layers",
+        "signal": "signal",
+        "execution_guardrail_reason": "execution_guardrail_reason",
+        "source_live_probe_generated_at": "source_live_probe_generated_at",
+        "live_truth_source_artifact": "live_truth_source_artifact",
+    }
+    for row_key, context_key in support_row_keys.items():
+        if context_key in support_context:
+            row[row_key] = support_context.get(context_key)
+
+    row["gate_failures"] = gate_failures
+    row["model_gate_failures"] = model_gate_failures
+    row["live_gate_failures"] = live_gate_failures
+    row["oos_gate_passed"] = oos_gate_passed
+    row["blocked_only_by_live_guardrails"] = blocked_only_by_live_guardrails
+    row["deployable_verdict"] = "deployable" if not gate_failures else "not_deployable"
+    if row["deployable_verdict"] == "deployable":
+        row["deployment_candidate_tier"] = "deployable"
+    elif blocked_only_by_live_guardrails:
+        row["deployment_candidate_tier"] = "runtime_blocked_oos_pass"
+    else:
+        row["deployment_candidate_tier"] = "research_oos_gate_failed"
+
+
+def _sync_high_conviction_topk_matrix_live_context(
+    live_predictor_diagnostics: Dict[str, Any] | None,
+) -> bool:
+    """Persist fresh current-live support truth into Top-K matrix artifacts.
+
+    The Top-K model scores are expensive and may be reused, but the support route,
+    exact bucket rows, and deployment blocker are live runtime truth.  Keep the
+    artifact itself in sync so non-API consumers do not read stale q00/q35 blocker
+    context while docs/API are already showing the latest q15/q35 truth.
+    """
+    live_support_context = _high_conviction_support_context_from_live(live_predictor_diagnostics)
+    if not live_support_context:
+        return False
+
+    changed = False
+    artifact_paths = [
+        Path(PROJECT_ROOT) / "data" / "high_conviction_topk_oos_matrix.json",
+        Path(PROJECT_ROOT) / "model" / "topk_walkforward_precision.json",
+    ]
+    for artifact_path in artifact_paths:
+        payload = _read_json_file(artifact_path)
+        rows = payload.get("rows") if isinstance(payload.get("rows"), list) else None
+        if not payload or rows is None:
+            continue
+        original = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+        support_context = payload.get("support_context") if isinstance(payload.get("support_context"), dict) else {}
+        support_context = {**support_context, **{key: value for key, value in live_support_context.items() if value is not None}}
+        payload["support_context"] = support_context
+        payload["support_context_source"] = "latest_live_predict_probe"
+        if support_context.get("support_context_current_as_of"):
+            payload["support_context_current_as_of"] = support_context.get("support_context_current_as_of")
+
+        for row in rows:
+            if isinstance(row, dict):
+                _apply_live_support_context_to_high_conviction_row(row, support_context)
+        payload["row_count"] = len([row for row in rows if isinstance(row, dict)])
+        payload["deployable_rows"] = sum(1 for row in rows if isinstance(row, dict) and row.get("deployable_verdict") == "deployable")
+        payload["risk_qualified_rows"] = sum(1 for row in rows if isinstance(row, dict) and row.get("oos_gate_passed"))
+        payload["runtime_blocked_candidate_rows"] = sum(
+            1 for row in rows if isinstance(row, dict) and row.get("blocked_only_by_live_guardrails")
+        )
+
+        updated = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+        if updated != original:
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
+            changed = True
+    return changed
+
+
 def _sync_high_conviction_topk_issue_summary(
     issues: list[Dict[str, Any]],
     live_predictor_diagnostics: Dict[str, Any] | None = None,
 ) -> bool:
+    _sync_high_conviction_topk_matrix_live_context(live_predictor_diagnostics)
     matrix_summary = _compact_high_conviction_topk_matrix_summary(live_predictor_diagnostics)
     if not matrix_summary:
         return False

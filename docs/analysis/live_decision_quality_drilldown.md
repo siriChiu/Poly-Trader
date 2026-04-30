@@ -1,9 +1,9 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-30 07:01:26.024501**
+- feature_timestamp: **2026-04-30 09:02:00.608132**
 - target: `simulated_pyramid_win`
 - live path: **bear / CAUTION / C**
-- signal: **HOLD** @ confidence **0.4482**
+- signal: **HOLD** @ confidence **0.3607**
 - layers: **1 → 0**
 - allowed_layers_raw_reason: `entry_quality_C_single_layer`
 - allowed_layers_reason: `under_minimum_exact_live_structure_bucket`
@@ -13,7 +13,7 @@
 - support blocker summary: **exact support 4/50 (gap 46) 未達 current-live exact support；broader/proxy rows 僅可作治理參考。**
 - support next action: 保持 no-deploy；先累積或回放同一 current-live structure bucket 的 exact lane 樣本，不可用 broader/proxy support 放行。
 - q15 exact-supported patch: **inactive** | support_route `exact_bucket_present_but_below_minimum` | floor_cross `floor_crossed_but_support_not_ready`
-- runtime closure summary: **current live bucket CAUTION|structure_quality_caution|q15 的 exact support 仍未就緒（4/50，route=exact_bucket_present_but_below_minimum / governance=exact_live_bucket_present_but_below_minimum）；broader / proxy rows 與 recommended patch 目前都只屬 reference-only 治理，不可視為 deployment closure。 recommended_patch=core_plus_macro_plus_all_4h (reference_only_non_current_live_scope). blocker=current live structure bucket 已有 exact rows，但仍低於 deployment-grade minimum support；在 support 補滿前，runtime 只能維持 guardrail，不可把這條 lane 視為已可部署。. exact-vs-spillover=同 gate 寬 scope 出現 bull|CAUTION spillover，96 rows / WR 0.0% / 品質 -0.306，明顯劣於 exact live lane WR 0.0% / 品質 -0.178。**
+- runtime closure summary: **current live bucket CAUTION|structure_quality_caution|q15 的 exact support 仍未就緒（4/50，route=exact_bucket_present_but_below_minimum / governance=exact_live_bucket_present_but_below_minimum）；broader / proxy rows 與 recommended patch 目前都只屬 reference-only 治理，不可視為 deployment closure。 recommended_patch=core_plus_macro_plus_all_4h (reference_only_non_current_live_scope). blocker=current live structure bucket 已有 exact rows，但仍低於 deployment-grade minimum support；在 support 補滿前，runtime 只能維持 guardrail，不可把這條 lane 視為已可部署。. exact-vs-spillover=同 gate 寬 scope 出現 bull|CAUTION spillover，96 rows / WR 0.0% / 品質 -0.321，明顯劣於 exact live lane WR 0.0% / 品質 -0.178。**
 - q35 scaling audit: overall=`None` / redesign=`None` / runtime_gap=`None` / mode=`None` / next_patch=`None`
 - q35 audit action: None
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
@@ -24,16 +24,16 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.6155** / trade_floor **0.55** / gap **0.0655**
-- base_quality: **0.7652** × weight **0.75**
-- structure_quality: **0.1664** × weight **0.25**
-- base components: feat_4h_bias50=0.9145 (w=0.4, contrib=0.3658), feat_nose=0.5027 (w=0.18, contrib=0.0905), feat_pulse=0.609 (w=0.27, contrib=0.1644), feat_ear=0.963 (w=0.15, contrib=0.1445)
-- structure components: feat_4h_bb_pct_b=0.3536 (w=0.34, contrib=0.1202), feat_4h_dist_bb_lower=0.1247 (w=0.33, contrib=0.0412), feat_4h_dist_swing_low=0.0153 (w=0.33, contrib=0.0051)
+- final entry_quality: **0.5757** / trade_floor **0.55** / gap **0.0257**
+- base_quality: **0.6896** × weight **0.75**
+- structure_quality: **0.234** × weight **0.25**
+- base components: feat_4h_bias50=0.8384 (w=0.4, contrib=0.3354), feat_nose=0.5667 (w=0.18, contrib=0.102), feat_pulse=0.3978 (w=0.27, contrib=0.1074), feat_ear=0.9652 (w=0.15, contrib=0.1448)
+- structure components: feat_4h_bb_pct_b=0.4743 (w=0.34, contrib=0.1613), feat_4h_dist_bb_lower=0.1693 (w=0.33, contrib=0.0559), feat_4h_dist_swing_low=0.0512 (w=0.33, contrib=0.0169)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
 - remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.1762** | structure_group_max_entry_gain: **0.2083**
+- base_group_max_entry_gain: **0.2328** | structure_group_max_entry_gain: **0.1915**
 - best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
 - single-component floor crossers: None
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
@@ -43,7 +43,7 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `global` | 100 | 0.25 | -0.0442 | 0.2473 | 0.6264 | 19 | False |
+| chosen `regime_gate` | 100 | 0.27 | -0.0318 | 0.2472 | 0.6225 | 18 | False |
 | exact `regime_label+regime_gate+entry_quality_label` | 4 | 0.0 | -0.1785 | 0.3347 | 0.6003 | 4 | False |
 | narrow `regime_label+entry_quality_label` | 4 | 0.0 | -0.1785 | 0.3347 | 0.6003 | 4 | False |
 | broad `regime_gate+entry_quality_label` | 20 | 0.6 | 0.338 | 0.1195 | 0.3441 | 4 | False |

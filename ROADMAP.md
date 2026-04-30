@@ -1,17 +1,17 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-30 15:08:37 CST_
+_最後更新：2026-04-30 17:03:55 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
 ## 已完成
-- **full heartbeat #1152 已完成 collect + diagnostics refresh**
-  - `Raw=32509 / Features=23927 / Labels=65619`
+- **fast heartbeat #1155 已完成 collect + diagnostics refresh**
+  - `Raw=32511 / Features=23929 / Labels=65627`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=—` / `recent_window_wins=—/—` / `additional_recent_window_wins_needed=—`
-  - `latest_window=100` / `win_rate=25.0%` / `dominant_regime=chop(80.0%)` / `avg_quality=-0.0442` / `avg_pnl=-0.0036` / `alerts=regime_shift`
+  - `latest_window=100` / `win_rate=27.0%` / `dominant_regime=chop(79.0%)` / `avg_quality=-0.0318` / `avg_pnl=-0.0033` / `alerts=regime_shift`
 - **current-state docs overwrite sync 已自動化**
   - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
@@ -19,8 +19,6 @@ _最後更新：2026-04-30 15:08:37 CST_
   - `/api/status` 初次同步前或部署阻塞存在時，買入 / 加倉與啟用自動模式快捷操作顯示暫停並保持 disabled；減碼 / 賣出風險降低、切到手動模式、查看阻塞原因與重新整理仍可用；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`；後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點，阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑；`data/live_predict_probe.json` 同步輸出 `api_trade_guardrail_active / api_trade_buy_guardrail / api_trade_allowed_risk_off_sides` 作為 machine-readable proof
 - **Execution Status / Bot 營運 已顯示即時部署阻塞條件**
   - `即時部署阻塞點=under_minimum_exact_live_structure_bucket`；當前 q15 分桶支持樣本=4/50，缺口=46；目前不是熔斷解除數學，候選修補不可取代同分桶最低樣本門檻；操作員執行介面先看即時部署阻塞點，再看 當前 q15 分桶 support / 背景治理
-- **語義重訂 support-progress 操作員文案已收斂**
-  - `semantic_rebaseline_under_minimum` 不再顯示容易誤導的 previous-heartbeat 小 delta；shared runtime copy 會用舊版已就緒 cohort 作 reference-only boundary（例如 `53 → 4，僅供參考`），避免 operator 把新語義 identity 誤判為 same-identity regression 已恢復。
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
 
@@ -39,7 +37,7 @@ _最後更新：2026-04-30 15:08:37 CST_
 
 ### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- `latest_window=100` / `win_rate=25.0%` / `dominant_regime=chop(80.0%)` / `avg_quality=-0.0442` / `avg_pnl=-0.0036` / `alerts=regime_shift`
+- `latest_window=100` / `win_rate=27.0%` / `dominant_regime=chop(79.0%)` / `avg_quality=-0.0318` / `avg_pnl=-0.0033` / `alerts=regime_shift`
 **成功標準**
 - drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
@@ -53,8 +51,8 @@ _最後更新：2026-04-30 15:08:37 CST_
 
 ### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
-- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=0.1m`
-- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3942` / `archive_window_coverage_pct=0.0`
+- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=0.0m`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=3944` / `archive_window_coverage_pct=0.0`
 - venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證；API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows
 - docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
