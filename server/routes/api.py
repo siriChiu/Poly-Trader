@@ -3668,7 +3668,10 @@ def _high_conviction_row_sort_key(row: Dict[str, Any]) -> tuple:
     )
 
 
-def _compact_high_conviction_topk_row(row: Dict[str, Any]) -> Dict[str, Any]:
+def _compact_high_conviction_topk_row(
+    row: Dict[str, Any],
+    support_context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     (
         gate_failures,
         model_gate_failures,
@@ -3677,6 +3680,18 @@ def _compact_high_conviction_topk_row(row: Dict[str, Any]) -> Dict[str, Any]:
         blocked_only_by_live_guardrails,
         deployment_candidate_tier,
     ) = _topk_row_gate_parts(row)
+    support_context = support_context or {}
+
+    def _support_value(row_key: str, context_key: Optional[str] = None) -> Any:
+        value = row.get(row_key)
+        if value is not None:
+            return value
+        if context_key:
+            value = support_context.get(context_key)
+            if value is not None:
+                return value
+        return support_context.get(row_key)
+
     return {
         "model": row.get("model") or row.get("model_name"),
         "model_name": row.get("model_name") or row.get("model"),
@@ -3689,6 +3704,11 @@ def _compact_high_conviction_topk_row(row: Dict[str, Any]) -> Dict[str, Any]:
         "max_drawdown": _coerce_float_or_none(row.get("max_drawdown")),
         "worst_fold": _coerce_float_or_none(row.get("worst_fold")),
         "trade_count": _coerce_int_or_none(row.get("trade_count")),
+        "support_route": _support_value("support_route", "support_route_verdict"),
+        "support_governance_route": _support_value("support_governance_route"),
+        "deployment_blocker": _support_value("deployment_blocker"),
+        "runtime_closure_state": _support_value("runtime_closure_state"),
+        "current_live_structure_bucket": _support_value("current_live_structure_bucket"),
         "deployable_verdict": row.get("deployable_verdict") or "not_deployable",
         "deployment_candidate_tier": deployment_candidate_tier,
         "gate_failures": gate_failures,
@@ -3856,20 +3876,20 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
     rows = [row for row in payload.get("rows", []) if isinstance(row, dict)]
     rows.sort(key=_high_conviction_row_sort_key, reverse=True)
     deployable_count = sum(1 for row in rows if row.get("deployable_verdict") == "deployable")
-    compact_rows = [_compact_high_conviction_topk_row(row) for row in rows[:limit]]
     risk_qualified_count = sum(1 for row in rows if _topk_row_gate_parts(row)[3])
     runtime_blocked_candidate_count = sum(1 for row in rows if _topk_row_gate_parts(row)[4])
-    nearest_deployable_rows = [
-        _compact_high_conviction_topk_row(row)
-        for row in rows
-        if _topk_row_gate_parts(row)[4] or str(row.get("deployable_verdict") or "") == "deployable"
-    ][:limit]
     support_context = payload.get("support_context") if isinstance(payload.get("support_context"), dict) else {}
     support_context = _overlay_high_conviction_support_context(
         support_context,
         topk_generated_at=payload.get("generated_at"),
         live_truth=_load_high_conviction_live_support_overlay(),
     )
+    compact_rows = [_compact_high_conviction_topk_row(row, support_context) for row in rows[:limit]]
+    nearest_deployable_rows = [
+        _compact_high_conviction_topk_row(row, support_context)
+        for row in rows
+        if _topk_row_gate_parts(row)[4] or str(row.get("deployable_verdict") or "") == "deployable"
+    ][:limit]
     return {
         "source_artifact": str(artifact_path),
         "generated_at": payload.get("generated_at"),

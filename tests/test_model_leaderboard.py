@@ -597,6 +597,11 @@ def test_build_model_leaderboard_payload_includes_high_conviction_topk(monkeypat
                         "max_drawdown": 0.069,
                         "worst_fold": 0.09,
                         "trade_count": 146,
+                        "support_route": "exact_bucket_present_but_below_minimum",
+                        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                        "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+                        "runtime_closure_state": "patch_inactive_or_blocked",
+                        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
                         "deployable_verdict": "not_deployable",
                         "gate_failures": ["support_route_not_deployable", "deployment_blocker_active"],
                         "model_gate_failures": [],
@@ -639,6 +644,11 @@ def test_build_model_leaderboard_payload_includes_high_conviction_topk(monkeypat
     assert summary["status"] == "paper_shadow_only"
     assert summary["target_col"] == "simulated_pyramid_win"
     assert summary["nearest_deployable_rows"][0]["model"] == "random_forest"
+    assert summary["nearest_deployable_rows"][0]["support_route"] == "exact_bucket_present_but_below_minimum"
+    assert summary["nearest_deployable_rows"][0]["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
+    assert summary["nearest_deployable_rows"][0]["deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
+    assert summary["nearest_deployable_rows"][0]["runtime_closure_state"] == "patch_inactive_or_blocked"
+    assert summary["nearest_deployable_rows"][0]["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
     assert summary["nearest_deployable_rows"][0]["oos_gate_passed"] is True
     assert summary["nearest_deployable_rows"][0]["blocked_only_by_live_guardrails"] is True
     assert summary["best_rows"][0]["model"] == "random_forest"
@@ -664,7 +674,26 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
                     "deployment_blocker": "unsupported_exact_live_structure_bucket",
                     "runtime_closure_state": "patch_inactive_or_blocked",
                 },
-                "rows": [],
+                "rows": [
+                    {
+                        "model": "random_forest",
+                        "feature_profile": "current_full",
+                        "regime": "bull",
+                        "top_k": "top_5pct",
+                        "oos_roi": 0.18,
+                        "win_rate": 0.78,
+                        "profit_factor": 7.9,
+                        "max_drawdown": 0.069,
+                        "worst_fold": 0.09,
+                        "trade_count": 146,
+                        "deployable_verdict": "not_deployable",
+                        "gate_failures": ["support_route_not_deployable", "deployment_blocker_active"],
+                        "model_gate_failures": [],
+                        "live_gate_failures": ["support_route_not_deployable", "deployment_blocker_active"],
+                        "oos_gate_passed": True,
+                        "blocked_only_by_live_guardrails": True,
+                    }
+                ],
             }
         ),
         encoding="utf-8",
@@ -703,6 +732,12 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
     assert support_context["signal"] == "HOLD"
     assert support_context["live_truth_overlay_applied"] is True
     assert support_context["live_truth_source_artifact"] == str(live_probe)
+    nearest = summary["nearest_deployable_rows"][0]
+    assert nearest["support_route"] == "exact_bucket_unsupported_block"
+    assert nearest["support_governance_route"] == "no_support_proxy"
+    assert nearest["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert nearest["runtime_closure_state"] == "patch_inactive_or_blocked"
+    assert nearest["current_live_structure_bucket"] == "BLOCK|structure_quality_block|q00"
 
 
 
