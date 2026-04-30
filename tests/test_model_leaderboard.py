@@ -654,7 +654,14 @@ def test_build_model_leaderboard_payload_includes_high_conviction_topk(monkeypat
     assert summary["deployable_count"] == 0
     assert summary["risk_qualified_count"] == 1
     assert summary["runtime_blocked_candidate_count"] == 1
-    assert summary["status"] == "paper_shadow_only"
+    assert summary["status"] == "stale_artifact_shadow_only"
+    assert summary["deployment_readiness_status"] == "stale_artifact_shadow_only"
+    assert summary["deployment_ready"] is False
+    assert summary["freshness_status"] == "stale"
+    assert summary["freshness"]["reason"] == "artifact_older_than_policy"
+    assert summary["freshness"]["deployment_blocking"] is True
+    assert summary["freshness_blocker"] == "artifact_older_than_policy"
+    assert summary["stale_after_minutes"] == 60.0
     assert summary["target_col"] == "simulated_pyramid_win"
     assert summary["nearest_deployable_rows"][0]["model"] == "random_forest"
     assert summary["nearest_deployable_rows"][0]["support_route"] == "exact_bucket_present_but_below_minimum"

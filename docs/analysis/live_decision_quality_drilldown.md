@@ -1,9 +1,9 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-04-30 10:01:28.343720**
+- feature_timestamp: **2026-04-30 11:32:09.593448**
 - target: `simulated_pyramid_win`
 - live path: **bear / CAUTION / C**
-- signal: **HOLD** @ confidence **0.3807**
+- signal: **HOLD** @ confidence **0.3707**
 - layers: **1 → 0**
 - allowed_layers_raw_reason: `entry_quality_C_single_layer`
 - allowed_layers_reason: `under_minimum_exact_live_structure_bucket`
@@ -24,16 +24,16 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5947** / trade_floor **0.55** / gap **0.0447**
-- base_quality: **0.7113** × weight **0.75**
-- structure_quality: **0.2447** × weight **0.25**
-- base components: feat_4h_bias50=0.826 (w=0.4, contrib=0.3304), feat_nose=0.5451 (w=0.18, contrib=0.0981), feat_pulse=0.512 (w=0.27, contrib=0.1382), feat_ear=0.9637 (w=0.15, contrib=0.1446)
-- structure components: feat_4h_bb_pct_b=0.4928 (w=0.34, contrib=0.1676), feat_4h_dist_bb_lower=0.1762 (w=0.33, contrib=0.0581), feat_4h_dist_swing_low=0.0576 (w=0.33, contrib=0.019)
+- final entry_quality: **0.6164** / trade_floor **0.55** / gap **0.0664**
+- base_quality: **0.7434** × weight **0.75**
+- structure_quality: **0.2355** × weight **0.25**
+- base components: feat_4h_bias50=0.8368 (w=0.4, contrib=0.3347), feat_nose=0.425 (w=0.18, contrib=0.0765), feat_pulse=0.6813 (w=0.27, contrib=0.184), feat_ear=0.9885 (w=0.15, contrib=0.1483)
+- structure components: feat_4h_bb_pct_b=0.4768 (w=0.34, contrib=0.1621), feat_4h_dist_bb_lower=0.1702 (w=0.33, contrib=0.0562), feat_4h_dist_swing_low=0.0521 (w=0.33, contrib=0.0172)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
 - remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.2165** | structure_group_max_entry_gain: **0.1888**
+- base_group_max_entry_gain: **0.1924** | structure_group_max_entry_gain: **0.1912**
 - best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
 - single-component floor crossers: None
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
@@ -43,7 +43,7 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `global` | 100 | 0.27 | -0.0316 | 0.2477 | 0.6227 | 17 | False |
+| chosen `global` | 100 | 0.27 | -0.0299 | 0.2476 | 0.6249 | 17 | False |
 | exact `regime_label+regime_gate+entry_quality_label` | 4 | 0.0 | -0.1785 | 0.3347 | 0.6003 | 4 | False |
 | narrow `regime_label+entry_quality_label` | 4 | 0.0 | -0.1785 | 0.3347 | 0.6003 | 4 | False |
 | broad `regime_gate+entry_quality_label` | 20 | 0.6 | 0.338 | 0.1195 | 0.3441 | 4 | False |

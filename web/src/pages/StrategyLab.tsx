@@ -778,6 +778,22 @@ interface HighConvictionTopKRow {
 interface HighConvictionTopKSummary {
   source_artifact?: string | null;
   generated_at?: string | null;
+  freshness?: {
+    status?: string | null;
+    label?: string | null;
+    reason?: string | null;
+    generated_at?: string | null;
+    checked_at?: string | null;
+    age_minutes?: number | null;
+    stale_after_minutes?: number | null;
+    deployment_blocking?: boolean | null;
+  } | null;
+  freshness_status?: string | null;
+  freshness_blocker?: string | null;
+  artifact_age_minutes?: number | null;
+  stale_after_minutes?: number | null;
+  deployment_ready?: boolean | null;
+  deployment_readiness_status?: string | null;
   target_col?: string | null;
   samples?: number | null;
   top_k_grid?: string[];
@@ -1860,9 +1876,18 @@ export default function StrategyLab() {
   const highConvictionModelGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.model_gate_failures) ? row.model_gate_failures : []))).slice(0, 6);
   const highConvictionLiveGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.live_gate_failures) ? row.live_gate_failures : []))).slice(0, 6);
   const highConvictionDeployable = (highConvictionTopK?.deployable_count ?? 0) > 0;
+  const highConvictionFreshnessStatus = highConvictionTopK?.freshness?.status ?? highConvictionTopK?.freshness_status ?? "unavailable";
+  const highConvictionArtifactAgeMinutes = highConvictionTopK?.freshness?.age_minutes ?? highConvictionTopK?.artifact_age_minutes ?? null;
+  const highConvictionStaleAfterMinutes = highConvictionTopK?.freshness?.stale_after_minutes ?? highConvictionTopK?.stale_after_minutes ?? null;
+  const highConvictionFreshnessBlocking = highConvictionFreshnessStatus !== "fresh" || Boolean(highConvictionTopK?.freshness?.deployment_blocking ?? highConvictionTopK?.freshness_blocker);
+  const highConvictionFreshnessLabel = highConvictionFreshnessStatus === "fresh" ? "矩陣新鮮" : (highConvictionFreshnessStatus === "stale" ? "矩陣已過期" : "矩陣新鮮度未知");
+  const highConvictionArtifactAgeLabel = isFiniteNumber(highConvictionArtifactAgeMinutes) ? `距今 ${formatDecimal(highConvictionArtifactAgeMinutes, 1)} 分鐘` : "距今 —";
+  const highConvictionStaleAfterLabel = isFiniteNumber(highConvictionStaleAfterMinutes) ? `政策 ${formatDecimal(highConvictionStaleAfterMinutes, 0)} 分鐘` : "政策 —";
+  const highConvictionDeploymentReadinessLabel = humanizeRuntimeDetailText(highConvictionTopK?.deployment_readiness_status || highConvictionTopK?.status || "paper_shadow_only");
   const highConvictionRuntimeBlockedCount = highConvictionTopK?.runtime_blocked_candidate_count ?? highConvictionRows.filter((row) => row.blocked_only_by_live_guardrails).length;
   const highConvictionRiskQualifiedCount = highConvictionTopK?.risk_qualified_count ?? highConvictionRows.filter((row) => row.oos_gate_passed).length;
-  const highConvictionStatusLabel = highConvictionDeployable ? "已有候選，但仍需人工灰度確認" : "研究觀察 / 影子驗證";
+  const highConvictionStatusLabel = highConvictionFreshnessBlocking ? "矩陣過期 / 僅影子觀察" : (highConvictionDeployable ? "已有候選，但仍需人工灰度確認" : "研究觀察 / 影子驗證");
+  const highConvictionCardTone = highConvictionFreshnessBlocking ? "border-amber-500/30 bg-amber-500/10 text-amber-50" : (highConvictionDeployable ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-50" : "border-violet-500/30 bg-violet-500/10 text-violet-50");
   const highConvictionGridLabel = Array.isArray(highConvictionTopK?.top_k_grid) && highConvictionTopK.top_k_grid.length > 0 ? highConvictionTopK.top_k_grid.map((label) => humanizeRuntimeDetailText(label)).join(" / ") : "Top-K 分層 —";
   const highConvictionGeneratedAtLabel = highConvictionTopK?.generated_at ? new Date(highConvictionTopK.generated_at).toLocaleString("zh-TW") : "生成時間 —";
   const highConvictionGateSummary = highConvictionTopK?.minimum_deployment_gates ? Object.entries(highConvictionTopK.minimum_deployment_gates).map(([key, value]) => `${humanizeRuntimeDetailText(key)}=${formatHighConvictionGateValue(key, value)}`).join(" · ") : "部署門檻 —";
@@ -3617,7 +3642,7 @@ export default function StrategyLab() {
                     </div>
                   )}
                   {highConvictionTopK && (
-                    <div className={`rounded-lg border px-3 py-3 text-xs space-y-3 ${highConvictionDeployable ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-50" : "border-violet-500/30 bg-violet-500/10 text-violet-50"}`}>
+                    <div className={`rounded-lg border px-3 py-3 text-xs space-y-3 ${highConvictionCardTone}`}>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <div className="font-semibold text-violet-100">高信心 OOS Top-K 部署門檻</div>
@@ -3628,8 +3653,15 @@ export default function StrategyLab() {
                         <div className="text-right text-[11px] text-violet-100/80">
                           <div>部署判定 {highConvictionStatusLabel}</div>
                           <div>{highConvictionGeneratedAtLabel}</div>
+                          <div>矩陣新鮮度 {highConvictionFreshnessLabel} · {highConvictionArtifactAgeLabel}</div>
                         </div>
                       </div>
+                      {highConvictionFreshnessBlocking && (
+                        <div className="rounded-lg border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-5 text-amber-50">
+                          <div className="font-semibold text-amber-100">Top-K 矩陣過期，部署降級為影子觀察</div>
+                          <div className="mt-1">{highConvictionArtifactAgeLabel} · {highConvictionStaleAfterLabel} · 後端狀態 {highConvictionDeploymentReadinessLabel}。請先重跑 high-conviction Top-K / model leaderboard refresh，再把候選視為灰度部署對象。</div>
+                        </div>
+                      )}
                       <div className="rounded-lg border border-violet-300/20 bg-slate-950/20 px-3 py-2 text-[11px] text-violet-50">
                         <div className="font-semibold text-violet-100">即時支持脈絡</div>
                         <div className="mt-1">支持狀態 {highConvictionSupportRouteLabel} · 治理 {highConvictionSupportGovernanceLabel} · 部署阻塞 {highConvictionDeploymentBlockerLabel}</div>
@@ -3639,6 +3671,11 @@ export default function StrategyLab() {
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                           <div className="text-[11px] text-slate-300">Top-K 分層</div>
                           <div className="mt-1 font-medium text-slate-100">{highConvictionGridLabel}</div>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
+                          <div className="text-[11px] text-slate-300">矩陣新鮮度</div>
+                          <div className={`mt-1 font-medium ${highConvictionFreshnessBlocking ? "text-amber-100" : "text-emerald-100"}`}>{highConvictionFreshnessLabel}</div>
+                          <div className="mt-1 text-[10px] text-violet-100/70">{highConvictionArtifactAgeLabel} · {highConvictionStaleAfterLabel}</div>
                         </div>
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                           <div className="text-[11px] text-slate-300">部署樣本</div>

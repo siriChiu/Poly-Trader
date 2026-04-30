@@ -71,6 +71,7 @@ HIGH_CONVICTION_TOPK_PATH = PROJECT_ROOT / "data" / "high_conviction_topk_oos_ma
 _MODEL_LB_STALE_AFTER_SEC = 900
 _MODEL_LB_REFRESH_COOLDOWN_SEC = 300
 _LIVE_PREDICT_PROBE_RUNTIME_STALE_AFTER_SEC = 1800
+_HIGH_CONVICTION_TOPK_STALE_AFTER_SEC = 3600
 _MODEL_LB_CACHE: Dict[str, Any] = {
     "payload": None,
     "updated_at": None,
@@ -3854,6 +3855,46 @@ def _overlay_high_conviction_support_context(
 
 
 
+def _build_high_conviction_topk_freshness(
+    generated_at: Any,
+    *,
+    stale_after_sec: float = _HIGH_CONVICTION_TOPK_STALE_AFTER_SEC,
+) -> Dict[str, Any]:
+    """Return operator-facing freshness for the high-conviction Top-K matrix."""
+    stale_after_minutes = stale_after_sec / 60.0
+    checked_at = datetime.now(timezone.utc)
+    freshness: Dict[str, Any] = {
+        "status": "unavailable",
+        "label": "unavailable",
+        "reason": "missing_generated_at",
+        "generated_at": generated_at,
+        "checked_at": checked_at.isoformat(),
+        "age_minutes": None,
+        "age_seconds": None,
+        "stale_after_minutes": stale_after_minutes,
+        "deployment_blocking": True,
+    }
+    dt = _parse_utc_datetime(generated_at)
+    if dt is None:
+        if generated_at:
+            freshness["reason"] = "invalid_generated_at"
+        return freshness
+    age_seconds = max((checked_at - dt).total_seconds(), 0.0)
+    age_minutes = age_seconds / 60.0
+    status = "fresh" if age_seconds <= stale_after_sec else "stale"
+    freshness.update(
+        {
+            "status": status,
+            "label": status,
+            "reason": "artifact_within_policy" if status == "fresh" else "artifact_older_than_policy",
+            "age_minutes": age_minutes,
+            "age_seconds": age_seconds,
+            "deployment_blocking": status != "fresh",
+        }
+    )
+    return freshness
+
+
 def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int = 12) -> Optional[Dict[str, Any]]:
     artifact_path = path or HIGH_CONVICTION_TOPK_PATH
     try:
@@ -3884,6 +3925,18 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
     deployable_count = sum(1 for row in rows if row.get("deployable_verdict") == "deployable")
     risk_qualified_count = sum(1 for row in rows if _topk_row_gate_parts(row)[3])
     runtime_blocked_candidate_count = sum(1 for row in rows if _topk_row_gate_parts(row)[4])
+    freshness = _build_high_conviction_topk_freshness(payload.get("generated_at"))
+    freshness_status = str(freshness.get("status") or "unavailable")
+    freshness_blocker = freshness.get("reason") if freshness.get("deployment_blocking") else None
+    deployment_ready = deployable_count > 0 and freshness_status == "fresh"
+    if deployment_ready:
+        deployment_readiness_status = "deployable_candidates_available"
+    elif freshness_status == "stale":
+        deployment_readiness_status = "stale_artifact_shadow_only"
+    elif freshness_status == "unavailable":
+        deployment_readiness_status = "freshness_unknown_shadow_only"
+    else:
+        deployment_readiness_status = "paper_shadow_only"
     support_context = payload.get("support_context") if isinstance(payload.get("support_context"), dict) else {}
     support_context = _overlay_high_conviction_support_context(
         support_context,
@@ -3899,6 +3952,13 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
     return {
         "source_artifact": str(artifact_path),
         "generated_at": payload.get("generated_at"),
+        "freshness": freshness,
+        "freshness_status": freshness_status,
+        "freshness_blocker": freshness_blocker,
+        "artifact_age_minutes": freshness.get("age_minutes"),
+        "stale_after_minutes": freshness.get("stale_after_minutes"),
+        "deployment_ready": deployment_ready,
+        "deployment_readiness_status": deployment_readiness_status,
         "target_col": payload.get("target_col"),
         "samples": payload.get("samples"),
         "top_k_grid": payload.get("top_k_grid") if isinstance(payload.get("top_k_grid"), list) else [],
@@ -3908,7 +3968,7 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
         "deployable_count": deployable_count,
         "risk_qualified_count": risk_qualified_count,
         "runtime_blocked_candidate_count": runtime_blocked_candidate_count,
-        "status": "deployable_candidates_available" if deployable_count else "paper_shadow_only",
+        "status": deployment_readiness_status,
         "best_rows": compact_rows,
         "nearest_deployable_rows": nearest_deployable_rows or compact_rows,
     }

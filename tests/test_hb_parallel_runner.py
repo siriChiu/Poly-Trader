@@ -3236,7 +3236,7 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     (data_dir / "high_conviction_topk_oos_matrix.json").write_text(
         json.dumps(
             {
-                "generated_at": "2026-04-29T11:20:00+00:00",
+                "generated_at": "2000-01-01T00:00:00+00:00",
                 "artifact": "data/high_conviction_topk_oos_matrix.json",
                 "samples": 1234,
                 "models": {"xgboost": {}, "random_forest": {}},
@@ -3358,6 +3358,10 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert latest["deployable_rows"] == 0
     assert latest["risk_qualified_rows"] == 1
     assert latest["runtime_blocked_candidate_rows"] == 1
+    assert latest["artifact_freshness_status"] == "stale"
+    assert latest["artifact_freshness_reason"] == "artifact_older_than_policy"
+    assert latest["artifact_stale_after_minutes"] == 60.0
+    assert latest["artifact_deployment_blocking"] is True
     assert latest["nearest_deployable_candidate"]["model"] == "random_forest"
     assert latest["nearest_deployable_candidate"]["support_route"] == "exact_bucket_unsupported_block"
     assert latest["nearest_deployable_candidate"]["support_governance_route"] == "exact_live_lane_proxy_available"
@@ -3370,6 +3374,9 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert latest["highest_roi_not_deployable"]["model"] == "xgboost"
     issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
     assert "deployment_blocker=unsupported_exact_live_structure_bucket" in issues_md
+    assert "freshness=stale" in issues_md
+    assert "stale_after_min=60" in issues_md
+    assert "deployment_blocking=True" in issues_md
     assert "nearest deployable candidate" in issues_md
     assert "model=random_forest" in issues_md
     assert "risk_qualified_rows=1" in issues_md
@@ -3378,7 +3385,15 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert "bucket_rows=0/50" in issues_md
     assert "gap=50" in issues_md
     assert "CAUTION|structure_quality_caution|q35" not in issues_md
-
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "freshness=stale" in roadmap_md
+    assert "stale_after_min=60" in roadmap_md
+    assert "deployment_blocking=True" in roadmap_md
+    assert "artifact_freshness_status" in roadmap_md
+    assert "矩陣新鮮度" in roadmap_md
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+    assert "freshness=stale" in orid_md
+    assert "矩陣過期或即時分桶" in orid_md
 
 
 def test_sync_fast_heartbeat_timeout_issue_resolves_stale_issue_when_run_finishes_within_budget(monkeypatch):

@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-30 10:01:28.343720**
+- generated_at: **2026-04-30 11:32:09.593448**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -24,11 +24,11 @@
 - verdict: **exact_bucket_present_but_below_minimum**
 - deployable: **False**
 - governance_reference_only: **True**
-- preferred_support_cohort: **bull_live_exact_lane_bucket_proxy**
+- preferred_support_cohort: **bull_exact_live_lane_proxy**
 - current bucket gap to minimum: **46**
-- exact-bucket proxy rows: **132**
-- exact-lane proxy rows: **821**
-- supported neighbor rows: **687**
+- exact-bucket proxy rows: **0**
+- exact-lane proxy rows: **8**
+- supported neighbor rows: **0**
 - reason: current q15 exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
 - support_progress.status: **semantic_rebaseline_under_minimum**
@@ -36,7 +36,7 @@
 - support_progress.current_rows / minimum: **4 / 50**
 - support_progress.previous_rows: **4**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **3**
+- support_progress.stagnant_run_count: **5**
 - support_progress.escalate_to_blocker: **True**
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `{'heartbeat': '20260419b', 'timestamp': '2026-04-18T17:55:51.910159+00:00', 'live_current_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'live_current_structure_bucket_rows': 53, 'minimum_support_rows': 50, 'support_route_verdict': 'exact_bucket_supported', 'support_governance_route': 'exact_live_bucket_supported', 'support_identity': None, 'reference_only_reason': 'missing_or_different_support_identity_or_bucket_semantic_signature'}`
@@ -57,9 +57,9 @@
 - mode: **None**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5947**
+- current_entry_quality: **0.6164**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.0447**
+- current_trade_floor_gap: **0.0664**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_support_missing)
