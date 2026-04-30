@@ -100,6 +100,77 @@ def test_heartbeat_candidate_refresh_uses_bounded_lanes(monkeypatch):
     assert calls[1][-1] == "--refresh-live-context"
 
 
+def test_bull_4h_post_probe_refresh_reruns_on_semantic_mismatch(monkeypatch):
+    summaries = [
+        {
+            "semantic_alignment": {
+                "aligned": False,
+                "artifact_live_signature": {"entry_quality_label": "D", "current_live_structure_bucket_rows": 9},
+                "current_live_signature": {"entry_quality_label": "C", "current_live_structure_bucket_rows": 2},
+            }
+        },
+        {
+            "semantic_alignment": {
+                "aligned": True,
+                "current_live_signature": {"entry_quality_label": "C", "current_live_structure_bucket_rows": 2},
+            }
+        },
+    ]
+    calls = []
+
+    def fake_collect():
+        return summaries.pop(0)
+
+    def fake_run():
+        calls.append("bull_refresh")
+        return {"success": True, "returncode": 0, "stdout": "", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "collect_bull_4h_pocket_diagnostics", fake_collect)
+    monkeypatch.setattr(hb_parallel_runner, "run_bull_4h_pocket_ablation", fake_run)
+
+    result, summary = hb_parallel_runner.refresh_bull_4h_pocket_after_live_probe(
+        {"success": True, "returncode": 0},
+        {},
+        refresh_enabled=True,
+    )
+
+    assert calls == ["bull_refresh"]
+    assert result["success"] is True
+    assert summary["semantic_alignment"]["aligned"] is True
+    assert summary["post_live_probe_refresh"]["attempted"] is True
+    assert summary["post_live_probe_refresh"]["reason"] == "semantic_mismatch_after_live_probe"
+
+
+def test_bull_4h_post_probe_refresh_skips_when_disabled(monkeypatch):
+    def fake_collect():
+        return {
+            "semantic_alignment": {
+                "aligned": False,
+                "artifact_live_signature": {"entry_quality_label": "D"},
+                "current_live_signature": {"entry_quality_label": "C"},
+            }
+        }
+
+    def fake_run():  # pragma: no cover - should not be called
+        raise AssertionError("refresh should stay disabled")
+
+    monkeypatch.setattr(hb_parallel_runner, "collect_bull_4h_pocket_diagnostics", fake_collect)
+    monkeypatch.setattr(hb_parallel_runner, "run_bull_4h_pocket_ablation", fake_run)
+
+    result, summary = hb_parallel_runner.refresh_bull_4h_pocket_after_live_probe(
+        {"success": True, "returncode": 0},
+        {},
+        refresh_enabled=False,
+    )
+
+    assert result["success"] is True
+    assert summary["post_live_probe_refresh"] == {
+        "attempted": False,
+        "reason": "candidate_refresh_disabled_after_live_probe",
+        "semantic_alignment": summary["semantic_alignment"],
+    }
+
+
 def test_patch_truth_doc_context_treats_any_reference_only_status_as_reference_only():
     context = hb_parallel_runner._patch_truth_doc_context(
         "core_plus_macro_plus_all_4h",
@@ -3939,7 +4010,7 @@ def test_collect_feature_ablation_diagnostics_reads_recommended_profile(tmp_path
     assert diag["bull_collapse_4h_features"] == ["feat_4h_dist_bb_lower"]
 
 
-def test_bull_4h_pocket_cache_hit_reuses_reference_only_artifact_when_live_regime_is_not_bull(tmp_path, monkeypatch):
+def test_bull_4h_pocket_cache_hit_reuses_reference_only_artifact_when_non_bull_signature_matches(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
     data_dir.mkdir()
@@ -3950,6 +4021,77 @@ def test_bull_4h_pocket_cache_hit_reuses_reference_only_artifact_when_live_regim
         "target_col": "simulated_pyramid_win",
     }
     (data_dir / "bull_4h_pocket_ablation.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-19 03:53:26",
+                "source_meta": source_meta,
+                "live_context": {
+                    "feature_timestamp": "2026-04-19 03:51:42.255204",
+                    "regime_label": "chop",
+                    "regime_gate": "CAUTION",
+                    "entry_quality_label": "D",
+                    "decision_quality_label": "D",
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                    "current_live_structure_bucket_rows": 0,
+                    "exact_scope_rows": 0,
+                    "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+                    "decision_quality_calibration_scope": "global",
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "_current_bull_pocket_semantic_signature",
+        lambda: {
+            "regime_label": "chop",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": None,
+            "decision_quality_label": "D",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 0,
+            "exact_scope_rows": 0,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            "decision_quality_calibration_scope": "global",
+        },
+    )
+    monkeypatch.setattr(hb_parallel_runner, "_current_canonical_label_signature", lambda: dict(source_meta))
+    monkeypatch.setattr(hb_parallel_runner, "_artifact_is_newer_than_dependencies", lambda *args, **kwargs: True)
+
+    cache_hit = hb_parallel_runner._bull_4h_pocket_cache_hit()
+
+    assert cache_hit is not None
+    assert cache_hit["reason"] == "fresh_non_bull_live_regime_reference_only_bull_4h_pocket_artifact_reused"
+    assert cache_hit["details"]["reference_only"] is True
+    assert cache_hit["details"]["current_live_signature"]["regime_label"] == "chop"
+    assert cache_hit["details"]["semantic_signature"]["regime_label"] == "chop"
+
+
+def test_bull_4h_pocket_cache_hit_misses_when_non_bull_signature_is_stale(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    scripts_dir = tmp_path / "scripts"
+    model_dir = tmp_path / "model"
+    scripts_dir.mkdir()
+    model_dir.mkdir()
+    for rel in [
+        scripts_dir / "bull_4h_pocket_ablation.py",
+        scripts_dir / "feature_group_ablation.py",
+        model_dir / "predictor.py",
+        model_dir / "train.py",
+    ]:
+        rel.write_text("# dep\n", encoding="utf-8")
+    source_meta = {
+        "label_rows": 22186,
+        "latest_label_timestamp": "2026-04-18T05:46:26.528674",
+        "horizon_minutes": 1440,
+        "target_col": "simulated_pyramid_win",
+    }
+    artifact_path = data_dir / "bull_4h_pocket_ablation.json"
+    artifact_path.write_text(
         json.dumps(
             {
                 "generated_at": "2026-04-19 03:53:26",
@@ -3977,7 +4119,7 @@ def test_bull_4h_pocket_cache_hit_reuses_reference_only_artifact_when_live_regim
         lambda: {
             "regime_label": "chop",
             "regime_gate": "CAUTION",
-            "entry_quality_label": "D",
+            "entry_quality_label": None,
             "decision_quality_label": "D",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
             "current_live_structure_bucket_rows": 0,
@@ -3989,13 +4131,7 @@ def test_bull_4h_pocket_cache_hit_reuses_reference_only_artifact_when_live_regim
     monkeypatch.setattr(hb_parallel_runner, "_current_canonical_label_signature", lambda: dict(source_meta))
     monkeypatch.setattr(hb_parallel_runner, "_artifact_is_newer_than_dependencies", lambda *args, **kwargs: True)
 
-    cache_hit = hb_parallel_runner._bull_4h_pocket_cache_hit()
-
-    assert cache_hit is not None
-    assert cache_hit["reason"] == "fresh_non_bull_live_regime_reference_only_bull_4h_pocket_artifact_reused"
-    assert cache_hit["details"]["reference_only"] is True
-    assert cache_hit["details"]["current_live_signature"]["regime_label"] == "chop"
-    assert cache_hit["details"]["semantic_signature"]["regime_label"] == "bull"
+    assert hb_parallel_runner._bull_4h_pocket_cache_hit() is None
 
 
 def test_collect_q15_support_audit_diagnostics_reads_support_and_floor_verdicts(tmp_path, monkeypatch):

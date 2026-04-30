@@ -21,7 +21,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 PROJECT_ROOT = '/home/kazuha/Poly-Trader'
 if PROJECT_ROOT not in sys.path:
@@ -3055,6 +3055,42 @@ def _bull_4h_pocket_cache_hit() -> Dict[str, Any] | None:
             Path(PROJECT_ROOT) / "model" / "train.py",
         ]
         artifact_time = _artifact_timestamp_from_payload(payload, artifact_path)
+        current_regime = str((current_live_signature or {}).get("regime_label") or "").strip().lower()
+        if current_regime and current_regime != "bull":
+            if (
+                artifact_live_signature == current_live_signature
+                and source_meta
+                and (source_meta == expected_signature or label_drift is not None)
+                and _artifact_is_newer_than_dependencies(artifact_time, dependency_paths)
+            ):
+                return {
+                    "artifact_path": str(artifact_path),
+                    "reason": (
+                        "fresh_non_bull_live_regime_reference_only_bull_4h_pocket_artifact_reused"
+                        if source_meta == expected_signature
+                        else "bounded_label_drift_non_bull_live_regime_reference_only_bull_4h_pocket_artifact_reused"
+                    ),
+                    "details": {
+                        "generated_at": payload.get("generated_at"),
+                        "feature_timestamp": ((payload.get("live_context") or {}).get("feature_timestamp")),
+                        "current_live_structure_bucket": ((payload.get("live_context") or {}).get("current_live_structure_bucket")),
+                        "source_meta": source_meta,
+                        "label_drift": label_drift,
+                        "semantic_signature": artifact_live_signature,
+                        "current_live_signature": current_live_signature,
+                        "reference_only": True,
+                        "reason": "current live regime is not bull, so keep bull 4H pocket ablation as reference-only after live-context refresh.",
+                    },
+                }
+            return None
+
+        if (
+            artifact_live_signature is not None
+            and current_live_signature is not None
+            and artifact_live_signature != current_live_signature
+        ):
+            return None
+
         can_reuse_semantically = (
             source_meta
             and artifact_live_signature is not None
@@ -3078,34 +3114,6 @@ def _bull_4h_pocket_cache_hit() -> Dict[str, Any] | None:
                     "source_meta": source_meta,
                     "label_drift": label_drift,
                     "semantic_signature": artifact_live_signature,
-                },
-            }
-
-        current_regime = str((current_live_signature or {}).get("regime_label") or "").strip().lower()
-        if (
-            current_regime
-            and current_regime != "bull"
-            and source_meta
-            and (source_meta == expected_signature or label_drift is not None)
-            and _artifact_is_newer_than_dependencies(artifact_time, dependency_paths)
-        ):
-            return {
-                "artifact_path": str(artifact_path),
-                "reason": (
-                    "fresh_non_bull_live_regime_reference_only_bull_4h_pocket_artifact_reused"
-                    if source_meta == expected_signature
-                    else "bounded_label_drift_non_bull_live_regime_reference_only_bull_4h_pocket_artifact_reused"
-                ),
-                "details": {
-                    "generated_at": payload.get("generated_at"),
-                    "feature_timestamp": ((payload.get("live_context") or {}).get("feature_timestamp")),
-                    "current_live_structure_bucket": ((payload.get("live_context") or {}).get("current_live_structure_bucket")),
-                    "source_meta": source_meta,
-                    "label_drift": label_drift,
-                    "semantic_signature": artifact_live_signature,
-                    "current_live_signature": current_live_signature,
-                    "reference_only": True,
-                    "reason": "current live regime is not bull, so keep bull 4H pocket ablation as reference-only instead of forcing a fast-mode rerun.",
                 },
             }
 
@@ -4858,6 +4866,66 @@ def collect_bull_4h_pocket_diagnostics() -> Dict[str, Any]:
     }
 
 
+def refresh_bull_4h_pocket_after_live_probe(
+    bull_pocket_result: Optional[Dict[str, Any]],
+    bull_pocket_summary: Optional[Dict[str, Any]],
+    *,
+    refresh_enabled: bool,
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+    """Keep bull 4H pocket diagnostics aligned to the freshly generated live probe.
+
+    The full heartbeat refreshes ``data/live_predict_probe.json`` after q35/q15
+    runtime guardrails run. A pre-train bull-pocket refresh can therefore be
+    semantically stale in the same heartbeat (for example entry_quality_label D
+    / support 9 from the old probe while the fresh probe is C / support 2). In
+    that case, rerun the bounded live-context refresh before q15 support/doc
+    sync consumes the artifact.
+    """
+    latest_summary = collect_bull_4h_pocket_diagnostics()
+    summary = latest_summary or dict(bull_pocket_summary or {})
+    alignment = summary.get("semantic_alignment") if isinstance(summary, dict) else {}
+    alignment = alignment if isinstance(alignment, dict) else {}
+    needs_refresh = bool(summary) and alignment.get("aligned") is False
+
+    if not summary:
+        return bull_pocket_result, {}
+
+    if not needs_refresh:
+        if isinstance(summary, dict):
+            summary.setdefault(
+                "post_live_probe_refresh",
+                {
+                    "attempted": False,
+                    "reason": "bull_4h_pocket_context_already_matches_live_probe",
+                },
+            )
+        return bull_pocket_result, summary
+
+    if not refresh_enabled:
+        if isinstance(summary, dict):
+            summary["post_live_probe_refresh"] = {
+                "attempted": False,
+                "reason": "candidate_refresh_disabled_after_live_probe",
+                "semantic_alignment": alignment,
+            }
+        return bull_pocket_result, summary
+
+    previous_alignment = dict(alignment)
+    refreshed_result = run_bull_4h_pocket_ablation()
+    refreshed_summary = collect_bull_4h_pocket_diagnostics()
+    if not refreshed_summary:
+        refreshed_summary = dict(summary or {})
+    refreshed_summary["post_live_probe_refresh"] = {
+        "attempted": True,
+        "reason": "semantic_mismatch_after_live_probe",
+        "success": bool(refreshed_result.get("success")) if isinstance(refreshed_result, dict) else False,
+        "returncode": refreshed_result.get("returncode") if isinstance(refreshed_result, dict) else None,
+        "previous_semantic_alignment": previous_alignment,
+        "refreshed_semantic_alignment": (refreshed_summary.get("semantic_alignment") or {}),
+    }
+    return refreshed_result, refreshed_summary
+
+
 def _current_leaderboard_support_progress() -> Dict[str, Any]:
     data_dir = Path(PROJECT_ROOT) / "data"
     live_probe = _read_json_file(data_dir / "live_predict_probe.json")
@@ -5550,6 +5618,27 @@ def main(argv=None):
             f"{blocker_extra}"
             f"{extra}"
         )
+
+    refresh_candidate_eval_lanes = (not args.fast) or bool(getattr(args, "fast_refresh_candidates", False))
+    bull_pocket_result, bull_pocket_summary = refresh_bull_4h_pocket_after_live_probe(
+        bull_pocket_result,
+        bull_pocket_summary,
+        refresh_enabled=refresh_candidate_eval_lanes,
+    )
+    bull_post_refresh = (bull_pocket_summary or {}).get("post_live_probe_refresh") or {}
+    if bull_post_refresh.get("attempted"):
+        refreshed_alignment = bull_post_refresh.get("refreshed_semantic_alignment") or {}
+        refreshed_live = refreshed_alignment.get("current_live_signature") or {}
+        print(
+            "🐂 Bull 4H pocket post-probe refresh："
+            f"{'通過' if bull_post_refresh.get('success') else '失敗'} "
+            f"(rc={bull_post_refresh.get('returncode')}) "
+            f"reason={bull_post_refresh.get('reason')} "
+            f"support={refreshed_live.get('current_live_structure_bucket_rows')}/50 "
+            f"eq_label={refreshed_live.get('entry_quality_label')}"
+        )
+    elif bull_post_refresh.get("reason") == "candidate_refresh_disabled_after_live_probe":
+        print("🐂 Bull 4H pocket post-probe refresh：略過（fast mode candidate refresh disabled）")
 
     write_progress(run_label, "live_decision_drilldown")
     live_drilldown_result = run_live_decision_quality_drilldown()
