@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-04-30 21:06:47 CST_
+_最後更新：2026-05-01 04:34:04 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
@@ -61,8 +61,9 @@ _最後更新：2026-04-30 21:06:47 CST_
 ### 目標 E：建立 high-conviction top-k OOS ROI gate，把研究結論轉成實戰部署門檻
 **目前真相**
 - 六色帽會議與研究交叉分析已收斂：下一步不是增加交易頻率，而是用 walk-forward OOS / top-k precision / ROI / max drawdown / meta-labeling / uncertainty gate 決定是否允許 candidate 進入部署候選。
-- 最新 matrix artifact 已產出：`artifact=data/high_conviction_topk_oos_matrix.json` / `generated_at=2026-04-30T05:54:13.297971+00:00` / `freshness=stale` / `age_min=432.6` / `stale_after_min=60` / `deployment_blocking=True` / `samples=23880` / `rows=24` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `support_route=exact_bucket_present_but_below_minimum` / `deployment_blocker=under_minimum_exact_live_structure_bucket` / `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `current_live_structure_bucket_rows=13/50` / `current_live_structure_bucket_gap_to_minimum=37`。
+- 最新 matrix artifact 已產出：`artifact=data/high_conviction_topk_oos_matrix.json` / `generated_at=2026-04-30T05:54:13.297971+00:00` / `freshness=stale` / `age_min=879.6` / `stale_after_min=60` / `deployment_blocking=True` / `samples=23880` / `rows=24` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `support_route=exact_bucket_present_but_below_minimum` / `deployment_blocker=under_minimum_exact_live_structure_bucket` / `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `current_live_structure_bucket_rows=13/50` / `current_live_structure_bucket_gap_to_minimum=37`。
 - 最接近部署候選優先：`model=logistic_regression` / `regime=all` / `top_k=top_2pct` / `oos_roi=0.9324` / `win_rate=0.8621` / `profit_factor=19.8864` / `max_drawdown=0.022` / `worst_fold=0.2068` / `trades=58` / `tier=runtime_blocked_oos_pass` / `verdict=not_deployable` / `support_route=exact_bucket_present_but_below_minimum` / `governance=exact_live_bucket_present_but_below_minimum` / `bucket=CAUTION|structure_quality_caution|q15` / `bucket_rows=13/50` / `gap=37`；若只剩即時分桶 / 支持 gate，仍模擬觀察 / 影子驗證 / 僅觀察。
+- `/api/models/leaderboard.high_conviction_topk` 已鎖定 live overlay fail-closed：fresh `live_predict_probe` support truth 會先覆蓋 row-level support fields 並重新計算部署判定 / counts / nearest rows，避免 stale matrix row 把過期 `deployable` 誤傳到 Strategy Lab。
 **成功標準**
 - `data/high_conviction_topk_oos_matrix.json` 必須持續輸出 `generated_at / artifact_freshness_status / artifact_age_minutes / artifact_stale_after_minutes / artifact_deployment_blocking / model / feature_profile / regime / top_k / OOS ROI / win_rate / profit_factor / max_drawdown / worst_fold / trade_count / support_route / support_governance_route / deployment_blocker / runtime_closure_state / current_live_structure_bucket / current_live_structure_bucket_rows / minimum_support_rows / current_live_structure_bucket_gap_to_minimum / deployable_verdict / gate_failures / model_gate_failures / live_gate_failures / deployment_candidate_tier`。
 - `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板以最接近部署候選優先排序：先看離線驗證 / 風控門檻、低回撤、最差分折，再看 ROI；若候選只剩矩陣新鮮度 / 即時分桶 / 支持 / 場館 proof 未過，仍 fail-closed 到模擬觀察 / 影子驗證 / 僅觀察，並顯示矩陣新鮮度、支持狀態、治理路徑、部署阻塞、即時分桶與樣本數。

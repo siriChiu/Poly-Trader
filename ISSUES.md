@@ -1,6 +1,6 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-04-30 21:06:47 CST_
+_最後更新：2026-05-01 04:34:04 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
@@ -44,8 +44,9 @@ _最後更新：2026-04-30 21:06:47 CST_
 
 ### P0. 建立 high-conviction top-k OOS ROI gate，讓 APP 從研究轉實戰
 - 目前真相：`mode_label=模擬觀察_影子驗證_即時阻塞` / `validation=walk_forward_oos_topk_matrix` / `top_k_grid=1%,2%,5%,10%` / `output_artifact=data/high_conviction_topk_oos_matrix.json`
-- latest matrix：`generated_at=2026-04-30T05:54:13.297971+00:00` / `freshness=stale` / `age_min=432.6` / `stale_after_min=60` / `deployment_blocking=True` / `samples=23880` / `rows=24` / `models=logistic_regression,random_forest,xgboost` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `support_route=exact_bucket_present_but_below_minimum` / `deployment_blocker=under_minimum_exact_live_structure_bucket` / `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `current_live_structure_bucket_rows=13/50` / `current_live_structure_bucket_gap_to_minimum=37`
+- latest matrix：`generated_at=2026-04-30T05:54:13.297971+00:00` / `freshness=stale` / `age_min=879.6` / `stale_after_min=60` / `deployment_blocking=True` / `samples=23880` / `rows=24` / `models=logistic_regression,random_forest,xgboost` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `support_route=exact_bucket_present_but_below_minimum` / `deployment_blocker=under_minimum_exact_live_structure_bucket` / `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `current_live_structure_bucket_rows=13/50` / `current_live_structure_bucket_gap_to_minimum=37`
 - nearest deployable candidate：`model=logistic_regression` / `regime=all` / `top_k=top_2pct` / `oos_roi=0.9324` / `win_rate=0.8621` / `profit_factor=19.8864` / `max_drawdown=0.022` / `worst_fold=0.2068` / `trade_count=58` / `tier=runtime_blocked_oos_pass` / `oos_gate_passed=True` / `verdict=not_deployable` / `support_route=exact_bucket_present_but_below_minimum` / `governance=exact_live_bucket_present_but_below_minimum` / `bucket=CAUTION|structure_quality_caution|q15` / `bucket_rows=13/50` / `gap=37`
+- API fail-closed contract：`/api/models/leaderboard.high_conviction_topk` 先套用 fresh `live_predict_probe` support overlay，再重新計算 `deployable_count` / `runtime_blocked_candidate_count` / `nearest_deployable_rows`；artifact row 內過期的 `deployable_verdict=deployable` 不可蓋過 current-live blocker。
 - 研究依據：`basis=walk_forward_oos,purged_cv,triple_barrier_pyramid_label,meta_labeling_take_skip,conformal_uncertainty_reject,regime_aware_deployment` / `目的=只讓高信心、低回撤、經 OOS 驗證的金字塔候選進入部署候選`
 - 部署門檻：`min_trades>=50` / `win_rate>=0.6` / `max_drawdown<=0.08` / `profit_factor>=1.5` / `worst_fold=non_negative_or_above_baseline` / `support_route=deployable`
 - 目前 scan 只能作線索：`model=catboost` / `roi=0.1978` / `win_rate=0.6216` / `max_drawdown=0.0655` / `trades=37` / `status_label=研究觀察_不可部署`
@@ -59,6 +60,7 @@ _最後更新：2026-04-30 21:06:47 CST_
   - source venv/bin/activate && python -m pytest tests/test_topk_walkforward_precision.py -k nearest_deployable -q && python -m pytest tests/test_model_leaderboard.py -k high_conviction_topk -q && python -m pytest tests/test_frontend_decision_contract.py -k high_conviction_topk_gate_contract -q
   - PYTHONPATH=. python /tmp/hb1148_verify_topk_api.py
   - source venv/bin/activate && PYTHONPATH=. python -m pytest tests/test_model_leaderboard.py::test_high_conviction_topk_support_context_uses_fresher_live_probe -q
+  - source venv/bin/activate && PYTHONPATH=. python -m pytest tests/test_model_leaderboard.py::test_high_conviction_topk_live_support_overlay_fail_closes_stale_deployable_rows -q
 
 ### P1. model stability still needs work (cv=0.6457, cv_std=0.1126, cv_worst=0.5331)
 - 目前真相：`cv_accuracy=0.6457286432160805` / `cv_std=0.11264656616415408` / `cv_worst=0.5330820770519263`

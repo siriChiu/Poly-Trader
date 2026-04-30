@@ -3641,6 +3641,119 @@ def _topk_row_gate_parts(row: Dict[str, Any]) -> tuple[List[str], List[str], Lis
     )
 
 
+def _high_conviction_support_route_deployable(support_context: Dict[str, Any]) -> bool:
+    explicit = support_context.get("support_route_deployable")
+    if explicit is not None:
+        if isinstance(explicit, bool):
+            return explicit
+        if isinstance(explicit, (int, float)):
+            return bool(explicit)
+        if isinstance(explicit, str):
+            return explicit.strip().lower() in {"1", "true", "yes", "y", "deployable", "supported"}
+        return bool(explicit)
+    route = str(
+        support_context.get("support_route_verdict")
+        or support_context.get("support_route")
+        or ""
+    ).strip().lower()
+    return route in {"deployable", "exact_bucket_supported", "support_route_deployable"}
+
+
+def _high_conviction_deployment_blocker_active(support_context: Dict[str, Any]) -> bool:
+    blocker = support_context.get("deployment_blocker")
+    if blocker is None:
+        blocker = support_context.get("runtime_closure_state")
+    text = str(blocker or "").strip().lower()
+    return text not in {
+        "",
+        "none",
+        "no_deployment_blocker",
+        "breaker_clear",
+        "support_closed_trade_floor_hold_only",
+    }
+
+
+def _high_conviction_support_context_has_live_gate(support_context: Dict[str, Any]) -> bool:
+    return any(
+        support_context.get(key) is not None
+        for key in (
+            "support_route_verdict",
+            "support_route",
+            "support_route_deployable",
+            "deployment_blocker",
+            "runtime_closure_state",
+        )
+    )
+
+
+def _high_conviction_live_failures_from_support_context(support_context: Dict[str, Any]) -> List[str]:
+    failures: List[str] = []
+    if not _high_conviction_support_route_deployable(support_context):
+        failures.append("support_route_not_deployable")
+    if _high_conviction_deployment_blocker_active(support_context):
+        failures.append("deployment_blocker_active")
+    return failures
+
+
+def _apply_high_conviction_support_overlay_to_row(
+    row: Dict[str, Any],
+    support_context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Recompute row deployability from the freshest live support context.
+
+    The matrix row itself is offline OOS evidence. Its live gate fields can become
+    stale when the current bucket changes, so API/UI summaries must fail closed
+    using the overlaid live_predict_probe support truth instead of re-serving the
+    row's old deployable verdict.
+    """
+    if not isinstance(support_context, dict) or not _high_conviction_support_context_has_live_gate(support_context):
+        return dict(row)
+
+    normalized = dict(row)
+    for row_key, context_key in (
+        ("support_route", "support_route_verdict"),
+        ("support_governance_route", "support_governance_route"),
+        ("support_route_deployable", "support_route_deployable"),
+        ("deployment_blocker", "deployment_blocker"),
+        ("runtime_closure_state", "runtime_closure_state"),
+        ("current_live_structure_bucket", "current_live_structure_bucket"),
+        ("current_live_structure_bucket_rows", "current_live_structure_bucket_rows"),
+        ("minimum_support_rows", "minimum_support_rows"),
+        ("current_live_structure_bucket_gap_to_minimum", "current_live_structure_bucket_gap_to_minimum"),
+        ("allowed_layers", "allowed_layers"),
+        ("execution_guardrail_reason", "execution_guardrail_reason"),
+    ):
+        value = support_context.get(context_key)
+        if value is not None:
+            normalized[row_key] = value
+
+    _, model_gate_failures, _, _, _, _ = _topk_row_gate_parts(row)
+    live_gate_failures = _high_conviction_live_failures_from_support_context(support_context)
+    gate_failures = [*model_gate_failures, *live_gate_failures]
+    oos_gate_passed = not model_gate_failures
+    blocked_only_by_live_guardrails = bool(gate_failures) and oos_gate_passed and bool(live_gate_failures)
+    deployable_verdict = "deployable" if not gate_failures else "not_deployable"
+    if deployable_verdict == "deployable":
+        deployment_candidate_tier = "deployable"
+    elif blocked_only_by_live_guardrails:
+        deployment_candidate_tier = "runtime_blocked_oos_pass"
+    else:
+        deployment_candidate_tier = "research_oos_gate_failed"
+
+    normalized.update(
+        {
+            "deployable_verdict": deployable_verdict,
+            "deployment_candidate_tier": deployment_candidate_tier,
+            "gate_failures": gate_failures,
+            "model_gate_failures": model_gate_failures,
+            "live_gate_failures": live_gate_failures,
+            "oos_gate_passed": oos_gate_passed,
+            "blocked_only_by_live_guardrails": blocked_only_by_live_guardrails,
+        }
+    )
+    return normalized
+
+
 def _high_conviction_row_sort_key(row: Dict[str, Any]) -> tuple:
     (
         gate_failures,
@@ -3920,7 +4033,17 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
             "best_rows": [],
         }
 
-    rows = [row for row in payload.get("rows", []) if isinstance(row, dict)]
+    support_context = payload.get("support_context") if isinstance(payload.get("support_context"), dict) else {}
+    support_context = _overlay_high_conviction_support_context(
+        support_context,
+        topk_generated_at=payload.get("generated_at"),
+        live_truth=_load_high_conviction_live_support_overlay(),
+    )
+    rows = [
+        _apply_high_conviction_support_overlay_to_row(row, support_context)
+        for row in payload.get("rows", [])
+        if isinstance(row, dict)
+    ]
     rows.sort(key=_high_conviction_row_sort_key, reverse=True)
     deployable_count = sum(1 for row in rows if row.get("deployable_verdict") == "deployable")
     risk_qualified_count = sum(1 for row in rows if _topk_row_gate_parts(row)[3])
@@ -3937,12 +4060,6 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
         deployment_readiness_status = "freshness_unknown_shadow_only"
     else:
         deployment_readiness_status = "paper_shadow_only"
-    support_context = payload.get("support_context") if isinstance(payload.get("support_context"), dict) else {}
-    support_context = _overlay_high_conviction_support_context(
-        support_context,
-        topk_generated_at=payload.get("generated_at"),
-        live_truth=_load_high_conviction_live_support_overlay(),
-    )
     compact_rows = [_compact_high_conviction_topk_row(row, support_context) for row in rows[:limit]]
     nearest_deployable_rows = [
         _compact_high_conviction_topk_row(row, support_context)

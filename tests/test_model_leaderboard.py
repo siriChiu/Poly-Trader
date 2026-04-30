@@ -775,6 +775,112 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
 
 
 
+def test_high_conviction_topk_live_support_overlay_fail_closes_stale_deployable_rows(monkeypatch, tmp_path: Path):
+    artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
+    live_probe = tmp_path / "live_predict_probe.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T10:15:21Z",
+                "target_col": "simulated_pyramid_win",
+                "samples": 1234,
+                "support_context": {
+                    "support_route_verdict": "exact_bucket_supported",
+                    "support_governance_route": "exact_live_bucket_supported",
+                    "support_route_deployable": True,
+                    "deployment_blocker": "none",
+                    "runtime_closure_state": "breaker_clear",
+                    "current_live_structure_bucket": "CAUTION|stale_supported_reference|q35",
+                    "current_live_structure_bucket_rows": 80,
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 0,
+                },
+                "rows": [
+                    {
+                        "model": "xgboost",
+                        "feature_profile": "current_full",
+                        "regime": "bull",
+                        "top_k": "top_2pct",
+                        "oos_roi": 0.24,
+                        "win_rate": 0.74,
+                        "profit_factor": 3.1,
+                        "max_drawdown": 0.035,
+                        "worst_fold": 0.04,
+                        "trade_count": 96,
+                        "support_route": "exact_bucket_supported",
+                        "support_governance_route": "exact_live_bucket_supported",
+                        "support_route_deployable": True,
+                        "deployment_blocker": "none",
+                        "runtime_closure_state": "breaker_clear",
+                        "current_live_structure_bucket": "CAUTION|stale_supported_reference|q35",
+                        "current_live_structure_bucket_rows": 80,
+                        "minimum_support_rows": 50,
+                        "current_live_structure_bucket_gap_to_minimum": 0,
+                        "deployable_verdict": "deployable",
+                        "deployment_candidate_tier": "deployable",
+                        "gate_failures": [],
+                        "model_gate_failures": [],
+                        "live_gate_failures": [],
+                        "oos_gate_passed": True,
+                        "blocked_only_by_live_guardrails": False,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    live_probe.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T19:03:45Z",
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                "support_route_deployable": False,
+                "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+                "runtime_closure_state": "patch_inactive_or_blocked",
+                "allowed_layers": 0,
+                "support_progress": {
+                    "current_rows": 9,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 41,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_LIVE_PREDICT_PROBE_PATH", live_probe, raising=False)
+
+    summary = api_module._load_high_conviction_topk_summary(artifact)
+
+    assert summary["deployable_count"] == 0
+    assert summary["risk_qualified_count"] == 1
+    assert summary["runtime_blocked_candidate_count"] == 1
+    assert summary["deployment_ready"] is False
+    support_context = summary["support_context"]
+    assert support_context["live_truth_overlay_applied"] is True
+    assert support_context["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
+    assert support_context["current_live_structure_bucket_rows"] == 9
+    assert support_context["minimum_support_rows"] == 50
+    assert support_context["current_live_structure_bucket_gap_to_minimum"] == 41
+    nearest = summary["nearest_deployable_rows"][0]
+    assert nearest["model"] == "xgboost"
+    assert nearest["support_route"] == "exact_bucket_present_but_below_minimum"
+    assert nearest["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
+    assert nearest["support_route_deployable"] is False
+    assert nearest["deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
+    assert nearest["runtime_closure_state"] == "patch_inactive_or_blocked"
+    assert nearest["deployable_verdict"] == "not_deployable"
+    assert nearest["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+    assert nearest["gate_failures"] == ["support_route_not_deployable", "deployment_blocker_active"]
+    assert nearest["model_gate_failures"] == []
+    assert nearest["live_gate_failures"] == ["support_route_not_deployable", "deployment_blocker_active"]
+    assert nearest["oos_gate_passed"] is True
+    assert nearest["blocked_only_by_live_guardrails"] is True
+    assert summary["best_rows"][0] == nearest
+
+
+
 def test_build_model_leaderboard_payload_includes_strategy_param_scan_when_placeholder_only(monkeypatch):
     df = pd.DataFrame(
         {

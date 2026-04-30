@@ -123,12 +123,12 @@
       "id": "P0_high_conviction_topk_roi_gate",
       "priority": "P0",
       "title": "建立 high-conviction top-k OOS ROI gate，讓 APP 從研究轉實戰",
-      "action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable。",
+      "action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "status": "open",
       "created_at": "2026-04-29T18:00:00+08:00",
-      "updated_at": "2026-04-30T13:06:47.270990",
+      "updated_at": "2026-05-01T04:34:04+08:00",
       "hb_detected": null,
-      "next_action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable。",
+      "next_action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "summary": {
         "current_go_no_go": "paper_shadow_only_current_live_blocked",
         "required_validation": "walk_forward_oos_topk_matrix",
@@ -177,7 +177,7 @@
           "generated_at": "2026-04-30T05:54:13.297971+00:00",
           "artifact_freshness_status": "stale",
           "artifact_freshness_reason": "artifact_older_than_policy",
-          "artifact_age_minutes": 432.5662151166667,
+          "artifact_age_minutes": 879.6412240000001,
           "artifact_stale_after_minutes": 60.0,
           "artifact_deployment_blocking": true,
           "artifact": "data/high_conviction_topk_oos_matrix.json",
@@ -315,7 +315,7 @@
           }
         },
         "surfacing_status": "api_leaderboard_and_strategy_lab_visible_fail_closed",
-        "api_contract": "`/api/models/leaderboard.high_conviction_topk` exposes risk_qualified_count, runtime_blocked_candidate_count, nearest_deployable_rows, gate_failures/model_gate_failures/live_gate_failures, fail-closed status, and row-level support_route/support_governance_route/deployment_blocker/runtime_closure_state/current_live_structure_bucket.",
+        "api_contract": "`/api/models/leaderboard.high_conviction_topk` exposes risk_qualified_count, runtime_blocked_candidate_count, nearest_deployable_rows, gate_failures/model_gate_failures/live_gate_failures, fail-closed status, and row-level support_route/support_governance_route/deployment_blocker/runtime_closure_state/current_live_structure_bucket; it applies fresh live_predict_probe support truth before row sorting/counts so stale artifact deployable_verdict cannot override a current-live blocker.",
         "strategy_lab_surface": "Strategy Lab 高信心 OOS Top-K 部署門檻面板以操作員繁中 copy 顯示 walk-forward top-k OOS ROI、勝率、最大回撤、盈虧比、最差分折、交易數、部署判定與門檻失敗",
         "risk_first_sort_contract": "deployment candidates are sorted by deployable/risk-qualified/runtime-blocked OOS-pass status before ROI, so high ROI rows with max_drawdown_too_high or worst_fold_negative cannot outrank cleaner nearest-deployable rows.",
         "api_row_level_support_contract": {
@@ -332,7 +332,7 @@
             "runtime_closure_state",
             "current_live_structure_bucket"
           ],
-          "live_overlay": "fresh live_predict_probe support_context is applied to row-level payloads",
+          "live_overlay": "fresh live_predict_probe support_context is applied before sorting/counts/compact rows; stale deployable rows are recomputed fail-closed when current-live support is under minimum or blocked",
           "runtime_proof": {
             "model": "logistic_regression",
             "top_k": "top_2pct",
@@ -352,7 +352,8 @@
         "Strategy Lab 高信心 OOS Top-K 部署門檻面板與 /api/models/leaderboard.high_conviction_topk 顯示 walk-forward top-k OOS matrix；即時分桶 / 支持阻塞未解除前仍 fail-closed，且 UI 使用操作員繁中 copy",
         "source venv/bin/activate && python -m pytest tests/test_topk_walkforward_precision.py -k nearest_deployable -q && python -m pytest tests/test_model_leaderboard.py -k high_conviction_topk -q && python -m pytest tests/test_frontend_decision_contract.py -k high_conviction_topk_gate_contract -q",
         "PYTHONPATH=. python /tmp/hb1148_verify_topk_api.py",
-        "source venv/bin/activate && PYTHONPATH=. python -m pytest tests/test_model_leaderboard.py::test_high_conviction_topk_support_context_uses_fresher_live_probe -q"
+        "source venv/bin/activate && PYTHONPATH=. python -m pytest tests/test_model_leaderboard.py::test_high_conviction_topk_support_context_uses_fresher_live_probe -q",
+        "source venv/bin/activate && PYTHONPATH=. python -m pytest tests/test_model_leaderboard.py::test_high_conviction_topk_live_support_overlay_fail_closes_stale_deployable_rows -q"
       ]
     },
     {
