@@ -759,6 +759,13 @@ interface HighConvictionTopKRow {
   support_governance_route?: string | null;
   deployment_blocker?: string | null;
   runtime_closure_state?: string | null;
+  current_live_structure_bucket?: string | null;
+  current_live_structure_bucket_rows?: number | null;
+  minimum_support_rows?: number | null;
+  current_live_structure_bucket_gap_to_minimum?: number | null;
+  support_route_deployable?: boolean | null;
+  allowed_layers?: number | null;
+  execution_guardrail_reason?: string | null;
   deployable_verdict?: string | null;
   deployment_candidate_tier?: string | null;
   gate_failures?: string[];
@@ -1037,6 +1044,17 @@ const formatHighConvictionRegimeLabel = (value?: string | null) => {
   if (!normalized) return "市場 —";
   if (normalized.toLowerCase() === "all") return "全市場";
   return regimeLabelMap[normalized.toLowerCase()] || humanizeRuntimeDetailText(normalized);
+};
+const formatHighConvictionRowSupportRowsLabel = (row: HighConvictionTopKRow) => {
+  const rows = row.current_live_structure_bucket_rows;
+  const minimum = row.minimum_support_rows;
+  const gap = row.current_live_structure_bucket_gap_to_minimum;
+  if (isFiniteNumber(rows) && isFiniteNumber(minimum)) {
+    const base = `${formatDecimal(rows, 0)} / ${formatDecimal(minimum, 0)}`;
+    return isFiniteNumber(gap) ? `${base}（缺 ${formatDecimal(gap, 0)}）` : base;
+  }
+  if (isFiniteNumber(rows)) return `${formatDecimal(rows, 0)} / —`;
+  return "—";
 };
 const deltaTone = (value: number | null | undefined, preferLower = false) => {
   if (!isFiniteNumber(value) || value === 0) return "text-slate-400";
@@ -3659,6 +3677,9 @@ export default function StrategyLab() {
                                     <div className="mt-1 text-[10px] text-violet-100/60">部署判定 {humanizeRuntimeDetailText(row.deployable_verdict || "not_deployable")}</div>
                                     {(row.support_route || row.deployment_blocker || row.runtime_closure_state) && (
                                       <div className="mt-1 text-[10px] text-violet-100/60">支持 {row.support_route ? humanizeSupportRouteLabel(row.support_route) : "—"} · 阻塞 {row.deployment_blocker ? humanizeCurrentLiveBlockerLabel(row.deployment_blocker) : "—"} · 閉環 {row.runtime_closure_state ? humanizeRuntimeClosureStateLabel(row.runtime_closure_state) : "—"}</div>
+                                    )}
+                                    {(row.current_live_structure_bucket || isFiniteNumber(row.current_live_structure_bucket_rows)) && (
+                                      <div className="mt-1 text-[10px] text-violet-100/60">分桶 {row.current_live_structure_bucket ? humanizeStructureBucketLabel(row.current_live_structure_bucket) : "—"} · 樣本 {formatHighConvictionRowSupportRowsLabel(row)}</div>
                                     )}
                                     {row.blocked_only_by_live_guardrails && (
                                       <div className="mt-1 text-[10px] text-amber-200">離線驗證 / 風控門檻已過 · 只剩即時分桶 / 支持樣本阻塞</div>

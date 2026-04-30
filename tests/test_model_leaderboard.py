@@ -566,7 +566,16 @@ def test_build_model_leaderboard_payload_includes_high_conviction_topk(monkeypat
                 "samples": 1234,
                 "top_k_grid": ["top_1pct", "top_2pct"],
                 "minimum_deployment_gates": {"min_trades": 50, "min_win_rate": 0.6},
-                "support_context": {"deployment_blocker": "circuit_breaker_active"},
+                "support_context": {
+                    "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+                    "runtime_closure_state": "patch_inactive_or_blocked",
+                    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                    "current_live_structure_bucket_rows": 9,
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 41,
+                },
                 "rows": [
                     {
                         "model": "xgboost",
@@ -602,6 +611,9 @@ def test_build_model_leaderboard_payload_includes_high_conviction_topk(monkeypat
                         "deployment_blocker": "under_minimum_exact_live_structure_bucket",
                         "runtime_closure_state": "patch_inactive_or_blocked",
                         "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                        "current_live_structure_bucket_rows": 9,
+                        "minimum_support_rows": 50,
+                        "current_live_structure_bucket_gap_to_minimum": 41,
                         "deployable_verdict": "not_deployable",
                         "gate_failures": ["support_route_not_deployable", "deployment_blocker_active"],
                         "model_gate_failures": [],
@@ -627,6 +639,7 @@ def test_build_model_leaderboard_payload_includes_high_conviction_topk(monkeypat
     )
 
     monkeypatch.setattr(api_module, "HIGH_CONVICTION_TOPK_PATH", artifact, raising=False)
+    monkeypatch.setattr(api_module, "_LIVE_PREDICT_PROBE_PATH", tmp_path / "missing_live_probe.json", raising=False)
     monkeypatch.setattr(api_module, "load_model_leaderboard_frame", lambda db_path=None: df)
     monkeypatch.setattr(api_module, "_load_model_leaderboard_history", lambda db_path=None: [])
     monkeypatch.setattr(api_module, "_summarize_target_candidates", lambda *args, **kwargs: [])
@@ -649,6 +662,9 @@ def test_build_model_leaderboard_payload_includes_high_conviction_topk(monkeypat
     assert summary["nearest_deployable_rows"][0]["deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
     assert summary["nearest_deployable_rows"][0]["runtime_closure_state"] == "patch_inactive_or_blocked"
     assert summary["nearest_deployable_rows"][0]["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
+    assert summary["nearest_deployable_rows"][0]["current_live_structure_bucket_rows"] == 9
+    assert summary["nearest_deployable_rows"][0]["minimum_support_rows"] == 50
+    assert summary["nearest_deployable_rows"][0]["current_live_structure_bucket_gap_to_minimum"] == 41
     assert summary["nearest_deployable_rows"][0]["oos_gate_passed"] is True
     assert summary["nearest_deployable_rows"][0]["blocked_only_by_live_guardrails"] is True
     assert summary["best_rows"][0]["model"] == "random_forest"
@@ -692,6 +708,14 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
                         "live_gate_failures": ["support_route_not_deployable", "deployment_blocker_active"],
                         "oos_gate_passed": True,
                         "blocked_only_by_live_guardrails": True,
+                        "support_route": "exact_bucket_present_but_below_minimum",
+                        "support_governance_route": "stale_artifact_governance",
+                        "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+                        "runtime_closure_state": "stale_reference_scope",
+                        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                        "current_live_structure_bucket_rows": 42,
+                        "minimum_support_rows": 50,
+                        "current_live_structure_bucket_gap_to_minimum": 8,
                     }
                 ],
             }
@@ -738,6 +762,9 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
     assert nearest["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
     assert nearest["runtime_closure_state"] == "patch_inactive_or_blocked"
     assert nearest["current_live_structure_bucket"] == "BLOCK|structure_quality_block|q00"
+    assert nearest["current_live_structure_bucket_rows"] == 0
+    assert nearest["minimum_support_rows"] == 50
+    assert nearest["current_live_structure_bucket_gap_to_minimum"] == 50
 
 
 

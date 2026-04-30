@@ -3157,6 +3157,7 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
                     "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
                     "current_live_structure_bucket_rows": 0,
                     "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 50,
                 },
                 "rows": [
                     {
@@ -3193,8 +3194,13 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
                         "trade_count": 88,
                         "deployable_verdict": "not_deployable",
                         "gate_failures": ["support_route_not_deployable", "deployment_blocker_active"],
-                        "support_route": "exact_bucket_unsupported_block",
-                        "deployment_blocker": "unsupported_exact_live_structure_bucket",
+                        "support_route": "exact_bucket_present_but_below_minimum",
+                        "support_governance_route": "stale_artifact_governance",
+                        "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+                        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                        "current_live_structure_bucket_rows": 42,
+                        "minimum_support_rows": 50,
+                        "current_live_structure_bucket_gap_to_minimum": 8,
                     }
                 ],
             },
@@ -3235,6 +3241,7 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
         "support_route_verdict": "exact_bucket_unsupported_block",
         "support_governance_route": "exact_live_lane_proxy_available",
         "support_route_deployable": False,
+        "current_live_structure_bucket_gap_to_minimum": 50,
     }
     result = hb_parallel_runner.overwrite_current_state_docs(
         "1125topk",
@@ -3253,10 +3260,20 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     latest = issue["summary"]["latest_matrix"]
     assert latest["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
     assert latest["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q35"
+    assert latest["current_live_structure_bucket_rows"] == 0
+    assert latest["minimum_support_rows"] == 50
+    assert latest["current_live_structure_bucket_gap_to_minimum"] == 50
     assert latest["deployable_rows"] == 0
     assert latest["risk_qualified_rows"] == 1
     assert latest["runtime_blocked_candidate_rows"] == 1
     assert latest["nearest_deployable_candidate"]["model"] == "random_forest"
+    assert latest["nearest_deployable_candidate"]["support_route"] == "exact_bucket_unsupported_block"
+    assert latest["nearest_deployable_candidate"]["support_governance_route"] == "exact_live_lane_proxy_available"
+    assert latest["nearest_deployable_candidate"]["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert latest["nearest_deployable_candidate"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q35"
+    assert latest["nearest_deployable_candidate"]["current_live_structure_bucket_rows"] == 0
+    assert latest["nearest_deployable_candidate"]["minimum_support_rows"] == 50
+    assert latest["nearest_deployable_candidate"]["current_live_structure_bucket_gap_to_minimum"] == 50
     assert latest["nearest_deployable_candidate"]["blocked_only_by_live_guardrails"] is True
     assert latest["highest_roi_not_deployable"]["model"] == "xgboost"
     issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
@@ -3264,6 +3281,10 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert "nearest deployable candidate" in issues_md
     assert "model=random_forest" in issues_md
     assert "risk_qualified_rows=1" in issues_md
+    assert "current_live_structure_bucket_rows=0/50" in issues_md
+    assert "current_live_structure_bucket_gap_to_minimum=50" in issues_md
+    assert "bucket_rows=0/50" in issues_md
+    assert "gap=50" in issues_md
     assert "CAUTION|structure_quality_caution|q35" not in issues_md
 
 

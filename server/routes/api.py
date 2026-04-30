@@ -3683,14 +3683,14 @@ def _compact_high_conviction_topk_row(
     support_context = support_context or {}
 
     def _support_value(row_key: str, context_key: Optional[str] = None) -> Any:
-        value = row.get(row_key)
-        if value is not None:
-            return value
         if context_key:
             value = support_context.get(context_key)
             if value is not None:
                 return value
-        return support_context.get(row_key)
+        value = support_context.get(row_key)
+        if value is not None:
+            return value
+        return row.get(row_key)
 
     return {
         "model": row.get("model") or row.get("model_name"),
@@ -3709,6 +3709,12 @@ def _compact_high_conviction_topk_row(
         "deployment_blocker": _support_value("deployment_blocker"),
         "runtime_closure_state": _support_value("runtime_closure_state"),
         "current_live_structure_bucket": _support_value("current_live_structure_bucket"),
+        "current_live_structure_bucket_rows": _support_value("current_live_structure_bucket_rows"),
+        "minimum_support_rows": _support_value("minimum_support_rows"),
+        "current_live_structure_bucket_gap_to_minimum": _support_value("current_live_structure_bucket_gap_to_minimum"),
+        "support_route_deployable": _support_value("support_route_deployable"),
+        "allowed_layers": _support_value("allowed_layers"),
+        "execution_guardrail_reason": _support_value("execution_guardrail_reason"),
         "deployable_verdict": row.get("deployable_verdict") or "not_deployable",
         "deployment_candidate_tier": deployment_candidate_tier,
         "gate_failures": gate_failures,

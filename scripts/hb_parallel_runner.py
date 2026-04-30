@@ -739,7 +739,16 @@ def _compact_high_conviction_topk_matrix_summary(
         "oos_gate_passed",
         "blocked_only_by_live_guardrails",
         "support_route",
+        "support_governance_route",
         "deployment_blocker",
+        "runtime_closure_state",
+        "current_live_structure_bucket",
+        "current_live_structure_bucket_rows",
+        "minimum_support_rows",
+        "current_live_structure_bucket_gap_to_minimum",
+        "support_route_deployable",
+        "allowed_layers",
+        "execution_guardrail_reason",
     ]
 
     def _compact_row(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -747,6 +756,23 @@ def _compact_high_conviction_topk_matrix_summary(
             return {}
         gate_failures, model_gate_failures, live_gate_failures, oos_gate_passed, blocked_only_by_live_guardrails = _row_gate_parts(row)
         compact_row = {key: row.get(key) for key in best_keys if key in row}
+        support_fallback_keys = {
+            "support_route": "support_route_verdict",
+            "support_governance_route": "support_governance_route",
+            "deployment_blocker": "deployment_blocker",
+            "runtime_closure_state": "runtime_closure_state",
+            "current_live_structure_bucket": "current_live_structure_bucket",
+            "current_live_structure_bucket_rows": "current_live_structure_bucket_rows",
+            "minimum_support_rows": "minimum_support_rows",
+            "current_live_structure_bucket_gap_to_minimum": "current_live_structure_bucket_gap_to_minimum",
+            "support_route_deployable": "support_route_deployable",
+            "allowed_layers": "allowed_layers",
+            "execution_guardrail_reason": "execution_guardrail_reason",
+        }
+        for row_key, support_key in support_fallback_keys.items():
+            fallback_value = _support_value(support_key)
+            if fallback_value is not None:
+                compact_row[row_key] = fallback_value
         compact_row.setdefault("gate_failures", gate_failures)
         compact_row.setdefault("model_gate_failures", model_gate_failures)
         compact_row.setdefault("live_gate_failures", live_gate_failures)
@@ -779,6 +805,7 @@ def _compact_high_conviction_topk_matrix_summary(
         "current_live_structure_bucket": _support_value("current_live_structure_bucket"),
         "current_live_structure_bucket_rows": _support_value("current_live_structure_bucket_rows"),
         "minimum_support_rows": _support_value("minimum_support_rows"),
+        "current_live_structure_bucket_gap_to_minimum": _support_value("current_live_structure_bucket_gap_to_minimum"),
         "nearest_deployable_candidate": _compact_row(nearest_row),
         "highest_roi_not_deployable": _compact_row(highest_roi_row),
         "best_not_deployable": _compact_row(nearest_row),
@@ -1467,7 +1494,10 @@ def _issue_current_lines(
                     f"`risk_qualified_rows={latest_matrix.get('risk_qualified_rows', '—')}` / "
                     f"`runtime_blocked_candidates={latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / "
                     f"`support_route={latest_matrix.get('support_route', '—')}` / "
-                    f"`deployment_blocker={latest_matrix.get('deployment_blocker', '—')}`",
+                    f"`deployment_blocker={latest_matrix.get('deployment_blocker', '—')}` / "
+                    f"`current_live_structure_bucket={latest_matrix.get('current_live_structure_bucket', '—')}` / "
+                    f"`current_live_structure_bucket_rows={latest_matrix.get('current_live_structure_bucket_rows', '—')}/{latest_matrix.get('minimum_support_rows', '—')}` / "
+                    f"`current_live_structure_bucket_gap_to_minimum={latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`",
                     "nearest deployable candidate："
                     f"`model={best_row.get('model', '—')}` / "
                     f"`regime={best_row.get('regime', '—')}` / "
@@ -1480,7 +1510,12 @@ def _issue_current_lines(
                     f"`trade_count={best_row.get('trade_count', '—')}` / "
                     f"`tier={best_row.get('deployment_candidate_tier', '—')}` / "
                     f"`oos_gate_passed={best_row.get('oos_gate_passed', '—')}` / "
-                    f"`verdict={best_row.get('deployable_verdict', '—')}`",
+                    f"`verdict={best_row.get('deployable_verdict', '—')}` / "
+                    f"`support_route={best_row.get('support_route', '—')}` / "
+                    f"`governance={best_row.get('support_governance_route', '—')}` / "
+                    f"`bucket={best_row.get('current_live_structure_bucket', '—')}` / "
+                    f"`bucket_rows={best_row.get('current_live_structure_bucket_rows', '—')}/{best_row.get('minimum_support_rows', '—')}` / "
+                    f"`gap={best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`",
                 ]
             )
         return [
@@ -2277,7 +2312,7 @@ def overwrite_current_state_docs(
             "5. **P0 實戰化：建立 high-conviction top-k OOS ROI gate，把研究 winner 轉成可拒單部署候選**",
             (
                 f"   - `data/high_conviction_topk_oos_matrix.json` 已產出 `rows={high_conviction_latest_matrix.get('rows')}` / "
-                f"`deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}`；`/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板已改為最接近部署候選優先，並以操作員繁中 copy 顯示即時支持脈絡；即時分桶 / 支持阻塞未解除前仍 fail-closed。"
+                f"`deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `gap={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`；`/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板已改為最接近部署候選優先，並以操作員繁中 copy 顯示即時支持脈絡；即時分桶 / 支持阻塞未解除前仍 fail-closed。"
                 if high_conviction_latest_matrix
                 else "   - 先產出 `data/high_conviction_topk_oos_matrix.json`，用 walk-forward OOS 比較 `model × feature_profile × regime × top_k`；未達最低交易數 / 勝率 / 最大回撤 / 盈虧比 / 支持路徑時保持模擬觀察 / 影子驗證 / 僅觀察。"
             ),
@@ -2305,8 +2340,8 @@ def overwrite_current_state_docs(
         high_conviction_matrix_lines = []
         if high_conviction_latest_matrix:
             high_conviction_matrix_lines = [
-                f"- 最新 matrix artifact 已產出：`artifact={high_conviction_latest_matrix.get('artifact', 'data/high_conviction_topk_oos_matrix.json')}` / `samples={high_conviction_latest_matrix.get('samples', '—')}` / `rows={high_conviction_latest_matrix.get('rows', '—')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows', '—')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `support_route={high_conviction_latest_matrix.get('support_route', '—')}` / `deployment_blocker={high_conviction_latest_matrix.get('deployment_blocker', '—')}`。",
-                f"- 最接近部署候選優先：`model={high_conviction_best_row.get('model', '—')}` / `regime={high_conviction_best_row.get('regime', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` / `win_rate={high_conviction_best_row.get('win_rate', '—')}` / `profit_factor={high_conviction_best_row.get('profit_factor', '—')}` / `max_drawdown={high_conviction_best_row.get('max_drawdown', '—')}` / `worst_fold={high_conviction_best_row.get('worst_fold', '—')}` / `trades={high_conviction_best_row.get('trade_count', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` / `verdict={high_conviction_best_row.get('deployable_verdict', '—')}`；若只剩即時分桶 / 支持 gate，仍模擬觀察 / 影子驗證 / 僅觀察。",
+                f"- 最新 matrix artifact 已產出：`artifact={high_conviction_latest_matrix.get('artifact', 'data/high_conviction_topk_oos_matrix.json')}` / `samples={high_conviction_latest_matrix.get('samples', '—')}` / `rows={high_conviction_latest_matrix.get('rows', '—')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows', '—')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `support_route={high_conviction_latest_matrix.get('support_route', '—')}` / `deployment_blocker={high_conviction_latest_matrix.get('deployment_blocker', '—')}` / `current_live_structure_bucket={high_conviction_latest_matrix.get('current_live_structure_bucket', '—')}` / `current_live_structure_bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `current_live_structure_bucket_gap_to_minimum={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`。",
+                f"- 最接近部署候選優先：`model={high_conviction_best_row.get('model', '—')}` / `regime={high_conviction_best_row.get('regime', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` / `win_rate={high_conviction_best_row.get('win_rate', '—')}` / `profit_factor={high_conviction_best_row.get('profit_factor', '—')}` / `max_drawdown={high_conviction_best_row.get('max_drawdown', '—')}` / `worst_fold={high_conviction_best_row.get('worst_fold', '—')}` / `trades={high_conviction_best_row.get('trade_count', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` / `verdict={high_conviction_best_row.get('deployable_verdict', '—')}` / `support_route={high_conviction_best_row.get('support_route', '—')}` / `governance={high_conviction_best_row.get('support_governance_route', '—')}` / `bucket={high_conviction_best_row.get('current_live_structure_bucket', '—')}` / `bucket_rows={high_conviction_best_row.get('current_live_structure_bucket_rows', '—')}/{high_conviction_best_row.get('minimum_support_rows', '—')}` / `gap={high_conviction_best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`；若只剩即時分桶 / 支持 gate，仍模擬觀察 / 影子驗證 / 僅觀察。",
             ]
         else:
             high_conviction_matrix_lines = [
@@ -2318,7 +2353,7 @@ def overwrite_current_state_docs(
             "- 六色帽會議與研究交叉分析已收斂：下一步不是增加交易頻率，而是用 walk-forward OOS / top-k precision / ROI / max drawdown / meta-labeling / uncertainty gate 決定是否允許 candidate 進入部署候選。",
             *high_conviction_matrix_lines,
             "**成功標準**",
-            "- `data/high_conviction_topk_oos_matrix.json` 必須持續輸出 `model / feature_profile / regime / top_k / OOS ROI / win_rate / profit_factor / max_drawdown / worst_fold / trade_count / support_route / deployable_verdict / gate_failures / model_gate_failures / live_gate_failures / deployment_candidate_tier`。",
+            "- `data/high_conviction_topk_oos_matrix.json` 必須持續輸出 `model / feature_profile / regime / top_k / OOS ROI / win_rate / profit_factor / max_drawdown / worst_fold / trade_count / support_route / support_governance_route / deployment_blocker / runtime_closure_state / current_live_structure_bucket / current_live_structure_bucket_rows / minimum_support_rows / current_live_structure_bucket_gap_to_minimum / deployable_verdict / gate_failures / model_gate_failures / live_gate_failures / deployment_candidate_tier`。",
             "- `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板以最接近部署候選優先排序：先看離線驗證 / 風控門檻、低回撤、最差分折，再看 ROI；若候選只剩即時分桶 / 支持 / 場館 proof 未過，仍 fail-closed 到模擬觀察 / 影子驗證 / 僅觀察，並顯示支持狀態、治理路徑、部署阻塞、即時分桶與樣本數。",
             "",
         ]
@@ -2436,7 +2471,7 @@ def overwrite_current_state_docs(
     if high_conviction_issue:
         high_conviction_orid_fact_lines = [
             (
-                f"- 實戰化 P0：`data/high_conviction_topk_oos_matrix.json` 已產出 `rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}`；最接近部署候選 `model={high_conviction_best_row.get('model', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` / `max_drawdown={high_conviction_best_row.get('max_drawdown', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` 仍因即時分桶 / 支持 gate fail-closed。"
+                f"- 實戰化 P0：`data/high_conviction_topk_oos_matrix.json` 已產出 `rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `gap={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`；最接近部署候選 `model={high_conviction_best_row.get('model', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` / `bucket_rows={high_conviction_best_row.get('current_live_structure_bucket_rows', '—')}/{high_conviction_best_row.get('minimum_support_rows', '—')}` / `gap={high_conviction_best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`，仍被即時分桶 / 支持 gate 擋下。"
                 if high_conviction_latest_matrix
                 else "- 實戰化新 P0：high-conviction top-k OOS ROI gate 已進入 current-state issues；下一步產出 `data/high_conviction_topk_oos_matrix.json`，用 walk-forward OOS top-k matrix 驗證 ROI、勝率、回撤、盈虧比、最差分折、最低交易數與即時支持。"
             ),
@@ -2445,7 +2480,7 @@ def overwrite_current_state_docs(
             "4. **實戰化不是堆模型，而是可拒單部署治理**：high-conviction top-k OOS ROI gate 把六色帽 / 研究交叉分析轉成產品契約；排序先分離離線驗證 / 模型風控門檻與即時分桶 / 支持 gate，避免最高 ROI 但高回撤 / 負最差分折的列誤導部署決策。",
         ]
         high_conviction_orid_action_lines = [
-            "- **研究到產品 gate**：walk-forward OOS top-k matrix 已透過 `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板可視化；operator 現在會先看到最接近部署候選（離線驗證 / 風控已過但只剩即時分桶 / 支持 gate 的 rows），並看到支持狀態、治理路徑與部署阻塞；即時分桶 / 支持 blockers 未解除前仍維持 fail-closed。",
+            "- **研究到產品 gate**：walk-forward OOS top-k matrix 已透過 `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板可視化；operator 現在會先看到最接近部署候選（離線驗證 / 風控已過但只剩即時分桶 / 支持 gate 的 rows），並看到支持狀態、治理路徑、部署阻塞、即時分桶、樣本數與 gap；即時分桶 / 支持 blockers 未解除前仍維持 fail-closed。",
         ]
 
     live_regime = live_predictor_diagnostics.get("regime_label") or "—"
