@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 import pytest
 
@@ -55,8 +57,15 @@ def test_build_high_conviction_oos_matrix_keeps_current_live_blocker_fail_closed
         report,
         support_context={
             "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "no_support_proxy",
             "deployment_blocker": "circuit_breaker_active",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "allowed_layers": 0,
+            "signal": "HOLD",
+            "source_live_probe_generated_at": "2026-04-30T05:28:04Z",
         },
     )
 
@@ -69,7 +78,14 @@ def test_build_high_conviction_oos_matrix_keeps_current_live_blocker_fail_closed
     assert row["oos_roi"] == pytest.approx(0.18)
     assert row["worst_fold"] == pytest.approx(0.04)
     assert row["support_route"] == "exact_bucket_unsupported_block"
+    assert row["support_governance_route"] == "no_support_proxy"
     assert row["deployment_blocker"] == "circuit_breaker_active"
+    assert row["current_live_structure_bucket_rows"] == 0
+    assert row["minimum_support_rows"] == 50
+    assert row["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert row["allowed_layers"] == 0
+    assert row["signal"] == "HOLD"
+    assert row["source_live_probe_generated_at"] == "2026-04-30T05:28:04Z"
     assert row["deployable_verdict"] == "not_deployable"
     assert "support_route_not_deployable" in row["gate_failures"]
     assert "deployment_blocker_active" in row["gate_failures"]
@@ -114,6 +130,46 @@ def test_build_high_conviction_oos_matrix_marks_nearest_deployable_runtime_block
     assert row["model_gate_failures"] == []
     assert row["live_gate_failures"] == ["support_route_not_deployable", "deployment_blocker_active"]
     assert row["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+
+
+def test_load_support_context_preserves_current_live_support_progress(monkeypatch, tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-30T05:28:04.465304Z",
+                "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+                "support_route_verdict": "exact_bucket_unsupported_block",
+                "support_governance_route": "no_support_proxy",
+                "deployment_blocker": "unsupported_exact_live_structure_bucket",
+                "runtime_closure_state": "patch_inactive_or_blocked",
+                "allowed_layers": 0,
+                "signal": "HOLD",
+                "support_progress": {
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    context = topk._load_support_context()
+
+    assert context["current_live_structure_bucket"] == "BLOCK|structure_quality_block|q00"
+    assert context["support_route_verdict"] == "exact_bucket_unsupported_block"
+    assert context["support_governance_route"] == "no_support_proxy"
+    assert context["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert context["current_live_structure_bucket_rows"] == 0
+    assert context["minimum_support_rows"] == 50
+    assert context["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert context["allowed_layers"] == 0
+    assert context["signal"] == "HOLD"
+    assert context["source_live_probe_generated_at"] == "2026-04-30T05:28:04.465304Z"
+    assert context["live_truth_source_artifact"] == "data/live_predict_probe.json"
 
 
 def test_coalesce_regime_label_handles_merge_suffixes():

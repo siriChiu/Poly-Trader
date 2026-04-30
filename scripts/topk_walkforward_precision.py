@@ -86,10 +86,24 @@ def _load_support_context() -> dict:
         "current_live_structure_bucket",
         "current_live_structure_bucket_rows",
         "minimum_support_rows",
+        "current_live_structure_bucket_gap_to_minimum",
         "allowed_layers",
         "signal",
+        "execution_guardrail_reason",
     ]
     context = {key: probe.get(key) for key in keys if key in probe}
+    support_progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
+    fallback_map = {
+        "current_live_structure_bucket_rows": "current_rows",
+        "minimum_support_rows": "minimum_support_rows",
+        "current_live_structure_bucket_gap_to_minimum": "gap_to_minimum",
+    }
+    for context_key, progress_key in fallback_map.items():
+        if context.get(context_key) is None and support_progress.get(progress_key) is not None:
+            context[context_key] = support_progress.get(progress_key)
+    if probe.get("generated_at"):
+        context["source_live_probe_generated_at"] = probe.get("generated_at")
+    context["live_truth_source_artifact"] = str(probe_path)
     context.setdefault("support_route_verdict", "not_evaluated")
     context.setdefault("deployment_blocker", None)
     return context
@@ -270,9 +284,17 @@ def build_high_conviction_oos_matrix_rows(
                 "regime_mix": dict(metrics.get("regime_mix") or {}),
                 "support_route": support_context.get("support_route_verdict", "not_evaluated"),
                 "support_governance_route": support_context.get("support_governance_route"),
+                "support_route_deployable": support_context.get("support_route_deployable"),
                 "deployment_blocker": support_context.get("deployment_blocker"),
                 "runtime_closure_state": support_context.get("runtime_closure_state"),
                 "current_live_structure_bucket": support_context.get("current_live_structure_bucket"),
+                "current_live_structure_bucket_rows": support_context.get("current_live_structure_bucket_rows"),
+                "minimum_support_rows": support_context.get("minimum_support_rows"),
+                "current_live_structure_bucket_gap_to_minimum": support_context.get("current_live_structure_bucket_gap_to_minimum"),
+                "allowed_layers": support_context.get("allowed_layers"),
+                "signal": support_context.get("signal"),
+                "execution_guardrail_reason": support_context.get("execution_guardrail_reason"),
+                "source_live_probe_generated_at": support_context.get("source_live_probe_generated_at"),
                 "minimum_deployment_gates": gates,
                 "deployable_verdict": deployable_verdict,
                 "deployment_candidate_tier": deployment_candidate_tier,
@@ -412,6 +434,12 @@ def main() -> None:
         if report is not None:
             result["models"][model_name] = report
             result["rows"].extend(build_high_conviction_oos_matrix_rows(model_name, report, support_context=support_context))
+    result["row_count"] = len(result["rows"])
+    result["deployable_rows"] = sum(1 for row in result["rows"] if row.get("deployable_verdict") == "deployable")
+    result["risk_qualified_rows"] = sum(1 for row in result["rows"] if row.get("oos_gate_passed"))
+    result["runtime_blocked_candidate_rows"] = sum(
+        1 for row in result["rows"] if row.get("blocked_only_by_live_guardrails")
+    )
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     LEGACY_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
