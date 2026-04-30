@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-04-30 05:26:49.411071**
+- generated_at: **2026-04-30 06:15:05.806706**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -36,7 +36,7 @@
 - support_progress.current_rows / minimum: **0 / 50**
 - support_progress.previous_rows: **0**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **3**
+- support_progress.stagnant_run_count: **4**
 - support_progress.escalate_to_blocker: **True**
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'BLOCK|structure_quality_block|q00', 'regime_label': 'bear', 'regime_gate': 'BLOCK', 'entry_quality_label': 'C', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `None`
@@ -57,9 +57,9 @@
 - mode: **reference_only_non_current_live_scope**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.6119**
+- current_entry_quality: **0.6198**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.0619**
+- current_trade_floor_gap: **0.0698**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_applicable_current_live_not_q15_lane)

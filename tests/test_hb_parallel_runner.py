@@ -823,6 +823,41 @@ def test_collect_live_predictor_diagnostics_preserves_deployment_blocker_fields(
     assert result["support_progress"]["current_rows"] == 55
 
 
+def test_support_truth_context_preserves_non_q15_live_support_progress():
+    live_predictor_diagnostics = {
+        "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+        "current_live_structure_bucket_rows": 0,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 50,
+        "support_route_verdict": "exact_bucket_unsupported_block",
+        "support_governance_route": "no_support_proxy",
+        "support_progress": {
+            "status": "stalled_under_minimum",
+            "current_rows": 0,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 50,
+        },
+    }
+
+    context = hb_parallel_runner._support_truth_context(live_predictor_diagnostics, {})
+    doc_line = hb_parallel_runner._support_progress_docs_line(context)
+    issue_summary = hb_parallel_runner._current_live_blocker_issue_summary(
+        {
+            **live_predictor_diagnostics,
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+        }
+    )
+
+    assert context["support_progress_status"] == "stalled_under_minimum"
+    assert context["current_rows"] == 0
+    assert context["minimum_rows"] == 50
+    assert context["gap_to_minimum"] == 50
+    assert "status=stalled_under_minimum" in doc_line
+    assert issue_summary["support_progress"]["status"] == "stalled_under_minimum"
+    assert issue_summary["support_progress"]["minimum_support_rows"] == 50
+    assert issue_summary["support_progress"]["gap_to_minimum"] == 50
+
+
 def test_needs_q15_post_audit_runtime_resync_when_support_ready_but_probe_still_unpatched():
     live_predictor_diagnostics = {
         "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",

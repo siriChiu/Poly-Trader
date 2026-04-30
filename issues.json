@@ -7,7 +7,7 @@
       "action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "status": "open",
       "created_at": "2026-04-28T02:42:11.301050",
-      "updated_at": "2026-04-30T05:28:16.077121",
+      "updated_at": "2026-04-30T06:16:31.930246",
       "hb_detected": null,
       "next_action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "summary": {
@@ -30,7 +30,9 @@
         "entry_quality_label": "C",
         "support_progress": {
           "status": "stalled_under_minimum",
-          "current_rows": 0
+          "current_rows": 0,
+          "minimum_support_rows": 50,
+          "gap_to_minimum": 50
         }
       }
     },
@@ -41,7 +43,7 @@
       "action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable。",
       "status": "open",
       "created_at": "2026-04-29T18:00:00+08:00",
-      "updated_at": "2026-04-30T05:14:32.685193",
+      "updated_at": "2026-04-30T06:03:16.688605",
       "hb_detected": null,
       "next_action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable。",
       "summary": {
@@ -89,9 +91,9 @@
         "strategy_lab_contract": "Strategy Lab 必須優先顯示 nearest_deployable_rows，並把離線驗證 / 模型門檻失敗與即時分桶 / 支持阻塞分開呈現；此研究 gate 不暴露 live automation 按鈕。",
         "execution_contract": "current-live blocker / unsupported support route keeps buy/add exposure fail-closed; reduce/sell diagnostics remain available",
         "latest_matrix": {
-          "generated_at": "2026-04-30T04:05:06.947654+00:00",
+          "generated_at": "2026-04-30T05:54:13.297971+00:00",
           "artifact": "data/high_conviction_topk_oos_matrix.json",
-          "samples": 23877,
+          "samples": 23880,
           "rows": 24,
           "evaluated_models": [
             "logistic_regression",
@@ -268,17 +270,17 @@
     {
       "id": "#H_AUTO_MODEL_STABILITY",
       "priority": "P1",
-      "title": "model stability still needs work (cv=0.6459, cv_std=0.1062, cv_worst=0.5398)",
+      "title": "model stability still needs work (cv=0.6524, cv_std=0.1114, cv_worst=0.5410)",
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-04-30T05:28:15.109533",
+      "updated_at": "2026-04-30T06:16:30.976047",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
-        "cv_accuracy": 0.6459380234505863,
-        "cv_std": 0.10615577889447236,
-        "cv_worst": 0.5397822445561139
+        "cv_accuracy": 0.652428810720268,
+        "cv_std": 0.11139028475711893,
+        "cv_worst": 0.541038525963149
       }
     },
     {
@@ -288,7 +290,7 @@
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132306",
-      "updated_at": "2026-04-30T05:28:15.109557",
+      "updated_at": "2026-04-30T06:16:30.976079",
       "hb_detected": null,
       "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "summary": {
@@ -331,7 +333,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3939,
+        "forward_archive_rows": 3941,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -339,7 +341,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-30T05:28:16.077045",
+      "updated_at": "2026-04-30T06:16:31.930215",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -358,8 +360,8 @@
         "current_closure": "global_ranking_vs_support_aware_production_split",
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": false,
-        "leaderboard_payload_cache_age_sec": 554,
-        "leaderboard_payload_updated_at": "2026-04-30T05:18:56.543036Z",
+        "leaderboard_payload_cache_age_sec": 797,
+        "leaderboard_payload_updated_at": "2026-04-30T06:03:09.510381Z",
         "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
@@ -368,7 +370,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-30T05:28:15.109527",
+      "updated_at": "2026-04-30T06:16:30.976040",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -378,7 +380,7 @@
       "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "status": "open",
       "created_at": "2026-04-30T02:04:38.914044",
-      "updated_at": "2026-04-30T05:28:15.109552",
+      "updated_at": "2026-04-30T06:16:30.976073",
       "hb_detected": null,
       "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "summary": {
@@ -386,23 +388,23 @@
         "interpretation": "regime_concentration",
         "win_rate": 0.25,
         "dominant_regime": "chop",
-        "dominant_regime_share": 0.81,
-        "avg_pnl": -0.0037,
-        "avg_quality": -0.0459,
-        "avg_drawdown_penalty": 0.2474,
+        "dominant_regime_share": 0.8,
+        "avg_pnl": -0.0036,
+        "avg_quality": -0.0442,
+        "avg_drawdown_penalty": 0.2473,
         "spot_long_win_rate": 0.1,
-        "avg_time_underwater": 0.6315,
+        "avg_time_underwater": 0.6264,
         "alerts": [
           "regime_shift"
         ],
         "top_shift_features": [
           "feat_4h_rsi14",
           "feat_local_top_score",
-          "feat_eye"
+          "feat_4h_ma_order"
         ],
         "new_compressed_feature": null,
-        "tail_streak": "3x0",
-        "adverse_streak": "62x0",
+        "tail_streak": "5x0",
+        "adverse_streak": "60x0",
         "live_regime_label": "bear",
         "current_live_scope": false,
         "blocking_basis": [

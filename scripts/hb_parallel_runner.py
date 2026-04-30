@@ -344,6 +344,37 @@ def _support_truth_context(
         "source": "live_predictor",
     }
 
+    deployment_details = live_predictor_diagnostics.get("deployment_blocker_details") or {}
+    if not isinstance(deployment_details, dict):
+        deployment_details = {}
+    live_support_progress = (
+        live_predictor_diagnostics.get("support_progress")
+        or deployment_details.get("support_progress")
+        or {}
+    )
+    if not isinstance(live_support_progress, dict):
+        live_support_progress = {}
+    if context.get("current_rows") is None and live_support_progress.get("current_rows") is not None:
+        context["current_rows"] = live_support_progress.get("current_rows")
+    if context.get("minimum_rows") is None:
+        context["minimum_rows"] = (
+            live_support_progress.get("minimum_support_rows")
+            if live_support_progress.get("minimum_support_rows") is not None
+            else live_support_progress.get("minimum_rows")
+        )
+    if context.get("gap_to_minimum") is None:
+        context["gap_to_minimum"] = (
+            live_support_progress.get("gap_to_minimum")
+            if live_support_progress.get("gap_to_minimum") is not None
+            else live_support_progress.get("delta_to_minimum")
+        )
+    if live_support_progress.get("status") is not None:
+        context["support_progress_status"] = live_support_progress.get("status")
+    if live_support_progress.get("regression_basis") is not None:
+        context["support_progress_regression_basis"] = live_support_progress.get("regression_basis")
+    if live_support_progress.get("legacy_supported_reference") is not None:
+        context["legacy_supported_reference"] = live_support_progress.get("legacy_supported_reference")
+
     audit_bucket = _q15_support_audit_bucket(q15_support_audit)
     use_q15_support_audit = "q15" in str(current_bucket or "") and (
         not audit_bucket or audit_bucket == current_bucket
@@ -593,7 +624,9 @@ def _current_live_blocker_issue_summary(live_predictor_diagnostics: Dict[str, An
             for key in [
                 "status",
                 "current_rows",
+                "minimum_support_rows",
                 "minimum_rows",
+                "gap_to_minimum",
                 "delta_to_minimum",
                 "recent_supported_rows",
                 "delta_vs_recent_supported",
@@ -2393,7 +2426,7 @@ def overwrite_current_state_docs(
         "**目前真相**",
         f"- {blocker_line}",
         f"- {support_line}",
-        *support_progress_doc_lines,
+        *[f"- {line}" for line in support_progress_doc_lines],
         "**成功標準**",
         goal_a_success,
         f"- {support_scope_label} truth (`bucket / rows / minimum / gap / support route`) 仍在 top-level surfaces 可 machine-read。",
@@ -2408,7 +2441,7 @@ def overwrite_current_state_docs(
         goal_c_title,
         "**目前真相**",
         f"- {support_line}",
-        *support_progress_doc_lines,
+        *[f"- {line}" for line in support_progress_doc_lines],
         f"- {patch_context['docs_line']}",
         *([f"- {q35_scaling_doc_line}"] if q35_scaling_doc_line else []),
         "**成功標準**",

@@ -184,6 +184,133 @@ def _deployment_blocker_summary(payload: dict[str, Any]) -> dict[str, Any] | Non
     }
 
 
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def _safe_int(value: Any) -> int | None:
+    try:
+        if value is None or value == "":
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _support_blocker_summary(
+    payload: dict[str, Any],
+    deployment_blocker: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Normalize exact-support blocker truth for operator surfaces.
+
+    The live probe already carries the guardrail fields, but they can be split
+    between top-level fields, deployment_blocker_details, and support_progress.
+    The drilldown artifact should present one compact support summary so the
+    current-bucket shortage is visible without digging through nested JSON.
+    """
+    details = payload.get("deployment_blocker_details") or {}
+    if not isinstance(details, dict):
+        details = {}
+    support_progress = payload.get("support_progress") or details.get("support_progress") or {}
+    if not isinstance(support_progress, dict):
+        support_progress = {}
+
+    current_bucket = _first_present(
+        payload.get("current_live_structure_bucket"),
+        payload.get("structure_bucket"),
+        details.get("current_live_structure_bucket"),
+        details.get("structure_bucket"),
+    )
+    current_rows = _first_present(
+        payload.get("current_live_structure_bucket_rows"),
+        details.get("current_live_structure_bucket_rows"),
+        details.get("exact_live_structure_bucket_rows"),
+        support_progress.get("current_rows"),
+    )
+    minimum_rows = _first_present(
+        payload.get("minimum_support_rows"),
+        details.get("minimum_support_rows"),
+        support_progress.get("minimum_support_rows"),
+        support_progress.get("minimum_rows"),
+    )
+    gap_to_minimum = _first_present(
+        payload.get("current_live_structure_bucket_gap_to_minimum"),
+        details.get("current_live_structure_bucket_gap_to_minimum"),
+        support_progress.get("gap_to_minimum"),
+        support_progress.get("delta_to_minimum"),
+    )
+    current_rows_int = _safe_int(current_rows)
+    minimum_rows_int = _safe_int(minimum_rows)
+    if gap_to_minimum is None and current_rows_int is not None and minimum_rows_int is not None:
+        gap_to_minimum = max(minimum_rows_int - current_rows_int, 0)
+
+    support_route_verdict = _first_present(
+        payload.get("support_route_verdict"),
+        details.get("support_route_verdict"),
+    )
+    support_governance_route = _first_present(
+        payload.get("support_governance_route"),
+        details.get("support_governance_route"),
+    )
+    support_route_deployable = _first_present(
+        payload.get("support_route_deployable"),
+        details.get("support_route_deployable"),
+    )
+    blocker_type = (deployment_blocker or {}).get("type") or payload.get("deployment_blocker")
+    if not any(
+        value is not None
+        for value in [
+            blocker_type,
+            current_bucket,
+            current_rows,
+            minimum_rows,
+            support_route_verdict,
+            support_governance_route,
+        ]
+    ):
+        return None
+
+    support_text = "support rows unknown"
+    if current_rows is not None and minimum_rows is not None:
+        support_text = f"exact support {current_rows}/{minimum_rows}"
+        if gap_to_minimum is not None:
+            support_text += f" (gap {gap_to_minimum})"
+    deployable = bool(support_route_deployable) if isinstance(support_route_deployable, bool) else False
+    if deployable:
+        operator_summary = f"{support_text} 已達 deployable support；deployment 仍以 `{blocker_type or 'none'}` 與 allowed_layers 為準。"
+        operator_next_action = "不要把 support closure 誤讀成 deployment closure；繼續檢查 allowed_layers / signal / venue proof。"
+    else:
+        operator_summary = f"{support_text} 未達 current-live exact support；broader/proxy rows 僅可作治理參考。"
+        operator_next_action = (
+            "保持 no-deploy；先累積或回放同一 current-live structure bucket 的 exact lane 樣本，"
+            "不可用 broader/proxy support 放行。"
+        )
+
+    return {
+        "deployment_blocker": blocker_type,
+        "deployment_blocker_reason": (deployment_blocker or {}).get("reason") or payload.get("deployment_blocker_reason"),
+        "deployment_blocker_source": (deployment_blocker or {}).get("source") or payload.get("deployment_blocker_source"),
+        "current_live_structure_bucket": current_bucket,
+        "current_live_structure_bucket_rows": current_rows,
+        "exact_live_structure_bucket_rows": details.get("exact_live_structure_bucket_rows"),
+        "minimum_support_rows": minimum_rows,
+        "gap_to_minimum": gap_to_minimum,
+        "support_progress_status": support_progress.get("status"),
+        "support_route_verdict": support_route_verdict,
+        "support_governance_route": support_governance_route,
+        "support_route_deployable": support_route_deployable,
+        "allowed_layers_raw": payload.get("allowed_layers_raw"),
+        "allowed_layers_raw_reason": payload.get("allowed_layers_raw_reason"),
+        "allowed_layers": payload.get("allowed_layers"),
+        "allowed_layers_reason": payload.get("allowed_layers_reason"),
+        "operator_summary": operator_summary,
+        "operator_next_action": operator_next_action,
+    }
+
+
 def _unavailable_component_gap_attribution(reason: str | None, blocker: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "trade_floor": None,
@@ -349,6 +476,7 @@ def main() -> None:
     )
     runtime_blocker = _runtime_blocker_summary(payload)
     deployment_blocker = _deployment_blocker_summary(payload)
+    support_blocker = _support_blocker_summary(payload, deployment_blocker)
 
     chosen_scope = str(payload.get("decision_quality_calibration_scope") or "unknown")
     exact_scope_name = "regime_label+regime_gate+entry_quality_label"
@@ -383,6 +511,7 @@ def main() -> None:
         "component_gap_attribution": component_gap_attribution,
         "runtime_blocker": runtime_blocker,
         "deployment_blocker": deployment_blocker,
+        "support_blocker_summary": support_blocker,
         "allowed_layers_raw": payload.get("allowed_layers_raw"),
         "allowed_layers_raw_reason": payload.get("allowed_layers_raw_reason"),
         "allowed_layers": payload.get("allowed_layers"),
@@ -440,6 +569,9 @@ def main() -> None:
     q35_runtime_gap = q35_audit.get("runtime_remaining_gap_to_floor")
     q35_recommended_mode = q35_audit.get("recommended_mode") or "None"
     q35_next_patch_target = q35_audit.get("next_patch_target") or "None"
+    support_blocker_summary = report.get("support_blocker_summary") or {}
+    support_operator_summary = support_blocker_summary.get("operator_summary") or "None"
+    support_operator_next_action = support_blocker_summary.get("operator_next_action") or "None"
     runtime_closure_state = report.get("runtime_closure_state") or (
         "support_closed_but_trade_floor_blocked"
         if (
@@ -517,6 +649,8 @@ def main() -> None:
         f"- execution_guardrail_reason: `{report['execution_guardrail_reason']}`",
         f"- runtime_blocker: `{(runtime_blocker or {}).get('type')}` | reason: `{(runtime_blocker or {}).get('reason')}`",
         f"- deployment_blocker: `{(deployment_blocker or {}).get('type')}` | reason: `{(deployment_blocker or {}).get('reason')}`",
+        f"- support blocker summary: **{support_operator_summary}**",
+        f"- support next action: {support_operator_next_action}",
         f"- q15 exact-supported patch: **{'active' if report['q15_exact_supported_component_patch_applied'] else 'inactive'}** | support_route `{report.get('support_route_verdict')}` | floor_cross `{report.get('floor_cross_verdict')}`",
         f"- runtime closure summary: **{runtime_closure_summary}**",
         f"- q35 scaling audit: overall=`{q35_overall_verdict}` / redesign=`{q35_redesign_verdict}` / runtime_gap=`{q35_runtime_gap}` / mode=`{q35_recommended_mode}` / next_patch=`{q35_next_patch_target}`",
@@ -579,6 +713,9 @@ def main() -> None:
         "runtime_blocker_reason": (runtime_blocker or {}).get("reason"),
         "deployment_blocker": (deployment_blocker or {}).get("type"),
         "deployment_blocker_reason": (deployment_blocker or {}).get("reason"),
+        "support_blocker_summary": support_blocker_summary,
+        "support_operator_summary": support_operator_summary,
+        "support_operator_next_action": support_operator_next_action,
         "q15_exact_supported_component_patch_applied": report.get("q15_exact_supported_component_patch_applied"),
         "runtime_closure_state": runtime_closure_state,
         "runtime_closure_summary": runtime_closure_summary,

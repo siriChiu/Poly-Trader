@@ -275,11 +275,54 @@ def test_deployment_blocker_summary_extracts_q35_no_deploy_governance():
     }
 
 
+def test_support_blocker_summary_compacts_exact_bucket_shortage_for_operator_surfaces():
+    payload = {
+        "deployment_blocker": "unsupported_exact_live_structure_bucket",
+        "deployment_blocker_reason": "missing exact support",
+        "deployment_blocker_source": "decision_quality_contract",
+        "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+        "support_route_verdict": "exact_bucket_unsupported_block",
+        "support_governance_route": "no_support_proxy",
+        "support_route_deployable": False,
+        "allowed_layers_raw": 0,
+        "allowed_layers_raw_reason": "regime_gate_block",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "unsupported_exact_live_structure_bucket",
+        "deployment_blocker_details": {
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+        },
+    }
+
+    blocker = live_drilldown._deployment_blocker_summary(payload)
+    summary = live_drilldown._support_blocker_summary(payload, blocker)
+
+    assert summary["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert summary["current_live_structure_bucket"] == "BLOCK|structure_quality_block|q00"
+    assert summary["current_live_structure_bucket_rows"] == 0
+    assert summary["minimum_support_rows"] == 50
+    assert summary["gap_to_minimum"] == 50
+    assert summary["support_progress_status"] == "stalled_under_minimum"
+    assert summary["support_route_verdict"] == "exact_bucket_unsupported_block"
+    assert summary["support_governance_route"] == "no_support_proxy"
+    assert "exact support 0/50 (gap 50)" in summary["operator_summary"]
+    assert "broader/proxy rows 僅可作治理參考" in summary["operator_summary"]
+    assert "不可用 broader/proxy support 放行" in summary["operator_next_action"]
+
+
 def test_drilldown_markdown_mentions_runtime_closure_summaries():
     source = MODULE_PATH.read_text(encoding="utf-8")
     assert "capacity opened but signal still HOLD" in source
     assert "patch active but execution still blocked" in source
     assert "runtime closure summary" in source
+    assert "support blocker summary" in source
 
 
 def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_path, monkeypatch):
