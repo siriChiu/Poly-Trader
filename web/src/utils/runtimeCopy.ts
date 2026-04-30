@@ -842,6 +842,20 @@ export function humanizeSupportProgressDeltaLabel(progress?: SupportProgressLike
   const recentSupportedRows = normalizeSupportProgressCount(normalized.recent_supported_rows);
   const deltaVsRecentSupported = normalizeSupportProgressCount(normalized.delta_vs_recent_supported);
   const regressedFromSupported = Boolean(normalized.regressed_from_supported) || status === "regressed_under_minimum";
+  const semanticRebaseline = status === "semantic_rebaseline_under_minimum";
+  const legacyReference = normalized.legacy_supported_reference ?? null;
+  const legacyRows = normalizeSupportProgressCount(legacyReference?.live_current_structure_bucket_rows);
+
+  // Semantic rebaseline is not a same-identity regression, so avoid showing only the
+  // previous heartbeat delta (for example +2). Operators need the old supported
+  // cohort as a reference-only boundary while the new support identity accumulates.
+  if (semanticRebaseline && legacyRows !== null) {
+    if (currentRows !== null) {
+      const deltaVsLegacy = currentRows - legacyRows;
+      return `相對舊版已就緒參考 ${formatSupportProgressDelta(deltaVsLegacy)}（${legacyRows} → ${currentRows}，僅供參考）`;
+    }
+    return `舊版已就緒參考 ${legacyRows} 筆（僅供參考）`;
+  }
 
   // Regressions should be measured relative to the latest supported cohort,
   // not the immediately previous stagnant heartbeat.

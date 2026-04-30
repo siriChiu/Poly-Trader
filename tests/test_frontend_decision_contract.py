@@ -562,6 +562,7 @@ def test_runtime_copy_and_execution_surfaces_use_humanized_chinese_operator_copy
         'function humanizeSupportIdentitySummary',
         'const semanticRebaseline = status === "semantic_rebaseline_under_minimum";',
         '`舊版已就緒參考 #${legacyHeartbeat} · ${legacyRows} 筆`',
+        '相對舊版已就緒參考 ${formatSupportProgressDelta(deltaVsLegacy)}（${legacyRows} → ${currentRows}，僅供參考）',
         '`支持語義 v${version}`',
         '["stale_or_non_current_context", "產物脈絡已過期或非當前"]',
         '["entry_quality_below_trade_floor", "目前進場分數低於交易門檻，暫不建議進場。"]',
