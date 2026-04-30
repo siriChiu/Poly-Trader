@@ -567,6 +567,7 @@ def test_runtime_copy_and_execution_surfaces_use_humanized_chinese_operator_copy
         '["entry_quality_below_trade_floor", "目前進場分數低於交易門檻，暫不建議進場。"]',
         '["exact_live_bucket_proxy_available", "已有精準分桶近似樣本"]',
         '["exact_live_lane_proxy_available", "已有精準路徑近似樣本"]',
+        '["insufficient_support_everywhere", "所有支持路徑仍不足"]',
         'export function humanizePatchTargetLabel(value?: string | null): string {',
         'if (lower.includes(token)) return humanizeQ15BucketRootCauseAction(normalized);',
         'export function humanizeRegimeGateLabel(value?: string | null): string {',

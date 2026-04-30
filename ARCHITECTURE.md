@@ -174,6 +174,7 @@ UI 原則：
 - current-live blocker 優先於 venue summary。
 - 初次 API sync 不得顯示假 `none/unavailable`；必須顯示同步中。
 - operator-facing copy 需中文化，不直接暴露內部 routing token。
+- support route / governance route / runtime closure summary 需集中透過 `web/src/utils/runtimeCopy.ts` humanize；例如 `insufficient_support_everywhere` 必須顯示為 `所有支持路徑仍不足`，`exact_live_lane_proxy_available` 必須顯示為 `已有精準路徑近似樣本`，避免 control-plane token 外洩到操作員畫面。
 
 ---
 

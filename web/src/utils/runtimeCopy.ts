@@ -46,6 +46,7 @@ const CURRENT_LIVE_BLOCKER_LABEL_MAPPINGS: Array<[string, string]> = [
 ];
 
 const SUPPORT_ROUTE_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["insufficient_support_everywhere", "所有支持路徑仍不足"],
   ["exact_bucket_supported", "精準樣本已就緒"],
   ["exact_bucket_present_but_below_minimum", "精準樣本未達最小門檻"],
   ["exact_bucket_missing_exact_lane_proxy_only", "精準樣本缺口僅能參考精準路徑近似樣本"],
@@ -58,6 +59,7 @@ const SUPPORT_ROUTE_LABEL_MAPPINGS: Array<[string, string]> = [
 
 const SUPPORT_GOVERNANCE_ROUTE_LABEL_MAPPINGS: Array<[string, string]> = [
   ["no_support_proxy", "目前沒有可用近似樣本"],
+  ["exact_live_lane_proxy_available", "已有精準路徑近似樣本"],
   ["exact_live_bucket_proxy_available", "已有精準分桶近似樣本"],
   ["exact_live_bucket_supported", "精準樣本已就緒"],
   ["exact_bucket_present_but_below_minimum", "精準樣本已開始累積"],
@@ -173,6 +175,8 @@ const FEATURE_KEY_LABEL_OVERRIDES: Record<string, { name: string; shortLabel: st
 };
 
 const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
+  ["insufficient_support_everywhere", "所有支持路徑仍不足"],
+  ["exact_live_lane_proxy_available", "已有精準路徑近似樣本"],
   ["min_profit_factor_not_met", "最低盈虧比未達標"],
   ["support_route_not_deployable", "支持路徑尚不可部署"],
   ["deployment_blocker_active", "部署阻塞點仍啟動"],
