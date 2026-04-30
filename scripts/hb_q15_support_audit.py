@@ -147,6 +147,18 @@ def _build_support_identity(
     }
 
 
+SUPPORT_IDENTITY_FIELDS = (
+    "target_col",
+    "horizon_minutes",
+    "current_live_structure_bucket",
+    "regime_label",
+    "regime_gate",
+    "entry_quality_label",
+    "calibration_window",
+    "bucket_semantic_signature",
+)
+
+
 def _support_identity_matches(left: Any, right: Any) -> bool:
     if not isinstance(left, dict) or not isinstance(right, dict):
         return False
@@ -154,18 +166,99 @@ def _support_identity_matches(left: Any, right: Any) -> bool:
         return False
     if left.get("bucket_semantic_signature") != right.get("bucket_semantic_signature"):
         return False
-    for key in (
-        "target_col",
-        "horizon_minutes",
-        "current_live_structure_bucket",
-        "regime_label",
-        "regime_gate",
-        "entry_quality_label",
-        "calibration_window",
-    ):
+    for key in SUPPORT_IDENTITY_FIELDS:
+        if key == "bucket_semantic_signature":
+            continue
         if _identity_value(left.get(key)) != _identity_value(right.get(key)):
             return False
     return True
+
+
+def _semantic_identity_evidence(
+    *,
+    payload: dict[str, Any],
+    diag: dict[str, Any],
+    explicit_identity: dict[str, Any] | None,
+    current_support_identity: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Backfill legacy q15 support identity evidence without relaxing gates.
+
+    Older heartbeat artifacts can have deployment-grade q15 rows but predate the
+    explicit support_identity/bucket_semantic_signature contract.  This helper
+    reconstructs the comparable identity from audited runtime fields, compares it
+    with the current support_identity, and records whether it is safe to treat the
+    artifact as same-identity history.  A mismatch remains reference-only.
+    """
+
+    current_live = diag.get("current_live") or {}
+    live_diag = payload.get("live_predictor_diagnostics") or {}
+    scope_diag = (live_diag.get("decision_quality_scope_diagnostics") or {}).get(
+        live_diag.get("decision_quality_calibration_scope") or "regime_label+regime_gate+entry_quality_label"
+    ) or {}
+    deployment_details = live_diag.get("deployment_blocker_details") or {}
+    backfilled_identity = _build_support_identity(
+        target_col=diag.get("target_col") or live_diag.get("target_col"),
+        horizon_minutes=(
+            current_live.get("decision_quality_horizon_minutes")
+            or diag.get("horizon_minutes")
+            or live_diag.get("horizon_minutes")
+            or deployment_details.get("horizon_minutes")
+            or 1440
+        ),
+        current_bucket=(
+            current_live.get("current_live_structure_bucket")
+            or live_diag.get("current_live_structure_bucket")
+            or scope_diag.get("current_live_structure_bucket")
+        ),
+        live_context={
+            "regime_label": current_live.get("regime_label") or live_diag.get("regime_label"),
+            "regime_gate": current_live.get("regime_gate") or live_diag.get("regime_gate"),
+            "entry_quality_label": current_live.get("entry_quality_label") or live_diag.get("entry_quality_label"),
+        },
+        calibration_window=(
+            current_live.get("decision_quality_calibration_window")
+            or diag.get("decision_quality_calibration_window")
+            or live_diag.get("decision_quality_calibration_window")
+        ),
+    )
+    source_identity = explicit_identity if isinstance(explicit_identity, dict) else backfilled_identity
+    source = "explicit_support_identity" if isinstance(explicit_identity, dict) else "backfilled_runtime_fields"
+    missing_fields = [field for field in SUPPORT_IDENTITY_FIELDS if source_identity.get(field) in (None, "")]
+    mismatched_fields: list[str] = []
+    matched_fields: list[str] = []
+    if isinstance(current_support_identity, dict):
+        for field in SUPPORT_IDENTITY_FIELDS:
+            left = _identity_value(source_identity.get(field))
+            right = _identity_value(current_support_identity.get(field))
+            if left in (None, "") or right in (None, ""):
+                if field not in missing_fields:
+                    missing_fields.append(field)
+                continue
+            if left == right:
+                matched_fields.append(field)
+            else:
+                mismatched_fields.append(field)
+    else:
+        missing_fields.append("current_support_identity")
+
+    source_fields_complete = not missing_fields
+    supports_current_identity = bool(source_fields_complete and not mismatched_fields and isinstance(current_support_identity, dict))
+    return {
+        "source": source,
+        "explicit_support_identity_present": isinstance(explicit_identity, dict),
+        "explicit_bucket_semantic_signature_present": bool((explicit_identity or {}).get("bucket_semantic_signature")),
+        "backfilled_bucket_semantic_signature": BUCKET_SEMANTIC_SIGNATURE,
+        "backfilled_support_identity": backfilled_identity,
+        "candidate_support_identity": source_identity,
+        "source_fields_complete": source_fields_complete,
+        "matched_fields": matched_fields,
+        "mismatched_fields": sorted(set(mismatched_fields)),
+        "missing_fields": sorted(set(missing_fields)),
+        "supports_current_identity": supports_current_identity,
+        "promotable_to_same_identity_history": supports_current_identity,
+        "verdict": "same_identity_evidence_backfilled" if supports_current_identity else "reference_only_semantic_mismatch_or_missing_fields",
+    }
+
 
 
 def _history_item_supported(item: dict[str, Any], minimum: int) -> bool:
@@ -252,11 +345,21 @@ def _load_recent_q15_support_history(
         current_live = diag.get("current_live") or {}
         support_route = diag.get("support_route") or {}
         support_progress = support_route.get("support_progress") or diag.get("support_progress") or {}
-        support_identity = (
+        explicit_identity = (
             diag.get("support_identity")
             or support_route.get("support_identity")
             or support_progress.get("support_identity")
         )
+        explicit_identity = explicit_identity if isinstance(explicit_identity, dict) else None
+        semantic_evidence = _semantic_identity_evidence(
+            payload=payload,
+            diag=diag,
+            explicit_identity=explicit_identity,
+            current_support_identity=current_entry.get("support_identity"),
+        )
+        candidate_identity = explicit_identity
+        if candidate_identity is None and semantic_evidence.get("promotable_to_same_identity_history"):
+            candidate_identity = semantic_evidence.get("backfilled_support_identity")
         payload_timestamp = payload.get("timestamp") or diag.get("generated_at")
         payload_dt = None
         if payload_timestamp:
@@ -280,7 +383,9 @@ def _load_recent_q15_support_history(
             "minimum_support_rows": int(support_route.get("minimum_support_rows") or 0),
             "support_route_verdict": support_route.get("verdict"),
             "support_governance_route": support_route.get("support_governance_route"),
-            "support_identity": support_identity if isinstance(support_identity, dict) else None,
+            "support_identity": candidate_identity if isinstance(candidate_identity, dict) else None,
+            "support_identity_backfilled": bool(candidate_identity is not None and explicit_identity is None),
+            "semantic_identity_evidence": semantic_evidence,
             "regression_basis": support_progress.get("regression_basis"),
         }
         if not candidate["live_current_structure_bucket"]:
@@ -434,12 +539,19 @@ def _summarize_support_progress(
         regression_basis = "legacy_or_different_semantic_signature"
         legacy_rows = int(legacy_supported_reference.get("live_current_structure_bucket_rows") or 0)
         legacy_heartbeat = legacy_supported_reference.get("heartbeat")
+        semantic_evidence = legacy_supported_reference.get("semantic_identity_evidence") or {}
+        mismatched = semantic_evidence.get("mismatched_fields") or []
+        missing = semantic_evidence.get("missing_fields") or []
+        evidence_detail = (
+            f"語義證據已回填但不吻合 current support_identity（mismatched={mismatched}, missing={missing}），"
+            if semantic_evidence
+            else "該 artifact 缺少相同 support_identity / bucket_semantic_signature，"
+        )
         reason = (
             f"{support_label} 目前是 {current_rows}/{minimum}，仍低於 minimum；"
             f"歷史上同 bucket 曾有 {legacy_rows}/{minimum}"
             f"{f'（heartbeat {legacy_heartbeat}）' if legacy_heartbeat else ''}，"
-            "但該 artifact 缺少相同 support_identity / bucket_semantic_signature，只能當 legacy reference，"
-            "不能宣稱為 same-identity regression。"
+            f"{evidence_detail}只能當 legacy reference，不能宣稱為 same-identity regression。"
         )
     elif previous is None:
         status = "no_recent_comparable_history"
@@ -481,7 +593,13 @@ def _summarize_support_progress(
             "support_route_verdict": legacy_supported_reference.get("support_route_verdict"),
             "support_governance_route": legacy_supported_reference.get("support_governance_route"),
             "support_identity": legacy_supported_reference.get("support_identity"),
-            "reference_only_reason": "missing_or_different_support_identity_or_bucket_semantic_signature",
+            "support_identity_backfilled": legacy_supported_reference.get("support_identity_backfilled") is True,
+            "semantic_identity_evidence": legacy_supported_reference.get("semantic_identity_evidence"),
+            "reference_only_reason": (
+                "semantic_evidence_mismatch_or_missing_fields"
+                if (legacy_supported_reference.get("semantic_identity_evidence") or {}).get("supports_current_identity") is not True
+                else "same_identity_supported_history_backfilled"
+            ),
         }
 
     return {
@@ -692,6 +810,7 @@ def _active_repair_plan(
             }
         )
     if isinstance(legacy_ref, dict):
+        semantic_evidence = legacy_ref.get("semantic_identity_evidence") or {}
         actions.append(
             {
                 "id": "semantic_legacy_evidence_backfill",
@@ -700,7 +819,11 @@ def _active_repair_plan(
                 "description": "回填 legacy supported reference 的 target/horizon/bucket/regime/gate/entry_label/calibration_window 證據；只有完全吻合 current support_identity 才能升級，否則維持 reference-only。",
                 "legacy_heartbeat": legacy_ref.get("heartbeat"),
                 "legacy_rows": legacy_ref.get("live_current_structure_bucket_rows"),
-                "success_condition": "legacy artifact 有相同 bucket_semantic_signature 與 support_identity，或明確保留 reference-only。",
+                "semantic_evidence_verdict": semantic_evidence.get("verdict"),
+                "supports_current_identity": semantic_evidence.get("supports_current_identity"),
+                "mismatched_fields": semantic_evidence.get("mismatched_fields") or [],
+                "missing_fields": semantic_evidence.get("missing_fields") or [],
+                "success_condition": "legacy artifact 的 target/horizon/bucket/regime/gate/entry_label/calibration_window/semantic signature 全部吻合 current support_identity，否則明確保留 reference-only。",
             }
         )
     if support_ready and not live_exposure_allowed:
@@ -731,6 +854,7 @@ def _active_repair_plan(
         "gap_to_minimum": gap_to_minimum,
         "stagnant_run_count": stagnant_run_count,
         "legacy_reference_only": bool(legacy_ref),
+        "legacy_semantic_evidence": legacy_ref.get("semantic_identity_evidence") if isinstance(legacy_ref, dict) else None,
         "entropy_reduction_rules": [
             "引入外部能量：每輪刷新 current-live rows / venue proof / semantic evidence，而不是重用 under-minimum cache。",
             "建立系統與規則：support_identity 完全一致且 rows>=minimum 才能進入 deployment verify。",
@@ -1396,6 +1520,7 @@ def _markdown(report: dict[str, Any]) -> str:
     experiment_answer = experiment.get("machine_read_answer") or {}
     repair = report.get("active_repair_plan") or {}
     repair_actions = repair.get("actions") or []
+    legacy_semantic_evidence = repair.get("legacy_semantic_evidence") or {}
     return "\n".join(
         [
             "# q15 Support Audit",
@@ -1476,6 +1601,10 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- support rows / minimum / gap: **{repair.get('current_rows')} / {repair.get('minimum_support_rows')} / {repair.get('gap_to_minimum')}**",
             f"- stagnant_run_count: **{repair.get('stagnant_run_count')}**",
             f"- actions: `{[item.get('id') for item in repair_actions if isinstance(item, dict)]}`",
+            f"- legacy_semantic_evidence.verdict: **{legacy_semantic_evidence.get('verdict')}**",
+            f"- legacy_semantic_evidence.supports_current_identity: **{legacy_semantic_evidence.get('supports_current_identity')}**",
+            f"- legacy_semantic_evidence.mismatched_fields: `{legacy_semantic_evidence.get('mismatched_fields')}`",
+            f"- legacy_semantic_evidence.missing_fields: `{legacy_semantic_evidence.get('missing_fields')}`",
             f"- entropy_reduction_rules: `{repair.get('entropy_reduction_rules')}`",
             "",
             "## Next action",

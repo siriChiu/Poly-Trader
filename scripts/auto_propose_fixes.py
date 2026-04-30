@@ -448,6 +448,19 @@ def sync_current_state_governance_issues(
     live_blocker_details = (live_predict_probe or {}).get("deployment_blocker_details") or {}
     if not isinstance(live_blocker_details, dict):
         live_blocker_details = {}
+    live_probe_support_progress = (live_predict_probe or {}).get("support_progress")
+    if not isinstance(live_probe_support_progress, dict):
+        live_probe_support_progress = {}
+    details_support_progress = live_blocker_details.get("support_progress")
+    if not isinstance(details_support_progress, dict):
+        details_support_progress = {}
+    if live_probe_support_progress or details_support_progress:
+        # Prefer the freshest current-live support truth over leaderboard governance.
+        # Governance can lag behind q15 audit/live_probe and otherwise strips the
+        # machine-readable legacy semantic evidence needed to prevent false closure.
+        support_progress = live_probe_support_progress or details_support_progress
+        support_history = support_progress.get("history") or []
+        history_bucket = (support_history[0] or {}).get("live_current_structure_bucket") if support_history else history_bucket
     live_support_reason = " ".join(
         str(value or "")
         for value in [

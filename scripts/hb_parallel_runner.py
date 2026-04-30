@@ -453,6 +453,46 @@ def _support_truth_context(
         ):
             if support_progress.get(field) is not None:
                 context[f"support_progress_{field}"] = support_progress.get(field)
+        active_repair_plan = q15_support_audit.get("active_repair_plan") or {}
+        if isinstance(active_repair_plan, dict) and active_repair_plan:
+            for field in (
+                "phase",
+                "component_verify_ready",
+                "live_exposure_allowed",
+                "shadow_or_paper_allowed",
+                "current_signal",
+                "current_allowed_layers",
+                "current_execution_guardrail_reason",
+                "support_status",
+            ):
+                if active_repair_plan.get(field) is not None:
+                    context[f"active_repair_{field}"] = active_repair_plan.get(field)
+            if context.get("current_rows") is None and active_repair_plan.get("current_rows") is not None:
+                context["current_rows"] = active_repair_plan.get("current_rows")
+            if context.get("minimum_rows") is None and active_repair_plan.get("minimum_support_rows") is not None:
+                context["minimum_rows"] = active_repair_plan.get("minimum_support_rows")
+            if context.get("gap_to_minimum") is None and active_repair_plan.get("gap_to_minimum") is not None:
+                context["gap_to_minimum"] = active_repair_plan.get("gap_to_minimum")
+            actions = active_repair_plan.get("actions") or []
+            if isinstance(actions, list):
+                action_ids = [str(action.get("id")) for action in actions if isinstance(action, dict) and action.get("id")]
+                if action_ids:
+                    context["active_repair_action_ids"] = action_ids
+            legacy_evidence = active_repair_plan.get("legacy_semantic_evidence") or {}
+            if not legacy_evidence:
+                legacy_ref = support_progress.get("legacy_supported_reference") or {}
+                if isinstance(legacy_ref, dict):
+                    legacy_evidence = legacy_ref.get("semantic_identity_evidence") or {}
+            if isinstance(legacy_evidence, dict) and legacy_evidence:
+                for field in (
+                    "verdict",
+                    "supports_current_identity",
+                    "promotable_to_same_identity_history",
+                    "mismatched_fields",
+                    "missing_fields",
+                ):
+                    if legacy_evidence.get(field) is not None:
+                        context[f"legacy_semantic_evidence_{field}"] = legacy_evidence.get(field)
         context["source"] = "q15_support_audit"
 
     if context.get("gap_to_minimum") in (None, ""):
@@ -542,6 +582,37 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
     stagnant_run_count = support_context.get("support_progress_stagnant_run_count")
     stalled_support_accumulation = support_context.get("support_progress_stalled_support_accumulation")
     escalate_to_blocker = support_context.get("support_progress_escalate_to_blocker")
+    active_repair_phase = support_context.get("active_repair_phase")
+    active_repair_component_ready = support_context.get("active_repair_component_verify_ready")
+    active_repair_live_allowed = support_context.get("active_repair_live_exposure_allowed")
+    active_repair_shadow_allowed = support_context.get("active_repair_shadow_or_paper_allowed")
+    active_repair_signal = support_context.get("active_repair_current_signal")
+    active_repair_layers = support_context.get("active_repair_current_allowed_layers")
+    active_repair_guardrail = support_context.get("active_repair_current_execution_guardrail_reason")
+    active_repair_actions = support_context.get("active_repair_action_ids") or []
+    legacy_evidence_verdict = support_context.get("legacy_semantic_evidence_verdict")
+    legacy_evidence_supports_current = support_context.get("legacy_semantic_evidence_supports_current_identity")
+    legacy_evidence_promotable = support_context.get("legacy_semantic_evidence_promotable_to_same_identity_history")
+    legacy_evidence_mismatched = support_context.get("legacy_semantic_evidence_mismatched_fields") or []
+    legacy_evidence_missing = support_context.get("legacy_semantic_evidence_missing_fields") or []
+    has_active_repair = any(
+        item not in (None, "", [])
+        for item in (
+            active_repair_phase,
+            active_repair_component_ready,
+            active_repair_live_allowed,
+            active_repair_shadow_allowed,
+            active_repair_signal,
+            active_repair_layers,
+            active_repair_guardrail,
+            active_repair_actions,
+            legacy_evidence_verdict,
+            legacy_evidence_supports_current,
+            legacy_evidence_promotable,
+            legacy_evidence_mismatched,
+            legacy_evidence_missing,
+        )
+    )
     if (
         status in (None, "")
         and regression_basis in (None, "")
@@ -549,6 +620,7 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
         and stagnant_run_count is None
         and stalled_support_accumulation is None
         and escalate_to_blocker is None
+        and not has_active_repair
     ):
         return ""
     parts = [
@@ -562,7 +634,37 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
         parts.append(f"`stalled_support_accumulation={stalled_support_accumulation}`")
     if escalate_to_blocker is not None:
         parts.append(f"`escalate_to_blocker={escalate_to_blocker}`")
-    return "support progress：" + " / ".join(parts)
+    line = "support progress：" + " / ".join(parts)
+    if has_active_repair:
+        repair_parts = []
+        if active_repair_phase not in (None, ""):
+            repair_parts.append(f"`phase={active_repair_phase}`")
+        if active_repair_component_ready is not None:
+            repair_parts.append(f"`component_verify_ready={active_repair_component_ready}`")
+        if active_repair_live_allowed is not None:
+            repair_parts.append(f"`live_exposure_allowed={active_repair_live_allowed}`")
+        if active_repair_shadow_allowed is not None:
+            repair_parts.append(f"`shadow_or_paper_allowed={active_repair_shadow_allowed}`")
+        if active_repair_signal not in (None, ""):
+            repair_parts.append(f"`current_signal={active_repair_signal}`")
+        if active_repair_layers is not None:
+            repair_parts.append(f"`current_allowed_layers={active_repair_layers}`")
+        if active_repair_guardrail not in (None, ""):
+            repair_parts.append(f"`guardrail={active_repair_guardrail}`")
+        if active_repair_actions:
+            repair_parts.append(f"`actions={','.join(str(item) for item in active_repair_actions)}`")
+        if legacy_evidence_verdict not in (None, ""):
+            repair_parts.append(f"`legacy_evidence={legacy_evidence_verdict}`")
+        if legacy_evidence_supports_current is not None:
+            repair_parts.append(f"`legacy_supports_current_identity={legacy_evidence_supports_current}`")
+        if legacy_evidence_promotable is not None:
+            repair_parts.append(f"`legacy_promotable={legacy_evidence_promotable}`")
+        if legacy_evidence_mismatched:
+            repair_parts.append(f"`legacy_mismatched={','.join(str(item) for item in legacy_evidence_mismatched)}`")
+        if legacy_evidence_missing:
+            repair_parts.append(f"`legacy_missing={','.join(str(item) for item in legacy_evidence_missing)}`")
+        line += "；active repair：" + " / ".join(repair_parts)
+    return line
 
 
 _PATCH_EMPTY_DOC_MARKERS = {"", "-", "—", "none", "null", "n/a", "na"}
@@ -695,13 +797,23 @@ def _current_live_blocker_issue_summary(live_predictor_diagnostics: Dict[str, An
             key: support_progress.get(key)
             for key in [
                 "status",
+                "reason",
+                "regression_basis",
+                "support_identity",
                 "current_rows",
                 "minimum_support_rows",
                 "minimum_rows",
                 "gap_to_minimum",
                 "delta_to_minimum",
+                "previous_rows",
+                "delta_vs_previous",
                 "recent_supported_rows",
+                "recent_supported_heartbeat",
+                "recent_supported_timestamp",
                 "delta_vs_recent_supported",
+                "legacy_supported_reference",
+                "comparable_history_count",
+                "legacy_reference_history_count",
                 "stagnant_run_count",
                 "stalled_support_accumulation",
                 "escalate_to_blocker",
@@ -5013,6 +5125,7 @@ def collect_q15_support_audit_diagnostics() -> Dict[str, Any]:
     support_route = payload.get("support_route") or {}
     floor = payload.get("floor_cross_legality") or {}
     component_experiment = payload.get("component_experiment") or {}
+    active_repair_plan = payload.get("active_repair_plan") or {}
     return {
         "generated_at": payload.get("generated_at"),
         "target_col": payload.get("target_col"),
@@ -5021,6 +5134,7 @@ def collect_q15_support_audit_diagnostics() -> Dict[str, Any]:
         "support_route": support_route,
         "floor_cross_legality": floor,
         "component_experiment": component_experiment,
+        "active_repair_plan": active_repair_plan if isinstance(active_repair_plan, dict) else {},
         "next_action": payload.get("next_action"),
     }
 

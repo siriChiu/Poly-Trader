@@ -2699,10 +2699,36 @@ def test_sync_current_state_governance_issues_uses_semantic_rebaseline_title_for
             "deployment_blocker": "under_minimum_exact_live_structure_bucket",
             "runtime_closure_state": "patch_inactive_or_blocked",
             "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
-            "current_live_structure_bucket_rows": 10,
+            "current_live_structure_bucket_rows": 13,
             "minimum_support_rows": 50,
             "support_route_verdict": "exact_bucket_present_but_below_minimum",
             "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "support_progress": {
+                "status": "semantic_rebaseline_under_minimum",
+                "regression_basis": "legacy_or_different_semantic_signature",
+                "support_identity": {
+                    **identity,
+                    "regime_label": "bear",
+                    "regime_gate": "CAUTION",
+                    "calibration_window": 100,
+                },
+                "current_rows": 13,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 37,
+                "legacy_supported_reference": {
+                    "heartbeat": "20260419b",
+                    "live_current_structure_bucket_rows": 53,
+                    "minimum_support_rows": 50,
+                    "semantic_identity_evidence": {
+                        "verdict": "reference_only_semantic_mismatch_or_missing_fields",
+                        "supports_current_identity": False,
+                        "promotable_to_same_identity_history": False,
+                        "mismatched_fields": ["calibration_window", "regime_label"],
+                        "missing_fields": [],
+                    },
+                    "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields",
+                },
+            },
             "allowed_layers_reason": "under_minimum_exact_live_structure_bucket",
         },
         {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
@@ -2712,7 +2738,15 @@ def test_sync_current_state_governance_issues_uses_semantic_rebaseline_title_for
     assert "semantic rebaseline" in q15_issue["title"]
     assert "regressed" not in q15_issue["title"]
     assert q15_issue["summary"]["support_regression_basis"] == "legacy_or_different_semantic_signature"
-    assert q15_issue["summary"]["legacy_supported_reference"]["live_current_structure_bucket_rows"] == 199
+    assert q15_issue["summary"]["live_current_structure_bucket_rows"] == 13
+    assert q15_issue["summary"]["gap_to_minimum"] == 37
+    legacy_ref = q15_issue["summary"]["legacy_supported_reference"]
+    assert legacy_ref["live_current_structure_bucket_rows"] == 53
+    evidence = legacy_ref["semantic_identity_evidence"]
+    assert evidence["verdict"] == "reference_only_semantic_mismatch_or_missing_fields"
+    assert evidence["supports_current_identity"] is False
+    assert evidence["promotable_to_same_identity_history"] is False
+    assert evidence["mismatched_fields"] == ["calibration_window", "regime_label"]
     assert "same-identity" in q15_issue["action"]
 
 

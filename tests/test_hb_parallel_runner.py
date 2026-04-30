@@ -893,12 +893,33 @@ def test_support_truth_context_surfaces_q15_support_stagnation_metadata():
                     "heartbeat": "20260419b",
                     "live_current_structure_bucket_rows": 53,
                     "minimum_support_rows": 50,
+                    "semantic_identity_evidence": {
+                        "verdict": "reference_only_semantic_mismatch_or_missing_fields",
+                        "supports_current_identity": False,
+                        "promotable_to_same_identity_history": False,
+                        "mismatched_fields": ["regime_label", "calibration_window"],
+                        "missing_fields": [],
+                    },
                 },
                 "stagnant_run_count": 3,
                 "stalled_support_accumulation": False,
                 "escalate_to_blocker": True,
             },
-        }
+        },
+        "active_repair_plan": {
+            "phase": "semantic_evidence_backfill_or_exact_accumulation",
+            "component_verify_ready": False,
+            "live_exposure_allowed": False,
+            "shadow_or_paper_allowed": True,
+            "current_signal": "HOLD",
+            "current_allowed_layers": 0,
+            "current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+            "support_status": "semantic_rebaseline_under_minimum",
+            "actions": [
+                {"id": "collect_exact_current_bucket_rows"},
+                {"id": "force_q15_support_audit_refresh"},
+            ],
+        },
     }
 
     context = hb_parallel_runner._support_truth_context(live_predictor_diagnostics, q15_support_audit)
@@ -909,10 +930,32 @@ def test_support_truth_context_surfaces_q15_support_stagnation_metadata():
     assert context["support_progress_stagnant_run_count"] == 3
     assert context["support_progress_stalled_support_accumulation"] is False
     assert context["support_progress_escalate_to_blocker"] is True
+    assert context["active_repair_phase"] == "semantic_evidence_backfill_or_exact_accumulation"
+    assert context["active_repair_component_verify_ready"] is False
+    assert context["active_repair_live_exposure_allowed"] is False
+    assert context["active_repair_shadow_or_paper_allowed"] is True
+    assert context["active_repair_current_signal"] == "HOLD"
+    assert context["active_repair_current_allowed_layers"] == 0
+    assert context["active_repair_current_execution_guardrail_reason"] == "under_minimum_exact_live_structure_bucket"
+    assert context["active_repair_action_ids"] == ["collect_exact_current_bucket_rows", "force_q15_support_audit_refresh"]
+    assert context["legacy_semantic_evidence_verdict"] == "reference_only_semantic_mismatch_or_missing_fields"
+    assert context["legacy_semantic_evidence_supports_current_identity"] is False
+    assert context["legacy_semantic_evidence_promotable_to_same_identity_history"] is False
+    assert context["legacy_semantic_evidence_mismatched_fields"] == ["regime_label", "calibration_window"]
+    assert context["legacy_semantic_evidence_missing_fields"] == []
     assert "legacy_supported_reference=53/50@20260419b" in doc_line
     assert "stagnant_run_count=3" in doc_line
     assert "stalled_support_accumulation=False" in doc_line
     assert "escalate_to_blocker=True" in doc_line
+    assert "active repair：`phase=semantic_evidence_backfill_or_exact_accumulation`" in doc_line
+    assert "component_verify_ready=False" in doc_line
+    assert "live_exposure_allowed=False" in doc_line
+    assert "shadow_or_paper_allowed=True" in doc_line
+    assert "actions=collect_exact_current_bucket_rows,force_q15_support_audit_refresh" in doc_line
+    assert "legacy_evidence=reference_only_semantic_mismatch_or_missing_fields" in doc_line
+    assert "legacy_supports_current_identity=False" in doc_line
+    assert "legacy_promotable=False" in doc_line
+    assert "legacy_mismatched=regime_label,calibration_window" in doc_line
 
 
 def test_needs_q15_post_audit_runtime_resync_when_support_ready_but_probe_still_unpatched():
@@ -2420,8 +2463,28 @@ def test_overwrite_current_state_docs_surfaces_q15_support_identity_rebaseline(t
                     "heartbeat": "20260423i",
                     "live_current_structure_bucket_rows": 199,
                     "minimum_support_rows": 50,
+                    "semantic_identity_evidence": {
+                        "verdict": "reference_only_semantic_mismatch_or_missing_fields",
+                        "supports_current_identity": False,
+                        "promotable_to_same_identity_history": False,
+                        "mismatched_fields": ["target_col", "horizon_minutes", "calibration_window"],
+                        "missing_fields": ["bucket_semantic_signature"],
+                    },
                 },
             },
+        },
+        "active_repair_plan": {
+            "phase": "semantic_evidence_backfill_or_exact_accumulation",
+            "component_verify_ready": False,
+            "live_exposure_allowed": False,
+            "shadow_or_paper_allowed": True,
+            "current_signal": "HOLD",
+            "current_allowed_layers": 0,
+            "current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+            "actions": [
+                {"id": "collect_exact_current_bucket_rows"},
+                {"id": "force_q15_support_audit_refresh"},
+            ],
         },
     }
 
@@ -2454,6 +2517,16 @@ def test_overwrite_current_state_docs_surfaces_q15_support_identity_rebaseline(t
         assert "support progress：`status=semantic_rebaseline_under_minimum`" in content
         assert "`regression_basis=legacy_or_different_semantic_signature`" in content
         assert "`legacy_supported_reference=199/50@20260423i`" in content
+        assert "active repair：`phase=semantic_evidence_backfill_or_exact_accumulation`" in content
+        assert "`component_verify_ready=False`" in content
+        assert "`live_exposure_allowed=False`" in content
+        assert "`shadow_or_paper_allowed=True`" in content
+        assert "`actions=collect_exact_current_bucket_rows,force_q15_support_audit_refresh`" in content
+        assert "`legacy_evidence=reference_only_semantic_mismatch_or_missing_fields`" in content
+        assert "`legacy_supports_current_identity=False`" in content
+        assert "`legacy_promotable=False`" in content
+        assert "`legacy_mismatched=target_col,horizon_minutes,calibration_window`" in content
+        assert "`legacy_missing=bucket_semantic_signature`" in content
 
 
 
@@ -4286,6 +4359,16 @@ def test_collect_q15_support_audit_diagnostics_reads_support_and_floor_verdicts(
                     "best_single_component": "feat_4h_bias50",
                     "remaining_gap_to_floor": 0.0198,
                 },
+                "active_repair_plan": {
+                    "phase": "semantic_evidence_backfill_or_exact_accumulation",
+                    "component_verify_ready": False,
+                    "live_exposure_allowed": False,
+                    "shadow_or_paper_allowed": True,
+                    "actions": [
+                        {"id": "collect_exact_current_bucket_rows"},
+                        {"id": "force_q15_support_audit_refresh"},
+                    ],
+                },
                 "next_action": "先補 exact bucket 真樣本。",
             }
         )
@@ -4297,6 +4380,14 @@ def test_collect_q15_support_audit_diagnostics_reads_support_and_floor_verdicts(
     assert diag["support_route"]["deployable"] is False
     assert diag["floor_cross_legality"]["verdict"] == "math_cross_possible_but_illegal_without_exact_support"
     assert diag["floor_cross_legality"]["best_single_component"] == "feat_4h_bias50"
+    assert diag["active_repair_plan"]["phase"] == "semantic_evidence_backfill_or_exact_accumulation"
+    assert diag["active_repair_plan"]["component_verify_ready"] is False
+    assert diag["active_repair_plan"]["live_exposure_allowed"] is False
+    assert diag["active_repair_plan"]["shadow_or_paper_allowed"] is True
+    assert [action["id"] for action in diag["active_repair_plan"]["actions"]] == [
+        "collect_exact_current_bucket_rows",
+        "force_q15_support_audit_refresh",
+    ]
     assert diag["next_action"] == "先補 exact bucket 真樣本。"
 
 

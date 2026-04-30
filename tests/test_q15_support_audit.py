@@ -12,19 +12,73 @@ spec.loader.exec_module(q15_support_audit)
 def _support_identity(
     bucket="CAUTION|structure_quality_caution|q15",
     *,
+    regime_label="bull",
     regime_gate="CAUTION",
     entry_quality_label="D",
+    calibration_window=600,
 ):
     return {
         "target_col": "simulated_pyramid_win",
         "horizon_minutes": 1440,
         "current_live_structure_bucket": bucket,
-        "regime_label": "bull",
+        "regime_label": regime_label,
         "regime_gate": regime_gate,
         "entry_quality_label": entry_quality_label,
-        "calibration_window": 600,
+        "calibration_window": calibration_window,
         "bucket_semantic_signature": q15_support_audit.BUCKET_SEMANTIC_SIGNATURE,
     }
+
+
+def _write_legacy_q15_summary(
+    tmp_path,
+    *,
+    heartbeat="legacy",
+    rows=53,
+    bucket="CAUTION|structure_quality_caution|q15",
+    target_col="simulated_pyramid_win",
+    horizon_minutes=1440,
+    regime_label="bull",
+    regime_gate="CAUTION",
+    entry_quality_label="D",
+    calibration_window=600,
+):
+    (tmp_path / f"heartbeat_{heartbeat}_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": heartbeat,
+                "timestamp": "2026-04-18T17:55:51+00:00",
+                "live_predictor_diagnostics": {
+                    "target_col": target_col,
+                    "horizon_minutes": horizon_minutes,
+                    "regime_label": regime_label,
+                    "regime_gate": regime_gate,
+                    "entry_quality_label": entry_quality_label,
+                    "decision_quality_calibration_window": calibration_window,
+                    "current_live_structure_bucket": bucket,
+                    "current_live_structure_bucket_rows": rows,
+                    "decision_quality_calibration_scope": "regime_label+regime_gate+entry_quality_label",
+                },
+                "q15_support_audit": {
+                    "target_col": target_col,
+                    "current_live": {
+                        "regime_label": regime_label,
+                        "regime_gate": regime_gate,
+                        "entry_quality_label": entry_quality_label,
+                        "decision_quality_horizon_minutes": horizon_minutes,
+                        "decision_quality_calibration_window": calibration_window,
+                        "current_live_structure_bucket": bucket,
+                        "current_live_structure_bucket_rows": rows,
+                    },
+                    "support_route": {
+                        "verdict": "exact_bucket_supported",
+                        "support_governance_route": "exact_live_bucket_supported",
+                        "minimum_support_rows": 50,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
@@ -279,10 +333,88 @@ def test_summarize_support_progress_rebaselines_legacy_supported_anchor_when_ide
     assert progress["recent_supported_rows"] is None
     assert progress["legacy_supported_reference"]["live_current_structure_bucket_rows"] == 199
     assert progress["legacy_supported_reference"]["support_identity"] is None
-    assert progress["legacy_supported_reference"]["reference_only_reason"] == "missing_or_different_support_identity_or_bucket_semantic_signature"
+    assert progress["legacy_supported_reference"]["reference_only_reason"] == "semantic_evidence_mismatch_or_missing_fields"
+    evidence = progress["legacy_supported_reference"]["semantic_identity_evidence"]
+    assert evidence["verdict"] == "reference_only_semantic_mismatch_or_missing_fields"
+    assert evidence["supports_current_identity"] is False
+    assert set(evidence["missing_fields"]) >= {"target_col", "regime_label", "regime_gate", "entry_quality_label", "calibration_window"}
     assert progress["comparable_history_count"] == 0
     assert progress["legacy_reference_history_count"] == 1
     assert progress["escalate_to_blocker"] is True
+
+
+
+def test_summarize_support_progress_backfills_matching_legacy_identity_as_same_identity_history(tmp_path):
+    identity = _support_identity()
+    _write_legacy_q15_summary(
+        tmp_path,
+        heartbeat="20260419b",
+        rows=53,
+        regime_label="bull",
+        regime_gate="CAUTION",
+        entry_quality_label="D",
+        calibration_window=600,
+    )
+
+    progress = q15_support_audit._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q15",
+        support_route_verdict="exact_bucket_present_but_below_minimum",
+        support_governance_route="exact_live_bucket_present_but_below_minimum",
+        live_bucket_rows=4,
+        minimum_support_rows=50,
+        current_label="fast",
+        support_identity=identity,
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "regressed_under_minimum"
+    assert progress["regression_basis"] == "same_identity_same_semantic_signature"
+    assert progress["recent_supported_rows"] == 53
+    assert progress["recent_supported_heartbeat"] == "20260419b"
+    assert progress["legacy_supported_reference"] is None
+    assert progress["comparable_history_count"] == 1
+    assert progress["legacy_reference_history_count"] == 0
+    assert any(
+        item["heartbeat"] == "20260419b" and item.get("support_identity_backfilled") is True
+        for item in progress["history"]
+    )
+
+
+
+def test_summarize_support_progress_keeps_mismatched_legacy_evidence_reference_only(tmp_path):
+    identity = _support_identity(regime_label="bear", regime_gate="CAUTION", entry_quality_label="D", calibration_window=100)
+    _write_legacy_q15_summary(
+        tmp_path,
+        heartbeat="20260419b",
+        rows=53,
+        regime_label="bull",
+        regime_gate="CAUTION",
+        entry_quality_label="D",
+        calibration_window=200,
+    )
+
+    progress = q15_support_audit._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q15",
+        support_route_verdict="exact_bucket_present_but_below_minimum",
+        support_governance_route="exact_live_bucket_present_but_below_minimum",
+        live_bucket_rows=4,
+        minimum_support_rows=50,
+        current_label="fast",
+        support_identity=identity,
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "semantic_rebaseline_under_minimum"
+    legacy = progress["legacy_supported_reference"]
+    assert legacy["heartbeat"] == "20260419b"
+    assert legacy["live_current_structure_bucket_rows"] == 53
+    evidence = legacy["semantic_identity_evidence"]
+    assert evidence["source"] == "backfilled_runtime_fields"
+    assert evidence["supports_current_identity"] is False
+    assert evidence["promotable_to_same_identity_history"] is False
+    assert set(evidence["mismatched_fields"]) >= {"regime_label", "calibration_window"}
+    assert evidence["missing_fields"] == []
+    assert legacy["reference_only_reason"] == "semantic_evidence_mismatch_or_missing_fields"
 
 
 
