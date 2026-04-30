@@ -2078,6 +2078,61 @@ def test_api_model_leaderboard_returns_cached_payload_without_recompute(monkeypa
 
 
 
+def test_api_model_leaderboard_refreshes_cached_high_conviction_live_support_overlay(monkeypatch):
+    monkeypatch.setattr(api_module, "MODEL_LB_CACHE_PATH", Path("/tmp/nonexistent_polytrader_cache.json"))
+    monkeypatch.setattr(
+        api_module,
+        "_MODEL_LB_CACHE",
+        {
+            "payload": {
+                "leaderboard": [{"model_name": "cached_model"}],
+                "count": 1,
+                "high_conviction_topk": {
+                    "support_context": {
+                        "support_governance_route": "exact_live_lane_proxy_available",
+                        "current_live_structure_bucket_rows": 53,
+                        "minimum_support_rows": 50,
+                        "current_live_structure_bucket_gap_to_minimum": 0,
+                        "support_route_deployable": True,
+                    }
+                },
+            },
+            "updated_at": 4102444800.0,
+            "refreshing": False,
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: None)
+    monkeypatch.setattr(api_module, "_load_leaderboard_governance_summary", lambda: None)
+    monkeypatch.setattr(
+        api_module,
+        "_load_high_conviction_topk_summary",
+        lambda: {
+            "support_context": {
+                "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                "current_live_structure_bucket_rows": 9,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 41,
+                "support_route_deployable": False,
+                "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+                "live_truth_overlay_applied": True,
+            }
+        },
+    )
+
+    import asyncio
+    result = asyncio.run(api_module.api_model_leaderboard())
+
+    support_context = result["high_conviction_topk"]["support_context"]
+    assert support_context["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
+    assert support_context["current_live_structure_bucket_rows"] == 9
+    assert support_context["current_live_structure_bucket_gap_to_minimum"] == 41
+    assert support_context["support_route_deployable"] is False
+    assert support_context["deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
+    assert support_context["live_truth_overlay_applied"] is True
+
+
+
 def test_api_model_leaderboard_reload_newer_disk_cache_into_runtime(monkeypatch, tmp_path: Path):
     cache_path = tmp_path / "model_leaderboard_cache.json"
     disk_payload = {

@@ -4655,11 +4655,19 @@ async def api_model_leaderboard(force: bool = False) -> Dict[str, Any]:
 
     payload = _normalize_model_leaderboard_payload(payload) if isinstance(payload, dict) else payload
     governance_payload = _load_leaderboard_governance_summary()
+    high_conviction_topk_payload = _load_high_conviction_topk_summary()
     if isinstance(payload, dict) and _should_override_leaderboard_governance(
         payload.get("leaderboard_governance"),
         governance_payload,
     ):
         payload = {**payload, "leaderboard_governance": governance_payload}
+    if isinstance(payload, dict) and isinstance(high_conviction_topk_payload, dict):
+        # High-conviction Top-K is cheap to load but contains live deployment-support
+        # overlays from live_predict_probe.json. Never serve stale cached support
+        # routes here: Strategy Lab uses this endpoint to decide whether promising
+        # OOS rows are deployable, and stale proxy governance can falsely imply
+        # deployment closure after the live bucket changes.
+        payload = {**payload, "high_conviction_topk": high_conviction_topk_payload}
 
     now = time.time()
     age_sec = now - updated_at if updated_at else None
