@@ -836,6 +836,9 @@ def test_support_truth_context_preserves_non_q15_live_support_progress():
             "current_rows": 0,
             "minimum_support_rows": 50,
             "gap_to_minimum": 50,
+            "stagnant_run_count": 3,
+            "stalled_support_accumulation": True,
+            "escalate_to_blocker": True,
         },
     }
 
@@ -852,10 +855,64 @@ def test_support_truth_context_preserves_non_q15_live_support_progress():
     assert context["current_rows"] == 0
     assert context["minimum_rows"] == 50
     assert context["gap_to_minimum"] == 50
+    assert context["support_progress_stagnant_run_count"] == 3
+    assert context["support_progress_stalled_support_accumulation"] is True
+    assert context["support_progress_escalate_to_blocker"] is True
     assert "status=stalled_under_minimum" in doc_line
+    assert "stagnant_run_count=3" in doc_line
+    assert "stalled_support_accumulation=True" in doc_line
+    assert "escalate_to_blocker=True" in doc_line
     assert issue_summary["support_progress"]["status"] == "stalled_under_minimum"
     assert issue_summary["support_progress"]["minimum_support_rows"] == 50
     assert issue_summary["support_progress"]["gap_to_minimum"] == 50
+    assert issue_summary["support_progress"]["stagnant_run_count"] == 3
+    assert issue_summary["support_progress"]["stalled_support_accumulation"] is True
+    assert issue_summary["support_progress"]["escalate_to_blocker"] is True
+
+
+def test_support_truth_context_surfaces_q15_support_stagnation_metadata():
+    live_predictor_diagnostics = {
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "current_live_structure_bucket_rows": 4,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 46,
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+    }
+    q15_support_audit = {
+        "support_route": {
+            "verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "support_progress": {
+                "status": "semantic_rebaseline_under_minimum",
+                "current_rows": 4,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 46,
+                "regression_basis": "legacy_or_different_semantic_signature",
+                "legacy_supported_reference": {
+                    "heartbeat": "20260419b",
+                    "live_current_structure_bucket_rows": 53,
+                    "minimum_support_rows": 50,
+                },
+                "stagnant_run_count": 3,
+                "stalled_support_accumulation": False,
+                "escalate_to_blocker": True,
+            },
+        }
+    }
+
+    context = hb_parallel_runner._support_truth_context(live_predictor_diagnostics, q15_support_audit)
+    doc_line = hb_parallel_runner._support_progress_docs_line(context)
+
+    assert context["source"] == "q15_support_audit"
+    assert context["support_progress_status"] == "semantic_rebaseline_under_minimum"
+    assert context["support_progress_stagnant_run_count"] == 3
+    assert context["support_progress_stalled_support_accumulation"] is False
+    assert context["support_progress_escalate_to_blocker"] is True
+    assert "legacy_supported_reference=53/50@20260419b" in doc_line
+    assert "stagnant_run_count=3" in doc_line
+    assert "stalled_support_accumulation=False" in doc_line
+    assert "escalate_to_blocker=True" in doc_line
 
 
 def test_needs_q15_post_audit_runtime_resync_when_support_ready_but_probe_still_unpatched():

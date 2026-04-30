@@ -374,6 +374,13 @@ def _support_truth_context(
         context["support_progress_regression_basis"] = live_support_progress.get("regression_basis")
     if live_support_progress.get("legacy_supported_reference") is not None:
         context["legacy_supported_reference"] = live_support_progress.get("legacy_supported_reference")
+    for field in (
+        "stagnant_run_count",
+        "stalled_support_accumulation",
+        "escalate_to_blocker",
+    ):
+        if live_support_progress.get(field) is not None:
+            context[f"support_progress_{field}"] = live_support_progress.get(field)
 
     audit_bucket = _q15_support_audit_bucket(q15_support_audit)
     use_q15_support_audit = "q15" in str(current_bucket or "") and (
@@ -398,6 +405,13 @@ def _support_truth_context(
             context["support_progress_regression_basis"] = support_progress.get("regression_basis")
         if support_progress.get("legacy_supported_reference") is not None:
             context["legacy_supported_reference"] = support_progress.get("legacy_supported_reference")
+        for field in (
+            "stagnant_run_count",
+            "stalled_support_accumulation",
+            "escalate_to_blocker",
+        ):
+            if support_progress.get(field) is not None:
+                context[f"support_progress_{field}"] = support_progress.get(field)
         context["source"] = "q15_support_audit"
 
     if context.get("gap_to_minimum") in (None, ""):
@@ -484,13 +498,30 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
     status = support_context.get("support_progress_status")
     regression_basis = support_context.get("support_progress_regression_basis")
     legacy_ref = support_context.get("legacy_supported_reference")
-    if status in (None, "") and regression_basis in (None, "") and not legacy_ref:
+    stagnant_run_count = support_context.get("support_progress_stagnant_run_count")
+    stalled_support_accumulation = support_context.get("support_progress_stalled_support_accumulation")
+    escalate_to_blocker = support_context.get("support_progress_escalate_to_blocker")
+    if (
+        status in (None, "")
+        and regression_basis in (None, "")
+        and not legacy_ref
+        and stagnant_run_count is None
+        and stalled_support_accumulation is None
+        and escalate_to_blocker is None
+    ):
         return ""
-    return (
-        f"support progress：`status={status or '—'}` / "
-        f"`regression_basis={regression_basis or '—'}` / "
-        f"`legacy_supported_reference={_format_legacy_supported_reference(legacy_ref)}`"
-    )
+    parts = [
+        f"`status={status or '—'}`",
+        f"`regression_basis={regression_basis or '—'}`",
+        f"`legacy_supported_reference={_format_legacy_supported_reference(legacy_ref)}`",
+    ]
+    if stagnant_run_count is not None:
+        parts.append(f"`stagnant_run_count={stagnant_run_count}`")
+    if stalled_support_accumulation is not None:
+        parts.append(f"`stalled_support_accumulation={stalled_support_accumulation}`")
+    if escalate_to_blocker is not None:
+        parts.append(f"`escalate_to_blocker={escalate_to_blocker}`")
+    return "support progress：" + " / ".join(parts)
 
 
 _PATCH_EMPTY_DOC_MARKERS = {"", "-", "—", "none", "null", "n/a", "na"}
@@ -630,6 +661,9 @@ def _current_live_blocker_issue_summary(live_predictor_diagnostics: Dict[str, An
                 "delta_to_minimum",
                 "recent_supported_rows",
                 "delta_vs_recent_supported",
+                "stagnant_run_count",
+                "stalled_support_accumulation",
+                "escalate_to_blocker",
             ]
             if key in support_progress
         }

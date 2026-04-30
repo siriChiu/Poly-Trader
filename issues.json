@@ -7,7 +7,7 @@
       "action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "status": "open",
       "created_at": "2026-04-28T02:42:11.301050",
-      "updated_at": "2026-04-30T09:03:55.820443",
+      "updated_at": "2026-04-30T10:07:20.906371",
       "hb_detected": null,
       "next_action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "summary": {
@@ -39,7 +39,10 @@
           "minimum_support_rows": 50,
           "gap_to_minimum": 46,
           "recent_supported_rows": null,
-          "delta_vs_recent_supported": null
+          "delta_vs_recent_supported": null,
+          "stagnant_run_count": 3,
+          "stalled_support_accumulation": false,
+          "escalate_to_blocker": true
         }
       }
     },
@@ -281,7 +284,7 @@
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-04-30T09:03:54.858158",
+      "updated_at": "2026-04-30T10:03:19.674024",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
@@ -297,7 +300,7 @@
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132306",
-      "updated_at": "2026-04-30T09:03:54.858183",
+      "updated_at": "2026-04-30T10:03:19.674049",
       "hb_detected": null,
       "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "summary": {
@@ -313,7 +316,7 @@
       "action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
       "status": "open",
       "created_at": "2026-04-30T07:03:31.572524",
-      "updated_at": "2026-04-30T09:03:54.858132",
+      "updated_at": "2026-04-30T10:03:19.673998",
       "hb_detected": null,
       "next_action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
       "summary": {
@@ -371,7 +374,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3944,
+        "forward_archive_rows": 3945,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -379,7 +382,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-04-30T09:03:55.820427",
+      "updated_at": "2026-04-30T10:03:20.638844",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -399,7 +402,7 @@
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": false,
         "leaderboard_payload_cache_age_sec": 1,
-        "leaderboard_payload_updated_at": "2026-04-30T09:03:49.796104Z",
+        "leaderboard_payload_updated_at": "2026-04-30T10:03:14.611846Z",
         "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
@@ -408,7 +411,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-04-30T09:03:54.858153",
+      "updated_at": "2026-04-30T10:03:19.674019",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -418,7 +421,7 @@
       "action": "Treat legacy supported rows as reference-only: keep support_identity/regression_basis/legacy_supported_reference visible in probe/API/UI/docs, keep the current-live exact-support blocker open, and do not describe this as same-identity support regression unless the semantic signature matches.",
       "status": "open",
       "created_at": "2026-04-30T07:03:31.572501",
-      "updated_at": "2026-04-30T09:03:54.858121",
+      "updated_at": "2026-04-30T10:03:19.673986",
       "hb_detected": null,
       "next_action": "Treat legacy supported rows as reference-only: keep support_identity/regression_basis/legacy_supported_reference visible in probe/API/UI/docs, keep the current-live exact-support blocker open, and do not describe this as same-identity support regression unless the semantic signature matches.",
       "summary": {
@@ -470,7 +473,7 @@
       "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "status": "open",
       "created_at": "2026-04-30T02:04:38.914044",
-      "updated_at": "2026-04-30T09:03:54.858178",
+      "updated_at": "2026-04-30T10:03:19.674043",
       "hb_detected": null,
       "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "summary": {
@@ -478,12 +481,12 @@
         "interpretation": "regime_concentration",
         "win_rate": 0.27,
         "dominant_regime": "chop",
-        "dominant_regime_share": 0.79,
+        "dominant_regime_share": 0.8,
         "avg_pnl": -0.0033,
-        "avg_quality": -0.0318,
-        "avg_drawdown_penalty": 0.2472,
+        "avg_quality": -0.0316,
+        "avg_drawdown_penalty": 0.2477,
         "spot_long_win_rate": 0.1,
-        "avg_time_underwater": 0.6225,
+        "avg_time_underwater": 0.6227,
         "alerts": [
           "regime_shift"
         ],
@@ -493,8 +496,8 @@
           "feat_local_top_score"
         ],
         "new_compressed_feature": null,
-        "tail_streak": "1x0",
-        "adverse_streak": "57x0",
+        "tail_streak": "2x0",
+        "adverse_streak": "56x0",
         "live_regime_label": "bear",
         "current_live_scope": false,
         "blocking_basis": [
