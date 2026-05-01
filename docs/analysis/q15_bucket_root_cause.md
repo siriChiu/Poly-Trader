@@ -1,39 +1,39 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-04-30 11:32:09.593448**
+- generated_at: **2026-05-01 09:07:56.961607**
 - target_col: **simulated_pyramid_win**
-- bucket_scope: **current-live q15 bucket**
+- bucket_scope: **current-live q35 bucket**
 - verdict: **current_exact_support_under_minimum**
 - candidate_patch_type: **support_accumulation_or_semantic_rebaseline**
 - candidate_patch_feature: **None**
 - artifact_context_freshness: **current_context** (`[]`)
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q35', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 100, 'bucket_semantic_signature': None}`
 
 ## Current live
-- live path: **bear / CAUTION / C**
-- structure_bucket: `CAUTION|structure_quality_caution|q15`
-- structure_quality: **0.2355**
-- gap_to_q35_boundary: **0.1145**
+- live path: **chop / CAUTION / D**
+- structure_bucket: `CAUTION|base_caution_regime_or_bias|q35`
+- structure_quality: **0.4513**
+- gap_to_q35_boundary: **0.0**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `under_minimum_exact_live_structure_bucket`
-- support rows/minimum/gap: **4 / 50 / 46**
+- support rows/minimum/gap: **7 / 50 / 43**
 
 ## Exact live lane
-- rows: **4**
-- bucket_counts: `{'CAUTION|structure_quality_caution|q15': 4}`
-- dominant_neighbor_bucket: **None** (0 rows)
-- near_boundary_window: `{'lower': 0.2355, 'upper': 0.35}`
-- near_boundary_rows: **4**
+- rows: **1890**
+- bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q65': 572, 'CAUTION|base_caution_regime_or_bias|q15': 446, 'CAUTION|base_caution_regime_or_bias|q85': 323, 'CAUTION|base_caution_regime_or_bias|q35': 308, 'CAUTION|base_caution_regime_or_bias|q00': 241}`
+- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** (572 rows)
+- near_boundary_window: `{'lower': 0.4513, 'upper': 0.35}`
+- near_boundary_rows: **0**
 
 ## Decision
-- reason: current-live q15 bucket exact support 目前為 4/50，低於 minimum；這是 current exact support under minimum，不是 boundary candidate。
+- reason: current-live q35 bucket exact support 目前為 7/50，低於 minimum；這是 current exact support under minimum，不是 boundary candidate。
 - candidate_patch: `{}`
 - verify_next: 維持 minimum_support_rows=50 與 current-live guardrail，累積同 support_identity 的 exact rows；若只有 legacy / different semantic signature 支撐，文案必須標成 semantic rebaseline reference。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.4768 / norm=0.4768 / Δto_cross_q35=0.3368 / target_p25=None / target_median=None
-- `feat_4h_dist_bb_lower`: current=1.3619 / norm=0.1702 / Δto_cross_q35=2.7758 / target_p25=None / target_median=None
-- `feat_4h_dist_swing_low`: current=0.5205 / norm=0.052 / Δto_cross_q35=3.4697 / target_p25=None / target_median=None
+- `feat_4h_bb_pct_b`: current=0.7811 / norm=0.7811 / Δto_cross_q35=0.0 / target_p25=0.7098 / target_median=0.7516
+- `feat_4h_dist_bb_lower`: current=2.0325 / norm=0.2541 / Δto_cross_q35=0.0 / target_p25=4.2535 / target_median=5.7387
+- `feat_4h_dist_swing_low`: current=3.0856 / norm=0.3086 / Δto_cross_q35=0.0 / target_p25=8.0696 / target_median=9.098
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
