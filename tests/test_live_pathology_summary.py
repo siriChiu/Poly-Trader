@@ -137,6 +137,54 @@ def test_build_live_pathology_scope_surface_preserves_artifact_patch_when_live_s
     assert patch["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
 
 
+def test_build_live_pathology_patch_summary_treats_string_false_support_route_as_not_deployable(tmp_path):
+    artifact_path = tmp_path / "bull_4h_pocket_ablation.json"
+    _write_bull_patch_artifact(artifact_path)
+
+    confidence_payload = {
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+        "support_route_verdict": "exact_bucket_supported",
+        "support_route_deployable": "false",
+        "support_progress": {
+            "current_rows": 70,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 0,
+        },
+    }
+    scope_summary = {
+        "focus_scope": "regime_label",
+        "focus_scope_label": "同 regime 寬 scope",
+        "spillover": {
+            "extra_rows": 70,
+            "worst_extra_regime_gate": {
+                "regime_gate": "bull|CAUTION",
+                "rows": 70,
+                "win_rate": 0.42,
+                "avg_pnl": -0.001,
+                "avg_quality": 0.03,
+            },
+        },
+        "exact_live_lane": {
+            "rows": 70,
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "current_live_structure_bucket_rows": 70,
+        },
+    }
+
+    patch = build_live_pathology_patch_summary(
+        confidence_payload,
+        scope_summary,
+        artifact_path=artifact_path,
+    )
+
+    assert patch is not None
+    assert patch["support_route_deployable"] is False
+    assert patch["status"] == "reference_only_until_exact_support_ready"
+    assert patch["reference_only_cause"] == "exact_support_not_ready"
+
+
 def test_build_live_pathology_scope_surface_marks_patch_reference_only_when_live_scope_differs_even_if_support_is_missing(tmp_path):
     artifact_path = tmp_path / "bull_4h_pocket_ablation.json"
     _write_bull_patch_artifact(artifact_path)

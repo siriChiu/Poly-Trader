@@ -132,6 +132,46 @@ def test_build_high_conviction_oos_matrix_marks_nearest_deployable_runtime_block
     assert row["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
 
 
+def test_build_high_conviction_oos_matrix_treats_string_false_support_deployable_as_blocked():
+    passing_metrics = {
+        "trade_count": 80,
+        "n": 80,
+        "win_rate": 0.67,
+        "oos_roi": 0.21,
+        "profit_factor": 2.2,
+        "max_drawdown": 0.03,
+        "avg_score": 0.86,
+        "wins": 54,
+        "losses": 26,
+        "regime_mix": {"bull": 80},
+    }
+    report = {
+        "folds": [
+            {"fold": 0, "top_slices": {"top_2pct": {**passing_metrics, "oos_roi": 0.08}}},
+            {"fold": 1, "top_slices": {"top_2pct": {**passing_metrics, "oos_roi": 0.06}}},
+        ],
+        "aggregate_top_slices": {"top_2pct": passing_metrics},
+        "aggregate_regime_top_slices": {},
+    }
+
+    rows = topk.build_high_conviction_oos_matrix_rows(
+        "logistic_regression",
+        report,
+        support_context={
+            "support_route_verdict": "exact_bucket_supported",
+            "support_route_deployable": "false",
+            "deployment_blocker": None,
+        },
+    )
+
+    row = rows[0]
+    assert row["oos_gate_passed"] is True
+    assert row["deployable_verdict"] == "not_deployable"
+    assert row["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+    assert row["live_gate_failures"] == ["support_route_not_deployable"]
+    assert row["model_gate_failures"] == []
+
+
 def test_load_support_context_preserves_current_live_support_progress(monkeypatch, tmp_path):
     data_dir = tmp_path / "data"
     data_dir.mkdir()

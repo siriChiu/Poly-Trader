@@ -48,6 +48,36 @@ def test_parse_args_allows_fast_without_hb():
     assert hb_parallel_runner.resolve_run_label(args) == "fast"
 
 
+def test_high_conviction_support_route_context_string_false_fails_closed():
+    assert (
+        hb_parallel_runner._support_route_context_is_deployable(
+            {
+                "support_route_verdict": "exact_bucket_supported",
+                "support_route_deployable": "false",
+            }
+        )
+        is False
+    )
+    assert (
+        hb_parallel_runner._support_route_context_is_deployable(
+            {
+                "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                "support_route_deployable": "0",
+            }
+        )
+        is False
+    )
+    assert (
+        hb_parallel_runner._support_route_context_is_deployable(
+            {
+                "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                "support_route_deployable": "true",
+            }
+        )
+        is True
+    )
+
+
 def test_parse_args_allows_fast_candidate_refresh_opt_in():
     args = hb_parallel_runner.parse_args(["--fast", "--fast-refresh-candidates", "--hb", "hb123"])
 

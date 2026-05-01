@@ -1,0 +1,3281 @@
+{
+  "generated_at": "2026-05-01T22:01:18.123447+00:00",
+  "target_col": "simulated_pyramid_win",
+  "samples": 23940,
+  "top_k_grid": [
+    "top_1pct",
+    "top_2pct",
+    "top_5pct",
+    "top_10pct"
+  ],
+  "minimum_deployment_gates": {
+    "min_trades": 50,
+    "min_win_rate": 0.6,
+    "max_drawdown": 0.08,
+    "min_profit_factor": 1.5,
+    "worst_fold": "non_negative_or_above_baseline",
+    "support_route": "deployable"
+  },
+  "support_context": {
+    "support_route_verdict": "exact_bucket_present_but_below_minimum",
+    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+    "support_route_deployable": false,
+    "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+    "runtime_closure_state": "patch_inactive_or_blocked",
+    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+    "current_live_structure_bucket_rows": 11,
+    "minimum_support_rows": 50,
+    "current_live_structure_bucket_gap_to_minimum": 39,
+    "allowed_layers": 0,
+    "signal": "HOLD",
+    "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+    "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+    "live_truth_source_artifact": "data/live_predict_probe.json",
+    "support_context_current_as_of": "2026-05-01T22:02:07.376150Z"
+  },
+  "artifact": "data/high_conviction_topk_oos_matrix.json",
+  "rows": [
+    {
+      "model": "xgboost",
+      "feature_profile": "current_full",
+      "regime": "all",
+      "top_k": "top_1pct",
+      "oos_roi": 0.3976,
+      "win_rate": 0.8621,
+      "profit_factor": 25.4464,
+      "max_drawdown": 0.009,
+      "worst_fold": -0.1356,
+      "trade_count": 29,
+      "avg_score": 0.8954,
+      "wins": 25,
+      "losses": 4,
+      "regime_mix": {
+        "bull": 29
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "min_trades_not_met",
+        "worst_fold_negative",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "min_trades_not_met",
+        "worst_fold_negative"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "xgboost",
+      "feature_profile": "current_full",
+      "regime": "all",
+      "top_k": "top_2pct",
+      "oos_roi": 0.76,
+      "win_rate": 0.8448,
+      "profit_factor": 12.1822,
+      "max_drawdown": 0.0341,
+      "worst_fold": -0.1575,
+      "trade_count": 58,
+      "avg_score": 0.8845,
+      "wins": 49,
+      "losses": 9,
+      "regime_mix": {
+        "bull": 58
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "worst_fold_negative",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "worst_fold_negative"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "xgboost",
+      "feature_profile": "current_full",
+      "regime": "all",
+      "top_k": "top_5pct",
+      "oos_roi": 1.893,
+      "win_rate": 0.7877,
+      "profit_factor": 9.0932,
+      "max_drawdown": 0.1001,
+      "worst_fold": -0.2602,
+      "trade_count": 146,
+      "avg_score": 0.8612,
+      "wins": 115,
+      "losses": 31,
+      "regime_mix": {
+        "bull": 146
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "max_drawdown_too_high",
+        "worst_fold_negative",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "max_drawdown_too_high",
+        "worst_fold_negative"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "xgboost",
+      "feature_profile": "current_full",
+      "regime": "all",
+      "top_k": "top_10pct",
+      "oos_roi": 3.8544,
+      "win_rate": 0.7774,
+      "profit_factor": 8.2654,
+      "max_drawdown": 0.2179,
+      "worst_fold": -0.0611,
+      "trade_count": 292,
+      "avg_score": 0.8362,
+      "wins": 227,
+      "losses": 65,
+      "regime_mix": {
+        "bull": 292
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "max_drawdown_too_high",
+        "worst_fold_negative",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "max_drawdown_too_high",
+        "worst_fold_negative"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "xgboost",
+      "feature_profile": "current_full",
+      "regime": "bull",
+      "top_k": "top_1pct",
+      "oos_roi": 0.3976,
+      "win_rate": 0.8621,
+      "profit_factor": 25.4464,
+      "max_drawdown": 0.009,
+      "worst_fold": -0.1356,
+      "trade_count": 29,
+      "avg_score": 0.8954,
+      "wins": 25,
+      "losses": 4,
+      "regime_mix": {
+        "bull": 29
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "min_trades_not_met",
+        "worst_fold_negative",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "min_trades_not_met",
+        "worst_fold_negative"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "xgboost",
+      "feature_profile": "current_full",
+      "regime": "bull",
+      "top_k": "top_2pct",
+      "oos_roi": 0.76,
+      "win_rate": 0.8448,
+      "profit_factor": 12.1822,
+      "max_drawdown": 0.0341,
+      "worst_fold": -0.1575,
+      "trade_count": 58,
+      "avg_score": 0.8845,
+      "wins": 49,
+      "losses": 9,
+      "regime_mix": {
+        "bull": 58
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "worst_fold_negative",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "worst_fold_negative"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "xgboost",
+      "feature_profile": "current_full",
+      "regime": "bull",
+      "top_k": "top_5pct",
+      "oos_roi": 1.893,
+      "win_rate": 0.7877,
+      "profit_factor": 9.0932,
+      "max_drawdown": 0.1001,
+      "worst_fold": -0.2602,
+      "trade_count": 146,
+      "avg_score": 0.8612,
+      "wins": 115,
+      "losses": 31,
+      "regime_mix": {
+        "bull": 146
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "max_drawdown_too_high",
+        "worst_fold_negative",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "max_drawdown_too_high",
+        "worst_fold_negative"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "xgboost",
+      "feature_profile": "current_full",
+      "regime": "bull",
+      "top_k": "top_10pct",
+      "oos_roi": 3.8544,
+      "win_rate": 0.7774,
+      "profit_factor": 8.2654,
+      "max_drawdown": 0.2179,
+      "worst_fold": -0.0611,
+      "trade_count": 292,
+      "avg_score": 0.8362,
+      "wins": 227,
+      "losses": 65,
+      "regime_mix": {
+        "bull": 292
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "max_drawdown_too_high",
+        "worst_fold_negative",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "max_drawdown_too_high",
+        "worst_fold_negative"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "random_forest",
+      "feature_profile": "current_full",
+      "regime": "all",
+      "top_k": "top_1pct",
+      "oos_roi": 0.3514,
+      "win_rate": 0.931,
+      "profit_factor": 37.2087,
+      "max_drawdown": 0.0097,
+      "worst_fold": 0.0575,
+      "trade_count": 29,
+      "avg_score": 0.8129,
+      "wins": 27,
+      "losses": 2,
+      "regime_mix": {
+        "bull": 29
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "min_trades_not_met",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "min_trades_not_met"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "random_forest",
+      "feature_profile": "current_full",
+      "regime": "all",
+      "top_k": "top_2pct",
+      "oos_roi": 0.6884,
+      "win_rate": 0.8621,
+      "profit_factor": 12.4161,
+      "max_drawdown": 0.027,
+      "worst_fold": 0.0959,
+      "trade_count": 58,
+      "avg_score": 0.8015,
+      "wins": 50,
+      "losses": 8,
+      "regime_mix": {
+        "bull": 58
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "runtime_blocked_oos_pass",
+      "gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": true,
+      "blocked_only_by_live_guardrails": true,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "random_forest",
+      "feature_profile": "current_full",
+      "regime": "all",
+      "top_k": "top_5pct",
+      "oos_roi": 1.715,
+      "win_rate": 0.7808,
+      "profit_factor": 7.8873,
+      "max_drawdown": 0.0698,
+      "worst_fold": 0.1442,
+      "trade_count": 146,
+      "avg_score": 0.7758,
+      "wins": 114,
+      "losses": 32,
+      "regime_mix": {
+        "bull": 146
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "runtime_blocked_oos_pass",
+      "gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": true,
+      "blocked_only_by_live_guardrails": true,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "random_forest",
+      "feature_profile": "current_full",
+      "regime": "all",
+      "top_k": "top_10pct",
+      "oos_roi": 3.0297,
+      "win_rate": 0.7226,
+      "profit_factor": 5.6532,
+      "max_drawdown": 0.1101,
+      "worst_fold": 0.3642,
+      "trade_count": 292,
+      "avg_score": 0.7503,
+      "wins": 211,
+      "losses": 81,
+      "regime_mix": {
+        "bull": 292
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "max_drawdown_too_high",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "max_drawdown_too_high"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "random_forest",
+      "feature_profile": "current_full",
+      "regime": "bull",
+      "top_k": "top_1pct",
+      "oos_roi": 0.3514,
+      "win_rate": 0.931,
+      "profit_factor": 37.2087,
+      "max_drawdown": 0.0097,
+      "worst_fold": 0.0575,
+      "trade_count": 29,
+      "avg_score": 0.8129,
+      "wins": 27,
+      "losses": 2,
+      "regime_mix": {
+        "bull": 29
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "min_trades_not_met",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "min_trades_not_met"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "random_forest",
+      "feature_profile": "current_full",
+      "regime": "bull",
+      "top_k": "top_2pct",
+      "oos_roi": 0.6884,
+      "win_rate": 0.8621,
+      "profit_factor": 12.4161,
+      "max_drawdown": 0.027,
+      "worst_fold": 0.0959,
+      "trade_count": 58,
+      "avg_score": 0.8015,
+      "wins": 50,
+      "losses": 8,
+      "regime_mix": {
+        "bull": 58
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "runtime_blocked_oos_pass",
+      "gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": true,
+      "blocked_only_by_live_guardrails": true,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "random_forest",
+      "feature_profile": "current_full",
+      "regime": "bull",
+      "top_k": "top_5pct",
+      "oos_roi": 1.715,
+      "win_rate": 0.7808,
+      "profit_factor": 7.8873,
+      "max_drawdown": 0.0698,
+      "worst_fold": 0.1442,
+      "trade_count": 146,
+      "avg_score": 0.7758,
+      "wins": 114,
+      "losses": 32,
+      "regime_mix": {
+        "bull": 146
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "runtime_blocked_oos_pass",
+      "gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": true,
+      "blocked_only_by_live_guardrails": true,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "random_forest",
+      "feature_profile": "current_full",
+      "regime": "bull",
+      "top_k": "top_10pct",
+      "oos_roi": 3.0297,
+      "win_rate": 0.7226,
+      "profit_factor": 5.6532,
+      "max_drawdown": 0.1101,
+      "worst_fold": 0.3642,
+      "trade_count": 292,
+      "avg_score": 0.7503,
+      "wins": 211,
+      "losses": 81,
+      "regime_mix": {
+        "bull": 292
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "max_drawdown_too_high",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "max_drawdown_too_high"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "logistic_regression",
+      "feature_profile": "current_full",
+      "regime": "all",
+      "top_k": "top_1pct",
+      "oos_roi": 0.5529,
+      "win_rate": 0.931,
+      "profit_factor": 97.8296,
+      "max_drawdown": 0.0057,
+      "worst_fold": 0.0924,
+      "trade_count": 29,
+      "avg_score": 0.8732,
+      "wins": 27,
+      "losses": 2,
+      "regime_mix": {
+        "bull": 29
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "min_trades_not_met",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "min_trades_not_met"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "logistic_regression",
+      "feature_profile": "current_full",
+      "regime": "all",
+      "top_k": "top_2pct",
+      "oos_roi": 0.9324,
+      "win_rate": 0.8621,
+      "profit_factor": 19.8864,
+      "max_drawdown": 0.022,
+      "worst_fold": 0.2068,
+      "trade_count": 58,
+      "avg_score": 0.853,
+      "wins": 50,
+      "losses": 8,
+      "regime_mix": {
+        "bull": 58
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "runtime_blocked_oos_pass",
+      "gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": true,
+      "blocked_only_by_live_guardrails": true,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "logistic_regression",
+      "feature_profile": "current_full",
+      "regime": "all",
+      "top_k": "top_5pct",
+      "oos_roi": 2.05,
+      "win_rate": 0.8014,
+      "profit_factor": 8.2813,
+      "max_drawdown": 0.1098,
+      "worst_fold": 0.4411,
+      "trade_count": 146,
+      "avg_score": 0.8179,
+      "wins": 117,
+      "losses": 29,
+      "regime_mix": {
+        "bull": 146
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "max_drawdown_too_high",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "max_drawdown_too_high"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "logistic_regression",
+      "feature_profile": "current_full",
+      "regime": "all",
+      "top_k": "top_10pct",
+      "oos_roi": 3.8526,
+      "win_rate": 0.7842,
+      "profit_factor": 7.0341,
+      "max_drawdown": 0.2601,
+      "worst_fold": 0.8353,
+      "trade_count": 292,
+      "avg_score": 0.785,
+      "wins": 229,
+      "losses": 63,
+      "regime_mix": {
+        "bull": 292
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "max_drawdown_too_high",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "max_drawdown_too_high"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "logistic_regression",
+      "feature_profile": "current_full",
+      "regime": "bull",
+      "top_k": "top_1pct",
+      "oos_roi": 0.5529,
+      "win_rate": 0.931,
+      "profit_factor": 97.8296,
+      "max_drawdown": 0.0057,
+      "worst_fold": 0.0924,
+      "trade_count": 29,
+      "avg_score": 0.8732,
+      "wins": 27,
+      "losses": 2,
+      "regime_mix": {
+        "bull": 29
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "min_trades_not_met",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "min_trades_not_met"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "logistic_regression",
+      "feature_profile": "current_full",
+      "regime": "bull",
+      "top_k": "top_2pct",
+      "oos_roi": 0.9324,
+      "win_rate": 0.8621,
+      "profit_factor": 19.8864,
+      "max_drawdown": 0.022,
+      "worst_fold": 0.2068,
+      "trade_count": 58,
+      "avg_score": 0.853,
+      "wins": 50,
+      "losses": 8,
+      "regime_mix": {
+        "bull": 58
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "runtime_blocked_oos_pass",
+      "gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": true,
+      "blocked_only_by_live_guardrails": true,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "logistic_regression",
+      "feature_profile": "current_full",
+      "regime": "bull",
+      "top_k": "top_5pct",
+      "oos_roi": 2.05,
+      "win_rate": 0.8014,
+      "profit_factor": 8.2813,
+      "max_drawdown": 0.1098,
+      "worst_fold": 0.4411,
+      "trade_count": 146,
+      "avg_score": 0.8179,
+      "wins": 117,
+      "losses": 29,
+      "regime_mix": {
+        "bull": 146
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "max_drawdown_too_high",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "max_drawdown_too_high"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    },
+    {
+      "model": "logistic_regression",
+      "feature_profile": "current_full",
+      "regime": "bull",
+      "top_k": "top_10pct",
+      "oos_roi": 3.8526,
+      "win_rate": 0.7842,
+      "profit_factor": 7.0341,
+      "max_drawdown": 0.2601,
+      "worst_fold": 0.8353,
+      "trade_count": 292,
+      "avg_score": 0.785,
+      "wins": 229,
+      "losses": 63,
+      "regime_mix": {
+        "bull": 292
+      },
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 11,
+      "minimum_support_rows": 50,
+      "current_live_structure_bucket_gap_to_minimum": 39,
+      "allowed_layers": 0,
+      "signal": "HOLD",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-01T22:02:07.376150Z",
+      "minimum_deployment_gates": {
+        "min_trades": 50,
+        "min_win_rate": 0.6,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.5,
+        "worst_fold": "non_negative_or_above_baseline",
+        "support_route": "deployable"
+      },
+      "deployable_verdict": "not_deployable",
+      "deployment_candidate_tier": "research_oos_gate_failed",
+      "gate_failures": [
+        "max_drawdown_too_high",
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "model_gate_failures": [
+        "max_drawdown_too_high"
+      ],
+      "live_gate_failures": [
+        "support_route_not_deployable",
+        "deployment_blocker_active"
+      ],
+      "oos_gate_passed": false,
+      "blocked_only_by_live_guardrails": false,
+      "live_truth_source_artifact": "data/live_predict_probe.json"
+    }
+  ],
+  "models": {
+    "xgboost": {
+      "folds": [
+        {
+          "fold": 0,
+          "train_start": "2024-04-14 07:00:00",
+          "train_end": "2024-08-13 23:00:00",
+          "test_start": "2024-08-14 00:00:00",
+          "test_end": "2024-09-13 23:00:00",
+          "train_rows": 2921,
+          "test_rows": 744,
+          "top_slices": {
+            "top_1pct": {
+              "n": 7,
+              "trade_count": 7,
+              "win_rate": 0.8571,
+              "avg_score": 0.9106,
+              "oos_roi": 0.0916,
+              "profit_factor": 60.5307,
+              "max_drawdown": 0.0,
+              "wins": 6,
+              "losses": 1,
+              "regime_mix": {
+                "bull": 7
+              }
+            },
+            "top_2pct": {
+              "n": 14,
+              "trade_count": 14,
+              "win_rate": 0.9286,
+              "avg_score": 0.9044,
+              "oos_roi": 0.2322,
+              "profit_factor": 151.8669,
+              "max_drawdown": 0.0,
+              "wins": 13,
+              "losses": 1,
+              "regime_mix": {
+                "bull": 14
+              }
+            },
+            "top_5pct": {
+              "n": 37,
+              "trade_count": 37,
+              "win_rate": 0.8378,
+              "avg_score": 0.8917,
+              "oos_roi": 0.4877,
+              "profit_factor": 12.9362,
+              "max_drawdown": 0.0246,
+              "wins": 31,
+              "losses": 6,
+              "regime_mix": {
+                "bull": 37
+              }
+            },
+            "top_10pct": {
+              "n": 74,
+              "trade_count": 74,
+              "win_rate": 0.7973,
+              "avg_score": 0.8784,
+              "oos_roi": 0.907,
+              "profit_factor": 9.2772,
+              "max_drawdown": 0.0642,
+              "wins": 59,
+              "losses": 15,
+              "regime_mix": {
+                "bull": 74
+              }
+            }
+          },
+          "regime_top_slices": {
+            "bull": {
+              "top_1pct": {
+                "n": 7,
+                "trade_count": 7,
+                "win_rate": 0.8571,
+                "avg_score": 0.9106,
+                "oos_roi": 0.0916,
+                "profit_factor": 60.5307,
+                "max_drawdown": 0.0,
+                "wins": 6,
+                "losses": 1,
+                "regime_mix": {
+                  "bull": 7
+                }
+              },
+              "top_2pct": {
+                "n": 14,
+                "trade_count": 14,
+                "win_rate": 0.9286,
+                "avg_score": 0.9044,
+                "oos_roi": 0.2322,
+                "profit_factor": 151.8669,
+                "max_drawdown": 0.0,
+                "wins": 13,
+                "losses": 1,
+                "regime_mix": {
+                  "bull": 14
+                }
+              },
+              "top_5pct": {
+                "n": 37,
+                "trade_count": 37,
+                "win_rate": 0.8378,
+                "avg_score": 0.8917,
+                "oos_roi": 0.4877,
+                "profit_factor": 12.9362,
+                "max_drawdown": 0.0246,
+                "wins": 31,
+                "losses": 6,
+                "regime_mix": {
+                  "bull": 37
+                }
+              },
+              "top_10pct": {
+                "n": 74,
+                "trade_count": 74,
+                "win_rate": 0.7973,
+                "avg_score": 0.8784,
+                "oos_roi": 0.907,
+                "profit_factor": 9.2772,
+                "max_drawdown": 0.0642,
+                "wins": 59,
+                "losses": 15,
+                "regime_mix": {
+                  "bull": 74
+                }
+              }
+            }
+          }
+        },
+        {
+          "fold": 1,
+          "train_start": "2024-04-14 07:00:00",
+          "train_end": "2024-09-13 23:00:00",
+          "test_start": "2024-09-14 00:00:00",
+          "test_end": "2024-10-13 23:00:00",
+          "train_rows": 3665,
+          "test_rows": 720,
+          "top_slices": {
+            "top_1pct": {
+              "n": 7,
+              "trade_count": 7,
+              "win_rate": 0.0,
+              "avg_score": 0.7696,
+              "oos_roi": -0.1356,
+              "profit_factor": 0.0,
+              "max_drawdown": 0.1232,
+              "wins": 0,
+              "losses": 7,
+              "regime_mix": {
+                "bull": 7
+              }
+            },
+            "top_2pct": {
+              "n": 14,
+              "trade_count": 14,
+              "win_rate": 0.0714,
+              "avg_score": 0.7642,
+              "oos_roi": -0.1575,
+              "profit_factor": 0.032,
+              "max_drawdown": 0.1452,
+              "wins": 1,
+              "losses": 13,
+              "regime_mix": {
+                "bull": 14
+              }
+            },
+            "top_5pct": {
+              "n": 36,
+              "trade_count": 36,
+              "win_rate": 0.3056,
+              "avg_score": 0.7532,
+              "oos_roi": -0.2602,
+              "profit_factor": 0.2046,
+              "max_drawdown": 0.2624,
+              "wins": 11,
+              "losses": 25,
+              "regime_mix": {
+                "bull": 36
+              }
+            },
+            "top_10pct": {
+              "n": 72,
+              "trade_count": 72,
+              "win_rate": 0.4861,
+              "avg_score": 0.7312,
+              "oos_roi": -0.0611,
+              "profit_factor": 0.872,
+              "max_drawdown": 0.3781,
+              "wins": 35,
+              "losses": 37,
+              "regime_mix": {
+                "bull": 72
+              }
+            }
+          },
+          "regime_top_slices": {
+            "bull": {
+              "top_1pct": {
+                "n": 7,
+                "trade_count": 7,
+                "win_rate": 0.0,
+                "avg_score": 0.7696,
+                "oos_roi": -0.1356,
+                "profit_factor": 0.0,
+                "max_drawdown": 0.1232,
+                "wins": 0,
+                "losses": 7,
+                "regime_mix": {
+                  "bull": 7
+                }
+              },
+              "top_2pct": {
+                "n": 14,
+                "trade_count": 14,
+                "win_rate": 0.0714,
+                "avg_score": 0.7642,
+                "oos_roi": -0.1575,
+                "profit_factor": 0.032,
+                "max_drawdown": 0.1452,
+                "wins": 1,
+                "losses": 13,
+                "regime_mix": {
+                  "bull": 14
+                }
+              },
+              "top_5pct": {
+                "n": 36,
+                "trade_count": 36,
+                "win_rate": 0.3056,
+                "avg_score": 0.7532,
+                "oos_roi": -0.2602,
+                "profit_factor": 0.2046,
+                "max_drawdown": 0.2624,
+                "wins": 11,
+                "losses": 25,
+                "regime_mix": {
+                  "bull": 36
+                }
+              },
+              "top_10pct": {
+                "n": 72,
+                "trade_count": 72,
+                "win_rate": 0.4861,
+                "avg_score": 0.7312,
+                "oos_roi": -0.0611,
+                "profit_factor": 0.872,
+                "max_drawdown": 0.3781,
+                "wins": 35,
+                "losses": 37,
+                "regime_mix": {
+                  "bull": 72
+                }
+              }
+            }
+          }
+        },
+        {
+          "fold": 2,
+          "train_start": "2024-04-14 07:00:00",
+          "train_end": "2024-10-13 23:00:00",
+          "test_start": "2024-10-14 00:00:00",
+          "test_end": "2024-11-13 23:00:00",
+          "train_rows": 4385,
+          "test_rows": 744,
+          "top_slices": {
+            "top_1pct": {
+              "n": 7,
+              "trade_count": 7,
+              "win_rate": 1.0,
+              "avg_score": 0.6957,
+              "oos_roi": 0.1563,
+              "profit_factor": 999.0,
+              "max_drawdown": 0.0,
+              "wins": 7,
+              "losses": 0,
+              "regime_mix": {
+                "bull": 7
+              }
+            },
+            "top_2pct": {
+              "n": 14,
+              "trade_count": 14,
+              "win_rate": 1.0,
+              "avg_score": 0.68,
+              "oos_roi": 0.3097,
+              "profit_factor": 999.0,
+              "max_drawdown": 0.0,
+              "wins": 14,
+              "losses": 0,
+              "regime_mix": {
+                "bull": 14
+              }
+            },
+            "top_5pct": {
+              "n": 37,
+              "trade_count": 37,
+              "win_rate": 0.9459,
+              "avg_score": 0.6495,
+              "oos_roi": 0.6945,
+              "profit_factor": 96.1292,
+              "max_drawdown": 0.0073,
+              "wins": 35,
+              "losses": 2,
+              "regime_mix": {
+                "bull": 37
+              }
+            },
+            "top_10pct": {
+              "n": 74,
+              "trade_count": 74,
+              "win_rate": 0.8919,
+              "avg_score": 0.6249,
+              "oos_roi": 1.1226,
+              "profit_factor": 43.4936,
+              "max_drawdown": 0.012,
+              "wins": 66,
+              "losses": 8,
+              "regime_mix": {
+                "bull": 74
+              }
+            }
+          },
+          "regime_top_slices": {
+            "bull": {
+              "top_1pct": {
+                "n": 7,
+                "trade_count": 7,
+                "win_rate": 1.0,
+                "avg_score": 0.6957,
+                "oos_roi": 0.1563,
+                "profit_factor": 999.0,
+                "max_drawdown": 0.0,
+                "wins": 7,
+                "losses": 0,
+                "regime_mix": {
+                  "bull": 7
+                }
+              },
+              "top_2pct": {
+                "n": 14,
+                "trade_count": 14,
+                "win_rate": 1.0,
+                "avg_score": 0.68,
+                "oos_roi": 0.3097,
+                "profit_factor": 999.0,
+                "max_drawdown": 0.0,
+                "wins": 14,
+                "losses": 0,
+                "regime_mix": {
+                  "bull": 14
+                }
+              },
+              "top_5pct": {
+                "n": 37,
+                "trade_count": 37,
+                "win_rate": 0.9459,
+                "avg_score": 0.6495,
+                "oos_roi": 0.6945,
+                "profit_factor": 96.1292,
+                "max_drawdown": 0.0073,
+                "wins": 35,
+                "losses": 2,
+                "regime_mix": {
+                  "bull": 37
+                }
+              },
+              "top_10pct": {
+                "n": 74,
+                "trade_count": 74,
+                "win_rate": 0.8919,
+                "avg_score": 0.6249,
+                "oos_roi": 1.1226,
+                "profit_factor": 43.4936,
+                "max_drawdown": 0.012,
+                "wins": 66,
+                "losses": 8,
+                "regime_mix": {
+                  "bull": 74
+                }
+              }
+            }
+          }
+        },
+        {
+          "fold": 3,
+          "train_start": "2024-04-14 07:00:00",
+          "train_end": "2024-11-13 23:00:00",
+          "test_start": "2024-11-14 00:00:00",
+          "test_end": "2024-12-13 23:00:00",
+          "train_rows": 5129,
+          "test_rows": 720,
+          "top_slices": {
+            "top_1pct": {
+              "n": 7,
+              "trade_count": 7,
+              "win_rate": 1.0,
+              "avg_score": 0.8629,
+              "oos_roi": 0.1326,
+              "profit_factor": 999.0,
+              "max_drawdown": 0.0,
+              "wins": 7,
+              "losses": 0,
+              "regime_mix": {
+                "bull": 7
+              }
+            },
+            "top_2pct": {
+              "n": 14,
+              "trade_count": 14,
+              "win_rate": 0.8571,
+              "avg_score": 0.8566,
+              "oos_roi": 0.2189,
+              "profit_factor": 12.2718,
+              "max_drawdown": 0.0194,
+              "wins": 12,
+              "losses": 2,
+              "regime_mix": {
+                "bull": 14
+              }
+            },
+            "top_5pct": {
+              "n": 36,
+              "trade_count": 36,
+              "win_rate": 0.8056,
+              "avg_score": 0.8478,
+              "oos_roi": 0.5756,
+              "profit_factor": 12.4904,
+              "max_drawdown": 0.04,
+              "wins": 29,
+              "losses": 7,
+              "regime_mix": {
+                "bull": 36
+              }
+            },
+            "top_10pct": {
+              "n": 72,
+              "trade_count": 72,
+              "win_rate": 0.7917,
+              "avg_score": 0.8322,
+              "oos_roi": 1.0385,
+              "profit_factor": 9.736,
+              "max_drawdown": 0.1007,
+              "wins": 57,
+              "losses": 15,
+              "regime_mix": {
+                "bull": 72
+              }
+            }
+          },
+          "regime_top_slices": {
+            "bull": {
+              "top_1pct": {
+                "n": 7,
+                "trade_count": 7,
+                "win_rate": 1.0,
+                "avg_score": 0.8629,
+                "oos_roi": 0.1326,
+                "profit_factor": 999.0,
+                "max_drawdown": 0.0,
+                "wins": 7,
+                "losses": 0,
+                "regime_mix": {
+                  "bull": 7
+                }
+              },
+              "top_2pct": {
+                "n": 14,
+                "trade_count": 14,
+                "win_rate": 0.8571,
+                "avg_score": 0.8566,
+                "oos_roi": 0.2189,
+                "profit_factor": 12.2718,
+                "max_drawdown": 0.0194,
+                "wins": 12,
+                "losses": 2,
+                "regime_mix": {
+                  "bull": 14
+                }
+              },
+              "top_5pct": {
+                "n": 36,
+                "trade_count": 36,
+                "win_rate": 0.8056,
+                "avg_score": 0.8478,
+                "oos_roi": 0.5756,
+                "profit_factor": 12.4904,
+                "max_drawdown": 0.04,
+                "wins": 29,
+                "losses": 7,
+                "regime_mix": {
+                  "bull": 36
+                }
+              },
+              "top_10pct": {
+                "n": 72,
+                "trade_count": 72,
+                "win_rate": 0.7917,
+                "avg_score": 0.8322,
+                "oos_roi": 1.0385,
+                "profit_factor": 9.736,
+                "max_drawdown": 0.1007,
+                "wins": 57,
+                "losses": 15,
+                "regime_mix": {
+                  "bull": 72
+                }
+              }
+            }
+          }
+        }
+      ],
+      "aggregate_top_slices": {
+        "top_1pct": {
+          "n": 29,
+          "trade_count": 29,
+          "win_rate": 0.8621,
+          "avg_score": 0.8954,
+          "oos_roi": 0.3976,
+          "profit_factor": 25.4464,
+          "max_drawdown": 0.009,
+          "wins": 25,
+          "losses": 4,
+          "regime_mix": {
+            "bull": 29
+          }
+        },
+        "top_2pct": {
+          "n": 58,
+          "trade_count": 58,
+          "win_rate": 0.8448,
+          "avg_score": 0.8845,
+          "oos_roi": 0.76,
+          "profit_factor": 12.1822,
+          "max_drawdown": 0.0341,
+          "wins": 49,
+          "losses": 9,
+          "regime_mix": {
+            "bull": 58
+          }
+        },
+        "top_5pct": {
+          "n": 146,
+          "trade_count": 146,
+          "win_rate": 0.7877,
+          "avg_score": 0.8612,
+          "oos_roi": 1.893,
+          "profit_factor": 9.0932,
+          "max_drawdown": 0.1001,
+          "wins": 115,
+          "losses": 31,
+          "regime_mix": {
+            "bull": 146
+          }
+        },
+        "top_10pct": {
+          "n": 292,
+          "trade_count": 292,
+          "win_rate": 0.7774,
+          "avg_score": 0.8362,
+          "oos_roi": 3.8544,
+          "profit_factor": 8.2654,
+          "max_drawdown": 0.2179,
+          "wins": 227,
+          "losses": 65,
+          "regime_mix": {
+            "bull": 292
+          }
+        }
+      },
+      "aggregate_regime_top_slices": {
+        "bull": {
+          "top_1pct": {
+            "n": 29,
+            "trade_count": 29,
+            "win_rate": 0.8621,
+            "avg_score": 0.8954,
+            "oos_roi": 0.3976,
+            "profit_factor": 25.4464,
+            "max_drawdown": 0.009,
+            "wins": 25,
+            "losses": 4,
+            "regime_mix": {
+              "bull": 29
+            }
+          },
+          "top_2pct": {
+            "n": 58,
+            "trade_count": 58,
+            "win_rate": 0.8448,
+            "avg_score": 0.8845,
+            "oos_roi": 0.76,
+            "profit_factor": 12.1822,
+            "max_drawdown": 0.0341,
+            "wins": 49,
+            "losses": 9,
+            "regime_mix": {
+              "bull": 58
+            }
+          },
+          "top_5pct": {
+            "n": 146,
+            "trade_count": 146,
+            "win_rate": 0.7877,
+            "avg_score": 0.8612,
+            "oos_roi": 1.893,
+            "profit_factor": 9.0932,
+            "max_drawdown": 0.1001,
+            "wins": 115,
+            "losses": 31,
+            "regime_mix": {
+              "bull": 146
+            }
+          },
+          "top_10pct": {
+            "n": 292,
+            "trade_count": 292,
+            "win_rate": 0.7774,
+            "avg_score": 0.8362,
+            "oos_roi": 3.8544,
+            "profit_factor": 8.2654,
+            "max_drawdown": 0.2179,
+            "wins": 227,
+            "losses": 65,
+            "regime_mix": {
+              "bull": 292
+            }
+          }
+        }
+      },
+      "overall_oos_base_rate": 0.6257,
+      "total_oos_rows": 2928
+    },
+    "random_forest": {
+      "folds": [
+        {
+          "fold": 0,
+          "train_start": "2024-04-14 07:00:00",
+          "train_end": "2024-08-13 23:00:00",
+          "test_start": "2024-08-14 00:00:00",
+          "test_end": "2024-09-13 23:00:00",
+          "train_rows": 2921,
+          "test_rows": 744,
+          "top_slices": {
+            "top_1pct": {
+              "n": 7,
+              "trade_count": 7,
+              "win_rate": 1.0,
+              "avg_score": 0.8274,
+              "oos_roi": 0.0924,
+              "profit_factor": 999.0,
+              "max_drawdown": 0.0,
+              "wins": 7,
+              "losses": 0,
+              "regime_mix": {
+                "bull": 7
+              }
+            },
+            "top_2pct": {
+              "n": 14,
+              "trade_count": 14,
+              "win_rate": 0.9286,
+              "avg_score": 0.8216,
+              "oos_roi": 0.1684,
+              "profit_factor": 24.1107,
+              "max_drawdown": 0.0073,
+              "wins": 13,
+              "losses": 1,
+              "regime_mix": {
+                "bull": 14
+              }
+            },
+            "top_5pct": {
+              "n": 37,
+              "trade_count": 37,
+              "win_rate": 0.9459,
+              "avg_score": 0.8091,
+              "oos_roi": 0.4748,
+              "profit_factor": 49.9314,
+              "max_drawdown": 0.0097,
+              "wins": 35,
+              "losses": 2,
+              "regime_mix": {
+                "bull": 37
+              }
+            },
+            "top_10pct": {
+              "n": 74,
+              "trade_count": 74,
+              "win_rate": 0.8108,
+              "avg_score": 0.7931,
+              "oos_roi": 0.8548,
+              "profit_factor": 9.865,
+              "max_drawdown": 0.0379,
+              "wins": 60,
+              "losses": 14,
+              "regime_mix": {
+                "bull": 74
+              }
+            }
+          },
+          "regime_top_slices": {
+            "bull": {
+              "top_1pct": {
+                "n": 7,
+                "trade_count": 7,
+                "win_rate": 1.0,
+                "avg_score": 0.8274,
+                "oos_roi": 0.0924,
+                "profit_factor": 999.0,
+                "max_drawdown": 0.0,
+                "wins": 7,
+                "losses": 0,
+                "regime_mix": {
+                  "bull": 7
+                }
+              },
+              "top_2pct": {
+                "n": 14,
+                "trade_count": 14,
+                "win_rate": 0.9286,
+                "avg_score": 0.8216,
+                "oos_roi": 0.1684,
+                "profit_factor": 24.1107,
+                "max_drawdown": 0.0073,
+                "wins": 13,
+                "losses": 1,
+                "regime_mix": {
+                  "bull": 14
+                }
+              },
+              "top_5pct": {
+                "n": 37,
+                "trade_count": 37,
+                "win_rate": 0.9459,
+                "avg_score": 0.8091,
+                "oos_roi": 0.4748,
+                "profit_factor": 49.9314,
+                "max_drawdown": 0.0097,
+                "wins": 35,
+                "losses": 2,
+                "regime_mix": {
+                  "bull": 37
+                }
+              },
+              "top_10pct": {
+                "n": 74,
+                "trade_count": 74,
+                "win_rate": 0.8108,
+                "avg_score": 0.7931,
+                "oos_roi": 0.8548,
+                "profit_factor": 9.865,
+                "max_drawdown": 0.0379,
+                "wins": 60,
+                "losses": 14,
+                "regime_mix": {
+                  "bull": 74
+                }
+              }
+            }
+          }
+        },
+        {
+          "fold": 1,
+          "train_start": "2024-04-14 07:00:00",
+          "train_end": "2024-09-13 23:00:00",
+          "test_start": "2024-09-14 00:00:00",
+          "test_end": "2024-10-13 23:00:00",
+          "train_rows": 3665,
+          "test_rows": 720,
+          "top_slices": {
+            "top_1pct": {
+              "n": 7,
+              "trade_count": 7,
+              "win_rate": 0.7143,
+              "avg_score": 0.7813,
+              "oos_roi": 0.0575,
+              "profit_factor": 7.3905,
+              "max_drawdown": 0.009,
+              "wins": 5,
+              "losses": 2,
+              "regime_mix": {
+                "bull": 7
+              }
+            },
+            "top_2pct": {
+              "n": 14,
+              "trade_count": 14,
+              "win_rate": 0.7143,
+              "avg_score": 0.7656,
+              "oos_roi": 0.0959,
+              "profit_factor": 5.7274,
+              "max_drawdown": 0.0203,
+              "wins": 10,
+              "losses": 4,
+              "regime_mix": {
+                "bull": 14
+              }
+            },
+            "top_5pct": {
+              "n": 36,
+              "trade_count": 36,
+              "win_rate": 0.6111,
+              "avg_score": 0.7374,
+              "oos_roi": 0.1442,
+              "profit_factor": 2.4174,
+              "max_drawdown": 0.0747,
+              "wins": 22,
+              "losses": 14,
+              "regime_mix": {
+                "bull": 36
+              }
+            },
+            "top_10pct": {
+              "n": 72,
+              "trade_count": 72,
+              "win_rate": 0.625,
+              "avg_score": 0.7039,
+              "oos_roi": 0.3642,
+              "profit_factor": 2.3139,
+              "max_drawdown": 0.2057,
+              "wins": 45,
+              "losses": 27,
+              "regime_mix": {
+                "bull": 72
+              }
+            }
+          },
+          "regime_top_slices": {
+            "bull": {
+              "top_1pct": {
+                "n": 7,
+                "trade_count": 7,
+                "win_rate": 0.7143,
+                "avg_score": 0.7813,
+                "oos_roi": 0.0575,
+                "profit_factor": 7.3905,
+                "max_drawdown": 0.009,
+                "wins": 5,
+                "losses": 2,
+                "regime_mix": {
+                  "bull": 7
+                }
+              },
+              "top_2pct": {
+                "n": 14,
+                "trade_count": 14,
+                "win_rate": 0.7143,
+                "avg_score": 0.7656,
+                "oos_roi": 0.0959,
+                "profit_factor": 5.7274,
+                "max_drawdown": 0.0203,
+                "wins": 10,
+                "losses": 4,
+                "regime_mix": {
+                  "bull": 14
+                }
+              },
+              "top_5pct": {
+                "n": 36,
+                "trade_count": 36,
+                "win_rate": 0.6111,
+                "avg_score": 0.7374,
+                "oos_roi": 0.1442,
+                "profit_factor": 2.4174,
+                "max_drawdown": 0.0747,
+                "wins": 22,
+                "losses": 14,
+                "regime_mix": {
+                  "bull": 36
+                }
+              },
+              "top_10pct": {
+                "n": 72,
+                "trade_count": 72,
+                "win_rate": 0.625,
+                "avg_score": 0.7039,
+                "oos_roi": 0.3642,
+                "profit_factor": 2.3139,
+                "max_drawdown": 0.2057,
+                "wins": 45,
+                "losses": 27,
+                "regime_mix": {
+                  "bull": 72
+                }
+              }
+            }
+          }
+        },
+        {
+          "fold": 2,
+          "train_start": "2024-04-14 07:00:00",
+          "train_end": "2024-10-13 23:00:00",
+          "test_start": "2024-10-14 00:00:00",
+          "test_end": "2024-11-13 23:00:00",
+          "train_rows": 4385,
+          "test_rows": 744,
+          "top_slices": {
+            "top_1pct": {
+              "n": 7,
+              "trade_count": 7,
+              "win_rate": 0.7143,
+              "avg_score": 0.6775,
+              "oos_roi": 0.128,
+              "profit_factor": 19.0182,
+              "max_drawdown": 0.0071,
+              "wins": 5,
+              "losses": 2,
+              "regime_mix": {
+                "bull": 7
+              }
+            },
+            "top_2pct": {
+              "n": 14,
+              "trade_count": 14,
+              "win_rate": 0.7857,
+              "avg_score": 0.6582,
+              "oos_roi": 0.2586,
+              "profit_factor": 22.5048,
+              "max_drawdown": 0.012,
+              "wins": 11,
+              "losses": 3,
+              "regime_mix": {
+                "bull": 14
+              }
+            },
+            "top_5pct": {
+              "n": 37,
+              "trade_count": 37,
+              "win_rate": 0.8649,
+              "avg_score": 0.6119,
+              "oos_roi": 0.6603,
+              "profit_factor": 27.572,
+              "max_drawdown": 0.0224,
+              "wins": 32,
+              "losses": 5,
+              "regime_mix": {
+                "bull": 37
+              }
+            },
+            "top_10pct": {
+              "n": 74,
+              "trade_count": 74,
+              "win_rate": 0.9054,
+              "avg_score": 0.5724,
+              "oos_roi": 1.0613,
+              "profit_factor": 21.4323,
+              "max_drawdown": 0.0418,
+              "wins": 67,
+              "losses": 7,
+              "regime_mix": {
+                "bull": 74
+              }
+            }
+          },
+          "regime_top_slices": {
+            "bull": {
+              "top_1pct": {
+                "n": 7,
+                "trade_count": 7,
+                "win_rate": 0.7143,
+                "avg_score": 0.6775,
+                "oos_roi": 0.128,
+                "profit_factor": 19.0182,
+                "max_drawdown": 0.0071,
+                "wins": 5,
+                "losses": 2,
+                "regime_mix": {
+                  "bull": 7
+                }
+              },
+              "top_2pct": {
+                "n": 14,
+                "trade_count": 14,
+                "win_rate": 0.7857,
+                "avg_score": 0.6582,
+                "oos_roi": 0.2586,
+                "profit_factor": 22.5048,
+                "max_drawdown": 0.012,
+                "wins": 11,
+                "losses": 3,
+                "regime_mix": {
+                  "bull": 14
+                }
+              },
+              "top_5pct": {
+                "n": 37,
+                "trade_count": 37,
+                "win_rate": 0.8649,
+                "avg_score": 0.6119,
+                "oos_roi": 0.6603,
+                "profit_factor": 27.572,
+                "max_drawdown": 0.0224,
+                "wins": 32,
+                "losses": 5,
+                "regime_mix": {
+                  "bull": 37
+                }
+              },
+              "top_10pct": {
+                "n": 74,
+                "trade_count": 74,
+                "win_rate": 0.9054,
+                "avg_score": 0.5724,
+                "oos_roi": 1.0613,
+                "profit_factor": 21.4323,
+                "max_drawdown": 0.0418,
+                "wins": 67,
+                "losses": 7,
+                "regime_mix": {
+                  "bull": 74
+                }
+              }
+            }
+          }
+        },
+        {
+          "fold": 3,
+          "train_start": "2024-04-14 07:00:00",
+          "train_end": "2024-11-13 23:00:00",
+          "test_start": "2024-11-14 00:00:00",
+          "test_end": "2024-12-13 23:00:00",
+          "train_rows": 5129,
+          "test_rows": 720,
+          "top_slices": {
+            "top_1pct": {
+              "n": 7,
+              "trade_count": 7,
+              "win_rate": 0.8571,
+              "avg_score": 0.7703,
+              "oos_roi": 0.0946,
+              "profit_factor": 10.7745,
+              "max_drawdown": 0.0097,
+              "wins": 6,
+              "losses": 1,
+              "regime_mix": {
+                "bull": 7
+              }
+            },
+            "top_2pct": {
+              "n": 14,
+              "trade_count": 14,
+              "win_rate": 0.9286,
+              "avg_score": 0.7634,
+              "oos_roi": 0.2259,
+              "profit_factor": 24.3331,
+              "max_drawdown": 0.0097,
+              "wins": 13,
+              "losses": 1,
+              "regime_mix": {
+                "bull": 14
+              }
+            },
+            "top_5pct": {
+              "n": 36,
+              "trade_count": 36,
+              "win_rate": 0.75,
+              "avg_score": 0.7501,
+              "oos_roi": 0.4367,
+              "profit_factor": 7.0628,
+              "max_drawdown": 0.0305,
+              "wins": 27,
+              "losses": 9,
+              "regime_mix": {
+                "bull": 36
+              }
+            },
+            "top_10pct": {
+              "n": 72,
+              "trade_count": 72,
+              "win_rate": 0.6389,
+              "avg_score": 0.7362,
+              "oos_roi": 0.5694,
+              "profit_factor": 3.8964,
+              "max_drawdown": 0.0856,
+              "wins": 46,
+              "losses": 26,
+              "regime_mix": {
+                "bull": 72
+              }
+            }
+          },
+          "regime_top_slices": {
+            "bull": {
+              "top_1pct": {
+                "n": 7,
+                "trade_count": 7,
+                "win_rate": 0.8571,
+                "avg_score": 0.7703,
+                "oos_roi": 0.0946,
+                "profit_factor": 10.7745,
+                "max_drawdown": 0.0097,
+                "wins": 6,
+                "losses": 1,
+                "regime_mix": {
+                  "bull": 7
+                }
+              },
+              "top_2pct": {
+                "n": 14,
+                "trade_count": 14,
+                "win_rate": 0.9286,
+                "avg_score": 0.7634,
+                "oos_roi": 0.2259,
+                "profit_factor": 24.3331,
+                "max_drawdown": 0.0097,
+                "wins": 13,
+                "losses": 1,
+                "regime_mix": {
+                  "bull": 14
+                }
+              },
+              "top_5pct": {
+                "n": 36,
+                "trade_count": 36,
+                "win_rate": 0.75,
+                "avg_score": 0.7501,
+                "oos_roi": 0.4367,
+                "profit_factor": 7.0628,
+                "max_drawdown": 0.0305,
+                "wins": 27,
+                "losses": 9,
+                "regime_mix": {
+                  "bull": 36
+                }
+              },
+              "top_10pct": {
+                "n": 72,
+                "trade_count": 72,
+                "win_rate": 0.6389,
+                "avg_score": 0.7362,
+                "oos_roi": 0.5694,
+                "profit_factor": 3.8964,
+                "max_drawdown": 0.0856,
+                "wins": 46,
+                "losses": 26,
+                "regime_mix": {
+                  "bull": 72
+                }
+              }
+            }
+          }
+        }
+      ],
+      "aggregate_top_slices": {
+        "top_1pct": {
+          "n": 29,
+          "trade_count": 29,
+          "win_rate": 0.931,
+          "avg_score": 0.8129,
+          "oos_roi": 0.3514,
+          "profit_factor": 37.2087,
+          "max_drawdown": 0.0097,
+          "wins": 27,
+          "losses": 2,
+          "regime_mix": {
+            "bull": 29
+          }
+        },
+        "top_2pct": {
+          "n": 58,
+          "trade_count": 58,
+          "win_rate": 0.8621,
+          "avg_score": 0.8015,
+          "oos_roi": 0.6884,
+          "profit_factor": 12.4161,
+          "max_drawdown": 0.027,
+          "wins": 50,
+          "losses": 8,
+          "regime_mix": {
+            "bull": 58
+          }
+        },
+        "top_5pct": {
+          "n": 146,
+          "trade_count": 146,
+          "win_rate": 0.7808,
+          "avg_score": 0.7758,
+          "oos_roi": 1.715,
+          "profit_factor": 7.8873,
+          "max_drawdown": 0.0698,
+          "wins": 114,
+          "losses": 32,
+          "regime_mix": {
+            "bull": 146
+          }
+        },
+        "top_10pct": {
+          "n": 292,
+          "trade_count": 292,
+          "win_rate": 0.7226,
+          "avg_score": 0.7503,
+          "oos_roi": 3.0297,
+          "profit_factor": 5.6532,
+          "max_drawdown": 0.1101,
+          "wins": 211,
+          "losses": 81,
+          "regime_mix": {
+            "bull": 292
+          }
+        }
+      },
+      "aggregate_regime_top_slices": {
+        "bull": {
+          "top_1pct": {
+            "n": 29,
+            "trade_count": 29,
+            "win_rate": 0.931,
+            "avg_score": 0.8129,
+            "oos_roi": 0.3514,
+            "profit_factor": 37.2087,
+            "max_drawdown": 0.0097,
+            "wins": 27,
+            "losses": 2,
+            "regime_mix": {
+              "bull": 29
+            }
+          },
+          "top_2pct": {
+            "n": 58,
+            "trade_count": 58,
+            "win_rate": 0.8621,
+            "avg_score": 0.8015,
+            "oos_roi": 0.6884,
+            "profit_factor": 12.4161,
+            "max_drawdown": 0.027,
+            "wins": 50,
+            "losses": 8,
+            "regime_mix": {
+              "bull": 58
+            }
+          },
+          "top_5pct": {
+            "n": 146,
+            "trade_count": 146,
+            "win_rate": 0.7808,
+            "avg_score": 0.7758,
+            "oos_roi": 1.715,
+            "profit_factor": 7.8873,
+            "max_drawdown": 0.0698,
+            "wins": 114,
+            "losses": 32,
+            "regime_mix": {
+              "bull": 146
+            }
+          },
+          "top_10pct": {
+            "n": 292,
+            "trade_count": 292,
+            "win_rate": 0.7226,
+            "avg_score": 0.7503,
+            "oos_roi": 3.0297,
+            "profit_factor": 5.6532,
+            "max_drawdown": 0.1101,
+            "wins": 211,
+            "losses": 81,
+            "regime_mix": {
+              "bull": 292
+            }
+          }
+        }
+      },
+      "overall_oos_base_rate": 0.6257,
+      "total_oos_rows": 2928
+    },
+    "logistic_regression": {
+      "folds": [
+        {
+          "fold": 0,
+          "train_start": "2024-04-14 07:00:00",
+          "train_end": "2024-08-13 23:00:00",
+          "test_start": "2024-08-14 00:00:00",
+          "test_end": "2024-09-13 23:00:00",
+          "train_rows": 2921,
+          "test_rows": 744,
+          "top_slices": {
+            "top_1pct": {
+              "n": 7,
+              "trade_count": 7,
+              "win_rate": 1.0,
+              "avg_score": 0.8935,
+              "oos_roi": 0.1003,
+              "profit_factor": 999.0,
+              "max_drawdown": 0.0,
+              "wins": 7,
+              "losses": 0,
+              "regime_mix": {
+                "bull": 7
+              }
+            },
+            "top_2pct": {
+              "n": 14,
+              "trade_count": 14,
+              "win_rate": 1.0,
+              "avg_score": 0.8776,
+              "oos_roi": 0.2188,
+              "profit_factor": 999.0,
+              "max_drawdown": 0.0,
+              "wins": 14,
+              "losses": 0,
+              "regime_mix": {
+                "bull": 14
+              }
+            },
+            "top_5pct": {
+              "n": 37,
+              "trade_count": 37,
+              "win_rate": 0.8108,
+              "avg_score": 0.8532,
+              "oos_roi": 0.4411,
+              "profit_factor": 11.0077,
+              "max_drawdown": 0.0167,
+              "wins": 30,
+              "losses": 7,
+              "regime_mix": {
+                "bull": 37
+              }
+            },
+            "top_10pct": {
+              "n": 74,
+              "trade_count": 74,
+              "win_rate": 0.7568,
+              "avg_score": 0.8309,
+              "oos_roi": 0.8353,
+              "profit_factor": 6.4142,
+              "max_drawdown": 0.0479,
+              "wins": 56,
+              "losses": 18,
+              "regime_mix": {
+                "bull": 74
+              }
+            }
+          },
+          "regime_top_slices": {
+            "bull": {
+              "top_1pct": {
+                "n": 7,
+                "trade_count": 7,
+                "win_rate": 1.0,
+                "avg_score": 0.8935,
+                "oos_roi": 0.1003,
+                "profit_factor": 999.0,
+                "max_drawdown": 0.0,
+                "wins": 7,
+                "losses": 0,
+                "regime_mix": {
+                  "bull": 7
+                }
+              },
+              "top_2pct": {
+                "n": 14,
+                "trade_count": 14,
+                "win_rate": 1.0,
+                "avg_score": 0.8776,
+                "oos_roi": 0.2188,
+                "profit_factor": 999.0,
+                "max_drawdown": 0.0,
+                "wins": 14,
+                "losses": 0,
+                "regime_mix": {
+                  "bull": 14
+                }
+              },
+              "top_5pct": {
+                "n": 37,
+                "trade_count": 37,
+                "win_rate": 0.8108,
+                "avg_score": 0.8532,
+                "oos_roi": 0.4411,
+                "profit_factor": 11.0077,
+                "max_drawdown": 0.0167,
+                "wins": 30,
+                "losses": 7,
+                "regime_mix": {
+                  "bull": 37
+                }
+              },
+              "top_10pct": {
+                "n": 74,
+                "trade_count": 74,
+                "win_rate": 0.7568,
+                "avg_score": 0.8309,
+                "oos_roi": 0.8353,
+                "profit_factor": 6.4142,
+                "max_drawdown": 0.0479,
+                "wins": 56,
+                "losses": 18,
+                "regime_mix": {
+                  "bull": 74
+                }
+              }
+            }
+          }
+        },
+        {
+          "fold": 1,
+          "train_start": "2024-04-14 07:00:00",
+          "train_end": "2024-09-13 23:00:00",
+          "test_start": "2024-09-14 00:00:00",
+          "test_end": "2024-10-13 23:00:00",
+          "train_rows": 3665,
+          "test_rows": 720,
+          "top_slices": {
+            "top_1pct": {
+              "n": 7,
+              "trade_count": 7,
+              "win_rate": 0.5714,
+              "avg_score": 0.7405,
+              "oos_roi": 0.0924,
+              "profit_factor": 7.4643,
+              "max_drawdown": 0.0143,
+              "wins": 4,
+              "losses": 3,
+              "regime_mix": {
+                "bull": 7
+              }
+            },
+            "top_2pct": {
+              "n": 14,
+              "trade_count": 14,
+              "win_rate": 0.6429,
+              "avg_score": 0.7314,
+              "oos_roi": 0.2068,
+              "profit_factor": 10.9824,
+              "max_drawdown": 0.0207,
+              "wins": 9,
+              "losses": 5,
+              "regime_mix": {
+                "bull": 14
+              }
+            },
+            "top_5pct": {
+              "n": 36,
+              "trade_count": 36,
+              "win_rate": 0.75,
+              "avg_score": 0.7129,
+              "oos_roi": 0.5189,
+              "profit_factor": 15.6555,
+              "max_drawdown": 0.0188,
+              "wins": 27,
+              "losses": 9,
+              "regime_mix": {
+                "bull": 36
+              }
+            },
+            "top_10pct": {
+              "n": 72,
+              "trade_count": 72,
+              "win_rate": 0.7917,
+              "avg_score": 0.6881,
+              "oos_roi": 1.0683,
+              "profit_factor": 14.6323,
+              "max_drawdown": 0.0483,
+              "wins": 57,
+              "losses": 15,
+              "regime_mix": {
+                "bull": 72
+              }
+            }
+          },
+          "regime_top_slices": {
+            "bull": {
+              "top_1pct": {
+                "n": 7,
+                "trade_count": 7,
+                "win_rate": 0.5714,
+                "avg_score": 0.7405,
+                "oos_roi": 0.0924,
+                "profit_factor": 7.4643,
+                "max_drawdown": 0.0143,
+                "wins": 4,
+                "losses": 3,
+                "regime_mix": {
+                  "bull": 7
+                }
+              },
+              "top_2pct": {
+                "n": 14,
+                "trade_count": 14,
+                "win_rate": 0.6429,
+                "avg_score": 0.7314,
+                "oos_roi": 0.2068,
+                "profit_factor": 10.9824,
+                "max_drawdown": 0.0207,
+                "wins": 9,
+                "losses": 5,
+                "regime_mix": {
+                  "bull": 14
+                }
+              },
+              "top_5pct": {
+                "n": 36,
+                "trade_count": 36,
+                "win_rate": 0.75,
+                "avg_score": 0.7129,
+                "oos_roi": 0.5189,
+                "profit_factor": 15.6555,
+                "max_drawdown": 0.0188,
+                "wins": 27,
+                "losses": 9,
+                "regime_mix": {
+                  "bull": 36
+                }
+              },
+              "top_10pct": {
+                "n": 72,
+                "trade_count": 72,
+                "win_rate": 0.7917,
+                "avg_score": 0.6881,
+                "oos_roi": 1.0683,
+                "profit_factor": 14.6323,
+                "max_drawdown": 0.0483,
+                "wins": 57,
+                "losses": 15,
+                "regime_mix": {
+                  "bull": 72
+                }
+              }
+            }
+          }
+        },
+        {
+          "fold": 2,
+          "train_start": "2024-04-14 07:00:00",
+          "train_end": "2024-10-13 23:00:00",
+          "test_start": "2024-10-14 00:00:00",
+          "test_end": "2024-11-13 23:00:00",
+          "train_rows": 4385,
+          "test_rows": 744,
+          "top_slices": {
+            "top_1pct": {
+              "n": 7,
+              "trade_count": 7,
+              "win_rate": 1.0,
+              "avg_score": 0.6997,
+              "oos_roi": 0.1354,
+              "profit_factor": 999.0,
+              "max_drawdown": 0.0,
+              "wins": 7,
+              "losses": 0,
+              "regime_mix": {
+                "bull": 7
+              }
+            },
+            "top_2pct": {
+              "n": 14,
+              "trade_count": 14,
+              "win_rate": 0.9286,
+              "avg_score": 0.6686,
+              "oos_roi": 0.2285,
+              "profit_factor": 93.6971,
+              "max_drawdown": 0.0025,
+              "wins": 13,
+              "losses": 1,
+              "regime_mix": {
+                "bull": 14
+              }
+            },
+            "top_5pct": {
+              "n": 37,
+              "trade_count": 37,
+              "win_rate": 0.973,
+              "avg_score": 0.6105,
+              "oos_roi": 0.6593,
+              "profit_factor": 268.4662,
+              "max_drawdown": 0.0025,
+              "wins": 36,
+              "losses": 1,
+              "regime_mix": {
+                "bull": 37
+              }
+            },
+            "top_10pct": {
+              "n": 74,
+              "trade_count": 74,
+              "win_rate": 0.9324,
+              "avg_score": 0.5658,
+              "oos_roi": 1.3771,
+              "profit_factor": 41.1805,
+              "max_drawdown": 0.0284,
+              "wins": 69,
+              "losses": 5,
+              "regime_mix": {
+                "bull": 74
+              }
+            }
+          },
+          "regime_top_slices": {
+            "bull": {
+              "top_1pct": {
+                "n": 7,
+                "trade_count": 7,
+                "win_rate": 1.0,
+                "avg_score": 0.6997,
+                "oos_roi": 0.1354,
+                "profit_factor": 999.0,
+                "max_drawdown": 0.0,
+                "wins": 7,
+                "losses": 0,
+                "regime_mix": {
+                  "bull": 7
+                }
+              },
+              "top_2pct": {
+                "n": 14,
+                "trade_count": 14,
+                "win_rate": 0.9286,
+                "avg_score": 0.6686,
+                "oos_roi": 0.2285,
+                "profit_factor": 93.6971,
+                "max_drawdown": 0.0025,
+                "wins": 13,
+                "losses": 1,
+                "regime_mix": {
+                  "bull": 14
+                }
+              },
+              "top_5pct": {
+                "n": 37,
+                "trade_count": 37,
+                "win_rate": 0.973,
+                "avg_score": 0.6105,
+                "oos_roi": 0.6593,
+                "profit_factor": 268.4662,
+                "max_drawdown": 0.0025,
+                "wins": 36,
+                "losses": 1,
+                "regime_mix": {
+                  "bull": 37
+                }
+              },
+              "top_10pct": {
+                "n": 74,
+                "trade_count": 74,
+                "win_rate": 0.9324,
+                "avg_score": 0.5658,
+                "oos_roi": 1.3771,
+                "profit_factor": 41.1805,
+                "max_drawdown": 0.0284,
+                "wins": 69,
+                "losses": 5,
+                "regime_mix": {
+                  "bull": 74
+                }
+              }
+            }
+          }
+        },
+        {
+          "fold": 3,
+          "train_start": "2024-04-14 07:00:00",
+          "train_end": "2024-11-13 23:00:00",
+          "test_start": "2024-11-14 00:00:00",
+          "test_end": "2024-12-13 23:00:00",
+          "train_rows": 5129,
+          "test_rows": 720,
+          "top_slices": {
+            "top_1pct": {
+              "n": 7,
+              "trade_count": 7,
+              "win_rate": 1.0,
+              "avg_score": 0.8905,
+              "oos_roi": 0.2072,
+              "profit_factor": 999.0,
+              "max_drawdown": 0.0,
+              "wins": 7,
+              "losses": 0,
+              "regime_mix": {
+                "bull": 7
+              }
+            },
+            "top_2pct": {
+              "n": 14,
+              "trade_count": 14,
+              "win_rate": 1.0,
+              "avg_score": 0.8679,
+              "oos_roi": 0.3714,
+              "profit_factor": 999.0,
+              "max_drawdown": 0.0,
+              "wins": 14,
+              "losses": 0,
+              "regime_mix": {
+                "bull": 14
+              }
+            },
+            "top_5pct": {
+              "n": 36,
+              "trade_count": 36,
+              "win_rate": 0.9444,
+              "avg_score": 0.8246,
+              "oos_roi": 0.8164,
+              "profit_factor": 162.5955,
+              "max_drawdown": 0.002,
+              "wins": 34,
+              "losses": 2,
+              "regime_mix": {
+                "bull": 36
+              }
+            },
+            "top_10pct": {
+              "n": 72,
+              "trade_count": 72,
+              "win_rate": 0.9028,
+              "avg_score": 0.7793,
+              "oos_roi": 1.4294,
+              "profit_factor": 32.129,
+              "max_drawdown": 0.0192,
+              "wins": 65,
+              "losses": 7,
+              "regime_mix": {
+                "bull": 72
+              }
+            }
+          },
+          "regime_top_slices": {
+            "bull": {
+              "top_1pct": {
+                "n": 7,
+                "trade_count": 7,
+                "win_rate": 1.0,
+                "avg_score": 0.8905,
+                "oos_roi": 0.2072,
+                "profit_factor": 999.0,
+                "max_drawdown": 0.0,
+                "wins": 7,
+                "losses": 0,
+                "regime_mix": {
+                  "bull": 7
+                }
+              },
+              "top_2pct": {
+                "n": 14,
+                "trade_count": 14,
+                "win_rate": 1.0,
+                "avg_score": 0.8679,
+                "oos_roi": 0.3714,
+                "profit_factor": 999.0,
+                "max_drawdown": 0.0,
+                "wins": 14,
+                "losses": 0,
+                "regime_mix": {
+                  "bull": 14
+                }
+              },
+              "top_5pct": {
+                "n": 36,
+                "trade_count": 36,
+                "win_rate": 0.9444,
+                "avg_score": 0.8246,
+                "oos_roi": 0.8164,
+                "profit_factor": 162.5955,
+                "max_drawdown": 0.002,
+                "wins": 34,
+                "losses": 2,
+                "regime_mix": {
+                  "bull": 36
+                }
+              },
+              "top_10pct": {
+                "n": 72,
+                "trade_count": 72,
+                "win_rate": 0.9028,
+                "avg_score": 0.7793,
+                "oos_roi": 1.4294,
+                "profit_factor": 32.129,
+                "max_drawdown": 0.0192,
+                "wins": 65,
+                "losses": 7,
+                "regime_mix": {
+                  "bull": 72
+                }
+              }
+            }
+          }
+        }
+      ],
+      "aggregate_top_slices": {
+        "top_1pct": {
+          "n": 29,
+          "trade_count": 29,
+          "win_rate": 0.931,
+          "avg_score": 0.8732,
+          "oos_roi": 0.5529,
+          "profit_factor": 97.8296,
+          "max_drawdown": 0.0057,
+          "wins": 27,
+          "losses": 2,
+          "regime_mix": {
+            "bull": 29
+          }
+        },
+        "top_2pct": {
+          "n": 58,
+          "trade_count": 58,
+          "win_rate": 0.8621,
+          "avg_score": 0.853,
+          "oos_roi": 0.9324,
+          "profit_factor": 19.8864,
+          "max_drawdown": 0.022,
+          "wins": 50,
+          "losses": 8,
+          "regime_mix": {
+            "bull": 58
+          }
+        },
+        "top_5pct": {
+          "n": 146,
+          "trade_count": 146,
+          "win_rate": 0.8014,
+          "avg_score": 0.8179,
+          "oos_roi": 2.05,
+          "profit_factor": 8.2813,
+          "max_drawdown": 0.1098,
+          "wins": 117,
+          "losses": 29,
+          "regime_mix": {
+            "bull": 146
+          }
+        },
+        "top_10pct": {
+          "n": 292,
+          "trade_count": 292,
+          "win_rate": 0.7842,
+          "avg_score": 0.785,
+          "oos_roi": 3.8526,
+          "profit_factor": 7.0341,
+          "max_drawdown": 0.2601,
+          "wins": 229,
+          "losses": 63,
+          "regime_mix": {
+            "bull": 292
+          }
+        }
+      },
+      "aggregate_regime_top_slices": {
+        "bull": {
+          "top_1pct": {
+            "n": 29,
+            "trade_count": 29,
+            "win_rate": 0.931,
+            "avg_score": 0.8732,
+            "oos_roi": 0.5529,
+            "profit_factor": 97.8296,
+            "max_drawdown": 0.0057,
+            "wins": 27,
+            "losses": 2,
+            "regime_mix": {
+              "bull": 29
+            }
+          },
+          "top_2pct": {
+            "n": 58,
+            "trade_count": 58,
+            "win_rate": 0.8621,
+            "avg_score": 0.853,
+            "oos_roi": 0.9324,
+            "profit_factor": 19.8864,
+            "max_drawdown": 0.022,
+            "wins": 50,
+            "losses": 8,
+            "regime_mix": {
+              "bull": 58
+            }
+          },
+          "top_5pct": {
+            "n": 146,
+            "trade_count": 146,
+            "win_rate": 0.8014,
+            "avg_score": 0.8179,
+            "oos_roi": 2.05,
+            "profit_factor": 8.2813,
+            "max_drawdown": 0.1098,
+            "wins": 117,
+            "losses": 29,
+            "regime_mix": {
+              "bull": 146
+            }
+          },
+          "top_10pct": {
+            "n": 292,
+            "trade_count": 292,
+            "win_rate": 0.7842,
+            "avg_score": 0.785,
+            "oos_roi": 3.8526,
+            "profit_factor": 7.0341,
+            "max_drawdown": 0.2601,
+            "wins": 229,
+            "losses": 63,
+            "regime_mix": {
+              "bull": 292
+            }
+          }
+        }
+      },
+      "overall_oos_base_rate": 0.6257,
+      "total_oos_rows": 2928
+    }
+  },
+  "row_count": 24,
+  "deployable_rows": 0,
+  "risk_qualified_rows": 6,
+  "runtime_blocked_candidate_rows": 6,
+  "support_context_source": "latest_live_predict_probe",
+  "support_context_current_as_of": "2026-05-01T22:02:07.376150Z"
+}

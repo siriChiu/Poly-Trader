@@ -1104,10 +1104,20 @@ def _high_conviction_support_context_from_live(
     return context
 
 
+def _support_route_explicit_is_deployable(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "deployable", "supported"}
+    return bool(value)
+
+
 def _support_route_context_is_deployable(support_context: Dict[str, Any]) -> bool:
     explicit = support_context.get("support_route_deployable")
     if explicit is not None:
-        return bool(explicit)
+        return _support_route_explicit_is_deployable(explicit)
     route = str(support_context.get("support_route_verdict") or support_context.get("support_route") or "").strip().lower()
     return route in {"deployable", "exact_bucket_supported", "support_route_deployable"}
 

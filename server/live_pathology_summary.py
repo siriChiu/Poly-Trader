@@ -24,6 +24,25 @@ def _fmt_float(value: Any, digits: int = 3) -> str:
     return f"{float(value):.{digits}f}"
 
 
+def _support_route_is_deployable(explicit: Any, route: Any = None) -> bool:
+    """Normalize support-route deployability from JSON artifacts fail-closed.
+
+    Several heartbeat/probe artifacts are JSON-generated and may carry booleans
+    as strings.  Python truthiness would treat ``"false"`` / ``"0"`` as true,
+    which can incorrectly promote a reference-only patch to deployable.
+    """
+    if explicit is not None:
+        if isinstance(explicit, bool):
+            return explicit
+        if isinstance(explicit, (int, float)) and not isinstance(explicit, bool):
+            return bool(explicit)
+        if isinstance(explicit, str):
+            return explicit.strip().lower() in {"1", "true", "yes", "y", "deployable", "supported"}
+        return bool(explicit)
+    route_text = str(route or "").strip().lower()
+    return route_text in {"deployable", "exact_bucket_supported", "support_route_deployable"}
+
+
 def build_live_pathology_scope_summary(scope_diagnostics: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     if not isinstance(scope_diagnostics, dict):
         return None
@@ -208,6 +227,10 @@ def build_live_pathology_patch_summary(
     support_route_deployable = confidence_payload.get("support_route_deployable")
     if support_route_deployable is None:
         support_route_deployable = live_context.get("support_route_deployable")
+    support_route_deployable_bool = _support_route_is_deployable(
+        support_route_deployable,
+        support_route_verdict,
+    )
 
     current_live_bucket = str(
         confidence_payload.get("current_live_structure_bucket")
@@ -245,7 +268,7 @@ def build_live_pathology_patch_summary(
         reference_patch_scope = "bull|CAUTION"
         reference_source = "bull_4h_pocket_ablation.bull_collapse_q35"
 
-    exact_support_not_ready = not bool(support_route_deployable)
+    exact_support_not_ready = not support_route_deployable_bool
     if minimum_rows is not None and current_rows is not None and current_rows < minimum_rows:
         exact_support_not_ready = True
     elif str(support_route_verdict or "").startswith("exact_bucket_missing"):
@@ -348,7 +371,7 @@ def build_live_pathology_patch_summary(
         "min_collapse_flags": ablation.get("min_collapse_flags"),
         "preferred_support_cohort": support_summary.get("preferred_support_cohort"),
         "support_route_verdict": support_route_verdict,
-        "support_route_deployable": bool(support_route_deployable),
+        "support_route_deployable": support_route_deployable_bool,
         "current_live_regime_gate": current_live_regime_gate,
         "patch_scope_matches_live": not non_current_live_scope,
         "reference_only_cause": reference_only_cause,
