@@ -1,9 +1,37 @@
 import json
+import runpy
+import sys
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
 from scripts import topk_walkforward_precision as topk
+
+
+def test_direct_script_execution_bootstraps_project_root(monkeypatch, tmp_path):
+    script_path = Path(topk.__file__).resolve()
+    project_root = script_path.parent.parent
+    scripts_dir = script_path.parent
+    filtered_paths = []
+    for entry in sys.path:
+        if not entry:
+            continue
+        try:
+            resolved = Path(entry).resolve()
+        except Exception:
+            filtered_paths.append(entry)
+            continue
+        if resolved in {project_root, scripts_dir}:
+            continue
+        filtered_paths.append(entry)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "path", [str(scripts_dir), *filtered_paths])
+
+    runpy.run_path(str(script_path), run_name="__topk_bootstrap_test__")
+
+    assert sys.path[0] == str(project_root)
 
 
 def test_summarize_subset_includes_oos_roi_profit_factor_and_drawdown():
