@@ -854,6 +854,28 @@ def _should_refresh_current_live_issue_title(current_title: str | None, live_sum
     return False
 
 
+def _high_conviction_topk_fast_refresh_requirement(
+    *,
+    now: datetime | None = None,
+) -> tuple[bool, str | None]:
+    """Return whether fast heartbeat must rebuild the Top-K OOS matrix.
+
+    Fast heartbeats normally reuse candidate artifacts to stay cron-safe, but the
+    high-conviction Top-K matrix is an operator-facing deployment gate.  If its
+    own generated_at freshness contract has expired, refreshing only this bounded
+    lane is safer than delivering stale Strategy Lab / leaderboard deployability
+    truth for another cron interval.
+    """
+    matrix_path = Path(PROJECT_ROOT) / "data" / "high_conviction_topk_oos_matrix.json"
+    payload = _read_json_file(matrix_path)
+    if not payload:
+        return True, "artifact_missing"
+    freshness = _high_conviction_topk_freshness(payload.get("generated_at"), now=now)
+    if freshness.get("status") != "fresh":
+        return True, str(freshness.get("reason") or freshness.get("status") or "artifact_not_fresh")
+    return False, None
+
+
 def _compact_high_conviction_topk_matrix_summary(
     live_predictor_diagnostics: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
@@ -6584,8 +6606,33 @@ def main(argv=None):
 
     topk_artifact_path = Path(PROJECT_ROOT) / "data" / "high_conviction_topk_oos_matrix.json"
     write_progress(run_label, "topk_walkforward_precision")
-    if refresh_candidate_eval_lanes:
+    topk_fast_refresh_required = False
+    topk_fast_refresh_reason = None
+    if not refresh_candidate_eval_lanes:
+        topk_fast_refresh_required, topk_fast_refresh_reason = _high_conviction_topk_fast_refresh_requirement()
+
+    if refresh_candidate_eval_lanes or topk_fast_refresh_required:
+        if topk_fast_refresh_required and not refresh_candidate_eval_lanes:
+            print(
+                "♻️  High-conviction Top-K matrix：fast mode 偵測到 "
+                f"{topk_fast_refresh_reason}，只重建 Top-K OOS gate，"
+                "仍跳過 feature/bull candidate grids。"
+            )
         high_conviction_topk_result = run_high_conviction_topk_refresh()
+        if topk_fast_refresh_required and not refresh_candidate_eval_lanes:
+            high_conviction_topk_result["fast_payload_refresh"] = True
+            high_conviction_topk_result["fast_payload_refresh_reason"] = topk_fast_refresh_reason
+            write_progress(
+                run_label,
+                "topk_walkforward_precision",
+                status="completed" if high_conviction_topk_result.get("success") else "failed",
+                details={
+                    "fast_payload_refresh": True,
+                    "refresh_reason": topk_fast_refresh_reason,
+                    "artifact_path": str(topk_artifact_path),
+                    "feature_and_bull_grids_skipped": True,
+                },
+            )
         print(
             f"🎯 High-conviction Top-K matrix：{'通過' if high_conviction_topk_result['success'] else '失敗'} "
             f"(rc={high_conviction_topk_result['returncode']})"

@@ -78,6 +78,34 @@ def test_high_conviction_support_route_context_string_false_fails_closed():
     )
 
 
+def test_high_conviction_topk_fast_refresh_requirement_uses_generated_at_freshness(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    now = hb_parallel_runner.datetime(2026, 5, 2, 6, 5, tzinfo=hb_parallel_runner.timezone.utc)
+
+    required, reason = hb_parallel_runner._high_conviction_topk_fast_refresh_requirement(now=now)
+    assert required is True
+    assert reason == "artifact_missing"
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    matrix_path = data_dir / "high_conviction_topk_oos_matrix.json"
+    matrix_path.write_text(
+        json.dumps({"generated_at": "2026-05-02T05:03:40+00:00", "rows": []}),
+        encoding="utf-8",
+    )
+    required, reason = hb_parallel_runner._high_conviction_topk_fast_refresh_requirement(now=now)
+    assert required is True
+    assert reason == "artifact_older_than_policy"
+
+    matrix_path.write_text(
+        json.dumps({"generated_at": "2026-05-02T06:00:00+00:00", "rows": []}),
+        encoding="utf-8",
+    )
+    required, reason = hb_parallel_runner._high_conviction_topk_fast_refresh_requirement(now=now)
+    assert required is False
+    assert reason is None
+
+
 def test_parse_args_allows_fast_candidate_refresh_opt_in():
     args = hb_parallel_runner.parse_args(["--fast", "--fast-refresh-candidates", "--hb", "hb123"])
 
@@ -6138,6 +6166,7 @@ def test_main_writes_final_progress_artifact(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "collect_circuit_breaker_audit_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_leaderboard_candidate_probe", lambda run_label=None: _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_high_conviction_topk_refresh", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "run_q15_support_audit", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_audit_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_q15_bucket_root_cause", lambda: _ok())
