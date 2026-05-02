@@ -1234,6 +1234,13 @@ def _sync_high_conviction_topk_matrix_live_context(
         for row in rows:
             if isinstance(row, dict):
                 _apply_live_support_context_to_high_conviction_row(row, support_context)
+        freshness = _high_conviction_topk_freshness(payload.get("generated_at"))
+        payload["artifact_freshness_status"] = freshness.get("status")
+        payload["artifact_freshness_reason"] = freshness.get("reason")
+        payload["artifact_age_minutes"] = freshness.get("age_minutes")
+        payload["artifact_stale_after_minutes"] = freshness.get("stale_after_minutes")
+        payload["artifact_deployment_blocking"] = freshness.get("deployment_blocking")
+        payload["artifact_freshness_checked_at"] = freshness.get("checked_at")
         payload["row_count"] = len([row for row in rows if isinstance(row, dict)])
         payload["deployable_rows"] = sum(1 for row in rows if isinstance(row, dict) and row.get("deployable_verdict") == "deployable")
         payload["risk_qualified_rows"] = sum(1 for row in rows if isinstance(row, dict) and row.get("oos_gate_passed"))
@@ -4486,6 +4493,10 @@ def save_summary(
 
     summary_now = datetime.now(timezone.utc)
     historical_coverage_confirmation = collect_historical_coverage_confirmation(DB_PATH)
+    high_conviction_topk_synced = _sync_high_conviction_topk_matrix_live_context(live_predictor_diagnostics)
+    high_conviction_topk = _compact_high_conviction_topk_matrix_summary(live_predictor_diagnostics)
+    if high_conviction_topk:
+        high_conviction_topk["live_context_sync_applied"] = high_conviction_topk_synced
     summary = {
         "heartbeat": run_label,
         "mode": "fast" if fast_mode else "full",
@@ -4513,6 +4524,7 @@ def save_summary(
         "feature_ablation": feature_ablation or {},
         "bull_4h_pocket_ablation": bull_4h_pocket_ablation or {},
         "leaderboard_candidate_diagnostics": leaderboard_candidate_diagnostics or {},
+        "high_conviction_topk": high_conviction_topk,
         "q15_runtime_resync": q15_runtime_resync or {"triggered": False, "reason": None, "message": None},
         "auto_propose": {
             "attempted": (auto_propose_result or {}).get("attempted", False),

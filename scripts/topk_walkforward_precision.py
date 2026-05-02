@@ -27,6 +27,40 @@ MINIMUM_DEPLOYMENT_GATES = {
     "support_route": "deployable",
 }
 LIVE_GUARDRAIL_FAILURES = {"support_route_not_deployable", "deployment_blocker_active"}
+ARTIFACT_STALE_AFTER_MINUTES = 60.0
+
+
+def artifact_freshness_fields(generated_at: Any, *, now: datetime | None = None) -> dict[str, Any]:
+    """Machine-readable freshness/deployment-blocking contract for Top-K artifacts."""
+    checked_at = now or datetime.now(timezone.utc)
+    payload: dict[str, Any] = {
+        "artifact_freshness_status": "unavailable",
+        "artifact_freshness_reason": "missing_generated_at",
+        "artifact_age_minutes": None,
+        "artifact_stale_after_minutes": ARTIFACT_STALE_AFTER_MINUTES,
+        "artifact_deployment_blocking": True,
+        "artifact_freshness_checked_at": checked_at.isoformat(),
+    }
+    if not generated_at:
+        return payload
+    try:
+        generated_dt = datetime.fromisoformat(str(generated_at).replace("Z", "+00:00"))
+        if generated_dt.tzinfo is None:
+            generated_dt = generated_dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        payload["artifact_freshness_reason"] = "invalid_generated_at"
+        return payload
+    age_minutes = max((checked_at - generated_dt).total_seconds(), 0.0) / 60.0
+    status = "fresh" if age_minutes <= ARTIFACT_STALE_AFTER_MINUTES else "stale"
+    payload.update(
+        {
+            "artifact_freshness_status": status,
+            "artifact_freshness_reason": "artifact_within_policy" if status == "fresh" else "artifact_older_than_policy",
+            "artifact_age_minutes": age_minutes,
+            "artifact_deployment_blocking": status != "fresh",
+        }
+    )
+    return payload
 
 
 def _round_or_none(value: Any, digits: int = 4) -> Optional[float]:
@@ -432,8 +466,10 @@ def evaluate_model(data: pd.DataFrame, target_col: str, model_name: str) -> dict
 def main() -> None:
     data, target_col = load_frame()
     support_context = _load_support_context()
+    generated_at = datetime.now(timezone.utc).isoformat()
     result = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": generated_at,
+        **artifact_freshness_fields(generated_at),
         "target_col": target_col,
         "samples": int(len(data)),
         "top_k_grid": [f"top_{int(pct * 100)}pct" for pct in TOP_PCTS],

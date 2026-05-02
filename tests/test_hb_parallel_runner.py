@@ -3675,6 +3675,69 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     recent_drift_path = tmp_path / "data" / "recent_drift_report.json"
     recent_drift_path.parent.mkdir(exist_ok=True)
     recent_drift_path.write_text(json.dumps({"generated_at": "2026-04-17T09:54:00+00:00"}), encoding="utf-8")
+    high_conviction_path = tmp_path / "data" / "high_conviction_topk_oos_matrix.json"
+    high_conviction_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2999-01-01T00:00:00+00:00",
+                "artifact": "data/high_conviction_topk_oos_matrix.json",
+                "samples": 1234,
+                "models": {"xgboost": {}},
+                "support_context": {
+                    "support_route_verdict": "exact_bucket_supported",
+                    "support_route_deployable": True,
+                    "deployment_blocker": "none",
+                    "runtime_closure_state": "breaker_clear",
+                    "current_live_structure_bucket": "CAUTION|stale_supported_reference|q35",
+                    "current_live_structure_bucket_rows": 80,
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 0,
+                },
+                "rows": [
+                    {
+                        "model": "xgboost",
+                        "feature_profile": "current_full",
+                        "regime": "all",
+                        "top_k": "top_5pct",
+                        "oos_roi": 0.42,
+                        "win_rate": 0.66,
+                        "profit_factor": 2.1,
+                        "max_drawdown": 0.04,
+                        "worst_fold": 0.01,
+                        "trade_count": 72,
+                        "deployable_verdict": "deployable",
+                        "deployment_candidate_tier": "deployable",
+                        "gate_failures": [],
+                        "model_gate_failures": [],
+                        "live_gate_failures": [],
+                        "oos_gate_passed": True,
+                        "blocked_only_by_live_guardrails": False,
+                        "support_route": "exact_bucket_supported",
+                        "support_route_deployable": True,
+                        "deployment_blocker": "none",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    live_predictor_diagnostics = {
+        "decision_quality_label": "D",
+        "allowed_layers": 0,
+        "signal": "ABSTAIN",
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+        "support_route_deployable": False,
+        "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+        "runtime_closure_state": "patch_inactive_or_blocked",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+        "current_live_structure_bucket_rows": 9,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 41,
+        "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+    }
 
     summary, summary_path = hb_parallel_runner.save_summary(
         "fast",
@@ -3686,7 +3749,7 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
         fast_mode=True,
         ic_diagnostics={"global_pass": 13, "tw_pass": 10, "total_features": 30},
         drift_diagnostics={"generated_at": "2026-04-17T09:54:00+00:00", "primary_window": "100", "primary_alerts": ["regime_concentration"]},
-        live_predictor_diagnostics={"decision_quality_label": "D", "allowed_layers": 0},
+        live_predictor_diagnostics=live_predictor_diagnostics,
         live_decision_drilldown={
             "json": "data/live_decision_quality_drilldown.json",
             "chosen_scope": "regime_label+entry_quality_label",
@@ -3763,6 +3826,14 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert summary["bull_4h_pocket_ablation"]["production_profile_role"]["role"] == "support_aware_production_profile"
     assert summary["leaderboard_candidate_diagnostics"]["selected_feature_profile"] == "core_only"
     assert summary["leaderboard_candidate_diagnostics"]["profile_split"]["verdict"] == "dual_role_required"
+    assert summary["high_conviction_topk"]["live_context_sync_applied"] is True
+    assert summary["high_conviction_topk"]["deployable_rows"] == 0
+    assert summary["high_conviction_topk"]["risk_qualified_rows"] == 1
+    assert summary["high_conviction_topk"]["runtime_blocked_candidate_rows"] == 1
+    assert summary["high_conviction_topk"]["support_route"] == "exact_bucket_present_but_below_minimum"
+    assert summary["high_conviction_topk"]["current_live_structure_bucket_rows"] == 9
+    assert summary["high_conviction_topk"]["nearest_deployable_candidate"]["deployable_verdict"] == "not_deployable"
+    assert summary["high_conviction_topk"]["nearest_deployable_candidate"]["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
     assert summary["auto_propose"]["success"] is True
     assert summary["docs_sync"]["ok"] is False
     assert summary["docs_sync"]["stale_docs"] == ["ISSUES.md"]
@@ -3794,6 +3865,19 @@ def test_save_summary_uses_run_label_and_persists_source_blockers(tmp_path, monk
     assert saved["bull_4h_pocket_ablation"]["production_profile_role"]["role"] == "support_aware_production_profile"
     assert saved["leaderboard_candidate_diagnostics"]["dual_profile_state"] == "leaderboard_global_winner_vs_train_support_fallback"
     assert saved["leaderboard_candidate_diagnostics"]["profile_split"]["verdict"] == "dual_role_required"
+    assert saved["high_conviction_topk"]["deployable_rows"] == 0
+    assert saved["high_conviction_topk"]["risk_qualified_rows"] == 1
+    assert saved["high_conviction_topk"]["runtime_blocked_candidate_rows"] == 1
+    assert saved["high_conviction_topk"]["support_route_deployable"] is False
+    rewritten_matrix = json.loads(high_conviction_path.read_text(encoding="utf-8"))
+    assert rewritten_matrix["deployable_rows"] == 0
+    assert rewritten_matrix["runtime_blocked_candidate_rows"] == 1
+    assert rewritten_matrix["artifact_freshness_status"] == "fresh"
+    assert rewritten_matrix["artifact_stale_after_minutes"] == 60.0
+    assert rewritten_matrix["artifact_deployment_blocking"] is False
+    assert rewritten_matrix["rows"][0]["gate_failures"] == ["support_route_not_deployable", "deployment_blocker_active"]
+    assert rewritten_matrix["rows"][0]["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+    assert rewritten_matrix["rows"][0]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q35"
     assert saved["auto_propose"]["stdout_preview"] == "ok"
     assert saved["docs_sync"]["ok"] is False
     assert saved["docs_sync"]["reference_artifacts"] == ["issues.json"]

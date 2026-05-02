@@ -9,6 +9,24 @@ import pytest
 from scripts import topk_walkforward_precision as topk
 
 
+def test_artifact_freshness_fields_are_machine_readable_deployment_gate():
+    fresh = topk.artifact_freshness_fields(
+        "2026-05-02T02:00:00+00:00",
+        now=topk.datetime(2026, 5, 2, 2, 30, tzinfo=topk.timezone.utc),
+    )
+    stale = topk.artifact_freshness_fields(
+        "2026-05-02T02:00:00+00:00",
+        now=topk.datetime(2026, 5, 2, 3, 30, tzinfo=topk.timezone.utc),
+    )
+
+    assert fresh["artifact_freshness_status"] == "fresh"
+    assert fresh["artifact_deployment_blocking"] is False
+    assert fresh["artifact_stale_after_minutes"] == 60.0
+    assert stale["artifact_freshness_status"] == "stale"
+    assert stale["artifact_freshness_reason"] == "artifact_older_than_policy"
+    assert stale["artifact_deployment_blocking"] is True
+
+
 def test_direct_script_execution_bootstraps_project_root(monkeypatch, tmp_path):
     script_path = Path(topk.__file__).resolve()
     project_root = script_path.parent.parent
