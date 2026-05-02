@@ -4948,6 +4948,7 @@ def test_main_fast_mode_opt_in_refreshes_candidate_lanes(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "collect_bull_4h_pocket_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_leaderboard_candidate_probe", lambda run_label=None: order.append("leaderboard") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_leaderboard_candidate_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_high_conviction_topk_refresh", lambda: order.append("topk") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "run_q15_support_audit", lambda: order.append("q15") or _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_audit_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_q15_bucket_root_cause", lambda: order.append("q15_root") or _ok())
@@ -4966,6 +4967,7 @@ def test_main_fast_mode_opt_in_refreshes_candidate_lanes(tmp_path, monkeypatch):
         "feature_ablation",
         "bull_pocket",
         "leaderboard",
+        "topk",
         "q15",
         "q15_root",
         "q15_replay",
@@ -5116,6 +5118,12 @@ def test_full_serial_timeout_caps_expensive_candidate_lanes(monkeypatch):
     assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["hb_leaderboard_candidate_probe"] == 90
     assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["hb_leaderboard_candidate_probe"] < 600
     assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/topk_walkforward_precision.py"],
+        None,
+    ) == hb_parallel_runner.FULL_SERIAL_TIMEOUTS["topk_walkforward_precision"]
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["topk_walkforward_precision"] == 120
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["topk_walkforward_precision"] < 600
+    assert hb_parallel_runner._resolve_serial_timeout(
         ["python", "scripts/hb_predict_probe.py"],
         None,
     ) == 600
@@ -5132,6 +5140,15 @@ def test_full_serial_timeout_caps_expensive_candidate_lanes(monkeypatch):
     assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["hb_leaderboard_candidate_probe"] == 90
     assert (
         hb_parallel_runner.FAST_SERIAL_TIMEOUTS["hb_leaderboard_candidate_probe"]
+        < hb_parallel_runner.FAST_HEARTBEAT_CRON_BUDGET_SECONDS / 2
+    )
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/topk_walkforward_precision.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["topk_walkforward_precision"]
+    assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["topk_walkforward_precision"] == 90
+    assert (
+        hb_parallel_runner.FAST_SERIAL_TIMEOUTS["topk_walkforward_precision"]
         < hb_parallel_runner.FAST_HEARTBEAT_CRON_BUDGET_SECONDS / 2
     )
 

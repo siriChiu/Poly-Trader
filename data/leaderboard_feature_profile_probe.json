@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-05-02T03:16:24.546965Z",
-  "leaderboard_snapshot_created_at": "2026-05-02T03:03:21.543704Z",
+  "generated_at": "2026-05-02T04:22:40.893435Z",
+  "leaderboard_snapshot_created_at": "2026-05-02T04:04:37.157138Z",
   "leaderboard_payload_source": "latest_persisted_snapshot",
-  "leaderboard_payload_updated_at": "2026-05-02T03:03:21.543704Z",
-  "leaderboard_payload_cache_age_sec": 783,
-  "leaderboard_payload_stale": false,
+  "leaderboard_payload_updated_at": "2026-05-02T04:04:37.157138Z",
+  "leaderboard_payload_cache_age_sec": 1083,
+  "leaderboard_payload_stale": true,
   "leaderboard_payload_error": null,
   "leaderboard_payload_cache_error": null,
   "target_col": "simulated_pyramid_win",
@@ -82,7 +82,7 @@
         "feature_profile_source": "feature_group_ablation.weak_4h_veto_fallback",
         "support_cohort": "bull_collapse_q35",
         "support_rows": 942,
-        "exact_live_bucket_rows": 22,
+        "exact_live_bucket_rows": 23,
         "minimum_support_rows": 50,
         "blocker_applied": true,
         "blocker_reason": "under_minimum_exact_live_structure_bucket",
@@ -101,7 +101,7 @@
         "feature_profile_source": "feature_group_ablation.weak_4h_veto_fallback",
         "support_cohort": "bull_collapse_q35",
         "support_rows": 942,
-        "exact_live_bucket_rows": 22,
+        "exact_live_bucket_rows": 23,
         "minimum_support_rows": 50,
         "blocker_applied": true,
         "blocker_reason": "under_minimum_exact_live_structure_bucket",
@@ -130,8 +130,8 @@
     "train_exact_live_bucket_rows": 21,
     "leaderboard_selected_profile": "core_only",
     "leaderboard_selected_profile_source": "leaderboard.fixed_feature_candidate",
-    "leaderboard_snapshot_created_at": "2026-05-02T03:03:21.543704Z",
-    "alignment_evaluated_at": "2026-05-02T03:16:24.546965Z",
+    "leaderboard_snapshot_created_at": "2026-05-02T04:04:37.157138Z",
+    "alignment_evaluated_at": "2026-05-02T04:22:40.893435Z",
     "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback",
     "profile_split": {
       "global_profile": "current_full",
@@ -157,16 +157,16 @@
       "support_governance_route": "exact_live_bucket_present_but_below_minimum",
       "split_required": true,
       "minimum_support_rows": 50,
-      "live_current_structure_bucket_rows": 22,
-      "live_current_structure_bucket_gap_to_minimum": 28,
+      "live_current_structure_bucket_rows": 23,
+      "live_current_structure_bucket_gap_to_minimum": 27,
       "support_progress": {
         "status": "stalled_under_minimum",
         "reason": "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
-        "current_rows": 22,
+        "current_rows": 23,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 28,
+        "gap_to_minimum": 27,
         "delta_vs_previous": 0,
-        "previous_rows": 22,
+        "previous_rows": 23,
         "previous_route_changed": false,
         "previous_support_governance_route": "exact_live_bucket_present_but_below_minimum",
         "regressed_from_supported": false,
@@ -180,12 +180,30 @@
         "history": [
           {
             "heartbeat": "current",
-            "timestamp": "2026-05-02T03:16:24.547675+00:00",
+            "timestamp": "2026-05-02T04:22:40.894331+00:00",
+            "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "live_current_structure_bucket_rows": 23,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "governance_verdict": null
+          },
+          {
+            "heartbeat": "1173",
+            "timestamp": "2026-05-02T04:04:43.923872+00:00",
+            "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "live_current_structure_bucket_rows": 23,
+            "minimum_support_rows": 50,
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "governance_verdict": "dual_role_governance_active"
+          },
+          {
+            "heartbeat": "1172",
+            "timestamp": "2026-05-02T03:16:29.905343+00:00",
             "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
             "live_current_structure_bucket_rows": 22,
             "minimum_support_rows": 50,
             "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-            "governance_verdict": null
+            "governance_verdict": "dual_role_governance_active"
           },
           {
             "heartbeat": "1171",
@@ -204,24 +222,6 @@
             "minimum_support_rows": 50,
             "support_governance_route": "exact_live_bucket_present_but_below_minimum",
             "governance_verdict": "dual_role_governance_active"
-          },
-          {
-            "heartbeat": "1169",
-            "timestamp": "2026-05-02T02:31:07.860846+00:00",
-            "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-            "live_current_structure_bucket_rows": 21,
-            "minimum_support_rows": 50,
-            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-            "governance_verdict": "dual_role_governance_active"
-          },
-          {
-            "heartbeat": "1168",
-            "timestamp": "2026-05-02T02:21:17.240927+00:00",
-            "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-            "live_current_structure_bucket_rows": 21,
-            "minimum_support_rows": 50,
-            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-            "governance_verdict": "dual_role_governance_active"
           }
         ]
       }
@@ -233,7 +233,7 @@
       "evaluated_before_bull_pocket": false,
       "evaluated_before_feature_ablation": false,
       "train_trained_at": "2026-05-02T03:02:25.601374",
-      "bull_pocket_generated_at": "2026-05-02 03:02:41",
+      "bull_pocket_generated_at": "2026-05-02 04:03:58",
       "feature_ablation_generated_at": "2026-05-01 23:03:31"
     },
     "artifact_recency": {
@@ -242,7 +242,7 @@
       "stale_against_bull_pocket": false,
       "stale_against_feature_ablation": false,
       "train_trained_at": "2026-05-02T03:02:25.601374",
-      "bull_pocket_generated_at": "2026-05-02 03:02:41",
+      "bull_pocket_generated_at": "2026-05-02 04:03:58",
       "feature_ablation_generated_at": "2026-05-01 23:03:31"
     },
     "blocked_candidate_profiles": [
@@ -251,7 +251,7 @@
         "feature_profile_source": "feature_group_ablation.weak_4h_veto_fallback",
         "support_cohort": "bull_collapse_q35",
         "support_rows": 942,
-        "exact_live_bucket_rows": 22,
+        "exact_live_bucket_rows": 23,
         "blocker_reason": "under_minimum_exact_live_structure_bucket"
       },
       {
@@ -259,7 +259,7 @@
         "feature_profile_source": "feature_group_ablation.weak_4h_veto_fallback",
         "support_cohort": "bull_collapse_q35",
         "support_rows": 942,
-        "exact_live_bucket_rows": 22,
+        "exact_live_bucket_rows": 23,
         "blocker_reason": "under_minimum_exact_live_structure_bucket"
       }
     ],
@@ -267,17 +267,17 @@
     "live_entry_quality_label": "D",
     "live_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
     "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-    "live_current_structure_bucket_rows": 22,
+    "live_current_structure_bucket_rows": 23,
     "minimum_support_rows": 50,
-    "live_current_structure_bucket_gap_to_minimum": 28,
+    "live_current_structure_bucket_gap_to_minimum": 27,
     "support_progress": {
       "status": "stalled_under_minimum",
       "reason": "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
-      "current_rows": 22,
+      "current_rows": 23,
       "minimum_support_rows": 50,
-      "gap_to_minimum": 28,
+      "gap_to_minimum": 27,
       "delta_vs_previous": 0,
-      "previous_rows": 22,
+      "previous_rows": 23,
       "previous_route_changed": false,
       "previous_support_governance_route": "exact_live_bucket_present_but_below_minimum",
       "regressed_from_supported": false,
@@ -291,12 +291,30 @@
       "history": [
         {
           "heartbeat": "current",
-          "timestamp": "2026-05-02T03:16:24.547675+00:00",
+          "timestamp": "2026-05-02T04:22:40.894331+00:00",
+          "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+          "live_current_structure_bucket_rows": 23,
+          "minimum_support_rows": 50,
+          "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+          "governance_verdict": null
+        },
+        {
+          "heartbeat": "1173",
+          "timestamp": "2026-05-02T04:04:43.923872+00:00",
+          "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+          "live_current_structure_bucket_rows": 23,
+          "minimum_support_rows": 50,
+          "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+          "governance_verdict": "dual_role_governance_active"
+        },
+        {
+          "heartbeat": "1172",
+          "timestamp": "2026-05-02T03:16:29.905343+00:00",
           "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
           "live_current_structure_bucket_rows": 22,
           "minimum_support_rows": 50,
           "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-          "governance_verdict": null
+          "governance_verdict": "dual_role_governance_active"
         },
         {
           "heartbeat": "1171",
@@ -310,24 +328,6 @@
         {
           "heartbeat": "1170",
           "timestamp": "2026-05-02T02:37:17.901413+00:00",
-          "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-          "live_current_structure_bucket_rows": 21,
-          "minimum_support_rows": 50,
-          "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-          "governance_verdict": "dual_role_governance_active"
-        },
-        {
-          "heartbeat": "1169",
-          "timestamp": "2026-05-02T02:31:07.860846+00:00",
-          "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-          "live_current_structure_bucket_rows": 21,
-          "minimum_support_rows": 50,
-          "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-          "governance_verdict": "dual_role_governance_active"
-        },
-        {
-          "heartbeat": "1168",
-          "timestamp": "2026-05-02T02:21:17.240927+00:00",
           "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
           "live_current_structure_bucket_rows": 21,
           "minimum_support_rows": 50,

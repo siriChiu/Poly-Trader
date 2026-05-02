@@ -52,6 +52,7 @@ FAST_SERIAL_TIMEOUTS = {
     # bounded budget to finish while still staying below half of the 240s cron
     # envelope.
     "hb_leaderboard_candidate_probe": 90,
+    "topk_walkforward_precision": 90,
     "hb_q15_support_audit": 20,
     "hb_q15_bucket_root_cause": 20,
     "hb_q15_boundary_replay": 20,
@@ -64,6 +65,7 @@ FULL_SERIAL_TIMEOUTS = {
     "feature_group_ablation": 90,
     "bull_4h_pocket_ablation": 45,
     "hb_leaderboard_candidate_probe": 90,
+    "topk_walkforward_precision": 120,
 }
 FAST_PARALLEL_TASK_TIMEOUTS = {
     "full_ic": 90,
@@ -88,6 +90,7 @@ CANDIDATE_REFRESH_LANES = (
     "feature_group_ablation",
     "bull_4h_pocket_ablation",
     "hb_leaderboard_candidate_probe",
+    "topk_walkforward_precision",
 )
 CANDIDATE_ARTIFACT_STALE_FALLBACK_ISSUE_ID = "P1_candidate_governance_artifact_stale_fallback"
 PARALLEL_TASK_FAILURE_ISSUE_ID = "P1_heartbeat_parallel_task_failure"
@@ -116,6 +119,7 @@ FEATURE_ABLATION_CMD = [PYTHON, "scripts/feature_group_ablation.py", "--bounded-
 BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
 BULL_4H_POCKET_ABLATION_REFRESH_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py", "--refresh-live-context"]
 LEADERBOARD_CANDIDATE_PROBE_CMD = [PYTHON, "scripts/hb_leaderboard_candidate_probe.py"]
+TOPK_WALKFORWARD_PRECISION_CMD = [PYTHON, "scripts/topk_walkforward_precision.py"]
 
 
 def _safe_parse_datetime(value: Any) -> datetime | None:
@@ -3874,7 +3878,7 @@ def parse_args(argv=None):
         action="store_true",
         help=(
             "In fast mode, also rerun candidate-evaluation lanes "
-            "(feature_group_ablation / bull_4h_pocket_ablation / hb_leaderboard_candidate_probe). "
+            "(feature_group_ablation / bull_4h_pocket_ablation / hb_leaderboard_candidate_probe / topk_walkforward_precision). "
             "Default fast mode reuses existing candidate artifacts instead."
         ),
     )
@@ -4255,6 +4259,18 @@ def refresh_train_prerequisites(needs_train: bool) -> Dict[str, Any]:
 def run_leaderboard_candidate_probe(run_label: str | None = None) -> Dict[str, Any]:
     extra_env = {"HB_RUN_LABEL": str(run_label)} if run_label is not None else None
     return _run_serial_command(LEADERBOARD_CANDIDATE_PROBE_CMD, extra_env=extra_env)
+
+
+def run_high_conviction_topk_refresh() -> Dict[str, Any]:
+    """Regenerate the high-conviction Top-K OOS matrix inside candidate-refresh heartbeats.
+
+    The heartbeat summary treats Top-K artifact freshness as a deployment gate.  If
+    fast/full candidate refreshes skip this generator, the runner can refresh live
+    support context but still persist a stale matrix/summary, forcing operators to run
+    scripts/topk_walkforward_precision.py manually.  Keep this lane explicit so
+    --fast-refresh-candidates and full heartbeats produce a self-contained fresh gate.
+    """
+    return _run_serial_command(TOPK_WALKFORWARD_PRECISION_CMD)
 
 
 def run_auto_propose(run_label: str | None = None) -> Dict[str, Any]:
@@ -6566,6 +6582,43 @@ def main(argv=None):
             f" blocked={blocked_text or 'none'}"
         )
 
+    topk_artifact_path = Path(PROJECT_ROOT) / "data" / "high_conviction_topk_oos_matrix.json"
+    write_progress(run_label, "topk_walkforward_precision")
+    if refresh_candidate_eval_lanes:
+        high_conviction_topk_result = run_high_conviction_topk_refresh()
+        print(
+            f"🎯 High-conviction Top-K matrix：{'通過' if high_conviction_topk_result['success'] else '失敗'} "
+            f"(rc={high_conviction_topk_result['returncode']})"
+        )
+        if high_conviction_topk_result.get("stdout"):
+            lines = high_conviction_topk_result["stdout"].split("\n")
+            preview = "\n".join(lines[:20])
+            if len(lines) > 20:
+                preview += "\n...\n" + "\n".join(lines[-8:])
+            print(f"\n--- topk_walkforward_precision ---\n{preview}")
+        if high_conviction_topk_result.get("stderr"):
+            print(f"\n--- topk_walkforward_precision stderr ---\n{high_conviction_topk_result['stderr']}")
+    else:
+        high_conviction_topk_result = _build_skipped_serial_result(
+            "topk_walkforward_precision",
+            reason="fast_mode_candidate_refresh_disabled",
+            artifact_path=topk_artifact_path,
+        )
+        write_progress(
+            run_label,
+            "topk_walkforward_precision",
+            status="skipped",
+            details={
+                "skip_reason": "fast_mode_candidate_refresh_disabled",
+                "artifact_path": str(topk_artifact_path),
+                "refresh_with": "--fast --fast-refresh-candidates",
+            },
+        )
+        print(
+            "⏭️  High-conviction Top-K matrix：fast mode 預設跳過 candidate refresh；"
+            "沿用既有 matrix，僅在 summary 階段同步 live support context。"
+        )
+
     write_progress(run_label, "q15_support_audit")
     q15_support_result = run_q15_support_audit()
     q15_support_summary = collect_q15_support_audit_diagnostics()
@@ -6758,6 +6811,10 @@ def main(argv=None):
             "diagnostics": leaderboard_candidate_diagnostics,
             "artifact_path": Path(PROJECT_ROOT) / "data" / "leaderboard_feature_profile_probe.json",
         },
+        "topk_walkforward_precision": {
+            "result": high_conviction_topk_result,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "high_conviction_topk_oos_matrix.json",
+        },
         "hb_q15_support_audit": {
             "result": q15_support_result,
             "diagnostics": q15_support_summary,
@@ -6866,6 +6923,7 @@ def main(argv=None):
         live_drilldown_result,
         circuit_breaker_audit_result,
         leaderboard_probe_result,
+        high_conviction_topk_result,
         q15_support_result,
         q15_bucket_root_cause_result,
         q15_boundary_replay_result,
