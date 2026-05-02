@@ -3741,11 +3741,16 @@ def _apply_high_conviction_support_overlay_to_row(
         ("minimum_support_rows", "minimum_support_rows"),
         ("current_live_structure_bucket_gap_to_minimum", "current_live_structure_bucket_gap_to_minimum"),
         ("allowed_layers", "allowed_layers"),
+        ("signal", "signal"),
         ("execution_guardrail_reason", "execution_guardrail_reason"),
+        ("source_live_probe_generated_at", "source_live_probe_generated_at"),
+        ("live_truth_source_artifact", "live_truth_source_artifact"),
     ):
         value = support_context.get(context_key)
         if value is not None:
             normalized[row_key] = value
+    if support_context.get("live_truth_generated_at") is not None:
+        normalized["source_live_probe_generated_at"] = support_context.get("live_truth_generated_at")
 
     _, model_gate_failures, _, _, _, _ = _topk_row_gate_parts(row)
     live_gate_failures = _high_conviction_live_failures_from_support_context(support_context)
@@ -3848,7 +3853,10 @@ def _compact_high_conviction_topk_row(
         "current_live_structure_bucket_gap_to_minimum": _support_value("current_live_structure_bucket_gap_to_minimum"),
         "support_route_deployable": _support_value("support_route_deployable"),
         "allowed_layers": _support_value("allowed_layers"),
+        "signal": _support_value("signal"),
         "execution_guardrail_reason": _support_value("execution_guardrail_reason"),
+        "source_live_probe_generated_at": _support_value("source_live_probe_generated_at", "live_truth_generated_at"),
+        "live_truth_source_artifact": _support_value("live_truth_source_artifact"),
         "deployable_verdict": row.get("deployable_verdict") or "not_deployable",
         "deployment_candidate_tier": deployment_candidate_tier,
         "gate_failures": gate_failures,

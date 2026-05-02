@@ -1375,6 +1375,10 @@ def test_strategy_lab_surfaces_high_conviction_topk_gate_contract():
         'current_live_structure_bucket_rows?: number | null;',
         'minimum_support_rows?: number | null;',
         'current_live_structure_bucket_gap_to_minimum?: number | null;',
+        'support_route_deployable?: boolean | null;',
+        'allowed_layers?: number | null;',
+        'signal?: string | null;',
+        'execution_guardrail_reason?: string | null;',
         'const formatHighConvictionRowSupportRowsLabel = (row: HighConvictionTopKRow) => {',
         '分桶 {row.current_live_structure_bucket ? humanizeStructureBucketLabel(row.current_live_structure_bucket) : "—"} · 樣本 {formatHighConvictionRowSupportRowsLabel(row)}',
         'const highConvictionSupportContext = highConvictionTopK?.support_context ?? null;',
@@ -1402,6 +1406,7 @@ def test_strategy_lab_surfaces_high_conviction_topk_gate_contract():
         '盈虧比',
         '最差分折',
         '部署判定 {humanizeRuntimeDetailText(row.deployable_verdict || "not_deployable")}',
+        '即時訊號 {row.signal || "—"} · 可用層 {isFiniteNumber(row.allowed_layers) ? formatDecimal(row.allowed_layers, 0) : "—"} · 原因 {row.execution_guardrail_reason ? humanizeRuntimeDetailText(row.execution_guardrail_reason) : "—"}',
         '支持 {row.support_route ? humanizeSupportRouteLabel(row.support_route) : "—"} · 阻塞 {row.deployment_blocker ? humanizeCurrentLiveBlockerLabel(row.deployment_blocker) : "—"} · 閉環 {row.runtime_closure_state ? humanizeRuntimeClosureStateLabel(row.runtime_closure_state) : "—"}',
         '未通過門檻',
     ]

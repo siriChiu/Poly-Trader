@@ -764,6 +764,8 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
     assert support_context["live_truth_overlay_applied"] is True
     assert support_context["live_truth_source_artifact"] == str(live_probe)
     nearest = summary["nearest_deployable_rows"][0]
+    assert nearest["signal"] == "HOLD"
+    assert nearest["allowed_layers"] == 0
     assert nearest["support_route"] == "exact_bucket_unsupported_block"
     assert nearest["support_governance_route"] == "no_support_proxy"
     assert nearest["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
@@ -840,6 +842,7 @@ def test_high_conviction_topk_live_support_overlay_fail_closes_stale_deployable_
                 "deployment_blocker": "under_minimum_exact_live_structure_bucket",
                 "runtime_closure_state": "patch_inactive_or_blocked",
                 "allowed_layers": 0,
+                "signal": "ABSTAIN",
                 "support_progress": {
                     "current_rows": 9,
                     "minimum_support_rows": 50,
@@ -871,6 +874,8 @@ def test_high_conviction_topk_live_support_overlay_fail_closes_stale_deployable_
     assert nearest["deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
     assert nearest["runtime_closure_state"] == "patch_inactive_or_blocked"
     assert nearest["deployable_verdict"] == "not_deployable"
+    assert nearest["signal"] == "ABSTAIN"
+    assert nearest["allowed_layers"] == 0
     assert nearest["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
     assert nearest["gate_failures"] == ["support_route_not_deployable", "deployment_blocker_active"]
     assert nearest["model_gate_failures"] == []

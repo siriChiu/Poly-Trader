@@ -765,6 +765,7 @@ interface HighConvictionTopKRow {
   current_live_structure_bucket_gap_to_minimum?: number | null;
   support_route_deployable?: boolean | null;
   allowed_layers?: number | null;
+  signal?: string | null;
   execution_guardrail_reason?: string | null;
   deployable_verdict?: string | null;
   deployment_candidate_tier?: string | null;
@@ -3712,6 +3713,9 @@ export default function StrategyLab() {
                                     <div className="font-medium">{row.model_name || row.model || "未命名模型"}</div>
                                     <div className="mt-1 text-[10px] text-violet-100/70">{humanizeRuntimeDetailText(row.feature_profile || "特徵設定 —")} · {formatHighConvictionRegimeLabel(row.regime)} · {humanizeRuntimeDetailText(row.top_k || "Top-K —")}</div>
                                     <div className="mt-1 text-[10px] text-violet-100/60">部署判定 {humanizeRuntimeDetailText(row.deployable_verdict || "not_deployable")}</div>
+                                    {(row.signal || isFiniteNumber(row.allowed_layers) || row.execution_guardrail_reason) && (
+                                      <div className="mt-1 text-[10px] text-violet-100/60">即時訊號 {row.signal || "—"} · 可用層 {isFiniteNumber(row.allowed_layers) ? formatDecimal(row.allowed_layers, 0) : "—"} · 原因 {row.execution_guardrail_reason ? humanizeRuntimeDetailText(row.execution_guardrail_reason) : "—"}</div>
+                                    )}
                                     {(row.support_route || row.deployment_blocker || row.runtime_closure_state) && (
                                       <div className="mt-1 text-[10px] text-violet-100/60">支持 {row.support_route ? humanizeSupportRouteLabel(row.support_route) : "—"} · 阻塞 {row.deployment_blocker ? humanizeCurrentLiveBlockerLabel(row.deployment_blocker) : "—"} · 閉環 {row.runtime_closure_state ? humanizeRuntimeClosureStateLabel(row.runtime_closure_state) : "—"}</div>
                                     )}
