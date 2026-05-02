@@ -7507,3 +7507,77 @@ def test_sync_high_conviction_topk_matrix_can_promote_oos_pass_row_when_live_sup
     assert row["deployable_verdict"] == "deployable"
     assert row["deployment_candidate_tier"] == "deployable"
     assert row["current_live_structure_bucket_rows"] == 54
+
+
+def test_sync_high_conviction_topk_recomputes_model_gates_before_promotion(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    matrix_path = data_dir / "high_conviction_topk_oos_matrix.json"
+    matrix_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-30T09:00:00Z",
+                "minimum_deployment_gates": {
+                    "min_trades": 50,
+                    "min_win_rate": 0.60,
+                    "max_drawdown": 0.08,
+                    "min_profit_factor": 1.50,
+                    "worst_fold": "non_negative_or_above_baseline",
+                },
+                "rows": [
+                    {
+                        "model": "xgboost",
+                        "feature_profile": "current_full",
+                        "regime": "all",
+                        "top_k": "top_1pct",
+                        "oos_roi": 0.3976,
+                        "win_rate": 0.8621,
+                        "profit_factor": 25.4464,
+                        "max_drawdown": 0.009,
+                        "worst_fold": -0.1356,
+                        "trade_count": 29,
+                        "gate_failures": [],
+                        "model_gate_failures": [],
+                        "live_gate_failures": [],
+                        "oos_gate_passed": True,
+                        "blocked_only_by_live_guardrails": False,
+                        "deployable_verdict": "deployable",
+                        "deployment_candidate_tier": "deployable",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    changed = hb_parallel_runner._sync_high_conviction_topk_matrix_live_context(
+        {
+            "generated_at": "2026-04-30T09:30:00Z",
+            "support_route_verdict": "exact_bucket_supported",
+            "support_route_deployable": True,
+            "deployment_blocker": None,
+            "runtime_closure_state": "support_closed_trade_floor_hold_only",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "current_live_structure_bucket_rows": 54,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "allowed_layers": 1,
+        }
+    )
+
+    assert changed is True
+    payload = json.loads(matrix_path.read_text(encoding="utf-8"))
+    row = payload["rows"][0]
+    assert payload["deployable_rows"] == 0
+    assert payload["risk_qualified_rows"] == 0
+    assert payload["runtime_blocked_candidate_rows"] == 0
+    assert row["deployable_verdict"] == "not_deployable"
+    assert row["deployment_candidate_tier"] == "research_oos_gate_failed"
+    assert row["model_gate_failures"] == ["min_trades_not_met", "worst_fold_negative"]
+    assert row["live_gate_failures"] == []
+    assert row["gate_failures"] == ["min_trades_not_met", "worst_fold_negative"]
+    assert row["support_route"] == "exact_bucket_supported"
+    assert row["current_live_structure_bucket_rows"] == 54

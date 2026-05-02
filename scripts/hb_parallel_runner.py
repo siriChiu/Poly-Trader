@@ -1141,18 +1141,87 @@ def _unique_string_list(items: list[Any]) -> list[str]:
     return values
 
 
+_HIGH_CONVICTION_TOPK_MODEL_FAILURES = {
+    "min_trades_not_met",
+    "min_win_rate_not_met",
+    "max_drawdown_too_high",
+    "profit_factor_too_low",
+    "worst_fold_missing",
+    "worst_fold_negative",
+}
+
+
+def _high_conviction_topk_model_gate_failures_from_metrics(
+    row: Dict[str, Any],
+    gates: Dict[str, Any] | None = None,
+) -> list[str]:
+    """Recompute static OOS model gates so stale artifacts cannot self-promote.
+
+    Live support truth is overlaid every heartbeat, but the Top-K matrix itself is
+    an offline artifact that may have been generated before the current gate
+    contract. Treat missing or below-threshold OOS metrics as deployment
+    failures instead of trusting a stale persisted deployable verdict.
+    """
+    gate_contract: Dict[str, Any] = {
+        "min_trades": 50,
+        "min_win_rate": 0.60,
+        "max_drawdown": 0.08,
+        "min_profit_factor": 1.50,
+        "worst_fold": "non_negative_or_above_baseline",
+    }
+    if isinstance(gates, dict):
+        gate_contract.update({key: value for key, value in gates.items() if value is not None})
+
+    def _as_float(value: Any) -> float | None:
+        try:
+            if value is None or value == "":
+                return None
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    failures: list[str] = []
+    trade_count = _as_float(row.get("trade_count", row.get("n")))
+    win_rate = _as_float(row.get("win_rate"))
+    max_drawdown = _as_float(row.get("max_drawdown"))
+    profit_factor = _as_float(row.get("profit_factor"))
+    worst_fold = _as_float(row.get("worst_fold"))
+
+    if trade_count is None or trade_count < int(gate_contract.get("min_trades", 50)):
+        failures.append("min_trades_not_met")
+    if win_rate is None or win_rate < float(gate_contract.get("min_win_rate", 0.60)):
+        failures.append("min_win_rate_not_met")
+    if max_drawdown is None or max_drawdown > float(gate_contract.get("max_drawdown", 0.08)):
+        failures.append("max_drawdown_too_high")
+    if profit_factor is None or profit_factor < float(gate_contract.get("min_profit_factor", 1.50)):
+        failures.append("profit_factor_too_low")
+    if worst_fold is None:
+        failures.append("worst_fold_missing")
+    elif str(gate_contract.get("worst_fold", "")).startswith("non_negative") and worst_fold < 0:
+        failures.append("worst_fold_negative")
+    return failures
+
+
 def _apply_live_support_context_to_high_conviction_row(
     row: Dict[str, Any],
     support_context: Dict[str, Any],
+    gates: Dict[str, Any] | None = None,
 ) -> None:
     live_guardrail_failures = {"support_route_not_deployable", "deployment_blocker_active"}
     existing_gate_failures = row.get("gate_failures") if isinstance(row.get("gate_failures"), list) else []
     if isinstance(row.get("model_gate_failures"), list):
-        model_gate_failures = _unique_string_list(row.get("model_gate_failures") or [])
+        persisted_model_gate_failures = _unique_string_list(row.get("model_gate_failures") or [])
     else:
-        model_gate_failures = _unique_string_list(
+        persisted_model_gate_failures = _unique_string_list(
             [failure for failure in existing_gate_failures if failure not in live_guardrail_failures]
         )
+    recomputed_model_gate_failures = _high_conviction_topk_model_gate_failures_from_metrics(row, gates)
+    preserved_unknown_model_failures = [
+        failure
+        for failure in persisted_model_gate_failures
+        if failure not in _HIGH_CONVICTION_TOPK_MODEL_FAILURES
+    ]
+    model_gate_failures = _unique_string_list(recomputed_model_gate_failures + preserved_unknown_model_failures)
 
     live_gate_failures: list[str] = []
     if not _support_route_context_is_deployable(support_context):
@@ -1231,9 +1300,10 @@ def _sync_high_conviction_topk_matrix_live_context(
         if support_context.get("support_context_current_as_of"):
             payload["support_context_current_as_of"] = support_context.get("support_context_current_as_of")
 
+        minimum_gates = payload.get("minimum_deployment_gates") if isinstance(payload.get("minimum_deployment_gates"), dict) else None
         for row in rows:
             if isinstance(row, dict):
-                _apply_live_support_context_to_high_conviction_row(row, support_context)
+                _apply_live_support_context_to_high_conviction_row(row, support_context, minimum_gates)
         freshness = _high_conviction_topk_freshness(payload.get("generated_at"))
         payload["artifact_freshness_status"] = freshness.get("status")
         payload["artifact_freshness_reason"] = freshness.get("reason")

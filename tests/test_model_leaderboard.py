@@ -885,6 +885,94 @@ def test_high_conviction_topk_live_support_overlay_fail_closes_stale_deployable_
     assert summary["best_rows"][0] == nearest
 
 
+def test_high_conviction_topk_summary_recomputes_model_gates_before_promotion(monkeypatch, tmp_path: Path):
+    artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
+    live_probe = tmp_path / "live_predict_probe.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T10:15:21Z",
+                "target_col": "simulated_pyramid_win",
+                "samples": 1234,
+                "minimum_deployment_gates": {
+                    "min_trades": 50,
+                    "min_win_rate": 0.60,
+                    "max_drawdown": 0.08,
+                    "min_profit_factor": 1.50,
+                    "worst_fold": "non_negative_or_above_baseline",
+                },
+                "support_context": {
+                    "support_route_verdict": "exact_bucket_supported",
+                    "support_route_deployable": True,
+                    "deployment_blocker": "none",
+                    "runtime_closure_state": "breaker_clear",
+                },
+                "rows": [
+                    {
+                        "model": "xgboost",
+                        "feature_profile": "current_full",
+                        "regime": "all",
+                        "top_k": "top_1pct",
+                        "oos_roi": 0.3976,
+                        "win_rate": 0.8621,
+                        "profit_factor": 25.4464,
+                        "max_drawdown": 0.009,
+                        "worst_fold": -0.1356,
+                        "trade_count": 29,
+                        "support_route": "exact_bucket_supported",
+                        "support_route_deployable": True,
+                        "deployment_blocker": "none",
+                        "runtime_closure_state": "breaker_clear",
+                        "deployable_verdict": "deployable",
+                        "deployment_candidate_tier": "deployable",
+                        "gate_failures": [],
+                        "model_gate_failures": [],
+                        "live_gate_failures": [],
+                        "oos_gate_passed": True,
+                        "blocked_only_by_live_guardrails": False,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    live_probe.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T19:03:45Z",
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+                "support_route_verdict": "exact_bucket_supported",
+                "support_route_deployable": True,
+                "deployment_blocker": None,
+                "runtime_closure_state": "support_closed_trade_floor_hold_only",
+                "allowed_layers": 1,
+                "signal": "HOLD",
+                "support_progress": {
+                    "current_rows": 54,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_LIVE_PREDICT_PROBE_PATH", live_probe, raising=False)
+
+    summary = api_module._load_high_conviction_topk_summary(artifact)
+
+    assert summary["deployable_count"] == 0
+    assert summary["risk_qualified_count"] == 0
+    assert summary["runtime_blocked_candidate_count"] == 0
+    assert summary["deployment_ready"] is False
+    row = summary["best_rows"][0]
+    assert row["deployable_verdict"] == "not_deployable"
+    assert row["deployment_candidate_tier"] == "research_oos_gate_failed"
+    assert row["model_gate_failures"] == ["min_trades_not_met", "worst_fold_negative"]
+    assert row["live_gate_failures"] == []
+    assert row["gate_failures"] == ["min_trades_not_met", "worst_fold_negative"]
+    assert row["support_route"] == "exact_bucket_supported"
+    assert row["current_live_structure_bucket_rows"] == 54
+
 
 def test_build_model_leaderboard_payload_includes_strategy_param_scan_when_placeholder_only(monkeypatch):
     df = pd.DataFrame(

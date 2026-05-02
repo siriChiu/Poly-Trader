@@ -3619,6 +3619,60 @@ def _coerce_int_or_none(value: Any) -> Optional[int]:
 
 
 _HIGH_CONVICTION_LIVE_FAILURES = {"support_route_not_deployable", "deployment_blocker_active"}
+_HIGH_CONVICTION_MODEL_FAILURES = {
+    "min_trades_not_met",
+    "min_win_rate_not_met",
+    "max_drawdown_too_high",
+    "profit_factor_too_low",
+    "worst_fold_missing",
+    "worst_fold_negative",
+}
+_HIGH_CONVICTION_DEFAULT_MODEL_GATES = {
+    "min_trades": 50,
+    "min_win_rate": 0.60,
+    "max_drawdown": 0.08,
+    "min_profit_factor": 1.50,
+    "worst_fold": "non_negative_or_above_baseline",
+}
+
+
+def _high_conviction_model_gate_failures_from_metrics(
+    row: Dict[str, Any],
+    gates: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    """Recompute static Top-K model gates instead of trusting stale row verdicts."""
+    gate_contract = dict(_HIGH_CONVICTION_DEFAULT_MODEL_GATES)
+    if isinstance(gates, dict):
+        gate_contract.update({key: value for key, value in gates.items() if value is not None})
+
+    trade_count_value = row.get("trade_count")
+    if trade_count_value is None:
+        trade_count_value = row.get("n")
+    trade_count = _coerce_float_or_none(trade_count_value)
+    win_rate = _coerce_float_or_none(row.get("win_rate"))
+    max_drawdown = _coerce_float_or_none(row.get("max_drawdown"))
+    profit_factor = _coerce_float_or_none(row.get("profit_factor"))
+    worst_fold = _coerce_float_or_none(row.get("worst_fold"))
+
+    min_trades = _coerce_float_or_none(gate_contract.get("min_trades")) or 50.0
+    min_win_rate = _coerce_float_or_none(gate_contract.get("min_win_rate")) or 0.60
+    max_drawdown_gate = _coerce_float_or_none(gate_contract.get("max_drawdown")) or 0.08
+    min_profit_factor = _coerce_float_or_none(gate_contract.get("min_profit_factor")) or 1.50
+
+    failures: List[str] = []
+    if trade_count is None or trade_count < min_trades:
+        failures.append("min_trades_not_met")
+    if win_rate is None or win_rate < min_win_rate:
+        failures.append("min_win_rate_not_met")
+    if max_drawdown is None or max_drawdown > max_drawdown_gate:
+        failures.append("max_drawdown_too_high")
+    if profit_factor is None or profit_factor < min_profit_factor:
+        failures.append("profit_factor_too_low")
+    if worst_fold is None:
+        failures.append("worst_fold_missing")
+    elif str(gate_contract.get("worst_fold", "")).startswith("non_negative") and worst_fold < 0:
+        failures.append("worst_fold_negative")
+    return failures
 
 
 def _string_list(value: Any) -> List[str]:
@@ -3718,6 +3772,7 @@ def _high_conviction_live_failures_from_support_context(support_context: Dict[st
 def _apply_high_conviction_support_overlay_to_row(
     row: Dict[str, Any],
     support_context: Optional[Dict[str, Any]] = None,
+    gates: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Recompute row deployability from the freshest live support context.
 
@@ -3752,7 +3807,14 @@ def _apply_high_conviction_support_overlay_to_row(
     if support_context.get("live_truth_generated_at") is not None:
         normalized["source_live_probe_generated_at"] = support_context.get("live_truth_generated_at")
 
-    _, model_gate_failures, _, _, _, _ = _topk_row_gate_parts(row)
+    _, persisted_model_gate_failures, _, _, _, _ = _topk_row_gate_parts(row)
+    recomputed_model_gate_failures = _high_conviction_model_gate_failures_from_metrics(row, gates)
+    preserved_unknown_model_failures = [
+        failure
+        for failure in persisted_model_gate_failures
+        if failure not in _HIGH_CONVICTION_MODEL_FAILURES
+    ]
+    model_gate_failures = [*recomputed_model_gate_failures, *preserved_unknown_model_failures]
     live_gate_failures = _high_conviction_live_failures_from_support_context(support_context)
     gate_failures = [*model_gate_failures, *live_gate_failures]
     oos_gate_passed = not model_gate_failures
@@ -4067,8 +4129,9 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
         topk_generated_at=payload.get("generated_at"),
         live_truth=_load_high_conviction_live_support_overlay(),
     )
+    minimum_gates = payload.get("minimum_deployment_gates") if isinstance(payload.get("minimum_deployment_gates"), dict) else None
     rows = [
-        _apply_high_conviction_support_overlay_to_row(row, support_context)
+        _apply_high_conviction_support_overlay_to_row(row, support_context, minimum_gates)
         for row in payload.get("rows", [])
         if isinstance(row, dict)
     ]
