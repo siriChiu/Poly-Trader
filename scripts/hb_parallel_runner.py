@@ -95,6 +95,10 @@ CANDIDATE_REFRESH_LANES = (
 CANDIDATE_ARTIFACT_STALE_FALLBACK_ISSUE_ID = "P1_candidate_governance_artifact_stale_fallback"
 PARALLEL_TASK_FAILURE_ISSUE_ID = "P1_heartbeat_parallel_task_failure"
 HIGH_CONVICTION_TOPK_STALE_AFTER_SEC = 3600
+# Fast cron runs should not deliver a matrix that will become stale before the
+# next one or two scheduled heartbeats.  Refreshing only the bounded Top-K lane
+# is cheaper than letting Strategy Lab keep near-expired deployability truth.
+HIGH_CONVICTION_TOPK_FAST_REFRESH_HEADROOM_SEC = 10 * 60
 
 TASKS = [
     {"name": "full_ic", "label": "🔍 Full IC", "cmd": [PYTHON, "scripts/full_ic.py"]},
@@ -873,6 +877,15 @@ def _high_conviction_topk_fast_refresh_requirement(
     freshness = _high_conviction_topk_freshness(payload.get("generated_at"), now=now)
     if freshness.get("status") != "fresh":
         return True, str(freshness.get("reason") or freshness.get("status") or "artifact_not_fresh")
+    age_minutes = freshness.get("age_minutes")
+    stale_after_minutes = freshness.get("stale_after_minutes")
+    headroom_minutes = HIGH_CONVICTION_TOPK_FAST_REFRESH_HEADROOM_SEC / 60.0
+    if (
+        isinstance(age_minutes, (int, float))
+        and isinstance(stale_after_minutes, (int, float))
+        and age_minutes >= max(stale_after_minutes - headroom_minutes, 0.0)
+    ):
+        return True, "artifact_near_stale"
     return False, None
 
 

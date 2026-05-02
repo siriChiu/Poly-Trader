@@ -98,6 +98,14 @@ def test_high_conviction_topk_fast_refresh_requirement_uses_generated_at_freshne
     assert reason == "artifact_older_than_policy"
 
     matrix_path.write_text(
+        json.dumps({"generated_at": "2026-05-02T05:10:01+00:00", "rows": []}),
+        encoding="utf-8",
+    )
+    required, reason = hb_parallel_runner._high_conviction_topk_fast_refresh_requirement(now=now)
+    assert required is True
+    assert reason == "artifact_near_stale"
+
+    matrix_path.write_text(
         json.dumps({"generated_at": "2026-05-02T06:00:00+00:00", "rows": []}),
         encoding="utf-8",
     )
