@@ -992,6 +992,8 @@ def _load_q35_scaling_audit_summary(current_structure_bucket: Optional[str] = No
     recommended_mode = segmented_calibration.get("recommended_mode")
     next_patch_target = deployment_grade.get("next_patch_target")
     root_cause_action = recommended_mode or ("base_stack_redesign" if redesign.get("verdict") else None)
+    redesign_machine = redesign.get("machine_read_answer") if isinstance(redesign.get("machine_read_answer"), dict) else {}
+    redesign_best = redesign.get("best_discriminative_candidate") if isinstance(redesign.get("best_discriminative_candidate"), dict) else {}
     return {
         "generated_at": payload.get("generated_at"),
         "current_live_structure_bucket": audit_bucket or current_structure_bucket,
@@ -1008,6 +1010,24 @@ def _load_q35_scaling_audit_summary(current_structure_bucket: Optional[str] = No
         "candidate_patch_feature": next_patch_target,
         "runtime_contract_status": segmented_calibration.get("runtime_contract_status"),
         "redesign_verdict": redesign.get("verdict"),
+        "redesign_entry_quality": redesign_best.get("current_entry_quality_after"),
+        "redesign_raw_allowed_layers_after": redesign_best.get("raw_allowed_layers_after"),
+        "redesign_allowed_layers_after": redesign_best.get("allowed_layers_after"),
+        "redesign_positive_discriminative_gap": redesign_machine.get("positive_discriminative_gap"),
+        "redesign_execution_blocked_after_floor_cross": redesign_machine.get("execution_blocked_after_floor_cross"),
+        "runtime_execution_blocked": redesign.get("runtime_execution_blocked"),
+        "runtime_execution_blocker": redesign.get("runtime_execution_blocker"),
+        "runtime_allowed_layers": deployment_grade.get("runtime_allowed_layers"),
+        "runtime_allowed_layers_raw": deployment_grade.get("runtime_allowed_layers_raw"),
+        "runtime_allowed_layers_raw_reason": deployment_grade.get("runtime_allowed_layers_raw_reason"),
+        "runtime_allowed_layers_reason": deployment_grade.get("runtime_allowed_layers_reason"),
+        "runtime_deployment_blocker": deployment_grade.get("runtime_deployment_blocker"),
+        "runtime_closure_state": deployment_grade.get("runtime_closure_state"),
+        "support_route_verdict": deployment_grade.get("support_route_verdict"),
+        "support_route_deployable": deployment_grade.get("support_route_deployable"),
+        "current_live_structure_bucket_rows": deployment_grade.get("current_live_structure_bucket_rows"),
+        "minimum_support_rows": deployment_grade.get("minimum_support_rows"),
+        "current_live_structure_bucket_gap_to_minimum": deployment_grade.get("current_live_structure_bucket_gap_to_minimum"),
         "runtime_remaining_gap_to_floor": deployment_grade.get("runtime_remaining_gap_to_floor"),
         "remaining_gap_to_floor": deployment_grade.get("runtime_remaining_gap_to_floor"),
         "next_patch_target": next_patch_target,

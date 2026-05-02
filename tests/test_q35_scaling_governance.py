@@ -60,6 +60,96 @@ def test_q35_base_stack_redesign_separates_score_floor_cross_from_execution_clos
     assert "runtime gate/support" in result["reason"]
 
 
+def test_q35_base_stack_redesign_honors_current_live_support_blocker_when_score_would_cross():
+    runtime_current = {
+        "regime_gate": "CAUTION",
+        "allowed_layers_raw": 0,
+        "allowed_layers": 0,
+        "allowed_layers_reason": "under_minimum_exact_live_structure_bucket",
+        "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+        "support_route_deployable": False,
+        "entry_quality": 0.43,
+        "entry_quality_components": {
+            "trade_floor": 0.55,
+            "structure_quality": 0.40,
+            "base_components": [
+                _base_component("feat_4h_bias50", 0.72),
+                _base_component("feat_nose", 0.70),
+                _base_component("feat_pulse", 0.68),
+                _base_component("feat_ear", 0.10),
+            ],
+        },
+    }
+    runtime_exact_lane = [
+        _lane_row(1, bias50=0.90, nose=0.86, pulse=0.82, ear=0.12),
+        _lane_row(1, bias50=0.88, nose=0.84, pulse=0.80, ear=0.14),
+        _lane_row(0, bias50=0.20, nose=0.18, pulse=0.16, ear=0.92),
+        _lane_row(0, bias50=0.22, nose=0.20, pulse=0.18, ear=0.90),
+    ]
+
+    result = hb_q35_scaling_audit._build_base_stack_redesign_experiment(runtime_current, runtime_exact_lane)
+
+    best = result["best_discriminative_candidate"]
+    assert result["verdict"] == "base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked"
+    assert result["runtime_execution_blocked"] is True
+    assert result["runtime_execution_blocker"] == "under_minimum_exact_live_structure_bucket"
+    assert best["entry_quality_ge_trade_floor"] is True
+    assert best["raw_allowed_layers_after"] > 0
+    assert best["allowed_layers_after"] == 0
+    assert best["execution_blocked_by_runtime_guardrail"] is True
+    assert result["machine_read_answer"] == {
+        "entry_quality_ge_0_55": True,
+        "allowed_layers_gt_0": False,
+        "positive_discriminative_gap": True,
+        "execution_blocked_after_floor_cross": True,
+    }
+
+
+def test_q35_deployment_grade_experiment_uses_final_allowed_layers_not_raw_only():
+    baseline = {"entry_quality": 0.42, "allowed_layers_raw": 0}
+    calibration = {"entry_quality": 0.49, "allowed_layers_raw": 0}
+    deployed = {
+        "entry_quality": 0.56,
+        "allowed_layers_raw": 1,
+        "allowed_layers_raw_reason": "entry_quality_above_trade_floor",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "under_minimum_exact_live_structure_bucket",
+        "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+        "runtime_closure_state": "patch_inactive_or_blocked",
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_route_deployable": False,
+        "current_live_structure_bucket_rows": 19,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 31,
+        "entry_quality_components": {"trade_floor": 0.55},
+    }
+
+    result = hb_q35_scaling_audit._build_deployment_grade_component_experiment(
+        baseline,
+        calibration,
+        deployed,
+        {},
+        {},
+    )
+
+    assert result["verdict"] == "runtime_patch_crosses_floor_but_execution_blocked"
+    assert result["runtime_allowed_layers_raw"] == 1
+    assert result["runtime_allowed_layers_raw_reason"] == "entry_quality_above_trade_floor"
+    assert result["runtime_allowed_layers"] == 0
+    assert result["runtime_deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
+    assert result["runtime_closure_state"] == "patch_inactive_or_blocked"
+    assert result["support_route_deployable"] is False
+    assert result["current_live_structure_bucket_rows"] == 19
+    assert result["minimum_support_rows"] == 50
+    assert result["current_live_structure_bucket_gap_to_minimum"] == 31
+    assert result["machine_read_answer"] == {
+        "entry_quality_ge_0_55": True,
+        "allowed_layers_gt_0": False,
+        "raw_allowed_layers_gt_0": True,
+        "execution_blocked_after_floor_cross": True,
+    }
+
+
 def test_q35_doc_line_shows_score_floor_cross_is_not_deployment_closure():
     issue = {
         "summary": {

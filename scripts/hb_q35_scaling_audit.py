@@ -279,8 +279,21 @@ def _build_deployed_runtime_current(
             "entry_quality": _round(probe.get("entry_quality")),
             "entry_quality_label": probe.get("entry_quality_label"),
             "allowed_layers_raw": probe.get("allowed_layers_raw"),
+            "allowed_layers": probe.get("allowed_layers"),
             "allowed_layers_raw_reason": probe.get("allowed_layers_raw_reason") or probe.get("allowed_layers_reason"),
             "allowed_layers_reason": probe.get("allowed_layers_reason"),
+            "execution_guardrail_reason": probe.get("execution_guardrail_reason"),
+            "deployment_blocker": probe.get("deployment_blocker"),
+            "deployment_blocker_reason": probe.get("deployment_blocker_reason"),
+            "deployment_blocker_source": probe.get("deployment_blocker_source"),
+            "deployment_blocker_details": probe.get("deployment_blocker_details") or {},
+            "runtime_closure_state": probe.get("runtime_closure_state"),
+            "runtime_closure_summary": probe.get("runtime_closure_summary"),
+            "support_route_verdict": probe.get("support_route_verdict"),
+            "support_route_deployable": probe.get("support_route_deployable"),
+            "current_live_structure_bucket_rows": probe.get("current_live_structure_bucket_rows"),
+            "minimum_support_rows": probe.get("minimum_support_rows"),
+            "current_live_structure_bucket_gap_to_minimum": probe.get("current_live_structure_bucket_gap_to_minimum"),
             "entry_quality_components": probe.get("entry_quality_components") or runtime.get("entry_quality_components") or {},
             "decision_quality_label": probe.get("decision_quality_label"),
             "signal": probe.get("signal"),
@@ -954,6 +967,21 @@ def _build_base_stack_redesign_experiment(
     structure_quality = float(eq.get("structure_quality") or 0.0)
     current_entry_quality = float(runtime_current.get("entry_quality") or 0.0)
     current_layers = int(runtime_current.get("allowed_layers_raw") or 0)
+    current_final_layers = runtime_current.get("allowed_layers")
+    if current_final_layers is None:
+        current_final_layers = current_layers
+    try:
+        current_final_layers = int(current_final_layers)
+    except (TypeError, ValueError):
+        current_final_layers = current_layers
+    runtime_execution_blocker = (
+        runtime_current.get("deployment_blocker")
+        or runtime_current.get("execution_guardrail_reason")
+        or runtime_current.get("allowed_layers_reason")
+        or runtime_current.get("allowed_layers_raw_reason")
+    )
+    runtime_support_blocked = runtime_current.get("support_route_deployable") is False
+    runtime_execution_blocked = bool(runtime_execution_blocker) or runtime_support_blocked
     feature_names = ["feat_4h_bias50", "feat_nose", "feat_pulse", "feat_ear"]
     current_components = {
         feature_name: float(
@@ -971,7 +999,10 @@ def _build_base_stack_redesign_experiment(
             "losses": 0,
             "current_entry_quality": round(current_entry_quality, 4),
             "trade_floor": round(trade_floor, 4),
-            "current_allowed_layers": current_layers,
+            "current_allowed_layers_raw": current_layers,
+            "current_allowed_layers": current_final_layers,
+            "runtime_execution_blocked": runtime_execution_blocked,
+            "runtime_execution_blocker": runtime_execution_blocker,
             "current_component_scores": {k: _round(v) for k, v in current_components.items()},
             "best_discriminative_candidate": None,
             "best_floor_candidate": None,
@@ -1031,10 +1062,11 @@ def _build_base_stack_redesign_experiment(
                 mean_gap = win_mean - loss_mean
                 current_base_quality = sum(weights[name] * current_components[name] for name in feature_names)
                 current_entry = round(0.75 * current_base_quality + 0.25 * structure_quality, 4)
-                current_layers_after = live_predictor._allowed_layers_for_live_signal(
+                current_raw_layers_after = live_predictor._allowed_layers_for_live_signal(
                     runtime_current.get("regime_gate") or "BLOCK",
                     current_entry,
                 )
+                current_layers_after = 0 if runtime_execution_blocked else current_raw_layers_after
                 candidates.append(
                     {
                         "weights": {name: _round(value) for name, value in weights.items()},
@@ -1044,10 +1076,17 @@ def _build_base_stack_redesign_experiment(
                         "current_base_quality": _round(current_base_quality),
                         "current_entry_quality_after": current_entry,
                         "remaining_gap_to_floor": _round(max(0.0, trade_floor - current_entry)),
+                        "raw_allowed_layers_after": current_raw_layers_after,
                         "allowed_layers_after": current_layers_after,
                         "entry_quality_ge_trade_floor": current_entry >= trade_floor,
                         "allowed_layers_gt_0": current_layers_after > 0,
                         "positive_discriminative_gap": mean_gap > 0,
+                        "execution_blocked_by_runtime_guardrail": bool(
+                            runtime_execution_blocked
+                            and current_entry >= trade_floor
+                            and current_raw_layers_after > 0
+                        ),
+                        "runtime_execution_blocker": runtime_execution_blocker if runtime_execution_blocked else None,
                     }
                 )
 
@@ -1060,7 +1099,10 @@ def _build_base_stack_redesign_experiment(
             "losses": losses,
             "current_entry_quality": round(current_entry_quality, 4),
             "trade_floor": round(trade_floor, 4),
-            "current_allowed_layers": current_layers,
+            "current_allowed_layers_raw": current_layers,
+            "current_allowed_layers": current_final_layers,
+            "runtime_execution_blocked": runtime_execution_blocked,
+            "runtime_execution_blocker": runtime_execution_blocker,
             "current_component_scores": {k: _round(v) for k, v in current_components.items()},
             "best_discriminative_candidate": None,
             "best_floor_candidate": None,
@@ -1148,7 +1190,10 @@ def _build_base_stack_redesign_experiment(
         "losses": losses,
         "current_entry_quality": round(current_entry_quality, 4),
         "trade_floor": round(trade_floor, 4),
-        "current_allowed_layers": current_layers,
+        "current_allowed_layers_raw": current_layers,
+        "current_allowed_layers": current_final_layers,
+        "runtime_execution_blocked": runtime_execution_blocked,
+        "runtime_execution_blocker": runtime_execution_blocker,
         "current_component_scores": {k: _round(v) for k, v in current_components.items()},
         "best_discriminative_candidate": best_discriminative,
         "best_floor_candidate": best_floor,
@@ -1175,12 +1220,31 @@ def _build_deployment_grade_component_experiment(
     runtime_eq = float((deployed_runtime_current.get("entry_quality") or 0.0))
     trade_floor = float(((deployed_runtime_current.get("entry_quality_components") or {}).get("trade_floor") or 0.55))
     runtime_gap = round(trade_floor - runtime_eq, 4)
+    runtime_allowed_layers_raw = int(deployed_runtime_current.get("allowed_layers_raw") or 0)
+    runtime_allowed_layers = deployed_runtime_current.get("allowed_layers")
+    if runtime_allowed_layers is None:
+        runtime_allowed_layers = runtime_allowed_layers_raw
+    try:
+        runtime_allowed_layers = int(runtime_allowed_layers)
+    except (TypeError, ValueError):
+        runtime_allowed_layers = runtime_allowed_layers_raw
+    runtime_execution_blocker = (
+        deployed_runtime_current.get("deployment_blocker")
+        or deployed_runtime_current.get("execution_guardrail_reason")
+        or deployed_runtime_current.get("allowed_layers_reason")
+    )
     machine_read = {
         "entry_quality_ge_0_55": runtime_eq >= trade_floor,
-        "allowed_layers_gt_0": int(deployed_runtime_current.get("allowed_layers_raw") or 0) > 0,
+        "allowed_layers_gt_0": runtime_allowed_layers > 0,
+        "raw_allowed_layers_gt_0": runtime_allowed_layers_raw > 0,
+        "execution_blocked_after_floor_cross": bool(
+            runtime_eq >= trade_floor and runtime_allowed_layers_raw > 0 and runtime_allowed_layers <= 0
+        ),
     }
     if machine_read["entry_quality_ge_0_55"] and machine_read["allowed_layers_gt_0"]:
         verdict = "runtime_patch_crosses_trade_floor"
+    elif machine_read["entry_quality_ge_0_55"] and machine_read["raw_allowed_layers_gt_0"]:
+        verdict = "runtime_patch_crosses_floor_but_execution_blocked"
     elif runtime_eq > baseline_eq:
         verdict = "runtime_patch_improves_but_still_below_floor"
     else:
@@ -1194,7 +1258,19 @@ def _build_deployment_grade_component_experiment(
         "entry_quality_delta_vs_legacy": round(runtime_eq - baseline_eq, 4),
         "baseline_allowed_layers_raw": baseline_current.get("allowed_layers_raw"),
         "calibration_runtime_allowed_layers_raw": calibration_runtime_current.get("allowed_layers_raw"),
-        "runtime_allowed_layers_raw": deployed_runtime_current.get("allowed_layers_raw"),
+        "runtime_allowed_layers_raw": runtime_allowed_layers_raw,
+        "runtime_allowed_layers": runtime_allowed_layers,
+        "runtime_allowed_layers_raw_reason": deployed_runtime_current.get("allowed_layers_raw_reason"),
+        "runtime_allowed_layers_reason": deployed_runtime_current.get("allowed_layers_reason"),
+        "runtime_execution_guardrail_reason": deployed_runtime_current.get("execution_guardrail_reason"),
+        "runtime_deployment_blocker": deployed_runtime_current.get("deployment_blocker"),
+        "runtime_execution_blocker": runtime_execution_blocker,
+        "runtime_closure_state": deployed_runtime_current.get("runtime_closure_state"),
+        "support_route_verdict": deployed_runtime_current.get("support_route_verdict"),
+        "support_route_deployable": deployed_runtime_current.get("support_route_deployable"),
+        "current_live_structure_bucket_rows": deployed_runtime_current.get("current_live_structure_bucket_rows"),
+        "minimum_support_rows": deployed_runtime_current.get("minimum_support_rows"),
+        "current_live_structure_bucket_gap_to_minimum": deployed_runtime_current.get("current_live_structure_bucket_gap_to_minimum"),
         "runtime_trade_floor": trade_floor,
         "runtime_remaining_gap_to_floor": runtime_gap,
         "machine_read_answer": machine_read,
@@ -1939,7 +2015,7 @@ def main() -> None:
         winner_summary,
     )
     base_stack_redesign_experiment = _build_base_stack_redesign_experiment(
-        runtime_current,
+        deployed_runtime_current,
         runtime_exact_lane,
     )
     runtime_contract_status, runtime_contract_reason = _runtime_contract_state(
