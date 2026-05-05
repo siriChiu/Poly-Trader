@@ -3757,7 +3757,7 @@ def test_backtest_route_uses_canonical_features_and_returns_decision_quality(mon
         for i in range(20)
     ]
 
-    monkeypatch.setattr(api_module.ccxt, "binance", lambda: _FakeExchange())
+    monkeypatch.setattr(api_module.ccxt, "okx", lambda: _FakeExchange())
     monkeypatch.setattr(api_module, "get_db", lambda: _FakeDbBacktest(rows))
     monkeypatch.setattr(
         api_module,

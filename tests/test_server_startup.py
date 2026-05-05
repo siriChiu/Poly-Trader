@@ -591,8 +591,8 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
         },
     }.get(key, default))
     monkeypatch.setattr(api_module, "is_automation_enabled", lambda: True)
-    monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "binance"}, "execution": {"mode": "paper", "venue": "binance", "venues": {"binance": {"enabled": True}}}})
-    monkeypatch.setattr(api_module, "_ensure_execution_metadata_smoke_governance", lambda cfg, symbol: {"all_ok": True, "ok_count": 2, "venues_checked": 2, "venues": [{"venue": "binance", "ok": True}], "governance": {"status": "healthy"}})
+    monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "okx"}, "execution": {"mode": "paper", "venue": "okx", "venues": {"okx": {"enabled": True}}}})
+    monkeypatch.setattr(api_module, "_ensure_execution_metadata_smoke_governance", lambda cfg, symbol: {"all_ok": True, "ok_count": 1, "venues_checked": 1, "venues": [{"venue": "okx", "ok": True}], "governance": {"status": "healthy"}})
     monkeypatch.setattr(api_module, "_load_recent_canonical_drift_summary", lambda: {
         "generated_at": "2026-04-22T00:00:00Z",
         "primary_window": {
@@ -655,7 +655,7 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["feature_continuity"]["continuity_repair"]["remaining_missing"] == 0
     assert payload["execution"]["guardrails"]["consecutive_failures"] >= 0
     assert payload["execution_reconciliation"] == reconciliation_payload
-    assert payload["execution_metadata_smoke"]["ok_count"] == 2
+    assert payload["execution_metadata_smoke"]["ok_count"] == 1
     assert payload["execution_surface_contract"]["canonical_execution_route"] == "dashboard"
     assert payload["execution_surface_contract"]["canonical_surface_label"] == "Dashboard / Execution 狀態面板"
     assert payload["execution_surface_contract"]["operations_surface"]["route"] == "/execution"
@@ -835,13 +835,13 @@ def test_api_trade_allows_reduce_when_current_live_blocker_active(monkeypatch):
             calls.append(kwargs)
             return {
                 "success": True,
-                "venue": "binance",
+                "venue": "okx",
                 "guardrails": {"last_reject": None},
                 "order": {"id": "dry_reduce_1", "status": "accepted"},
             }
 
     monkeypatch.setattr(api_module, "get_confidence_prediction", _confidence_should_not_run)
-    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "binance"}, "trading": {"venue": "binance"}})
+    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "okx"}, "trading": {"venue": "okx"}})
     monkeypatch.setattr(api_module, "get_db", lambda: DummySession())
     monkeypatch.setattr(api_module, "ExecutionService", FakeExecutionService)
 
@@ -1021,8 +1021,8 @@ def test_api_status_passes_db_session_into_execution_service(monkeypatch):
     monkeypatch.setattr(api_module, "_ensure_execution_metadata_smoke_governance", lambda cfg, symbol: None)
     monkeypatch.setattr(api_module, "is_automation_enabled", lambda: False)
     monkeypatch.setattr(api_module, "get_config", lambda: {
-        "trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "binance"},
-        "execution": {"mode": "paper", "venue": "binance", "venues": {"binance": {"enabled": True}}},
+        "trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "okx"},
+        "execution": {"mode": "paper", "venue": "okx", "venues": {"okx": {"enabled": True}}},
     })
 
     import asyncio
@@ -1102,7 +1102,7 @@ def test_build_execution_reconciliation_summary_marks_healthy_match():
     latest_trade = SimpleNamespace(
         timestamp=datetime.now(timezone.utc),
         symbol="BTC/USDT",
-        exchange="binance",
+        exchange="okx",
         action="BUY",
         order_id="order-1",
         client_order_id="client-1",
@@ -1112,7 +1112,7 @@ def test_build_execution_reconciliation_summary_marks_healthy_match():
     lifecycle_rows = [
         SimpleNamespace(
             timestamp=datetime.now(timezone.utc) - timedelta(seconds=3),
-            exchange="binance",
+            exchange="okx",
             symbol="BTC/USDT",
             order_id="order-1",
             client_order_id="client-1",
@@ -1125,7 +1125,7 @@ def test_build_execution_reconciliation_summary_marks_healthy_match():
         ),
         SimpleNamespace(
             timestamp=datetime.now(timezone.utc) - timedelta(seconds=2),
-            exchange="binance",
+            exchange="okx",
             symbol="BTC/USDT",
             order_id="order-1",
             client_order_id="client-1",
@@ -1138,7 +1138,7 @@ def test_build_execution_reconciliation_summary_marks_healthy_match():
         ),
         SimpleNamespace(
             timestamp=datetime.now(timezone.utc) - timedelta(seconds=1),
-            exchange="binance",
+            exchange="okx",
             symbol="BTC/USDT",
             order_id="order-1",
             client_order_id="client-1",
@@ -1199,13 +1199,13 @@ def test_build_execution_reconciliation_summary_marks_healthy_match():
     assert payload["lifecycle_contract"]["artifact_checklist"][-1]["status"] == "ready"
     assert payload["lifecycle_contract"]["artifact_checklist"][-1]["provenance_level"] == "internal_only"
     assert payload["lifecycle_contract"]["event_type_counts"]["trade_history_persisted"] == 1
-    assert payload["lifecycle_contract"]["venue_lanes_summary"].startswith("Binance: baseline 3/3")
-    assert payload["lifecycle_contract"]["venue_lanes"][0]["venue"] == "binance"
+    assert payload["lifecycle_contract"]["venue_lanes_summary"].startswith("OKX: baseline 3/3")
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["venue"] == "okx"
     assert payload["lifecycle_contract"]["venue_lanes"][0]["status"] == "baseline_ready_missing_path"
     assert payload["lifecycle_contract"]["venue_lanes"][0]["operator_next_artifact"] == "partial_fill_or_cancel"
-    assert payload["lifecycle_contract"]["venue_lanes"][0]["operator_action_summary"] == "Binance baseline 已齊，但還缺真實 path artifact。"
-    assert payload["lifecycle_contract"]["venue_lanes"][0]["operator_instruction"].startswith("用 Binance 的真實/沙盒委託刻意捕捉 partial_fill")
-    assert payload["lifecycle_contract"]["venue_lanes"][0]["verify_instruction"].startswith("重刷 /api/status，確認 Binance lane 的 path observed > 0")
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["operator_action_summary"] == "OKX baseline 已齊，但還缺真實 path artifact。"
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["operator_instruction"].startswith("用 OKX 的真實/沙盒委託刻意捕捉 partial_fill")
+    assert payload["lifecycle_contract"]["venue_lanes"][0]["verify_instruction"].startswith("重刷 /api/status，確認 OKX lane 的 path observed > 0")
     assert payload["lifecycle_contract"]["venue_lanes"][0]["operator_next_check"] == "先看 lane timeline 是否仍停在 trade_history_persisted。"
     assert payload["lifecycle_contract"]["venue_lanes"][0]["remediation_focus"] == "path_artifact_capture"
     assert payload["lifecycle_contract"]["venue_lanes"][0]["remediation_priority"] == "P0"
@@ -1639,7 +1639,7 @@ def test_build_execution_reconciliation_summary_marks_lifecycle_contract_incompl
     latest_trade = SimpleNamespace(
         timestamp=datetime.now(timezone.utc),
         symbol="BTC/USDT",
-        exchange="binance",
+        exchange="okx",
         action="BUY",
         order_id="order-gap",
         client_order_id="client-gap",
@@ -1649,7 +1649,7 @@ def test_build_execution_reconciliation_summary_marks_lifecycle_contract_incompl
     lifecycle_rows = [
         SimpleNamespace(
             timestamp=datetime.now(timezone.utc) - timedelta(seconds=1),
-            exchange="binance",
+            exchange="okx",
             symbol="BTC/USDT",
             order_id="order-gap",
             client_order_id="client-gap",
@@ -1702,7 +1702,7 @@ def test_build_execution_reconciliation_summary_normalizes_epoch_runtime_timesta
     latest_trade = SimpleNamespace(
         timestamp=datetime.now(timezone.utc),
         symbol="BTC/USDT",
-        exchange="binance",
+        exchange="okx",
         action="BUY",
         order_id="order-epoch",
         client_order_id="client-epoch",
@@ -1741,7 +1741,7 @@ def test_build_execution_reconciliation_summary_includes_lifecycle_timeline():
     latest_trade = SimpleNamespace(
         timestamp=datetime.now(timezone.utc),
         symbol="BTC/USDT",
-        exchange="binance",
+        exchange="okx",
         action="BUY",
         order_id="order-timeline",
         client_order_id="client-timeline",
@@ -1751,7 +1751,7 @@ def test_build_execution_reconciliation_summary_includes_lifecycle_timeline():
     lifecycle_rows = [
         SimpleNamespace(
             timestamp=datetime.now(timezone.utc) - timedelta(seconds=2),
-            exchange="binance",
+            exchange="okx",
             symbol="BTC/USDT",
             order_id="order-timeline",
             client_order_id="client-timeline",
@@ -1764,7 +1764,7 @@ def test_build_execution_reconciliation_summary_includes_lifecycle_timeline():
         ),
         SimpleNamespace(
             timestamp=datetime.now(timezone.utc) - timedelta(seconds=1),
-            exchange="binance",
+            exchange="okx",
             symbol="BTC/USDT",
             order_id="order-timeline",
             client_order_id="client-timeline",
@@ -1809,7 +1809,7 @@ def test_build_execution_reconciliation_summary_marks_venue_backed_artifact_prov
     latest_trade = SimpleNamespace(
         timestamp=datetime.now(timezone.utc),
         symbol="BTC/USDT",
-        exchange="binance",
+        exchange="okx",
         action="BUY",
         order_id="order-venue-proof",
         client_order_id="client-venue-proof",
@@ -1819,7 +1819,7 @@ def test_build_execution_reconciliation_summary_marks_venue_backed_artifact_prov
     lifecycle_rows = [
         SimpleNamespace(
             timestamp=datetime.now(timezone.utc) - timedelta(seconds=2),
-            exchange="binance",
+            exchange="okx",
             symbol="BTC/USDT",
             order_id="order-venue-proof",
             client_order_id="client-venue-proof",
@@ -1832,7 +1832,7 @@ def test_build_execution_reconciliation_summary_marks_venue_backed_artifact_prov
         ),
         SimpleNamespace(
             timestamp=datetime.now(timezone.utc) - timedelta(seconds=1),
-            exchange="binance",
+            exchange="okx",
             symbol="BTC/USDT",
             order_id="order-venue-proof",
             client_order_id="client-venue-proof",
@@ -1885,10 +1885,10 @@ def test_load_execution_metadata_smoke_summary_reports_freshness(tmp_path, monke
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "symbol": "BTC/USDT",
         "all_ok": True,
-        "ok_count": 2,
-        "venues_checked": 2,
+        "ok_count": 1,
+        "venues_checked": 1,
         "results": {
-            "binance": {"ok": True, "enabled_in_config": True, "credentials_configured": False, "contract": {"step_size": "0.001", "tick_size": "0.1"}},
+            "okx": {"ok": True, "enabled_in_config": True, "credentials_configured": False, "contract": {"step_size": "0.001", "tick_size": "0.1"}},
         },
     }), encoding="utf-8")
     monkeypatch.setattr(api_module, "_EXECUTION_METADATA_SMOKE_PATH", fresh_path)
@@ -1908,7 +1908,7 @@ def test_load_execution_metadata_smoke_summary_reports_freshness(tmp_path, monke
         "order ack lifecycle 尚未驗證",
         "fill lifecycle 尚未驗證",
     ]
-    assert venue["operator_next_action"].startswith("先配置 binance 交易憑證")
+    assert venue["operator_next_action"].startswith("先配置 okx 交易憑證")
     assert "場館生命週期通道" in venue["verify_next"]
 
 
@@ -1941,7 +1941,7 @@ def test_load_execution_metadata_smoke_summary_marks_disabled_venue_as_metadata_
 
 
 def test_build_venue_runtime_proof_contract_marks_credentials_configured_lifecycle_gap():
-    contract = api_module._build_venue_runtime_proof_contract("binance", {
+    contract = api_module._build_venue_runtime_proof_contract("okx", {
         "ok": True,
         "enabled_in_config": True,
         "credentials_configured": True,
@@ -2007,7 +2007,7 @@ def test_ensure_execution_metadata_smoke_governance_auto_refreshes_stale_artifac
         "ok_count": 1,
         "venues_checked": 1,
         "results": {
-            "binance": {"ok": True, "enabled_in_config": True, "credentials_configured": False, "contract": {"step_size": "0.001", "tick_size": "0.1"}},
+            "okx": {"ok": True, "enabled_in_config": True, "credentials_configured": False, "contract": {"step_size": "0.001", "tick_size": "0.1"}},
         },
     })
     api_module._EXECUTION_METADATA_SMOKE_REFRESH_STATE.update({

@@ -130,9 +130,9 @@ def main():
     print("=== 4H Historical Backfill ===")
     start = datetime.now()
 
-    # 1. Fetch 2 years of 4H candles from Binance (paginate)
-    print("[1/5] Fetching 4H candles from Binance...")
-    exchange = ccxt.binance({"enableRateLimit": True})
+    # 1. Fetch 2 years of 4H candles from OKX (paginate)
+    print("[1/5] Fetching 4H candles from OKX...")
+    exchange = ccxt.okx({"enableRateLimit": True})
     # Need ~2200 candles to cover DB range (2025-04 to 2026-04)
     # Use since parameter to paginate backwards
     ohlcv_all = []

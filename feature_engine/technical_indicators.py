@@ -13,7 +13,7 @@ New Senses (7 new features):
   feat_atr_pct    — ATR % of price (normalized volatility)
   feat_vwap_dev    — VWAP deviation (fair value proxy)
 
-Data source: Binance OHLCV via ccxt (no additional APIs needed)
+Data source: OKX OHLCV via ccxt (no additional APIs needed)
 Dependencies: numpy, scipy (both already installed)
 """
 
@@ -335,18 +335,18 @@ def compute_ic_for_indicator(
     return results
 
 
-def fetch_binance_ohlcv(
+def fetch_okx_ohlcv(
     symbol: str = "BTC/USDT",
     timeframe: str = "1h",
     limit: int = 300,
 ) -> Optional[Dict[str, np.ndarray]]:
-    """Fetch OHLCV from Binance via ccxt.
+    """Fetch OHLCV from OKX via ccxt.
     
     Returns dict with 'closes', 'highs', 'lows', 'volumes' arrays.
     """
     try:
         import ccxt
-        exchange = ccxt.binance({"enableRateLimit": True})
+        exchange = ccxt.okx({"enableRateLimit": True})
         ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
         if not ohlcv or len(ohlcv) < 1:
             return None
@@ -403,7 +403,7 @@ if __name__ == "__main__":
     print("=" * 60)
     
     # Fetch data
-    ohlcv = fetch_binance_ohlcv("BTC/USDT", "4h", limit=500)
+    ohlcv = fetch_okx_ohlcv("BTC/USDT", "4h", limit=500)
     if not ohlcv:
         print("Failed to fetch OHLCV data")
         exit(1)

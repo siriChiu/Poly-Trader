@@ -1,51 +1,15 @@
 {
-  "generated_at": "2026-05-02T07:43:30.294373Z",
+  "generated_at": "2026-05-04T15:11:15.691885Z",
   "symbol": "BTC/USDT",
   "all_ok": true,
-  "ok_count": 2,
-  "venues_checked": 2,
+  "ok_count": 1,
+  "venues_checked": 1,
   "results": {
-    "binance": {
-      "ok": true,
-      "venue": "binance",
-      "symbol": "BTC/USDT",
-      "enabled_in_config": true,
-      "credentials_configured": false,
-      "contract": {
-        "symbol": "BTC/USDT",
-        "base": "BTC",
-        "quote": "USDT",
-        "min_qty": 1e-05,
-        "min_cost": 5.0,
-        "amount_precision": 1e-05,
-        "price_precision": 0.01,
-        "step_size": "0.00001000",
-        "tick_size": "0.01000000",
-        "qty_contract": {
-          "step_size": "0.00001000",
-          "min_qty": 1e-05,
-          "precision": 1e-05
-        },
-        "price_contract": {
-          "tick_size": "0.01000000",
-          "precision": 0.01
-        }
-      },
-      "proof_state": "public_metadata_only",
-      "readiness_scope": "venue_runtime_proof_required",
-      "blockers": [
-        "live exchange credential 尚未驗證",
-        "order ack lifecycle 尚未驗證",
-        "fill lifecycle 尚未驗證"
-      ],
-      "operator_next_action": "先配置 binance 交易憑證，再用沙盒或極小額委託捕捉委託確認 / 成交 / 取消生命週期。",
-      "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
-    },
     "okx": {
       "ok": true,
       "venue": "okx",
       "symbol": "BTC/USDT",
-      "enabled_in_config": false,
+      "enabled_in_config": true,
       "credentials_configured": false,
       "contract": {
         "symbol": "BTC/USDT",
@@ -67,15 +31,14 @@
           "precision": 0.1
         }
       },
-      "proof_state": "config_disabled_metadata_only",
+      "proof_state": "public_metadata_only",
       "readiness_scope": "venue_runtime_proof_required",
       "blockers": [
-        "場館設定停用",
         "live exchange credential 尚未驗證",
         "order ack lifecycle 尚未驗證",
         "fill lifecycle 尚未驗證"
       ],
-      "operator_next_action": "若要啟用 okx，先開啟場館設定並配置憑證；目前只能作公開元資料觀測。",
+      "operator_next_action": "先配置 okx 交易憑證，再用沙盒或極小額委託捕捉委託確認 / 成交 / 取消生命週期。",
       "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
     }
   }

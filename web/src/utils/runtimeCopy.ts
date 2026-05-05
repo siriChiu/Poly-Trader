@@ -135,8 +135,8 @@ const EXECUTION_MODE_LABEL_MAPPINGS: Array<[string, string]> = [
 ];
 
 const EXECUTION_VENUE_LABEL_MAPPINGS: Array<[string, string]> = [
-  ["binance", "Binance"],
   ["okx", "OKX"],
+  ["unsupported_legacy_venue", "舊場館（已停用）"],
   ["unknown", "未提供"],
 ];
 

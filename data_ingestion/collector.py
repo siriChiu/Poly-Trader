@@ -20,10 +20,10 @@ from sqlalchemy.orm import Session
 from data_ingestion.body_liquidation import get_body_feature
 from data_ingestion.tongue_sentiment import get_tongue_feature
 from data_ingestion.nose_futures import get_nose_feature
-from data_ingestion.eye_binance import get_eye_feature
+from data_ingestion.eye_okx import get_eye_feature
 from data_ingestion.ear_polymarket import get_ear_feature
-from data_ingestion.binance_derivatives import get_derivatives_features
-from data_ingestion.backfill_historical import fetch_binance_klines
+from data_ingestion.okx_derivatives import get_derivatives_features
+from data_ingestion.backfill_historical import fetch_okx_klines
 from data_ingestion.macro_data import fetch_macro_latest, compute_nq_features
 from data_ingestion.claw_liquidation import get_claw_feature
 from data_ingestion.fang_options import get_fang_feature
@@ -184,7 +184,7 @@ def _insert_interpolated_gap_bridges(
 
 def repair_recent_raw_continuity(
     session: Session,
-    symbol: str = "BTCUSDT",
+    symbol: str = "BTC/USDT",
     *,
     lookback_days: int = 7,
     interval: str = "4h",
@@ -195,7 +195,7 @@ def repair_recent_raw_continuity(
     fine_grain_klines_df=None,
     return_details: bool = False,
 ) -> int | Dict[str, Any]:
-    """Backfill missing recent Binance klines into raw_market_data.
+    """Backfill missing recent OKX klines into raw_market_data.
 
     Heartbeat #628 root-cause fix: the live collector only appends a single snapshot row,
     so if the scheduler stalls for several hours the raw timeline develops large gaps and
@@ -214,7 +214,7 @@ def repair_recent_raw_continuity(
     existing_timestamps = [ts for (ts,) in existing_rows if ts is not None]
 
     if klines_df is None:
-        klines_df = fetch_binance_klines(symbol=symbol, interval=interval, days=lookback_days)
+        klines_df = fetch_okx_klines(symbol=symbol, interval=interval, days=lookback_days)
 
     inserted_coarse = _insert_klines_into_raw(
         session,
@@ -227,7 +227,7 @@ def repair_recent_raw_continuity(
 
     fine_cutoff = max(cutoff, datetime.utcnow() - timedelta(days=fine_grain_days))
     if fine_grain_klines_df is None:
-        fine_grain_klines_df = fetch_binance_klines(
+        fine_grain_klines_df = fetch_okx_klines(
             symbol=symbol,
             interval=fine_grain_interval,
             days=fine_grain_days,
@@ -277,11 +277,11 @@ def repair_recent_raw_continuity(
             inserted_bridge,
         )
     elif (klines_df is None or klines_df.empty) and (fine_grain_klines_df is None or fine_grain_klines_df.empty):
-        logger.warning("recent raw continuity repair skipped: no Binance klines fetched")
+        logger.warning("recent raw continuity repair skipped: no OKX klines fetched")
     return details if return_details else inserted_total
 
 
-def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
+def collect_all_senses(symbol: str = "BTC/USDT") -> Optional[Dict]:
     logger.info("開始多特徵數據收集 v4...")
 
     body = get_body_feature() or {}
@@ -385,7 +385,7 @@ def collect_all_senses(symbol: str = "BTCUSDT") -> Optional[Dict]:
     return record
 
 
-def run_collection_and_save(session: Session, symbol: str = "BTCUSDT") -> bool:
+def run_collection_and_save(session: Session, symbol: str = "BTC/USDT") -> bool:
     try:
         record = collect_all_senses(symbol)
         if record is None:

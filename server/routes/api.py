@@ -547,13 +547,14 @@ async def api_features_coverage(days: int = 90) -> Dict[str, Any]:
 async def api_backtest(days: int = 30, initial_capital: float = 10000.0) -> Dict[str, Any]:
     from backtesting import strategy_lab
 
-    exchange = ccxt.binance()
+    exchange = ccxt.okx()
+    okx_symbol = _normalize_symbol_scope("BTCUSDT")
     try:
-        candles_4h = exchange.fetch_ohlcv("BTCUSDT", "4h", limit=max(int(days) * 6, 20))
+        candles_4h = exchange.fetch_ohlcv(okx_symbol, "4h", limit=max(int(days) * 6, 20))
     except Exception:
         candles_4h = []
     try:
-        candles_1d = exchange.fetch_ohlcv("BTCUSDT", "1d", limit=max(int(days), 5))
+        candles_1d = exchange.fetch_ohlcv(okx_symbol, "1d", limit=max(int(days), 5))
     except Exception:
         candles_1d = []
 
@@ -1936,15 +1937,15 @@ def _build_execution_lifecycle_contract(
         lane = str(value or "").strip().lower()
         if not lane:
             return "unscoped_internal"
-        if lane in {"binance", "okx"}:
-            return lane
-        return lane.replace(" ", "_")
+        if lane == "okx":
+            return "okx"
+        return "unsupported_legacy_venue"
 
     def _format_venue_lane_label(lane_key: str) -> str:
-        if lane_key == "binance":
-            return "Binance"
         if lane_key == "okx":
             return "OKX"
+        if lane_key == "unsupported_legacy_venue":
+            return "舊場館（已停用）"
         if lane_key == "unscoped_internal":
             return "Unscoped internal"
         return lane_key.replace("_", " ").title()
@@ -2050,7 +2051,7 @@ def _build_execution_lifecycle_contract(
         if not lane_keys:
             lane_keys = {"unscoped_internal"}
 
-        preferred_order = {"binance": 0, "okx": 1, "unscoped_internal": 99}
+        preferred_order = {"okx": 0, "unsupported_legacy_venue": 90, "unscoped_internal": 99}
         baseline_keys = {"validation_passed", "venue_ack", "trade_history_persisted"}
         path_keys = {"partial_fill", "cancel"}
         venue_lanes: List[Dict[str, Any]] = []
@@ -6807,7 +6808,8 @@ async def api_klines(
             warmup_since = max(0, append_after - warmup_window_ms)
             fetch_since = max(since or 0, warmup_since) if since is not None else warmup_since
 
-        exchange = ccxt.binance()
+        exchange = ccxt.okx()
+        fetch_symbol = _normalize_symbol_scope(symbol)
         ohlcv: List[List[float]] = []
         current_since = fetch_since
         while True:
@@ -6822,7 +6824,7 @@ async def api_klines(
                 remaining = max(requested_limit - len(ohlcv), 1)
                 page_limit = max(min(remaining, 1000), 50)
 
-            page = exchange.fetch_ohlcv(symbol, interval, since=current_since, limit=page_limit)
+            page = exchange.fetch_ohlcv(fetch_symbol, interval, since=current_since, limit=page_limit)
             if not page:
                 break
             if until is not None:

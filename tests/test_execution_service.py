@@ -4,7 +4,6 @@ from database.models import OrderLifecycleEvent, TradeHistory
 from execution.account_sync import AccountSyncService
 from execution.config import resolve_trading_config
 from execution.execution_service import ExecutionService
-from execution.exchanges.binance_adapter import BinanceAdapter
 from execution.exchanges.okx_adapter import OKXAdapter
 
 
@@ -58,14 +57,13 @@ class FakeAdapter:
 def test_resolve_trading_config_merges_execution_and_legacy_fields():
     cfg = resolve_trading_config({
         "trading": {"dry_run": False, "venue": "okx"},
-        "binance": {"api_key": "***"},
         "okx": {"api_key": "okx-key", "api_secret": "s", "passphrase": "p"},
         "execution": {"mode": "live_canary", "venue": "okx", "venues": {"okx": {"enabled": True}}},
     })
     assert cfg["venue"] == "okx"
     assert cfg["mode"] == "live_canary"
     assert cfg["dry_run"] is True
-    assert cfg["venues"]["binance"]["api_key"] == "***"
+    assert "binance" not in cfg["venues"]
     assert cfg["venues"]["okx"]["passphrase"] == "p"
 
 
@@ -126,10 +124,10 @@ def test_execution_service_normalizes_legacy_symbol_format(monkeypatch):
 
 
 def test_account_sync_service_degrades_when_adapter_raises(monkeypatch):
-    sync = AccountSyncService({"execution": {"mode": "live", "venue": "binance", "enable_live_trading": True}})
+    sync = AccountSyncService({"execution": {"mode": "live", "venue": "okx", "enable_live_trading": True}})
 
     class BrokenAdapter(FakeAdapter):
-        venue = "binance"
+        venue = "okx"
         def fetch_balance(self):
             raise RuntimeError("broken")
 
@@ -195,8 +193,8 @@ def test_execution_service_records_rejected_lifecycle_event(monkeypatch):
     assert lifecycle_events[0].order_state == "rejected"
 
 
-class FakeBinanceStepAdapter(FakeAdapter):
-    venue = "binance"
+class FakeOKXStepAdapter(FakeAdapter):
+    venue = "okx"
 
     def market_rules(self, symbol):
         return {
@@ -225,9 +223,9 @@ class FakeOKXTickAdapter(FakeAdapter):
         }
 
 
-def test_execution_service_rejects_qty_step_size_mismatch_for_binance(monkeypatch):
-    service = ExecutionService({"execution": {"mode": "paper", "venue": "binance"}}, db_session=DummySession())
-    monkeypatch.setattr(service, "get_adapter", lambda venue=None: FakeBinanceStepAdapter(dry_run=True))
+def test_execution_service_rejects_qty_step_size_mismatch_for_okx(monkeypatch):
+    service = ExecutionService({"execution": {"mode": "paper", "venue": "okx"}}, db_session=DummySession())
+    monkeypatch.setattr(service, "get_adapter", lambda venue=None: FakeOKXStepAdapter(dry_run=True))
 
     try:
         service.submit_order(symbol="BTC/USDT", side="buy", order_type="limit", qty=0.0015, price=62000.1)
@@ -257,34 +255,33 @@ def test_execution_service_rejects_price_tick_size_mismatch_for_okx(monkeypatch)
         raise AssertionError("expected price tick-size reject")
 
 
-def test_binance_market_rules_include_step_and_tick_sizes(monkeypatch):
-    market = {
-        "base": "BTC",
-        "quote": "USDT",
-        "limits": {"amount": {"min": 0.001}, "cost": {"min": 10.0}},
-        "precision": {"amount": 6, "price": 2},
-        "info": {
-            "filters": [
-                {"filterType": "LOT_SIZE", "stepSize": "0.001"},
-                {"filterType": "PRICE_FILTER", "tickSize": "0.10"},
-            ]
-        },
-    }
 
-    class FakeExchange:
-        def __init__(self, _config):
-            self.markets = {"BTC/USDT": market}
+def test_resolve_trading_config_records_unsupported_legacy_venue_without_enabling_it():
+    cfg = resolve_trading_config({"execution": {"mode": "paper", "venue": "binance", "venues": {"binance": {"enabled": True}}}})
+    assert cfg["venue"] == "okx"
+    assert cfg["unsupported_venue_requested"] == "binance"
+    assert set(cfg["venues"]) == {"okx"}
 
-        def market(self, symbol):
-            return self.markets[symbol]
 
-    monkeypatch.setattr("execution.exchanges.binance_adapter.ccxt.binance", FakeExchange)
-    adapter = BinanceAdapter({}, dry_run=True)
-    rules = adapter.market_rules("BTC/USDT")
-    assert rules["step_size"] == "0.001"
-    assert rules["tick_size"] == "0.10"
-    assert rules["qty_contract"]["step_size"] == "0.001"
+def test_execution_service_rejects_configured_unsupported_legacy_venue_before_adapter_build():
+    service = ExecutionService({"execution": {"mode": "paper", "venue": "binance"}}, db_session=DummySession())
+    try:
+        service.get_adapter()
+    except ValueError as exc:
+        assert "Unsupported execution venue requested: binance" in str(exc)
+        assert "Only OKX execution API is supported" in str(exc)
+    else:
+        raise AssertionError("unsupported configured venue should be fail-closed")
 
+
+def test_execution_service_rejects_explicit_unsupported_venue_adapter():
+    service = ExecutionService({"execution": {"mode": "paper", "venue": "okx"}}, db_session=DummySession())
+    try:
+        service.get_adapter("binance")
+    except ValueError as exc:
+        assert "Only OKX execution API is supported" in str(exc)
+    else:
+        raise AssertionError("unsupported venue should be unsupported")
 
 def test_okx_market_rules_include_step_and_tick_sizes(monkeypatch):
     market = {

@@ -1,68 +1,47 @@
 #!/usr/bin/env python3
-"""Get BTC price, FNG, and derivatives data."""
-import requests
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data_ingestion.okx_public import (
+    fetch_current_funding,
+    fetch_current_open_interest,
+    fetch_long_short_ratio_series,
+    fetch_taker_volume_series,
+    fetch_ticker,
+    last_float,
+)
+
+from database.models import RawMarketData, init_db
 from datetime import datetime
 
-# BTC Price
+session = init_db()
 try:
-    r = requests.get('https://api.binance.com/api/v3/ticker/price', params={'symbol': 'BTCUSDT'}, timeout=15)
-    if r.status_code == 200:
-        btc_price = r.json()['price']
-        print(f"BTC=${btc_price}")
-    else:
-        print("BTC=N/A (API error)")
-except Exception as e:
-    print(f"BTC=N/A ({e})")
+    ticker = fetch_ticker('BTC/USDT')
+    price = float(ticker.get('last')) if ticker else None
+    if price:
+        session.add(RawMarketData(timestamp=datetime.utcnow(), symbol='BTC/USDT', close_price=price, volume=float(ticker.get('vol24h') or 0)))
+        session.commit()
+        print(f'OKX price: {price}')
 
-# Fear and Greed Index
-try:
-    r2 = requests.get('https://api.alternative.me/fng/?limit=1', timeout=15)
-    if r2.status_code == 200:
-        data = r2.json()['data'][0]
-        print(f"FNG={data['value']} ({data['value_classification']})")
-    else:
-        print("FNG=N/A")
-except Exception as e:
-    print(f"FNG=N/A ({e})")
+    lsr = last_float(fetch_long_short_ratio_series('BTC/USDT', period='4h', limit=1), 'longShortRatio', 'ratio')
+    print(f'OKX LSR: {lsr}')
 
-# Long/Short Ratio
-try:
-    r3 = requests.get('https://fapi.binance.com/futures/data/globalLongShortAccountRatio', params={'symbol': 'BTCUSDT', 'period': '4h', 'limit': 1}, timeout=15)
-    if r3.status_code == 200 and r3.json():
-        print(f"LSR={r3.json()[-1]['longShortRatio']}")
-    else:
-        print("LSR=N/A")
-except Exception as e:
-    print(f"LSR=N/A ({e})")
+    row = (fetch_taker_volume_series('BTC/USDT', period='4h', limit=1) or [{}])[-1]
+    buy = float(row.get('buyVol') or row.get('buyVolume') or 0)
+    sell = float(row.get('sellVol') or row.get('sellVolume') or 0)
+    print(f'OKX taker: {buy / sell if sell else None}')
 
-# Taker Buy/Sell
-try:
-    r4 = requests.get('https://fapi.binance.com/futures/data/takerlongshortRatio', params={'symbol': 'BTCUSDT', 'period': '4h', 'limit': 1}, timeout=15)
-    if r4.status_code == 200 and r4.json():
-        print(f"Taker={r4.json()[-1]['buySellRatio']}")
-    else:
-        print("Taker=N/A")
-except Exception as e:
-    print(f"Taker=N/A ({e})")
+    oi = fetch_current_open_interest('BTC/USDT')
+    print(f'OKX OI: {oi}')
 
-# Open Interest
-try:
-    r5 = requests.get('https://fapi.binance.com/futures/data/openInterestHist', params={'symbol': 'BTCUSDT', 'period': '4h', 'limit': 1}, timeout=15)
-    if r5.status_code == 200 and r5.json():
-        print(f"OI={r5.json()[-1]['sumOpenInterest']}")
-    else:
-        print("OI=N/A")
-except Exception as e:
-    print(f"OI=N/A ({e})")
-
-# Funding Rate
-try:
-    r6 = requests.get('https://fapi.binance.com/fapi/v1/premiumIndex', params={'symbol': 'BTCUSDT'}, timeout=15)
-    if r6.status_code == 200:
-        print(f"FR={r6.json()['lastFundingRate']}")
-    else:
-        print("FR=N/A")
-except Exception as e:
-    print(f"FR=N/A ({e})")
-
-print(f"Timestamp: {datetime.utcnow().isoformat()}")
+    funding = fetch_current_funding('BTC/USDT')
+    print(f'OKX funding: {funding}')
+finally:
+    session.close()

@@ -2,9 +2,9 @@
 """
 特徵之「 Fin 」v1 — 鏈上巨鯨模組
 
-數據源：Whale Alert API (免費) + Binance 大額交易
+數據源：Whale Alert API (免費) + OKX 大額交易
 - wss://leviathan.whale-alert.io/ws (實時鯨魚警報)
-- Binance 大額成交 (>50 BTC per trade)
+- OKX 大額成交 (>50 BTC per trade)
 
 邏輯：
 - 鯨魚流入交易所 → 準備出售 → SHORT 信號
@@ -31,8 +31,8 @@ WHALE_ALERT_URL = "https://api.whale-alert.io/v1/transactions"
 def fetch_whale_transactions(hours: int = 4, min_usd: int = 1_000_000) -> Optional[list]:
     """獲取最近 N 小時的巨額交易。"""
     if not WHALE_ALERT_API_KEY:
-        logger.debug("WHALE_ALERT_API_KEY 未設置，使用 Binance 替代")
-        return _fetch_binance_large_trades()
+        logger.debug("WHALE_ALERT_API_KEY 未設置，使用 OKX 替代")
+        return _fetch_okx_large_trades()
 
     try:
         from datetime import timedelta
@@ -45,24 +45,20 @@ def fetch_whale_transactions(hours: int = 4, min_usd: int = 1_000_000) -> Option
         return data.get("transactions", [])
     except Exception as e:
         logger.debug(f"Whale Alert API failed: {e}")
-        return _fetch_binance_large_trades()
+        return _fetch_okx_large_trades()
 
 
-def _fetch_binance_large_trades() -> Optional[list]:
-    """Binance 大額交易替代方案。"""
+def _fetch_okx_large_trades() -> Optional[list]:
+    """OKX 大額交易替代方案。"""
     try:
-        url = "https://api.binance.com/api/v3/trades"
-        params = {"symbol": "BTCUSDT", "limit": 1000}
-        import urllib.parse
-        qs = urllib.parse.urlencode(params)
-        req = Request(f"{url}?{qs}", headers={"User-Agent": "Mozilla/5.0"})
-        resp = urlopen(req, context=ssl.create_default_context(), timeout=10)
-        trades = json.loads(resp.read().decode())
+        from data_ingestion.okx_public import fetch_trades
+
+        trades = fetch_trades("BTC/USDT", limit=100)
         # 過濾大額 (>50 BTC ≈ $3,000,000+)
-        large = [t for t in trades if float(t.get("qty", 0)) > 50]
+        large = [t for t in trades if float(t.get("sz", t.get("qty", 0)) or 0) > 50]
         return large
     except Exception as e:
-        logger.debug(f"Binance large trades failed: {e}")
+        logger.debug(f"OKX large trades failed: {e}")
         return []
 
 
@@ -84,7 +80,7 @@ def get_fin_feature() -> Optional[Dict]:
         }
 
     # 統計交易所流入/流出
-    exchange_keywords = ["binance", "coinbase", "kraken", "bitfinex", "huobi", "okx", "bybit",
+    exchange_keywords = ["coinbase", "kraken", "bitfinex", "huobi", "okx", "bybit",
                          "gate", "kucoin", "gemini", "bitstamp", "ftx"]
 
     inflow_count = 0

@@ -6,7 +6,7 @@ sys.path.insert(0, '/home/kazuha/Poly-Trader')
 from feature_engine.ohlcv_4h import compute_4h_indicators, backtest_4h_strategy
 
 import ccxt
-exchange = ccxt.binance({"enableRateLimit": True})
+exchange = ccxt.okx({"enableRateLimit": True})
 ohlcv = exchange.fetch_ohlcv("BTC/USDT", "4h", limit=1000)
 candles = {
     "timestamps": np.array([o[0] for o in ohlcv]),

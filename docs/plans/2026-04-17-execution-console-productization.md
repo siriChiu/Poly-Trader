@@ -112,7 +112,7 @@
 2. **建立 bot 區**
    - 策略名稱下拉選單（來源：已儲存策略 / leaderboard 選中策略）
    - mode：paper / live_canary / live
-   - venue：binance / okx
+   - venue：OKX-only（legacy non-OKX venue 已停用）
    - symbol 或 market scope
    - 投入金額（例如 100 USD）
    - 可選：每 bot 最大層數 / 啟用與否

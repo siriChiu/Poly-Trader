@@ -1849,7 +1849,7 @@ def test_runtime_copy_exports_execution_mode_and_venue_humanizers_for_operator_s
         '["dry_run", "模擬委託"]',
         '["live", "實盤"]',
         'const EXECUTION_VENUE_LABEL_MAPPINGS',
-        '["binance", "Binance"]',
+        '["unsupported_legacy_venue", "舊場館（已停用）"]',
         '["okx", "OKX"]',
         'export function humanizeExecutionModeLabel(value?: string | null): string {',
         'export function humanizeExecutionVenueLabel(value?: string | null): string {',

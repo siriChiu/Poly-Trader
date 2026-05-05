@@ -31,7 +31,7 @@ try:
         print("Collection failed - checking which senses failed")
         # Try individual senses
         try:
-            from data_ingestion.eye_binance import get_eye_feature
+            from data_ingestion.eye_okx import get_eye_feature
             eye = get_eye_feature()
             print(f"  Eye: price={eye.get('current_price') if eye else 'FAILED'}")
         except Exception as e:

@@ -4,7 +4,7 @@ import sys, os, json, requests, datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 # Check if collector scripts exist
-for script in ['collectors/binance_collector.py', 'collectors/collect_market.py', 'main.py']:
+for script in ['collectors/okx_collector.py', 'collectors/collect_market.py', 'main.py']:
     path = os.path.join(os.path.dirname(__file__), '..', script)
     if os.path.exists(path):
         print(f"EXISTS: {script}")
@@ -24,16 +24,16 @@ for table in ['raw_market_data', 'features_normalized', 'labels']:
 
 conn.close()
 
-# Get current BTC price from Binance
+# Get current BTC price from OKX
 try:
-    resp = requests.get('https://api.binance.com/api/v3/ticker/price?', params={'symbol': 'BTCUSDT'}, timeout=10)
+    resp = requests.get('https://www.okx.com/api/v5/market/ticker', params={'instId': 'BTC-USDT-SWAP'}, timeout=10)
     if resp.status_code == 200:
         price = resp.json()['price']
-        print(f"\nCurrent BTC price from Binance: ${float(price):.2f}")
+        print(f"\nCurrent BTC price from OKX: ${float(price):.2f}")
     else:
-        print(f"\nBinance API error: {resp.status_code}")
+        print(f"\nOKX API error: {resp.status_code}")
 except Exception as e:
-    print(f"\nCould not get Binance price: {e}")
+    print(f"\nCould not get OKX price: {e}")
 
 # Get Fear & Greed Index
 try:
@@ -46,7 +46,7 @@ except Exception as e:
 
 # Get derivatives data
 try:
-    resp = requests.get('https://fapi.binance.com/fapi/v1/premiumIndex?', params={'symbol': 'BTCUSDT'}, timeout=10)
+    resp = requests.get('https://www.okx.com/api/v5/public/funding-rate', params={'instId': 'BTC-USDT-SWAP'}, timeout=10)
     if resp.status_code == 200:
         data = resp.json()
         print(f"Funding Rate: {data.get('lastFundingRate', 'N/A')}")
@@ -56,7 +56,7 @@ except Exception as e:
 
 # Get Open Interest
 try:
-    resp = requests.get('https://fapi.binance.com/fapi/v1/openInterest?', params={'symbol': 'BTCUSDT'}, timeout=10)
+    resp = requests.get('https://www.okx.com/api/v5/public/open-interest', params={'instId': 'BTC-USDT-SWAP'}, timeout=10)
     if resp.status_code == 200:
         data = resp.json()
         print(f"Open Interest: {data.get('openInterest', 'N/A')} BTC")

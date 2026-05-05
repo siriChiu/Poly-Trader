@@ -3,7 +3,7 @@
 ================================================================
 用法:
   cd /home/kazuha/Poly-Trader && source venv/bin/activate
-  python scripts/train_4h_pipeline.py             # 從 Binance 訓練
+  python scripts/train_4h_pipeline.py             # 從 OKX 訓練
   python scripts/train_4h_pipeline.py --backtest   # 只做回測
 """
 import numpy as np
@@ -41,8 +41,8 @@ def main():
     print("=" * 70)
     
     # ── Step 1: Fetch 4H data ──
-    print("\n[1/5] Fetching 4H OHLCV from Binance...")
-    exchange = ccxt.binance({"enableRateLimit": True})
+    print("\n[1/5] Fetching 4H OHLCV from OKX...")
+    exchange = ccxt.okx({"enableRateLimit": True})
     all_ohlcv = []
     for _ in range(5):
         if not all_ohlcv:

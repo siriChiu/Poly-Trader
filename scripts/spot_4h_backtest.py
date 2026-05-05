@@ -16,7 +16,7 @@ from feature_engine.ohlcv_4h import compute_4h_indicators
 from datetime import datetime
 
 print("Fetching 4H data...")
-exchange = ccxt.binance({"enableRateLimit": True})
+exchange = ccxt.okx({"enableRateLimit": True})
 all_ohlcv = []
 for i in range(10):
     if not all_ohlcv:

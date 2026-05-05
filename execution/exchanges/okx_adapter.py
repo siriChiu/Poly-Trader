@@ -15,6 +15,16 @@ def _okx_symbol_info(market: Dict[str, Any]) -> Dict[str, Any]:
     return (market.get("info") or {}) if isinstance(market, dict) else {}
 
 
+def _normalize_okx_symbol(symbol: str) -> str:
+    value = str(symbol or "").strip().upper()
+    if not value or "/" in value:
+        return value
+    for quote in ("USDT", "USDC", "BTC", "ETH"):
+        if value.endswith(quote) and len(value) > len(quote):
+            return f"{value[:-len(quote)]}/{quote}"
+    return value
+
+
 class OKXAdapter(BaseExchangeAdapter):
     venue = "okx"
 
@@ -75,24 +85,26 @@ class OKXAdapter(BaseExchangeAdapter):
         return {"venue": self.venue, "positions": positions, "dry_run": self.dry_run}
 
     def fetch_open_orders(self, symbol: Optional[str] = None) -> Dict[str, Any]:
+        normalized_symbol = _normalize_okx_symbol(symbol) if symbol else None
         if self.dry_run:
             return {"venue": self.venue, "orders": [], "dry_run": True}
         exchange = self._require_exchange()
-        orders = exchange.fetch_open_orders(symbol)
+        orders = exchange.fetch_open_orders(normalized_symbol)
         return {"venue": self.venue, "orders": orders, "dry_run": self.dry_run}
 
     def market_rules(self, symbol: str) -> Dict[str, Any]:
+        normalized_symbol = _normalize_okx_symbol(symbol)
         exchange = self._require_exchange() if self.credentials_configured() else ccxt.okx({"enableRateLimit": True})
         if not getattr(exchange, "markets", None):
             exchange.load_markets()
-        market = exchange.market(symbol)
+        market = exchange.market(normalized_symbol)
         limits = market.get("limits") or {}
         precision = market.get("precision") or {}
         info = _okx_symbol_info(market)
         step_size = info.get("lotSz") or info.get("minSz")
         tick_size = info.get("tickSz")
         return {
-            "symbol": symbol,
+            "symbol": normalized_symbol,
             "base": market.get("base"),
             "quote": market.get("quote"),
             "min_qty": ((limits.get("amount") or {}).get("min")),
@@ -113,10 +125,11 @@ class OKXAdapter(BaseExchangeAdapter):
         }
 
     def place_order(self, request: OrderRequest) -> ExchangeOrderResult:
+        normalized_symbol = _normalize_okx_symbol(request.symbol)
         if self.dry_run:
             return ExchangeOrderResult(
                 venue=self.venue,
-                symbol=request.symbol,
+                symbol=normalized_symbol,
                 side=request.side,
                 order_type=request.order_type,
                 qty=request.qty,
@@ -138,14 +151,14 @@ class OKXAdapter(BaseExchangeAdapter):
         if order_type == "limit":
             if request.price is None:
                 raise ValueError("OKX limit order requires price")
-            order = exchange.create_limit_order(request.symbol, request.side, request.qty, request.price, params)
+            order = exchange.create_limit_order(normalized_symbol, request.side, request.qty, request.price, params)
         elif order_type == "market":
-            order = exchange.create_market_order(request.symbol, request.side, request.qty, params)
+            order = exchange.create_market_order(normalized_symbol, request.side, request.qty, params)
         else:
             raise ValueError(f"Unsupported order type: {request.order_type}")
         return ExchangeOrderResult(
             venue=self.venue,
-            symbol=request.symbol,
+            symbol=normalized_symbol,
             side=request.side,
             order_type=request.order_type,
             qty=request.qty,

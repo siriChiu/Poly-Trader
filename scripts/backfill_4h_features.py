@@ -1,7 +1,7 @@
 """
 回填 4H 特徵到 features_normalized
 ===================================
-從 Binance 抓 4H OHLCV → 計算指標 → 匹配到最接近的 DB feature row
+從 OKX 抓 4H OHLCV → 計算指標 → 匹配到最接近的 DB feature row
 """
 import numpy as np
 import sys, ccxt
@@ -16,9 +16,9 @@ print("4H Feature Backfill")
 print("=" * 60)
 
 # Fetch 4H data
-exchange = ccxt.binance({"enableRateLimit": True})
+exchange = ccxt.okx({"enableRateLimit": True})
 ohlcv = exchange.fetch_ohlcv("BTC/USDT", "4h", limit=1000)
-print(f"Fetched {len(ohlcv)} 4H candles from Binance")
+print(f"Fetched {len(ohlcv)} 4H candles from OKX")
 
 candles = {
     "timestamps": np.array([o[0] for o in ohlcv]),

@@ -4,11 +4,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional
 
 from execution.config import resolve_trading_config
-from execution.exchanges.binance_adapter import BinanceAdapter
 from execution.exchanges.okx_adapter import OKXAdapter
 
 ADAPTER_FACTORIES = {
-    "binance": BinanceAdapter,
     "okx": OKXAdapter,
 }
 
@@ -100,6 +98,9 @@ def _iter_venues(execution_cfg: Dict[str, Any], venues: Optional[Iterable[str]])
     if venues:
         normalized = [str(v).strip().lower() for v in venues if str(v).strip()]
         return list(dict.fromkeys(normalized))
+    unsupported_requested = execution_cfg.get("unsupported_venue_requested")
+    if unsupported_requested:
+        return [str(unsupported_requested).strip().lower()]
     configured = list((execution_cfg.get("venues") or {}).keys())
     return configured or list(ADAPTER_FACTORIES.keys())
 

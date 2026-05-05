@@ -34,7 +34,7 @@ try:
     if not target_rows:
         raise SystemExit(0)
 
-    exchange = ccxt.binance({"enableRateLimit": True})
+    exchange = ccxt.okx({"enableRateLimit": True})
     ohlcv = exchange.fetch_ohlcv("BTC/USDT", "4h", limit=1000)
     print(f"fetched_4h_candles={len(ohlcv)}")
     candles = {

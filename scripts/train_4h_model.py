@@ -1,7 +1,7 @@
 """
-純 4H 訓練流程: 用 Binance 歷史 4H 數據訓練模型並回測
+純 4H 訓練流程: 用 OKX 歷史 4H 數據訓練模型並回測
 ========================================================
-1. 從 Binance 抓 4H OHLCV (1000 根 = ~166 天)
+1. 從 OKX 抓 4H OHLCV (1000 根 = ~166 天)
 2. 計算 4H 技術指標
 3. 生成標籤 (未來 N 根 4H candle 的收益率)
 4. 訓練 XGBoost (rolling window CV)
@@ -23,7 +23,7 @@ print("Pure 4H Model Training & Backtest")
 print("=" * 70)
 
 # Fetch data
-exchange = ccxt.binance({"enableRateLimit": True})
+exchange = ccxt.okx({"enableRateLimit": True})
 ohlcv = exchange.fetch_ohlcv("BTC/USDT", "4h", limit=1000)
 candles = {
     "timestamps": np.array([o[0] for o in ohlcv]),

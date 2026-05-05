@@ -18,7 +18,7 @@ logger = setup_logger(__name__)
 def _compute_technical_indicators_from_df(df: pd.DataFrame) -> Dict[str, float]:
     """Compute IC-validated technical indicators from OHLCV data.
     
-    P0: Now also fetches 4H data from Binance for 4H timeframe features.
+    P0: Now also fetches 4H data from OKX for 4H timeframe features.
     The 1min-based indicators are still computed for backward compatibility.
     """
     close = df["close_price"].dropna().astype(float) if "close_price" in df.columns else pd.Series(dtype=float)
@@ -47,10 +47,10 @@ def _compute_technical_indicators_from_df(df: pd.DataFrame) -> Dict[str, float]:
     result = compute_technical_features(closes, high_est, low_est, vols)
     
     # ─── P0: 4H Timeframe Features ───
-    # Fetch 4H data from Binance and compute 4H support-line bias features
+    # Fetch 4H data from OKX and compute 4H support-line bias features
     try:
         import ccxt
-        exchange = ccxt.binance({"enableRateLimit": True, "verbose": False})
+        exchange = ccxt.okx({"enableRateLimit": True, "verbose": False})
         ohlcv_4h = exchange.fetch_ohlcv("BTC/USDT", "4h", limit=300)
         if ohlcv_4h and len(ohlcv_4h) >= 200:
             candles_4h = {
@@ -169,7 +169,7 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
 
     features = {
         "timestamp": latest.get("timestamp", datetime.utcnow()),
-        "symbol": latest.get("symbol", "BTCUSDT"),
+        "symbol": latest.get("symbol", "BTC/USDT"),
     }
 
     # 1. Eye (v4b): return_24h / vol_72h — 24期回報除以72期波動率
@@ -563,7 +563,7 @@ def save_features_to_db(
     """保存特徵（含去重檢查）。"""
     try:
         ts = features["timestamp"]
-        symbol = features.get("symbol", "BTCUSDT")
+        symbol = features.get("symbol", "BTC/USDT")
         existing = (
             session.query(FeaturesNormalized)
             .filter(FeaturesNormalized.timestamp == ts)
@@ -691,7 +691,7 @@ def save_features_to_db(
 
 
 def run_preprocessor(
-    session: Session, symbol: str = "BTCUSDT"
+    session: Session, symbol: str = "BTC/USDT"
 ) -> Optional[Dict]:
     """完整特徵工程流程。"""
     logger.info("開始執行特徵工程 v3...")
@@ -709,7 +709,7 @@ def run_preprocessor(
     return features if saved else None
 
 
-def _load_existing_feature_timestamps(session: Session, symbol: str = "BTCUSDT") -> set:
+def _load_existing_feature_timestamps(session: Session, symbol: str = "BTC/USDT") -> set:
     rows = (
         session.query(FeaturesNormalized.timestamp)
         .filter((FeaturesNormalized.symbol == symbol) | (FeaturesNormalized.symbol.is_(None)))
@@ -754,7 +754,7 @@ def _compute_recent_feature_gap_hours(timestamps, expected_gap_hours: float = 4.
 
 def backfill_missing_feature_rows(
     session: Session,
-    symbol: str = "BTCUSDT",
+    symbol: str = "BTC/USDT",
     *,
     lookback_days: int | None = None,
 ) -> int:
@@ -799,7 +799,7 @@ def backfill_missing_feature_rows(
 
 def repair_recent_feature_continuity(
     session: Session,
-    symbol: str = "BTCUSDT",
+    symbol: str = "BTC/USDT",
     *,
     lookback_days: int = 30,
     expected_gap_hours: float = 4.0,
@@ -855,7 +855,7 @@ def repair_recent_feature_continuity(
     return details if return_details else inserted
 
 
-def recompute_all_features(session: Session, symbol: str = "BTCUSDT") -> int:
+def recompute_all_features(session: Session, symbol: str = "BTC/USDT") -> int:
     """
     重新計算所有歷史特徵（用於特徵升級後批量更新）。
     Returns: 新增/更新的特徵數量。

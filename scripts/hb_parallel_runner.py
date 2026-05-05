@@ -2116,8 +2116,7 @@ def _issue_current_lines(
     if issue_id == "P1_execution_venue_readiness_unverified":
         return [
             "目前真相："
-            "`binance=config enabled + public-only + metadata OK` / "
-            "`okx=config disabled + public-only + metadata OK` / "
+            "`okx=config enabled + public-only + metadata OK` / "
             "`missing_runtime_proof=live exchange credential, order ack lifecycle, fill lifecycle`",
             "API/UI contract：`execution_metadata_smoke.venues[]` 已帶 `proof_state / blockers / operator_next_action / verify_next`，Dashboard、`/execution/status`、`/execution`、`/lab` 可直接顯示每個場館的實單證據缺口，不再只靠 metadata OK/FAIL 猜測 readiness。",
         ]

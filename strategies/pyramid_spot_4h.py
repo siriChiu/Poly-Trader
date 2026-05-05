@@ -128,8 +128,8 @@ def compute_macd_hist(closes, fast=12, slow=26, signal_p=9):
 
 
 def fetch_4h_candles(limit=1000):
-    """Fetch latest 4H candles from Binance."""
-    exchange = ccxt.binance({"enableRateLimit": True})
+    """Fetch latest 4H candles from OKX."""
+    exchange = ccxt.okx({"enableRateLimit": True})
     ohlcv = exchange.fetch_ohlcv("BTC/USDT", "4h", limit=limit)
     return [
         {"ts": o[0], "o": o[1], "h": o[2], "l": o[3], "c": o[4], "v": o[5]}
@@ -401,7 +401,7 @@ def main():
 
     # 1. Get current price
     print("[1/4] Getting current BTC price...")
-    exchange = ccxt.binance({"enableRateLimit": True})
+    exchange = ccxt.okx({"enableRateLimit": True})
     ticker = exchange.fetch_ticker("BTC/USDT")
     current_price = ticker["last"]
     print(f"  BTC/USDT: ${current_price:,.0f}")

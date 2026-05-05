@@ -22,7 +22,7 @@ COINGLASS_API_KEY = os.getenv("COINGLASS_API_KEY", "")
 COINALYZE_URL = "https://api.coinalyze.net/v1/liquidation-history"
 COINGLASS_URL = "https://open-api-v4.coinglass.com/api/futures/liquidation/history"
 COINALYZE_SYMBOL_MAP = {
-    "BTCUSDT": "BTCUSDT_PERP.A",
+    "BTC/USDT": "BTC/USDT_PERP.A",
 }
 
 
@@ -103,7 +103,7 @@ def _fetch_from_coinglass(symbol: str):
     if not COINGLASS_API_KEY:
         return _empty_response("auth_missing", "COINGLASS_API_KEY is missing; liquidation history endpoint requires CoinGlass v4 auth.")
     try:
-        url = f"{COINGLASS_URL}?exchange=Binance&symbol={symbol}&interval=4h&limit=6"
+        url = f"{COINGLASS_URL}?exchange=OKX&symbol={symbol}&interval=4h&limit=6"
         req = Request(url, headers={"User-Agent": "Mozilla/5.0", "CG-API-KEY": COINGLASS_API_KEY})
         resp = urlopen(req, context=ssl.create_default_context(), timeout=10)
         data = json.loads(resp.read().decode())
@@ -125,7 +125,7 @@ def _fetch_from_coinglass(symbol: str):
         return _empty_response("fetch_error", str(exc))
 
 
-def get_claw_feature(symbol="BTCUSDT"):
+def get_claw_feature(symbol="BTC/USDT"):
     result = _fetch_from_coinalyze(symbol)
     if result.get("_meta", {}).get("status") == "ok":
         return result

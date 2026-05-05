@@ -1,6 +1,6 @@
 """
 Pulse 脈動感 — 短期波動率比率（vol_ratio_12_48）
-數據源: Binance OHLCV
+數據源: OKX OHLCV
 IC-validated: vol12/vol48 ratio (IC=+0.1087, p<0.001)
 替換歷史：
   v1: realized_vol_zscore (失效)
@@ -11,9 +11,9 @@ IC-validated: vol12/vol48 ratio (IC=+0.1087, p<0.001)
 import math
 import ccxt
 
-def collect_pulse(exchange=None, symbol="BTCUSDT", timeframe="1h", limit=60):
+def collect_pulse(exchange=None, symbol="BTC/USDT", timeframe="1h", limit=60):
     if exchange is None:
-        exchange = ccxt.binance()
+        exchange = ccxt.okx()
     ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
     if not ohlcv or len(ohlcv) < 50:
         return None

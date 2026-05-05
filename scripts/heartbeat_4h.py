@@ -26,8 +26,8 @@ def gv(ind, name, i, n, default=0):
 
 
 def analyze_4h():
-    """Fetch latest Binance 4H data → compute indicators → generate signal."""
-    exchange = ccxt.binance({"enableRateLimit": True})
+    """Fetch latest OKX 4H data → compute indicators → generate signal."""
+    exchange = ccxt.okx({"enableRateLimit": True})
     try:
         ohlcv = exchange.fetch_ohlcv("BTC/USDT", "4h", limit=300)
     except Exception as e:

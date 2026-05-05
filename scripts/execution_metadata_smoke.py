@@ -23,8 +23,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--venues",
         nargs="*",
-        default=["binance", "okx"],
-        help="Venues to inspect (default: binance okx)",
+        default=["okx"],
+        help="Venues to inspect (default: okx)",
     )
     parser.add_argument("--config", default=str(DEFAULT_CONFIG), help="Path to config.yaml")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="Where to write the JSON report")

@@ -102,14 +102,14 @@ FEATURE_MAP = {
 # ─── Feature engine config (descriptions for UI display) ───
 DEFAULT_CONFIG: Dict[str, Any] = {
     # 8 Core
-    "eye":   {"name": "Eye",   "emoji": "📊", "description": "24H return / 72H vol ratio (trend strength)",        "modules": {"main": {"name": "72h Vol Ratio",     "source": "Binance",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "eye":   {"name": "Eye",   "emoji": "📊", "description": "24H return / 72H vol ratio (trend strength)",        "modules": {"main": {"name": "72h Vol Ratio",     "source": "OKX",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
     "ear":   {"name": "Ear",   "emoji": "📈", "description": "24H momentum",                          "modules": {"main": {"name": "Momentum",       "source": "K線",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
     "nose":  {"name": "Nose",  "emoji": "📐", "description": "RSI momentum",                    "modules": {"main": {"name": "RSI",         "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
     "tongue":{"name": "Tongue","emoji": "🔄", "description": "Mean-reversion deviation",                  "modules": {"main": {"name": "Mean-revert",     "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
     "body":  {"name": "Body",  "emoji": "📏", "description": "Volatility z-score",                         "modules": {"main": {"name": "Vol Z-score",     "source": "衍生",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
     "pulse": {"name": "Pulse", "emoji": "💹", "description": "Volume spike",                   "modules": {"main": {"name": "Vol Spike",     "source": "K線",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
     "aura":  {"name": "Aura",  "emoji": "🔮", "description": "MA deviation",                        "modules": {"main": {"name": "MA Dev",     "source": "複合",     "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
-    "mind":  {"name": "Mind",  "emoji": "🧮", "description": "Medium-term momentum",                    "modules": {"main": {"name": "144-return",     "source": "Binance", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
+    "mind":  {"name": "Mind",  "emoji": "🧮", "description": "Medium-term momentum",                    "modules": {"main": {"name": "144-return",     "source": "OKX", "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
     # 2 Macro
     "vix":   {"name": "VIX",   "emoji": "📉", "description": "VIX fear gauge",                         "modules": {"main": {"name": "VIX Index",    "source": "Macro",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},
     "dxy":   {"name": "DXY",   "emoji": "💵", "description": "Dollar Index (macro strength)",            "modules": {"main": {"name": "DXY",          "source": "Macro",    "enabled": True, "weight": 1.0, "value": None}}, "score": 0.5},

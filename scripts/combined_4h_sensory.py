@@ -1,7 +1,7 @@
 """
 4H + 即時特徵 組合策略即時分析
 ===============================
-從 Binance 抓 4H OHLCV → 算乖離率/MACD
+從 OKX 抓 4H OHLCV → 算乖離率/MACD
 從 DB 讀最新即時特徵
 → 輸出完整買賣信號
 """
@@ -51,8 +51,8 @@ def analyze():
     print("=" * 70)
     
     # ── Step 1: 4H 資料 ──
-    print("\n[1/3] 抓取 Binance 4H OHLCV...")
-    exchange = ccxt.binance({"enableRateLimit": True})
+    print("\n[1/3] 抓取 OKX 4H OHLCV...")
+    exchange = ccxt.okx({"enableRateLimit": True})
     ohlcv = exchange.fetch_ohlcv("BTC/USDT", "4h", limit=300)
     
     candles = {

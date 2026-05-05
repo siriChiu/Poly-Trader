@@ -4,8 +4,8 @@
 訓練模型所需的一次性數據準備。
 
 數據來源：
-- Binance Klines (Eye: 歷史 K 線)
-- Binance Futures Funding Rate (Nose)
+- OKX Klines (Eye: 歷史 K 線)
+- OKX Futures Funding Rate (Nose)
 - Alternative.me FNG (Tongue)
 - DefiLlama (Body: 穩定幣市值)
 - 標籤：基於未來 N 小時的價格變化
@@ -28,6 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from database.models import RawMarketData, FeaturesNormalized, Labels, init_db
 from config import load_config
 from utils.logger import setup_logger
+from data_ingestion.okx_public import fetch_funding_history as fetch_okx_funding_rows, fetch_klines_df
 
 logger = setup_logger(__name__)
 
@@ -36,111 +37,58 @@ LONG_TP_PCT = 0.02
 LONG_MAX_DD_PCT = 0.05
 
 # ──────────────────────────────────────────────
-# 1. Binance Klines (Eye - 歷史價格 + 訂單簿近似)
+# 1. OKX Klines (Eye - 歷史價格 + 訂單簿近似)
 # ──────────────────────────────────────────────
 
-def fetch_binance_klines(
-    symbol: str = "BTCUSDT",
+def fetch_okx_klines(
+    symbol: str = "BTC/USDT",
     interval: str = "1h",
     days: int = 30,
     limit: int = 1000,
 ) -> pd.DataFrame:
     """
-    從 Binance 獲取歷史 K 線數據。
+    從 OKX 獲取歷史 K 線數據。
     Returns DataFrame: timestamp, open, high, low, close, volume
     """
-    url = "https://api.binance.com/api/v3/klines"
-    end_time = int(datetime.utcnow().timestamp() * 1000)
-    start_time = int((datetime.utcnow() - timedelta(days=days)).timestamp() * 1000)
-
-    all_data = []
-    current_start = start_time
-
-    while current_start < end_time:
-        params = {
-            "symbol": symbol,
-            "interval": interval,
-            "startTime": current_start,
-            "endTime": end_time,
-            "limit": limit,
-        }
-        try:
-            resp = requests.get(url, params=params, timeout=15)
-            resp.raise_for_status()
-            data = resp.json()
-            if not data:
-                break
-            all_data.extend(data)
-            # 下一批：從最後一根 K 線的時間 + 1ms 開始
-            current_start = data[-1][0] + 1
-            time.sleep(0.1)  # 避免 rate limit
-        except Exception as e:
-            logger.error(f"Binance Klines 請求失敗: {e}")
-            break
-
-    if not all_data:
+    try:
+        return fetch_klines_df(symbol=symbol, interval=interval, days=days, limit=limit)
+    except Exception as e:
+        logger.error(f"OKX Klines 請求失敗: {e}")
         return pd.DataFrame()
-
-    df = pd.DataFrame(all_data, columns=[
-        "timestamp", "open", "high", "low", "close", "volume",
-        "close_time", "quote_volume", "trades", "taker_buy_base",
-        "taker_buy_quote", "ignore"
-    ])
-    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-    df["close"] = df["close"].astype(float)
-    df["volume"] = df["volume"].astype(float)
-    df["high"] = df["high"].astype(float)
-    df["low"] = df["low"].astype(float)
-    return df[["timestamp", "open", "high", "low", "close", "volume"]]
 
 
 # ──────────────────────────────────────────────
-# 2. Binance Futures Funding Rate (Nose)
+# 2. OKX Futures Funding Rate (Nose)
 # ──────────────────────────────────────────────
 
 def fetch_funding_rate_history(
-    symbol: str = "BTCUSDT",
+    symbol: str = "BTC/USDT",
     days: int = 30,
     limit: int = 1000,
 ) -> pd.DataFrame:
     """
-    從 Binance Futures 獲取歷史 Funding Rate。
+    從 OKX Futures 獲取歷史 Funding Rate。
     Returns DataFrame: timestamp, funding_rate
     """
-    url = "https://fapi.binance.com/fapi/v1/fundingRate"
-    end_time = int(datetime.utcnow().timestamp() * 1000)
-    start_time = int((datetime.utcnow() - timedelta(days=days)).timestamp() * 1000)
-
-    all_data = []
-    current_start = start_time
-
-    while current_start < end_time:
-        params = {
-            "symbol": symbol,
-            "startTime": current_start,
-            "endTime": end_time,
-            "limit": limit,
-        }
-        try:
-            resp = requests.get(url, params=params, timeout=15)
-            resp.raise_for_status()
-            data = resp.json()
-            if not data:
-                break
-            all_data.extend(data)
-            current_start = data[-1]["fundingTime"] + 1
-            time.sleep(0.1)
-        except Exception as e:
-            logger.error(f"Funding Rate 歷史請求失敗: {e}")
-            break
-
-    if not all_data:
-        return pd.DataFrame()
-
-    df = pd.DataFrame(all_data)
-    df["timestamp"] = pd.to_datetime(df["fundingTime"], unit="ms")
-    df["funding_rate"] = df["fundingRate"].astype(float)
-    return df[["timestamp", "funding_rate"]].sort_values("timestamp")
+    try:
+        rows = fetch_okx_funding_rows(symbol=symbol, limit=min(int(limit), 100))
+    except Exception as e:
+        logger.error(f"Funding Rate 歷史請求失敗: {e}")
+        rows = []
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    records = []
+    for row in rows:
+        ts_value = row.get("fundingTime") or row.get("ts")
+        rate_value = row.get("fundingRate")
+        if ts_value in (None, "") or rate_value in (None, ""):
+            continue
+        ts = pd.to_datetime(int(ts_value), unit="ms")
+        if ts.to_pydatetime() < cutoff:
+            continue
+        records.append({"timestamp": ts, "funding_rate": float(rate_value)})
+    if not records:
+        return pd.DataFrame(columns=["timestamp", "funding_rate"])
+    return pd.DataFrame(records).sort_values("timestamp")
 
 
 # ──────────────────────────────────────────────
@@ -219,7 +167,7 @@ def sigmoid(x: float) -> float:
 
 
 def build_historical_dataset(
-    symbol: str = "BTCUSDT",
+    symbol: str = "BTC/USDT",
     days: int = 30,
     label_horizon_hours: int = 24,
 ) -> pd.DataFrame:
@@ -232,7 +180,7 @@ def build_historical_dataset(
     logger.info(f"開始拉取 {days} 天歷史數據...")
 
     # 拉取各來源
-    klines = fetch_binance_klines(symbol, "1h", days)
+    klines = fetch_okx_klines(symbol, "1h", days)
     logger.info(f"  Klines: {len(klines)} 筆")
     time.sleep(0.2)
 
@@ -359,7 +307,7 @@ def build_historical_dataset(
 def save_historical_to_db(
     session: Session,
     df: pd.DataFrame,
-    symbol: str = "BTCUSDT",
+    symbol: str = "BTC/USDT",
     horizon_hours: int = 24,
 ) -> Dict[str, int]:
     """
@@ -421,7 +369,7 @@ def save_historical_to_db(
 
 def run_backfill(
     days: int = 30,
-    symbol: str = "BTCUSDT",
+    symbol: str = "BTC/USDT",
     horizon_hours: int = 24,
 ) -> Dict:
     """

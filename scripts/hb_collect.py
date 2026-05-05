@@ -2,7 +2,7 @@
 """Heartbeat Step 0 — 數據收集管線 v1.
 
 Called at the start of every heartbeat BEFORE analysis.
-Collects fresh market data from Binance + external sources,
+Collects fresh market data from OKX + external sources,
 runs the preprocessor to compute features, and generates labels.
 
 Usage: python scripts/hb_collect.py
@@ -21,7 +21,7 @@ os.environ["PYTHONPATH"] = PROJECT
 from config import load_config
 from database.models import RawMarketData, FeaturesNormalized, Labels, init_db
 
-SYMBOL = "BTCUSDT"
+SYMBOL = "BTC/USDT"
 ACTIVE_HEARTBEAT_HORIZONS = {240, 1440}
 
 
@@ -152,7 +152,7 @@ def collect_raw_data(session):
     if repaired:
         print(
             "🩹 最近 raw 連續性修復已補回 "
-            f"{repaired} 筆 Binance 連續資料，並在即時 collect 前完成回補 "
+            f"{repaired} 筆 OKX 連續資料，並在即時 collect 前完成回補 "
             f"(4h={repair_meta.get('coarse_inserted', 0)}, "
             f"1h={repair_meta.get('fine_inserted', 0)}, "
             f"bridge={repair_meta.get('bridge_inserted', 0)})"
@@ -167,17 +167,14 @@ def collect_raw_data(session):
     else:
         print("❌ Raw 數據收集失敗")
 
-    # Fallback: minimal Binance price check if collector fails
+    # Fallback: minimal OKX price check if collector fails.
+    # Keep this OKX-only; do not call legacy exchange endpoints from heartbeat.
     if not success:
         try:
-            import requests
-            r = requests.get(
-                "https://api.binance.com/api/v3/ticker/price",
-                params={"symbol": "BTCUSDT"},
-                timeout=15
-            )
-            if r.status_code == 200:
-                price = float(r.json()["price"])
+            from data_ingestion.okx_public import fetch_ticker
+            ticker = fetch_ticker(SYMBOL)
+            price = float(ticker["last"]) if ticker and ticker.get("last") is not None else None
+            if price is not None:
                 rec = RawMarketData(
                     timestamp=datetime.utcnow(),
                     symbol=SYMBOL,
@@ -185,9 +182,11 @@ def collect_raw_data(session):
                 )
                 session.add(rec)
                 session.commit()
-                print(f"⚠️  已寫入 fallback raw 數據：BTC=${price:.2f}")
+                print(f"⚠️  已寫入 OKX fallback raw 數據：BTC=${price:.2f}")
+            else:
+                raise RuntimeError("OKX ticker returned no last price")
         except Exception as e:
-            print(f"❌ Fallback 也失敗：{e}")
+            print(f"❌ OKX fallback 也失敗：{e}")
             return False
 
     return True

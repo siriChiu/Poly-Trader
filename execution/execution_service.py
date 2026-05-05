@@ -12,7 +12,6 @@ from sqlalchemy import func
 from database.models import OrderLifecycleEvent, TradeHistory
 from execution.config import resolve_trading_config
 from execution.exchanges.base import BaseExchangeAdapter, ExchangeOrderResult, OrderRequest
-from execution.exchanges.binance_adapter import BinanceAdapter
 from execution.exchanges.okx_adapter import OKXAdapter
 from execution.metadata_smoke import _build_contract_summary
 from utils.logger import setup_logger
@@ -45,20 +44,27 @@ class ExecutionService:
         self.execution_cfg = resolve_trading_config(self.config)
         self._adapters: Dict[str, BaseExchangeAdapter] = {}
 
+    def _venue_key(self, venue: Optional[str] = None) -> str:
+        return str(venue or self.execution_cfg.get("venue") or "okx").strip().lower() or "okx"
+
     def _build_adapter(self, venue: str) -> BaseExchangeAdapter:
-        venue_key = str(venue or self.execution_cfg.get("venue") or "binance").lower()
+        unsupported_requested = self.execution_cfg.get("unsupported_venue_requested")
+        if unsupported_requested:
+            raise ValueError(
+                f"Unsupported execution venue requested: {unsupported_requested}. "
+                "Only OKX execution API is supported"
+            )
+        venue_key = self._venue_key(venue)
+        if venue_key != "okx":
+            raise ValueError(f"Unsupported venue: {venue_key}. Only OKX execution API is supported")
         venue_cfg = (self.execution_cfg.get("venues") or {}).get(venue_key) or {}
         if not venue_cfg.get("enabled", False):
             raise ValueError(f"Venue '{venue_key}' is disabled in config")
         adapter_dry_run = self.execution_cfg.get("mode") != "live" or not self.execution_cfg.get("enable_live_trading")
-        if venue_key == "binance":
-            return BinanceAdapter(venue_cfg, dry_run=adapter_dry_run)
-        if venue_key == "okx":
-            return OKXAdapter(venue_cfg, dry_run=adapter_dry_run)
-        raise ValueError(f"Unsupported venue: {venue}")
+        return OKXAdapter(venue_cfg, dry_run=adapter_dry_run)
 
     def get_adapter(self, venue: Optional[str] = None) -> BaseExchangeAdapter:
-        venue_key = str(venue or self.execution_cfg.get("venue") or "binance").lower()
+        venue_key = self._venue_key(venue)
         adapter = self._adapters.get(venue_key)
         if adapter is None:
             adapter = self._build_adapter(venue_key)
@@ -80,7 +86,7 @@ class ExecutionService:
         return value
 
     def venue_default_type(self, venue: Optional[str] = None) -> str:
-        venue_key = str(venue or self.execution_cfg.get("venue") or "binance").lower()
+        venue_key = self._venue_key(venue)
         venue_cfg = (self.execution_cfg.get("venues") or {}).get(venue_key) or {}
         return str(venue_cfg.get("default_type") or "spot").lower()
 
@@ -97,7 +103,7 @@ class ExecutionService:
         try:
             now = datetime.now(timezone.utc)
             start = now.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
-            venue_name = str(venue or self.execution_cfg.get("venue") or "binance")
+            venue_name = self._venue_key(venue)
             total_pnl = self.db_session.query(func.coalesce(func.sum(TradeHistory.pnl), 0.0)).filter(
                 TradeHistory.timestamp >= start,
                 TradeHistory.exchange == venue_name,
@@ -224,7 +230,7 @@ class ExecutionService:
             venue = adapter.venue
         except Exception as exc:
             health = {"connected": False, "credentials_configured": False, "error": str(exc)}
-            venue = str(self.execution_cfg.get("venue") or "binance")
+            venue = str(self.execution_cfg.get("venue") or "okx")
         return {
             "mode": self.execution_cfg.get("mode"),
             "venue": venue,

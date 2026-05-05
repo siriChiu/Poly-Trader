@@ -1029,7 +1029,7 @@ def _build_profile_rows(status_payload: Dict[str, Any], overview_payload: Dict[s
                 "label": card.get("label") or key,
                 "summary": card.get("summary") or PRIMARY_SLEEVE_META.get(key, {}).get("summary", ""),
                 "symbol": overview_payload.get("symbol") or status_payload.get("symbol") or "BTCUSDT",
-                "venue": execution_payload.get("venue") or "binance",
+                "venue": execution_payload.get("venue") or "okx",
                 "mode": execution_payload.get("mode") or "paper",
                 "activation_status": card.get("activation_status") or "inactive",
                 "lifecycle_status": card.get("lifecycle_status") or "standby",

@@ -148,10 +148,10 @@ def main():
     print(f"  時間 {ts_list[0]} ~ {ts_list[-1]}")
 
     # ──────────────────────────────
-    # 2. 從 Binance 拉 4H K線（分頁，覆蓋完整範圍）
+    # 2. 從 OKX 拉 4H K線（分頁，覆蓋完整範圍）
     # ──────────────────────────────
-    print("\n[2/5] Fetching 4H candles from Binance...")
-    exchange = ccxt.binance({"enableRateLimit": True})
+    print("\n[2/5] Fetching 4H candles from OKX...")
+    exchange = ccxt.okx({"enableRateLimit": True})
     # 從最早 1m / feature 資料往前抓一段暖機窗口，避免把 2024 歷史誤截成 2025 才開始。
     earliest_dt = _resolve_4h_fetch_start(ts_list, warmup_days=400)
     since_ts = int(earliest_dt.timestamp() * 1000)

@@ -273,7 +273,7 @@ def main() -> int:
         'features_after': feat_after,
         'notes': {
             'fin_etf_netflow': 'No historical backfill performed without usable raw/API data.',
-            'web_whale_pressure': 'Carry-forward uses existing sparse raw points only; no public historical Binance large-trade archive was added in this pass.',
+            'web_whale_pressure': 'Carry-forward uses existing sparse raw points only; no public historical OKX large-trade archive was added in this pass.',
             'nest_pred': 'Carry-forward uses existing sparse raw points only; current live Polymarket fetch returns neutral 0.5.',
         },
     }

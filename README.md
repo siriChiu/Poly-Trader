@@ -242,7 +242,7 @@ FeatureChart 現在聚焦在多特徵歷史結構，而不是舊命名包裝：
 目前 Poly-Trader 已經不是只有回測研究台，execution layer 也開始產品化：
 
 - `ExecutionService`：統一接單入口，支援 `paper / live_canary / live`
-- `BinanceAdapter`：第一個 production venue 骨架
+- `OKXAdapter`：第一個 production venue 骨架
 - `OKXAdapter`：第二個 venue 骨架，含 `passphrase` 支援
 - `AccountSyncService`：回傳 balance / positions / open orders snapshot
 - `/api/trade`：已經走 execution layer，而不是只回假成功訊息
@@ -257,25 +257,21 @@ FeatureChart 現在聚焦在多特徵歷史結構，而不是舊命名包裝：
 
 ### Execution config
 
-`config.yaml` 現在同時支援舊欄位與新的產品化 execution 結構：
+`config.yaml` 目前只支援 OKX execution API；舊 venue 設定會被 fail-closed 拒絕，不能觸發送單或憑證查詢：
 
 ```yaml
 trading:
   dry_run: true
-  venue: "binance"
+  venue: "okx"
 
 execution:
   mode: "paper"   # paper | live_canary | live
-  venue: "binance"
+  venue: "okx"
   enable_live_trading: false
   kill_switch: false
   venues:
-    binance:
-      enabled: true
-      api_key: ""
-      api_secret: ""
     okx:
-      enabled: false
+      enabled: true
       api_key: ""
       api_secret: ""
       passphrase: ""

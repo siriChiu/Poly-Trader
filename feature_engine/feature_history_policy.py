@@ -84,7 +84,7 @@ SOURCE_HISTORY_POLICIES = {
     'web_whale': {
         'history_class': 'short_window_public_api',
         'backfill_status': 'blocked',
-        'backfill_blocker': 'Binance aggTrades endpoint only exposes a short recent trade window in the current implementation; no historical whale snapshot archive exists.',
+        'backfill_blocker': 'OKX aggTrades endpoint only exposes a short recent trade window in the current implementation; no historical whale snapshot archive exists.',
         'recommended_action': 'Accumulate snapshots forward or add a historical large-trade data source; do not synthesize history with carry-forward.',
     },
     'scales_ssr': {

@@ -9,8 +9,8 @@ from feature_engine.ohlcv_4h import compute_4h_indicators
 from datetime import datetime
 
 # 抓更長期的 4H 數據
-print("Fetching 4H OHLCV from Binance...")
-exchange = ccxt.binance({"enableRateLimit": True})
+print("Fetching 4H OHLCV from OKX...")
+exchange = ccxt.okx({"enableRateLimit": True})
 all_ohlcv = []
 for _ in range(5):
     if not all_ohlcv:

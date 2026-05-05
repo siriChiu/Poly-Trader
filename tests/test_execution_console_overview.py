@@ -16,7 +16,7 @@ def _status_payload():
         },
         "execution": {
             "mode": "paper",
-            "venue": "binance",
+            "venue": "okx",
             "live_runtime_truth": {
                 "confidence": 0.60,
                 "regime_label": "bull",

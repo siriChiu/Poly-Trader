@@ -20,13 +20,13 @@ def _status_payload():
         },
         "execution": {
             "mode": "paper",
-            "venue": "binance",
+            "venue": "okx",
             "guardrails": {
                 "kill_switch": False,
                 "daily_loss_halt": False,
                 "failure_halt": False,
                 "last_order": {
-                    "venue": "binance",
+                    "venue": "okx",
                     "symbol": "BTCUSDT",
                     "side": "buy",
                     "qty": 0.05,

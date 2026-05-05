@@ -286,7 +286,7 @@ execution_surface_contract = {
 
 #### I. Venue-specific Closure Lanes
 - 各 venue 分 lane 顯示 baseline / path / replay
-- 明確區分 Binance / OKX，不再混成一個 closure narrative
+- 明確標示 OKX-only，不再把 legacy venue 混成 closure narrative
 
 #### J. Timeline / Artifact Checklist（預設折疊）
 - lifecycle timeline

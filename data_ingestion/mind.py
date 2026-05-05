@@ -1,15 +1,15 @@
 """
 Mind 認知感 — BTC/ETH 成交量比作為支配度 proxy
-數據源: Binance ETH/BTC volume ratio
+數據源: OKX ETH/BTC volume ratio
 高 ratio = 資金在 BTC (避險) -> 偏空
 低 ratio = 資金流向山寨 (risk-on) -> 偏多
 """
 import math
 import ccxt
 
-def collect_mind(exchange=None, symbol_btc="BTCUSDT", symbol_eth="ETHUSDT", timeframe="1d", limit=7):
+def collect_mind(exchange=None, symbol_btc="BTC/USDT", symbol_eth="ETH/USDT", timeframe="1d", limit=7):
     if exchange is None:
-        exchange = ccxt.binance()
+        exchange = ccxt.okx()
     btc_data = exchange.fetch_ohlcv(symbol_btc, timeframe, limit=limit)
     eth_data = exchange.fetch_ohlcv(symbol_eth, timeframe, limit=limit)
     if not btc_data or not eth_data:

@@ -1,17 +1,13 @@
-import urllib.request, json
-
-# Test alternative endpoints for taker ratio
+#!/usr/bin/env python3
+import requests
 urls = [
-    'https://fapi.binance.com/futures/data/takerBuySellVol?symbol=BTCUSDT&period=5m&limit=1',
-    'https://fapi.binance.com/fapi/v1/takerBuySellVol?symbol=BTCUSDT&period=5m&limit=1',
-    'https://fapi.binance.com/fapi/v1/topLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1',
-    'https://fapi.binance.com/fapi/v1/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1',
+    'https://www.okx.com/api/v5/rubik/stat/taker-volume?ccy=BTC&instType=SWAP&period=5m&limit=1',
+    'https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio?ccy=BTC&period=5m&limit=1',
+    'https://www.okx.com/api/v5/rubik/stat/contracts/open-interest-volume?ccy=BTC&period=5m&limit=1',
 ]
-
 for url in urls:
     try:
-        req = urllib.request.urlopen(url, timeout=10)
-        data = json.loads(req.read())
-        print(f'OK [{url.split("?")[0].split("/")[-1]}]: {json.dumps(data[:1] if isinstance(data, list) else data)}')
-    except Exception as e:
-        print(f'FAIL [{url.split("?")[0].split("/")[-1]}]: {e}')
+        r = requests.get(url, timeout=10)
+        print(url, r.status_code, r.text[:200])
+    except Exception as exc:
+        print(url, exc)

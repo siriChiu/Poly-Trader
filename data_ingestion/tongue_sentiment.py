@@ -6,7 +6,7 @@
 2. 波動率信號：高波動 = 恐懼（負值），低波動 = 平靜
 3. 資金費率方向：正 = 多頭擁擠（偏負面），負 = 空頭擁擠
 
-數據源：Alternative.me + Binance + Binance Futures（全部免費）
+數據源：Alternative.me + OKX + OKX Futures（全部免費）
 """
 
 import requests
@@ -20,8 +20,7 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 FNG_URL = "https://api.alternative.me/fng/"
-KLINES_URL = "https://api.binance.com/api/v3/klines"
-FUNDING_URL = "https://fapi.binance.com/fapi/v1/premiumIndex"
+from data_ingestion.okx_public import fetch_candles, fetch_current_funding
 
 
 def _create_session(retries: int = 3, backoff_factor: float = 0.5):
@@ -51,14 +50,10 @@ def fetch_fng() -> Optional[int]:
         return None
 
 
-def fetch_recent_volatility(symbol: str = "BTCUSDT", hours: int = 24) -> Optional[float]:
+def fetch_recent_volatility(symbol: str = "BTC/USDT", hours: int = 24) -> Optional[float]:
     """計算最近 N 小時的相對波動率"""
     try:
-        session = _create_session()
-        params = {"symbol": symbol, "interval": "1h", "limit": hours}
-        resp = session.get(KLINES_URL, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
+        data = fetch_candles(symbol, "1h", limit=hours)
         if not data or len(data) < 2:
             return None
         closes = [float(k[4]) for k in data]
@@ -71,15 +66,12 @@ def fetch_recent_volatility(symbol: str = "BTCUSDT", hours: int = 24) -> Optiona
         return None
 
 
-def fetch_funding_rate(symbol: str = "BTCUSDT") -> Optional[float]:
+def fetch_funding_rate(symbol: str = "BTC/USDT") -> Optional[float]:
     """當前資金費率"""
     try:
-        session = _create_session()
-        resp = session.get(FUNDING_URL, params={"symbol": symbol}, timeout=10)
-        resp.raise_for_status()
-        return float(resp.json().get("lastFundingRate", 0))
+        return fetch_current_funding(symbol)
     except Exception as e:
-        logger.error(f"Funding Rate 失敗: {e}")
+        logger.error(f"OKX Funding Rate 失敗: {e}")
         return None
 
 
@@ -136,7 +128,7 @@ def compute_tongue_score(fng: Optional[int], volatility: Optional[float], fundin
     }
 
 
-def get_tongue_feature(symbol: str = "BTCUSDT") -> Optional[dict]:
+def get_tongue_feature(symbol: str = "BTC/USDT") -> Optional[dict]:
     """主函數：計算多因子情緒溫度計"""
     try:
         fng = fetch_fng()

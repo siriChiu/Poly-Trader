@@ -1,5 +1,5 @@
 """
-Ear (v3) test: test the Binance-based consensus functions
+Ear (v3) test: test the OKX-based consensus functions
 """
 import sys
 from pathlib import Path

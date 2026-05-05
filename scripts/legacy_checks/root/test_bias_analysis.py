@@ -1,5 +1,5 @@
 """
-用 Binance 1d K線抓更長歷史 (3年) 驗證 4H 策略
+用 OKX 1d K線抓更長歷史 (3年) 驗證 4H 策略
 """
 import numpy as np, sys
 sys.path.insert(0, '/home/kazuha/Poly-Trader')
@@ -7,7 +7,7 @@ from feature_engine.ohlcv_4h import compute_4h_indicators
 
 import ccxt
 from datetime import datetime
-exchange = ccxt.binance({"enableRateLimit": True})
+exchange = ccxt.okx({"enableRateLimit": True})
 
 # 先抓 1d 看整體趨勢
 ohlcv_1d = exchange.fetch_ohlcv("BTC/USDT", "1d", limit=1100)

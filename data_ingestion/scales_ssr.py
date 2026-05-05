@@ -1,9 +1,9 @@
 """
-Scales (鱗片) — Stablecoin Supply Ratio proxy from Binance
+Scales (鱗片) — Stablecoin Supply Ratio proxy from OKX
 SSR = Total BTC Supply / Stablecoin Market Cap
 Low SSR = lots of stablecoins ready to buy = bullish
 High SSR = stablecoins depleted = bearish (good for SHORT)
-DataSource: Binance public stablecoin data + CoinGecko free API
+DataSource: OKX public stablecoin data + CoinGecko free API
 """
 import json, ssl
 from datetime import datetime

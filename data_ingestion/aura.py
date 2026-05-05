@@ -1,6 +1,6 @@
 """
 Aura 磁場感 — 資金費率與持倉量背離
-數據源: Binance futures data (funding_rate, oi_roc 已收集)
+數據源: OKX futures data (funding_rate, oi_roc 已收集)
 同向=趨勢一致, 反向=分歧(磁場拉扯)
 """
 import math

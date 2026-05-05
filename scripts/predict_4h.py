@@ -30,7 +30,7 @@ def main():
     print("=" * 60)
     
     # Fetch latest 4H data
-    exchange = ccxt.binance({"enableRateLimit": True})
+    exchange = ccxt.okx({"enableRateLimit": True})
     ohlcv = exchange.fetch_ohlcv("BTC/USDT", "4h", limit=300)
     
     candles = {

@@ -269,7 +269,7 @@ def compute_4h_features_single(candles: dict, indicator_idx: int = None) -> Dict
     """計算單一時間點的 4H 特徵值（用於即時 prediction）。
     
     Args:
-        candles: dict with full OHLCV history (from Binance or DB)
+        candles: dict with full OHLCV history (from OKX or DB)
         indicator_idx: which candle index to compute for (default: last)
     
     Returns:
@@ -475,8 +475,8 @@ if __name__ == "__main__":
     print("4H Timeframe Analysis — Support Line + Bias Strategy")
     print("=" * 60)
     
-    # Fetch 4H data from Binance
-    exchange = ccxt.binance({"enableRateLimit": True})
+    # Fetch 4H data from OKX
+    exchange = ccxt.okx({"enableRateLimit": True})
     ohlcv = exchange.fetch_ohlcv("BTC/USDT", "4h", limit=1000)
     
     candles = {

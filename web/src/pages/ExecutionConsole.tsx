@@ -25,8 +25,8 @@ const EXECUTION_MODE_LABELS: Record<string, string> = {
 };
 
 const EXECUTION_VENUE_LABELS: Record<string, string> = {
-  binance: "Binance",
   okx: "OKX",
+  unsupported_legacy_venue: "舊場館（已停用）",
   unknown: "未提供",
 };
 

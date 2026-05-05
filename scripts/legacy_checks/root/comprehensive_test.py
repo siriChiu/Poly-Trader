@@ -29,7 +29,7 @@ def test_file_structure():
     required = [
         "requirements.txt", "config.yaml", "config.py",
         "database/models.py", "utils/logger.py",
-        "data_ingestion/collector.py", "data_ingestion/eye_binance.py",
+        "data_ingestion/collector.py", "data_ingestion/eye_okx.py",
         "data_ingestion/ear_polymarket.py", "data_ingestion/nose_futures.py",
         "data_ingestion/tongue_sentiment.py", "data_ingestion/body_liquidation.py",
         "feature_engine/preprocessor.py",

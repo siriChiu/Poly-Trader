@@ -14,7 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from config import load_config
-from data_ingestion.backfill_historical import fetch_binance_klines
+from data_ingestion.backfill_historical import fetch_okx_klines
 from data_ingestion.labeling import generate_future_return_labels, save_labels_to_db
 from database.models import FeaturesNormalized, Labels, RawMarketData, init_db
 from feature_engine.preprocessor import backfill_missing_feature_rows
@@ -120,7 +120,7 @@ def compute_missing_range(
 
 
 def fetch_and_store_raw_history(session, symbol: str, days: int) -> int:
-    df = fetch_binance_klines(symbol=symbol, interval="1h", days=days)
+    df = fetch_okx_klines(symbol=symbol, interval="1h", days=days)
     if df.empty:
         return 0
     existing = {

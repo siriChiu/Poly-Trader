@@ -34,57 +34,76 @@ class BrokenAdapter(FakeAdapter):
         raise RuntimeError(f"metadata unavailable for {symbol}")
 
 
-def test_run_metadata_smoke_collects_contract_for_public_venues(monkeypatch):
+def test_run_metadata_smoke_collects_contract_for_okx_only(monkeypatch):
     monkeypatch.setattr(
         "execution.metadata_smoke.ADAPTER_FACTORIES",
-        {"binance": FakeAdapter, "okx": FakeAdapter},
+        {"okx": FakeAdapter},
     )
 
     payload = run_metadata_smoke(
         {
             "execution": {
+                "venue": "okx",
                 "venues": {
-                    "binance": {"enabled": True, "api_key": "k"},
-                    "okx": {"enabled": False},
-                }
+                    "okx": {"enabled": True, "api_key": "[REDACTED]"},
+                },
             }
         },
         symbol="BTCUSDT",
-        venues=["binance", "okx"],
+        venues=["okx"],
     )
 
     assert payload["symbol"] == "BTC/USDT"
-    assert payload["ok_count"] == 2
+    assert payload["venues_checked"] == 1
+    assert payload["ok_count"] == 1
     assert payload["all_ok"] is True
-    assert payload["results"]["binance"]["contract"]["step_size"] == "0.001"
-    assert payload["results"]["okx"]["enabled_in_config"] is False
-    assert payload["results"]["binance"]["credentials_configured"] is True
-    assert payload["results"]["binance"]["proof_state"] == "credentials_configured_missing_runtime_lifecycle"
-    assert payload["results"]["binance"]["readiness_scope"] == "venue_runtime_proof_required"
-    assert payload["results"]["binance"]["blockers"] == [
+    assert set(payload["results"]) == {"okx"}
+    assert payload["results"]["okx"]["contract"]["step_size"] == "0.001"
+    assert payload["results"]["okx"]["enabled_in_config"] is True
+    assert payload["results"]["okx"]["credentials_configured"] is True
+    assert payload["results"]["okx"]["proof_state"] == "credentials_configured_missing_runtime_lifecycle"
+    assert payload["results"]["okx"]["readiness_scope"] == "venue_runtime_proof_required"
+    assert payload["results"]["okx"]["blockers"] == [
         "order ack lifecycle 尚未驗證",
         "fill lifecycle 尚未驗證",
     ]
-    assert payload["results"]["binance"]["operator_next_action"].startswith("使用 binance 沙盒")
-    assert "委託確認 / 成交 / 取消證據" in payload["results"]["binance"]["verify_next"]
-    assert payload["results"]["okx"]["proof_state"] == "config_disabled_metadata_only"
-    assert "場館設定停用" in payload["results"]["okx"]["blockers"]
-    assert "live exchange credential 尚未驗證" in payload["results"]["okx"]["blockers"]
+    assert payload["results"]["okx"]["operator_next_action"].startswith("使用 okx 沙盒")
+    assert "委託確認 / 成交 / 取消證據" in payload["results"]["okx"]["verify_next"]
+
+
+def test_run_metadata_smoke_rejects_unsupported_configured_venue(monkeypatch):
+    monkeypatch.setattr(
+        "execution.metadata_smoke.ADAPTER_FACTORIES",
+        {"okx": FakeAdapter},
+    )
+
+    payload = run_metadata_smoke(
+        {"execution": {"venue": "binance", "venues": {"binance": {"enabled": True, "api_key": "[REDACTED]"}}}},
+        symbol="BTCUSDT",
+    )
+
+    assert payload["venues_checked"] == 1
+    assert payload["ok_count"] == 0
+    assert payload["all_ok"] is False
+    assert payload["results"]["binance"]["ok"] is False
+    assert payload["results"]["binance"]["enabled_in_config"] is False
+    assert payload["results"]["binance"]["credentials_configured"] is False
+    assert "unsupported venue" in payload["results"]["binance"]["error"]
 
 
 def test_run_metadata_smoke_surfaces_failures_without_hiding_venue(monkeypatch):
     monkeypatch.setattr(
         "execution.metadata_smoke.ADAPTER_FACTORIES",
-        {"binance": FakeAdapter, "okx": BrokenAdapter},
+        {"okx": BrokenAdapter},
     )
 
     payload = run_metadata_smoke(
-        {"execution": {"venues": {"binance": {"enabled": True}, "okx": {"enabled": True}}}},
+        {"execution": {"venues": {"okx": {"enabled": True}}}},
         symbol="BTCUSDT",
-        venues=["binance", "okx"],
+        venues=["okx"],
     )
 
-    assert payload["ok_count"] == 1
+    assert payload["ok_count"] == 0
     assert payload["all_ok"] is False
     assert payload["results"]["okx"]["ok"] is False
     assert "metadata unavailable" in payload["results"]["okx"]["error"]

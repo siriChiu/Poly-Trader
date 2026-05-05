@@ -84,7 +84,7 @@ class _FakeExchange:
 def test_compute_technical_indicators_from_df_includes_extended_technical_and_4h(monkeypatch):
     df = _build_df()
 
-    monkeypatch.setattr("ccxt.binance", lambda *args, **kwargs: _FakeExchange())
+    monkeypatch.setattr("ccxt.okx", lambda *args, **kwargs: _FakeExchange())
     monkeypatch.setattr(
         "feature_engine.ohlcv_4h.compute_4h_indicators",
         lambda candles_4h: {

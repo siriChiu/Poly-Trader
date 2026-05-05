@@ -848,7 +848,7 @@ def test_api_trade_uses_execution_service_when_buy_path_has_no_live_blocker(monk
             return {
                 "success": True,
                 "dry_run": True,
-                "venue": "binance",
+                "venue": "okx",
                 "guardrails": {"consecutive_failures": 0, "daily_loss_halt": False},
                 "order": {"id": "abc123", "symbol": symbol, "side": side, "qty": qty, "type": order_type, "reduce_only": reduce_only},
             }
@@ -856,7 +856,7 @@ def test_api_trade_uses_execution_service_when_buy_path_has_no_live_blocker(monk
     async def no_current_live_buy_reject():
         return None
 
-    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "binance"}, "trading": {"venue": "binance"}})
+    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "okx"}, "trading": {"venue": "okx"}})
     monkeypatch.setattr(api_module, "get_db", lambda: object())
     monkeypatch.setattr(api_module, "ExecutionService", DummyService)
     monkeypatch.setattr(api_module, "_load_current_live_buy_reject_payload", no_current_live_buy_reject)
@@ -864,7 +864,7 @@ def test_api_trade_uses_execution_service_when_buy_path_has_no_live_blocker(monk
     payload = asyncio.run(api_module.api_trade(api_module.TradeRequest(side="buy", symbol="BTCUSDT", qty=0.01), request=_local_request()))
 
     assert payload["success"] is True
-    assert payload["venue"] == "binance"
+    assert payload["venue"] == "okx"
     assert payload["order_id"] == "abc123"
     assert payload["guardrails"]["consecutive_failures"] == 0
     assert payload["order"]["type"] == "market"
@@ -884,7 +884,7 @@ def test_api_trade_maps_execution_rejects_to_http_409_when_buy_path_has_no_live_
     async def no_current_live_buy_reject():
         return None
 
-    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "binance"}, "trading": {"venue": "binance"}})
+    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"venue": "okx"}, "trading": {"venue": "okx"}})
     monkeypatch.setattr(api_module, "get_db", lambda: object())
     monkeypatch.setattr(api_module, "ExecutionService", DummyService)
     monkeypatch.setattr(api_module, "_load_current_live_buy_reject_payload", no_current_live_buy_reject)
@@ -962,7 +962,7 @@ def test_api_klines_incremental_append_only_returns_missing_tail(monkeypatch):
             return rows
 
     exchange = DummyExchange()
-    monkeypatch.setattr(api_module.ccxt, "binance", lambda: exchange)
+    monkeypatch.setattr(api_module.ccxt, "okx", lambda: exchange)
     api_module._KLINE_RESPONSE_CACHE.clear()
 
     payload = asyncio.run(
@@ -1006,7 +1006,7 @@ def test_api_klines_paginates_when_requested_range_exceeds_1000_bars(monkeypatch
             return first_page if len(self.calls) == 1 else second_page
 
     exchange = DummyExchange()
-    monkeypatch.setattr(api_module.ccxt, "binance", lambda: exchange)
+    monkeypatch.setattr(api_module.ccxt, "okx", lambda: exchange)
     api_module._KLINE_RESPONSE_CACHE.clear()
 
     payload = asyncio.run(

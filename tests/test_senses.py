@@ -7,9 +7,9 @@ sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
 print("=== Testing each sense module ===\n")
 
-print("1. Eye (Binance)...")
+print("1. Eye (OKX)...")
 try:
-    from data_ingestion.eye_binance import get_eye_feature
+    from data_ingestion.eye_okx import get_eye_feature
     r = get_eye_feature()
     print(f"   Result: {r}")
 except Exception as e:
@@ -23,7 +23,7 @@ try:
 except Exception as e:
     print(f"   ERROR: {e}")
 
-print("\n3. Nose (Binance Futures)...")
+print("\n3. Nose (OKX Futures)...")
 try:
     from data_ingestion.nose_futures import get_nose_feature
     r = get_nose_feature()
