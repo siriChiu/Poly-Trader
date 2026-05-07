@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-05-04T23:56:32.942141+00:00",
+  "generated_at": "2026-05-07T11:31:47.621786+00:00",
   "target_col": "simulated_pyramid_win",
   "horizon_minutes": 1440,
   "window": 100,
   "rows": 100,
-  "wins": 97,
-  "losses": 3,
-  "loss_rate": 0.03,
+  "wins": 80,
+  "losses": 20,
+  "loss_rate": 0.2,
   "reference_rows": 100,
   "thresholds": {
     "tp_pct": 0.02,
@@ -14,53 +14,53 @@
     "high_underwater_ratio": 0.5
   },
   "loss_path_breakdown": {
-    "losses": 3,
-    "tp_miss_count": 3,
+    "losses": 20,
+    "tp_miss_count": 20,
     "tp_miss_share": 1.0,
     "dd_breach_count": 0,
     "dd_breach_share": 0.0,
-    "high_underwater_count": 2,
-    "high_underwater_share": 0.6667,
-    "avg_time_underwater": 0.7088,
-    "avg_future_max_runup": 0.0035,
-    "avg_future_max_drawdown": -0.0103,
-    "avg_simulated_pnl": -0.0038,
-    "avg_simulated_quality": -0.16
+    "high_underwater_count": 13,
+    "high_underwater_share": 0.65,
+    "avg_time_underwater": 0.6004,
+    "avg_future_max_runup": 0.009,
+    "avg_future_max_drawdown": -0.0099,
+    "avg_simulated_pnl": -0.005,
+    "avg_simulated_quality": -0.1592
   },
   "regime_breakdown": {
-    "chop": {
-      "rows": 71,
-      "wins": 68,
-      "losses": 3,
-      "row_share": 0.71,
-      "loss_rate": 0.0423,
-      "share_of_losses": 1.0
+    "bull": {
+      "rows": 52,
+      "wins": 35,
+      "losses": 17,
+      "row_share": 0.52,
+      "loss_rate": 0.3269,
+      "share_of_losses": 0.85
     },
-    "bear": {
-      "rows": 29,
-      "wins": 29,
-      "losses": 0,
-      "row_share": 0.29,
-      "loss_rate": 0.0,
-      "share_of_losses": 0.0
+    "chop": {
+      "rows": 48,
+      "wins": 45,
+      "losses": 3,
+      "row_share": 0.48,
+      "loss_rate": 0.0625,
+      "share_of_losses": 0.15
     }
   },
-  "dominant_loss_regime": "chop",
+  "dominant_loss_regime": "bull",
   "feature_shift": {
     "loss_vs_reference": {
       "feat_4h_bias200": {
-        "current_loss_mean": null,
-        "reference_mean": 6.0792,
-        "reference_std": 0.8837,
-        "mean_delta": null,
-        "delta_vs_reference_std": null
+        "current_loss_mean": 7.4204,
+        "reference_mean": 5.3533,
+        "reference_std": 0.9372,
+        "mean_delta": 2.0671,
+        "delta_vs_reference_std": 2.2056
       },
       "feat_4h_dist_swing_low": {
-        "current_loss_mean": null,
-        "reference_mean": -0.0569,
-        "reference_std": 1.0283,
-        "mean_delta": null,
-        "delta_vs_reference_std": null
+        "current_loss_mean": 3.3431,
+        "reference_mean": 0.9062,
+        "reference_std": 1.4153,
+        "mean_delta": 2.4369,
+        "delta_vs_reference_std": 1.7218
       },
       "feat_4h_dist_swing_high": {
         "current_loss_mean": null,
@@ -70,51 +70,51 @@
         "delta_vs_reference_std": null
       },
       "feat_4h_bias50": {
-        "current_loss_mean": null,
-        "reference_mean": -0.8397,
-        "reference_std": 0.7832,
-        "mean_delta": null,
-        "delta_vs_reference_std": null
+        "current_loss_mean": 2.5044,
+        "reference_mean": -1.1601,
+        "reference_std": 0.9798,
+        "mean_delta": 3.6645,
+        "delta_vs_reference_std": 3.74
       },
       "feat_4h_bias20": {
-        "current_loss_mean": null,
-        "reference_mean": -0.9783,
-        "reference_std": 0.6183,
-        "mean_delta": null,
-        "delta_vs_reference_std": null
+        "current_loss_mean": -0.0242,
+        "reference_mean": -0.6007,
+        "reference_std": 1.0196,
+        "mean_delta": 0.5765,
+        "delta_vs_reference_std": 0.5654
       },
       "feat_4h_rsi14": {
-        "current_loss_mean": null,
-        "reference_mean": 44.3154,
-        "reference_std": 4.3786,
-        "mean_delta": null,
-        "delta_vs_reference_std": null
+        "current_loss_mean": 53.665,
+        "reference_mean": 46.1984,
+        "reference_std": 6.4927,
+        "mean_delta": 7.4666,
+        "delta_vs_reference_std": 1.15
       },
       "feat_4h_bb_pct_b": {
-        "current_loss_mean": null,
-        "reference_mean": 0.3939,
-        "reference_std": 0.1973,
-        "mean_delta": null,
-        "delta_vs_reference_std": null
+        "current_loss_mean": 0.2538,
+        "reference_mean": 0.5013,
+        "reference_std": 0.2334,
+        "mean_delta": -0.2475,
+        "delta_vs_reference_std": -1.0604
       },
       "feat_4h_macd_hist": {
-        "current_loss_mean": null,
-        "reference_mean": -137.8998,
-        "reference_std": 72.8581,
-        "mean_delta": null,
-        "delta_vs_reference_std": null
+        "current_loss_mean": -139.8631,
+        "reference_mean": -44.6613,
+        "reference_std": 114.1444,
+        "mean_delta": -95.2018,
+        "delta_vs_reference_std": -0.834
       }
     },
     "loss_vs_recent_wins": {
       "feat_4h_bias200": {
-        "loss_mean": null,
-        "win_mean": 5.2248,
-        "mean_delta": null
+        "loss_mean": 7.4204,
+        "win_mean": 7.3894,
+        "mean_delta": 0.031
       },
       "feat_4h_dist_swing_low": {
-        "loss_mean": null,
-        "win_mean": 1.7583,
-        "mean_delta": null
+        "loss_mean": 3.3431,
+        "win_mean": 2.7923,
+        "mean_delta": 0.5508
       },
       "feat_4h_dist_swing_high": {
         "loss_mean": null,
@@ -122,58 +122,79 @@
         "mean_delta": null
       },
       "feat_4h_bias50": {
-        "loss_mean": null,
-        "win_mean": -0.9046,
-        "mean_delta": null
+        "loss_mean": 2.5044,
+        "win_mean": 2.4351,
+        "mean_delta": 0.0693
       },
       "feat_4h_bias20": {
-        "loss_mean": null,
-        "win_mean": -0.0361,
-        "mean_delta": null
+        "loss_mean": -0.0242,
+        "win_mean": 1.0818,
+        "mean_delta": -1.106
       },
       "feat_4h_rsi14": {
-        "loss_mean": null,
-        "win_mean": 49.0728,
-        "mean_delta": null
+        "loss_mean": 53.665,
+        "win_mean": 59.7352,
+        "mean_delta": -6.0702
       },
       "feat_4h_bb_pct_b": {
-        "loss_mean": null,
-        "win_mean": 0.5525,
-        "mean_delta": null
+        "loss_mean": 0.2538,
+        "win_mean": 0.614,
+        "mean_delta": -0.3602
       },
       "feat_4h_macd_hist": {
-        "loss_mean": null,
-        "win_mean": 31.3615,
-        "mean_delta": null
+        "loss_mean": -139.8631,
+        "win_mean": 57.3536,
+        "mean_delta": -197.2167
       }
     }
   },
-  "top_4h_shift_features": [],
+  "top_4h_shift_features": [
+    "feat_4h_bias50",
+    "feat_4h_bias200",
+    "feat_4h_dist_swing_low",
+    "feat_4h_rsi14",
+    "feat_4h_bb_pct_b"
+  ],
   "key_findings": [
-    "\u6700\u8fd1 100 \u7b46 canonical losses \u4e3b\u8981\u96c6\u4e2d\u5728 chop\uff08loss share=1.0\uff09\u3002",
-    "loss path\uff1aTP miss 3/3\u3001DD breach 0/3\u3001\u9ad8 underwater 2/3\u3002"
+    "\u6700\u8fd1 100 \u7b46 canonical losses \u4e3b\u8981\u96c6\u4e2d\u5728 bull\uff08loss share=0.85\uff09\u3002",
+    "loss path\uff1aTP miss 20/20\u3001DD breach 0/20\u3001\u9ad8 underwater 13/20\u3002",
+    "4H feature shift \u4ee5 feat_4h_bias50 / feat_4h_bias200 / feat_4h_dist_swing_low \u6700\u660e\u986f\u3002"
   ],
   "recent_loss_examples": [
     {
-      "timestamp": "2026-05-02 00:00:00.000000",
-      "regime": "chop",
-      "future_max_runup": 0.0053,
-      "future_max_drawdown": -0.0035,
-      "time_underwater": 0.3571
+      "timestamp": "2026-05-06 08:00:00.000000",
+      "regime": "bull",
+      "future_max_runup": 0.0,
+      "future_max_drawdown": -0.0204,
+      "time_underwater": 0.8462
     },
     {
-      "timestamp": "2026-05-02 22:00:00.000000",
-      "regime": "chop",
-      "future_max_runup": 0.0043,
-      "future_max_drawdown": -0.0085,
+      "timestamp": "2026-05-06 09:00:00.000000",
+      "regime": "bull",
+      "future_max_runup": 0.0064,
+      "future_max_drawdown": -0.0142,
       "time_underwater": 0.8846
     },
     {
-      "timestamp": "2026-05-04 00:00:00.000000",
-      "regime": "chop",
-      "future_max_runup": 0.0009,
-      "future_max_drawdown": -0.019,
+      "timestamp": "2026-05-06 10:00:00.000000",
+      "regime": "bull",
+      "future_max_runup": 0.0028,
+      "future_max_drawdown": -0.0177,
+      "time_underwater": 0.9231
+    },
+    {
+      "timestamp": "2026-05-06 11:00:00.000000",
+      "regime": "bull",
+      "future_max_runup": 0.0,
+      "future_max_drawdown": -0.0204,
       "time_underwater": 0.8846
+    },
+    {
+      "timestamp": "2026-05-06 12:00:00.000000",
+      "regime": "bull",
+      "future_max_runup": 0.0,
+      "future_max_drawdown": -0.0106,
+      "time_underwater": 0.92
     }
   ]
 }
