@@ -1195,11 +1195,9 @@ def _maybe_apply_q15_exact_supported_component_patch(
     """
     if not isinstance(features, dict):
         return entry_quality_breakdown, None
-    if str(features.get("regime_label") or "") != "bull":
-        return entry_quality_breakdown, None
     if regime_gate != "CAUTION":
         return entry_quality_breakdown, None
-    if structure_bucket != "CAUTION|structure_quality_caution|q15":
+    if not str(structure_bucket or "").endswith("|q15"):
         return entry_quality_breakdown, None
     if float(entry_quality_breakdown.get("entry_quality") or 0.0) >= 0.55:
         return entry_quality_breakdown, None
@@ -1214,7 +1212,15 @@ def _maybe_apply_q15_exact_supported_component_patch(
 
     if scope.get("status") != "current_live_q15_lane_active" or not scope.get("active_for_current_live_row"):
         return entry_quality_breakdown, None
-    if scope.get("current_structure_bucket") not in {None, structure_bucket}:
+    scope_bucket = scope.get("current_structure_bucket")
+    audit_bucket = current_live.get("current_live_structure_bucket") or current_live.get("structure_bucket")
+    if scope_bucket not in {None, structure_bucket}:
+        return entry_quality_breakdown, None
+    if audit_bucket not in {None, structure_bucket}:
+        return entry_quality_breakdown, None
+    feature_regime = str(features.get("regime_label") or "")
+    audit_regime = str(current_live.get("regime_label") or "")
+    if feature_regime and audit_regime and feature_regime != audit_regime:
         return entry_quality_breakdown, None
     if support_route.get("verdict") != "exact_bucket_supported" or not support_route.get("deployable"):
         return entry_quality_breakdown, None
@@ -1536,6 +1542,49 @@ def _infer_deployment_blocker(
         current_live_structure_bucket_rows,
         minimum_rows=minimum_support_rows,
     )
+
+    # q15 audit is the canonical same-identity support source once it is active for the
+    # current live row.  The broader DQ scope diagnostics can still report a tiny recent
+    # exact-scope count (for example 2 rows) even while q15_support_audit has already
+    # proven the same q15 support identity is exact-supported (for example 95/50).  Without
+    # this reconciliation, runtime keeps emitting the stale
+    # `under_minimum_exact_live_structure_bucket` blocker after support closure and hides
+    # the real remaining blocker (trade-floor / decision-quality execution guardrail).
+    if "q15" in structure_bucket:
+        q15_audit = _load_json_artifact(Q15_SUPPORT_AUDIT_PATH)
+        q15_scope = q15_audit.get("scope_applicability") if isinstance(q15_audit.get("scope_applicability"), dict) else {}
+        q15_current = q15_audit.get("current_live") if isinstance(q15_audit.get("current_live"), dict) else {}
+        q15_support_route = q15_audit.get("support_route") if isinstance(q15_audit.get("support_route"), dict) else {}
+        q15_support_progress = (
+            q15_support_route.get("support_progress")
+            if isinstance(q15_support_route.get("support_progress"), dict)
+            else {}
+        )
+        q15_bucket = q15_scope.get("current_structure_bucket") or q15_current.get("current_live_structure_bucket")
+        q15_regime = q15_current.get("regime_label")
+        profile_regime = decision_profile.get("regime_label")
+        q15_rows = int(
+            q15_support_progress.get("current_rows")
+            or q15_current.get("current_live_structure_bucket_rows")
+            or 0
+        )
+        if (
+            q15_scope.get("status") == "current_live_q15_lane_active"
+            and q15_scope.get("active_for_current_live_row")
+            and str(q15_bucket or "") == structure_bucket
+            and (not q15_regime or not profile_regime or str(q15_regime) == str(profile_regime))
+            and q15_support_route.get("verdict") == "exact_bucket_supported"
+            and bool(q15_support_route.get("deployable"))
+            and q15_rows >= minimum_support_rows
+        ):
+            support_rows = max(support_rows, q15_rows)
+            exact_support_rows = max(exact_support_rows, q15_rows)
+            current_live_structure_bucket_rows = max(current_live_structure_bucket_rows, q15_rows)
+            support_mode = "exact_bucket_supported"
+            support_progress = dict(q15_support_progress) or _support_progress_snapshot(
+                current_live_structure_bucket_rows,
+                minimum_rows=minimum_support_rows,
+            )
 
     missing_exact_scope_support = (
         exact_scope_matches_current_bucket
