@@ -939,11 +939,40 @@ def sync_current_state_governance_issues(
         or "exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade" in live_support_reason
     )
     if toxic_current_bucket_active:
-        tracker.add(
-            "P0",
+        toxic_rows = int(current_rows or 0)
+        toxic_minimum_rows = int(minimum_rows or 0)
+        toxic_gap = max(toxic_minimum_rows - toxic_rows, 0)
+        toxic_support_ready = toxic_minimum_rows > 0 and toxic_rows >= toxic_minimum_rows
+        toxic_primary_blocker = toxic_blocker == "exact_live_lane_toxic_sub_bucket_current_bucket" and not circuit_breaker_active
+        if toxic_support_ready:
+            toxic_title = f"current live bucket {current_bucket} is exact-lane toxic despite exact support ({toxic_rows} rows; minimum={toxic_minimum_rows})"
+            toxic_action = "把 current live bucket 視為 hold-only；維持 toxic sub-bucket blocker 在 runtime/docs 的 machine-read truth，直到 bucket-level win/quality 明顯改善。"
+        else:
+            toxic_title = f"current live bucket {current_bucket} shows toxic exact-lane signals while exact support remains under minimum ({toxic_rows}/{toxic_minimum_rows}, gap={toxic_gap})"
+            toxic_action = (
+                "把 toxic exact-lane 訊號視為 secondary hold-only 證據；先保留 support_route/minimum/gap 與 primary blocker，"
+                "不要把 under-minimum support 或熔斷期間的 toxic 診斷寫成已具備 exact support 的部署阻塞。"
+            )
+        if circuit_breaker_active:
+            toxic_action += " 熔斷解除條件仍是 primary deployment blocker；toxicity 只作後續 bucket quality drill-down。"
+        upsert_issue(
+            tracker,
+            "P0" if toxic_primary_blocker else "P1",
             "#H_AUTO_CURRENT_BUCKET_TOXICITY",
-            f"current live bucket {current_bucket} is exact-lane toxic despite exact support ({current_rows} rows)",
-            "把 current live bucket 視為 hold-only；維持 toxic sub-bucket blocker 在 runtime/docs 的 machine-read truth，直到 bucket-level win/quality 明顯改善。",
+            toxic_title,
+            toxic_action,
+            summary={
+                "deployment_blocker": toxic_blocker or live_blocker,
+                "primary_blocker": live_blocker,
+                "circuit_breaker_active": circuit_breaker_active,
+                "current_live_structure_bucket": current_bucket,
+                "current_live_structure_bucket_rows": toxic_rows,
+                "minimum_support_rows": toxic_minimum_rows,
+                "gap_to_minimum": toxic_gap,
+                "support_route_verdict": support_route_verdict,
+                "support_governance_route": support_governance_route,
+                "toxic_primary_blocker": toxic_primary_blocker,
+            },
         )
     else:
         tracker.resolve("#H_AUTO_CURRENT_BUCKET_TOXICITY")

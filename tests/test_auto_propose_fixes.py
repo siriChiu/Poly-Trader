@@ -2037,8 +2037,91 @@ def test_sync_current_state_governance_issues_prefers_live_supported_bucket_over
     assert ("resolve", "#H_AUTO_CURRENT_BUCKET_SUPPORT") in events
     assert not any(event[0] == "add" and event[1] == "#H_AUTO_CURRENT_BUCKET_SUPPORT" for event in events)
     toxic_add = next(event for event in events if event[0] == "add" and event[1] == "#H_AUTO_CURRENT_BUCKET_TOXICITY")
+    assert toxic_add[1] == "#H_AUTO_CURRENT_BUCKET_TOXICITY"
     assert "CAUTION|structure_quality_caution|q35" in toxic_add[2]
     assert "139 rows" in toxic_add[2]
+    assert "despite exact support" in toxic_add[2]
+
+
+def test_sync_current_state_governance_issues_marks_toxic_under_minimum_as_secondary_summary():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue.update(
+                        {
+                            "priority": priority,
+                            "title": title,
+                            "action": action,
+                            "status": status,
+                        }
+                    )
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "current_alignment_inputs_stale": False,
+                "governance_contract": {
+                    "treat_as_parity_blocker": False,
+                    "support_governance_route": "exact_bucket_present_but_below_minimum",
+                    "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 18,
+                    "support_progress": {
+                        "current_rows": 18,
+                        "minimum_support_rows": 50,
+                        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                    },
+                },
+            }
+        },
+        {
+            "signal": "CIRCUIT_BREAKER",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+            "current_live_structure_bucket_rows": 18,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_bucket_present_but_below_minimum",
+            "allowed_layers_reason": "circuit_breaker_blocks_trade; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
+            "execution_guardrail_reason": "circuit_breaker_blocks_trade; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
+            "deployment_blocker": "circuit_breaker_active",
+            "runtime_closure_state": "circuit_breaker_active",
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    issue = next(issue for issue in tracker.issues if issue["id"] == "#H_AUTO_CURRENT_BUCKET_TOXICITY")
+    assert issue["priority"] == "P1"
+    assert "under minimum" in issue["title"]
+    assert "18/50" in issue["title"]
+    assert "despite exact support" not in issue["title"]
+    assert "熔斷解除條件仍是 primary deployment blocker" in issue["action"]
+    assert issue["summary"]["deployment_blocker"] == "circuit_breaker_active"
+    assert issue["summary"]["circuit_breaker_active"] is True
+    assert issue["summary"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q00"
+    assert issue["summary"]["current_live_structure_bucket_rows"] == 18
+    assert issue["summary"]["minimum_support_rows"] == 50
+    assert issue["summary"]["gap_to_minimum"] == 32
+    assert issue["summary"]["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
+    assert issue["summary"]["toxic_primary_blocker"] is False
 
 
 def test_sync_current_state_governance_issues_refreshes_leaderboard_recent_window_issue_summary():

@@ -1,39 +1,39 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-13 17:01:13.549237**
+- generated_at: **2026-05-13 18:08:21.474122**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q00 bucket**
-- verdict: **current_exact_support_under_minimum**
-- candidate_patch_type: **support_accumulation_or_semantic_rebaseline**
+- verdict: **runtime_blocker_preempts_bucket_root_cause**
+- candidate_patch_type: **None**
 - candidate_patch_feature: **None**
 - artifact_context_freshness: **current_context** (`[]`)
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q00', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 1000, 'bucket_semantic_signature': None}`
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q00', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 1000, 'bucket_semantic_signature': None}`
 
 ## Current live
-- live path: **chop / CAUTION / C**
+- live path: **chop / CAUTION / D**
 - structure_bucket: `CAUTION|base_caution_regime_or_bias|q00`
-- structure_quality: **0.0**
-- gap_to_q35_boundary: **0.35**
+- structure_quality: **0.0618**
+- gap_to_q35_boundary: **0.2882**
 - non_null_4h_feature_count: **10**
-- execution_guardrail_reason: `under_minimum_exact_live_structure_bucket`
-- support rows/minimum/gap: **18 / 50 / 32**
+- execution_guardrail_reason: `decision_quality_below_trade_floor; circuit_breaker_active`
+- support rows/minimum/gap: **37 / 50 / 13**
 
 ## Exact live lane
-- rows: **415**
-- bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q85': 249, 'CAUTION|base_caution_regime_or_bias|q65': 76, 'CAUTION|base_caution_regime_or_bias|q15': 54, 'CAUTION|base_caution_regime_or_bias|q00': 23, 'CAUTION|base_caution_regime_or_bias|q35': 13}`
-- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q85** (249 rows)
-- near_boundary_window: `{'lower': 0.0, 'upper': 0.35}`
-- near_boundary_rows: **77**
+- rows: **1971**
+- bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q15': 639, 'CAUTION|base_caution_regime_or_bias|q65': 569, 'CAUTION|base_caution_regime_or_bias|q85': 322, 'CAUTION|base_caution_regime_or_bias|q00': 242, 'CAUTION|base_caution_regime_or_bias|q35': 199}`
+- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q15** (639 rows)
+- near_boundary_window: `{'lower': 0.0618, 'upper': 0.35}`
+- near_boundary_rows: **863**
 
 ## Decision
-- reason: current-live q00 bucket exact support 目前為 18/50，低於 minimum；這是 current exact support under minimum，不是 boundary candidate。
+- reason: 目前 live runtime 已先被 circuit breaker 擋下；current-live q00 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。
 - candidate_patch: `{}`
-- verify_next: 維持 minimum_support_rows=50 與 current-live guardrail，累積同 support_identity 的 exact rows；若只有 legacy / different semantic signature 支撐，文案必須標成 semantic rebaseline reference。
+- verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=-0.0106 / norm=0.0 / Δto_cross_q35=1.0106 / target_p25=0.8983 / target_median=0.9607
-- `feat_4h_dist_bb_lower`: current=-0.0246 / norm=0.0 / Δto_cross_q35=8.0246 / target_p25=8.0552 / target_median=8.3634
-- `feat_4h_dist_swing_low`: current=-1.332 / norm=0.0 / Δto_cross_q35=11.332 / target_p25=8.8675 / target_median=8.9712
+- `feat_4h_bb_pct_b`: current=0.1422 / norm=0.1422 / Δto_cross_q35=0.8476 / target_p25=0.2459 / target_median=0.3816
+- `feat_4h_dist_bb_lower`: current=0.326 / norm=0.0408 / Δto_cross_q35=6.9867 / target_p25=0.6469 / target_median=0.9839
+- `feat_4h_dist_swing_low`: current=-0.8796 / norm=0.0 / Δto_cross_q35=9.6129 / target_p25=0.6635 / target_median=1.4989
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
