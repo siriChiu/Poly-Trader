@@ -191,7 +191,7 @@ def repair_recent_raw_continuity(
     alignment_tolerance_minutes: int = 30,
     klines_df=None,
     fine_grain_interval: str = "1h",
-    fine_grain_days: int = 2,
+    fine_grain_days: int | None = None,
     fine_grain_klines_df=None,
     return_details: bool = False,
 ) -> int | Dict[str, Any]:
@@ -202,9 +202,15 @@ def repair_recent_raw_continuity(
     4h canonical labels stop growing (`raw_gap_blocked`). Heartbeat #629 extends the repair
     lane with a finer 1h public-kline pass so the 240m label path is not stuck waiting for
     the next 4h closed candle.
+
+    When heartbeat has been paused for days, a 2-day fine-grain window leaves the middle
+    of the gap at coarse 4h cadence. Default the 1h repair window to the whole recent
+    lookback so a manual refresh after downtime restores hourly continuity instead of
+    under-counting current-live support rows.
     """
     tolerance = timedelta(minutes=alignment_tolerance_minutes)
     cutoff = datetime.utcnow() - timedelta(days=lookback_days)
+    effective_fine_grain_days = lookback_days if fine_grain_days is None else fine_grain_days
     existing_rows = (
         session.query(RawMarketData.timestamp)
         .filter(RawMarketData.symbol == symbol, RawMarketData.timestamp >= cutoff)
@@ -225,12 +231,12 @@ def repair_recent_raw_continuity(
         tolerance=tolerance,
     )
 
-    fine_cutoff = max(cutoff, datetime.utcnow() - timedelta(days=fine_grain_days))
+    fine_cutoff = max(cutoff, datetime.utcnow() - timedelta(days=effective_fine_grain_days))
     if fine_grain_klines_df is None:
         fine_grain_klines_df = fetch_okx_klines(
             symbol=symbol,
             interval=fine_grain_interval,
-            days=fine_grain_days,
+            days=effective_fine_grain_days,
         )
     inserted_fine = _insert_klines_into_raw(
         session,
@@ -253,6 +259,7 @@ def repair_recent_raw_continuity(
         "lookback_days": lookback_days,
         "coarse_interval": interval,
         "fine_interval": fine_grain_interval,
+        "fine_grain_days": effective_fine_grain_days,
         "coarse_inserted": inserted_coarse,
         "fine_inserted": inserted_fine,
         "bridge_inserted": inserted_bridge,

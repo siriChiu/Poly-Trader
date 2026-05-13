@@ -117,7 +117,6 @@ def test_repair_recent_raw_continuity_uses_fine_grain_klines_to_close_240m_gap(t
             "BTCUSDT",
             lookback_days=3650,
             klines_df=pd.DataFrame(),
-            fine_grain_days=3650,
             fine_grain_klines_df=_klines_df(
                 datetime(2026, 4, 9, 21, 0, 0),
                 datetime(2026, 4, 9, 22, 0, 0),
@@ -222,6 +221,7 @@ def test_repair_recent_raw_continuity_return_details_surfaces_bridge_usage(tmp_p
 
         assert details["inserted_total"] == 5
         assert details["coarse_inserted"] == 0
+        assert details["fine_grain_days"] == 3650
         assert details["fine_inserted"] == 0
         assert details["bridge_inserted"] == 5
         assert details["used_bridge"] is True
