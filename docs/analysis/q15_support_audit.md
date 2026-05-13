@@ -1,21 +1,21 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-13 15:11:15.852329**
+- generated_at: **2026-05-13 16:12:04.478223**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
 - signal: **HOLD**
-- regime / gate / label: **chop / CAUTION / C**
-- current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q00**
-- current_live_structure_bucket_rows: **18**
+- regime / gate / label: **bear / BLOCK / C**
+- current_live_structure_bucket: **BLOCK|structure_quality_block|q00**
+- current_live_structure_bucket_rows: **22**
 - allowed_layers: **0** (under_minimum_exact_live_structure_bucket)
 - execution_guardrail_reason: **under_minimum_exact_live_structure_bucket**
 
 ## Scope applicability
 - status: **current_live_not_q15_lane**
 - active_for_current_live_row: **False**
-- current_structure_bucket: **CAUTION|base_caution_regime_or_bias|q00**
+- current_structure_bucket: **BLOCK|structure_quality_block|q00**
 - target_structure_bucket: **CAUTION|structure_quality_caution|q15**
 - reason: current live row 已不在 q15 lane；q15 support audit 只能描述 standby q15 route readiness，不可當成 current-live deployment closure。
 
@@ -25,7 +25,7 @@
 - deployable: **False**
 - governance_reference_only: **True**
 - preferred_support_cohort: **bull_exact_live_lane_proxy**
-- current bucket gap to minimum: **32**
+- current bucket gap to minimum: **28**
 - exact-bucket proxy rows: **0**
 - exact-lane proxy rows: **7**
 - supported neighbor rows: **0**
@@ -33,12 +33,12 @@
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
 - support_progress.status: **stalled_under_minimum**
 - support_progress.regression_basis: **same_identity_same_semantic_signature**
-- support_progress.current_rows / minimum: **18 / 50**
-- support_progress.previous_rows: **18**
+- support_progress.current_rows / minimum: **22 / 50**
+- support_progress.previous_rows: **22**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **2**
-- support_progress.escalate_to_blocker: **False**
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q00', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- support_progress.stagnant_run_count: **3**
+- support_progress.escalate_to_blocker: **True**
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'BLOCK|structure_quality_block|q00', 'regime_label': 'bear', 'regime_gate': 'BLOCK', 'entry_quality_label': 'C', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `None`
 - support_progress.reason: current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。
 
@@ -57,14 +57,14 @@
 - mode: **reference_only_non_current_live_scope**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5714**
+- current_entry_quality: **0.5867**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.0214**
+- current_trade_floor_gap: **0.0367**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_applicable_current_live_not_q15_lane)
-- reason: current live row 目前停在 CAUTION|base_caution_regime_or_bias|q00，不在 q15 target lane CAUTION|structure_quality_caution|q15；本 artifact 只能描述非 current-live 的 q15/reference route，不得當成 current-live deployment closure。
-- verify_next: 先處理 current-live bucket CAUTION|base_caution_regime_or_bias|q00 的 exact-support / runtime blocker；只有 live row 回到 q15 lane 且 exact support deployable 時，q15 component experiment 才可進入 deployment verify。
+- reason: current live row 目前停在 BLOCK|structure_quality_block|q00，不在 q15 target lane CAUTION|structure_quality_caution|q15；本 artifact 只能描述非 current-live 的 q15/reference route，不得當成 current-live deployment closure。
+- verify_next: 先處理 current-live bucket BLOCK|structure_quality_block|q00 的 exact-support / runtime blocker；只有 live row 回到 q15 lane 且 exact support deployable 時，q15 component experiment 才可進入 deployment verify。
 
 ## Active repair plan
 - phase: **current_bucket_first**
@@ -73,8 +73,8 @@
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **HOLD / 0 / under_minimum_exact_live_structure_bucket**
-- support rows / minimum / gap: **18 / 50 / 32**
-- stagnant_run_count: **2**
+- support rows / minimum / gap: **22 / 50 / 28**
+- stagnant_run_count: **3**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh']`
 - legacy_semantic_evidence.verdict: **None**
 - legacy_semantic_evidence.supports_current_identity: **None**
@@ -83,5 +83,5 @@
 - entropy_reduction_rules: `['引入外部能量：每輪刷新 current-live rows / venue proof / semantic evidence，而不是重用 under-minimum cache。', '建立系統與規則：support_identity 完全一致且 rows>=minimum 才能進入 deployment verify。', '主動代謝與清理：proxy、neighbor、legacy reference 未補齊語義證據前全部標記 reference-only。']`
 
 ## Next action
-- current live row 目前不在 q15 lane（current=CAUTION|base_caution_regime_or_bias|q00, target=CAUTION|structure_quality_caution|q15）；q15 audit 只保留 standby/reference route readiness。下一輪主焦點應回到 current-live exact-support blocker / deployment verify，除非 live row 再次回到 q15 bucket。
+- current live row 目前不在 q15 lane（current=BLOCK|structure_quality_block|q00, target=CAUTION|structure_quality_caution|q15）；q15 audit 只保留 standby/reference route readiness。下一輪主焦點應回到 current-live exact-support blocker / deployment verify，除非 live row 再次回到 q15 bucket。
 

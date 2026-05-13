@@ -317,6 +317,48 @@ def test_support_blocker_summary_compacts_exact_bucket_shortage_for_operator_sur
     assert "不可用 broader/proxy support 放行" in summary["operator_next_action"]
 
 
+def test_support_blocker_summary_projects_reference_only_patch_for_operator_surfaces():
+    payload = {
+        "deployment_blocker": "unsupported_exact_live_structure_bucket",
+        "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+        "support_governance_route": "exact_live_lane_proxy_available",
+        "support_route_deployable": False,
+        "deployment_blocker_details": {
+            "current_live_structure_bucket_rows": 4,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 46,
+        },
+        "decision_quality_scope_pathology_summary": {
+            "recommended_patch": {
+                "status": "reference_only_until_exact_support_ready",
+                "recommended_profile": "core_plus_macro_plus_all_4h",
+                "reference_patch_scope": "bull|CAUTION",
+                "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
+                "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                "gap_to_minimum": 46,
+                "current_live_structure_bucket_rows": 4,
+                "minimum_support_rows": 50,
+            }
+        },
+    }
+
+    blocker = live_drilldown._deployment_blocker_summary(payload)
+    summary = live_drilldown._support_blocker_summary(payload, blocker)
+
+    assert summary["recommended_patch_profile"] == "core_plus_macro_plus_all_4h"
+    assert summary["recommended_patch_status"] == "reference_only_until_exact_support_ready"
+    assert summary["recommended_patch_reference_scope"] == "bull|CAUTION"
+    assert summary["recommended_patch_reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
+    assert summary["recommended_patch_support_route"] == "exact_bucket_present_but_below_minimum"
+    assert summary["recommended_patch_gap_to_minimum"] == 46
+    assert summary["recommended_patch_current_live_structure_bucket_rows"] == 4
+    assert summary["recommended_patch_minimum_support_rows"] == 50
+    assert summary["recommended_patch_reference_only"] is True
+    assert "不是目前即時可部署修補" in summary["operator_summary"]
+    assert "適用範圍 / 來源對齊且 exact support 達標前不可放行" in summary["operator_next_action"]
+
+
 def test_drilldown_markdown_mentions_runtime_closure_summaries():
     source = MODULE_PATH.read_text(encoding="utf-8")
     assert "capacity opened but signal still HOLD" in source

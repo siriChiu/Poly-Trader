@@ -259,6 +259,20 @@ def _support_blocker_summary(
         payload.get("support_route_deployable"),
         details.get("support_route_deployable"),
     )
+    pathology_summary = payload.get("decision_quality_scope_pathology_summary")
+    if not isinstance(pathology_summary, dict):
+        pathology_summary = {}
+    recommended_patch = _first_present(
+        payload.get("recommended_patch"),
+        pathology_summary.get("recommended_patch"),
+    )
+    patch_projection = _recommended_patch_projection(recommended_patch)
+    for field in list(patch_projection):
+        patch_projection[field] = _first_present(
+            patch_projection.get(field),
+            payload.get(field),
+            details.get(field),
+        )
     blocker_type = (deployment_blocker or {}).get("type") or payload.get("deployment_blocker")
     if not any(
         value is not None
@@ -289,6 +303,19 @@ def _support_blocker_summary(
             "不可用 broader/proxy support 放行。"
         )
 
+    patch_status = str(patch_projection.get("recommended_patch_status") or "")
+    patch_reference_only = patch_status.startswith("reference_only")
+    patch_profile = patch_projection.get("recommended_patch_profile")
+    if patch_reference_only and patch_profile:
+        patch_scope = patch_projection.get("recommended_patch_reference_scope") or "unknown_scope"
+        patch_source = patch_projection.get("recommended_patch_reference_source") or "unknown_source"
+        operator_summary += (
+            f" 建議 patch `{patch_profile}` 目前 status=`{patch_status}`、"
+            f"reference_scope=`{patch_scope}`、source=`{patch_source}`；只能作治理參考，"
+            "不是目前即時可部署修補。"
+        )
+        operator_next_action += " 保留 recommended_patch 可見但 reference-only；適用範圍 / 來源對齊且 exact support 達標前不可放行。"
+
     return {
         "deployment_blocker": blocker_type,
         "deployment_blocker_reason": (deployment_blocker or {}).get("reason") or payload.get("deployment_blocker_reason"),
@@ -302,6 +329,8 @@ def _support_blocker_summary(
         "support_route_verdict": support_route_verdict,
         "support_governance_route": support_governance_route,
         "support_route_deployable": support_route_deployable,
+        **patch_projection,
+        "recommended_patch_reference_only": patch_reference_only,
         "allowed_layers_raw": payload.get("allowed_layers_raw"),
         "allowed_layers_raw_reason": payload.get("allowed_layers_raw_reason"),
         "allowed_layers": payload.get("allowed_layers"),
