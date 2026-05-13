@@ -723,6 +723,70 @@ def _find_source_blocker(source_blockers: Dict[str, Any] | None, blocker_key: st
     return None
 
 
+_SOURCE_BLOCKER_QUALITY_RANK = {
+    "source_auth_blocked": 0,
+    "source_tls_verify_failed": 1,
+    "source_fetch_error": 2,
+    "source_parser_error": 3,
+    "source_history_gap": 4,
+}
+
+
+def _format_source_blocker_pct(value: Any) -> str:
+    text = _format_doc_number(value, 1)
+    return "—" if text == "—" else f"{text}%"
+
+
+def _source_blocker_sort_key(blocker: Dict[str, Any]) -> tuple[int, float, str]:
+    quality_flag = str(blocker.get("quality_flag") or "")
+    try:
+        coverage = float(blocker.get("coverage_pct"))
+    except (TypeError, ValueError):
+        coverage = 999.0
+    return (
+        _SOURCE_BLOCKER_QUALITY_RANK.get(quality_flag, 99),
+        coverage,
+        str(blocker.get("key") or ""),
+    )
+
+
+def _source_blocker_forward_archive_status(blocker: Dict[str, Any]) -> str:
+    status = blocker.get("forward_archive_status")
+    if status:
+        return str(status)
+    if blocker.get("forward_archive_ready") is True:
+        return "ready"
+    if blocker.get("forward_archive_ready") is False:
+        return "not_ready"
+    return "—"
+
+
+def _format_source_blocker_for_docs(blocker: Dict[str, Any]) -> str:
+    key = str(blocker.get("key") or "unknown")
+    quality_flag = str(blocker.get("quality_flag") or "unknown")
+    latest_status = str(blocker.get("raw_snapshot_latest_status") or "")
+    status = quality_flag if not latest_status else f"{quality_flag}/{latest_status}"
+    return (
+        f"`{key}({status}, "
+        f"coverage={_format_source_blocker_pct(blocker.get('coverage_pct'))}, "
+        f"archive_window={_format_source_blocker_pct(blocker.get('archive_window_coverage_pct'))}, "
+        f"forward_archive={_source_blocker_forward_archive_status(blocker)})`"
+    )
+
+
+def _top_source_blockers_docs_line(source_blockers: Dict[str, Any] | None, *, limit: int = 4) -> str:
+    """Operator-facing compact top source blocker truth, not only fin_netflow."""
+    blockers = [
+        blocker
+        for blocker in (source_blockers or {}).get("blocked_features") or []
+        if isinstance(blocker, dict)
+    ]
+    if not blockers:
+        return "`top_source_blockers=—`（source blocker 資訊暫缺）"
+    ranked = sorted(blockers, key=_source_blocker_sort_key)[: max(int(limit), 1)]
+    return " / ".join(_format_source_blocker_for_docs(blocker) for blocker in ranked)
+
+
 def _int_or_none(value: Any) -> int | None:
     try:
         return int(value)
@@ -2675,6 +2739,7 @@ def overwrite_current_state_docs(
         if fin_blocker
         else "`fin_netflow` blocker 資訊暫缺"
     )
+    top_source_blockers_line = _top_source_blockers_docs_line(source_blockers)
     candidate_refresh_line = candidate_refresh_context.get("docs_line") or "—"
     candidate_refresh_fact_lines = []
     candidate_refresh_goal_lines = []
@@ -2825,6 +2890,7 @@ def overwrite_current_state_docs(
         *parallel_failure_fact_lines,
         "- **source / venue blockers 仍開啟**",
         f"  - `blocked_sparse_features={source_blockers.get('blocked_count', '—')}` / `{source_blockers.get('counts_by_history_class', {})}`",
+        f"  - top source blockers：{top_source_blockers_line}",
         f"  - fin_netflow：{fin_line}",
         "  - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof；`execution_metadata_smoke.venues[]` 已提供 per-venue `proof_state / blockers / operator_next_action / verify_next` 給 Dashboard / Execution / Lab 直接顯示證據缺口",
         "- **Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）**",
@@ -2981,6 +3047,7 @@ def overwrite_current_state_docs(
         "**目前真相**",
         f"- {leaderboard_line}",
         *candidate_refresh_goal_lines,
+        f"- top source blockers：{top_source_blockers_line}",
         f"- fin_netflow：{fin_line}",
         "- venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證；API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows",
         "- docs automation：markdown docs 不再允許落後 live artifacts",
@@ -3062,7 +3129,7 @@ def overwrite_current_state_docs(
         f"- latest recent-window diagnostics：{pathology_line}。",
         *([f"- current blocking pathological pocket：{blocking_pathology_line}。"] if blocking_pathology_line else []),
         f"- leaderboard / governance：{leaderboard_line}。",
-        f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle；metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next。",
+        f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；top source blockers={top_source_blockers_line}；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle；metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next。",
         *parallel_failure_orid_lines,
         *([f"- {q35_scaling_doc_line}。"] if q35_scaling_doc_line else []),
         *high_conviction_orid_fact_lines,

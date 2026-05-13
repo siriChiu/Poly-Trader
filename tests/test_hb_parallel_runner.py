@@ -2596,6 +2596,81 @@ def test_overwrite_current_state_docs_surfaces_q15_support_identity_rebaseline(t
 
 
 
+def test_overwrite_current_state_docs_surfaces_top_source_blockers_beyond_fin_netflow(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    (tmp_path / "data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(json.dumps({"issues": []}), encoding="utf-8")
+
+    source_blockers = {
+        "blocked_count": 3,
+        "counts_by_history_class": {"archive_required": 1, "snapshot_only": 2},
+        "blocked_features": [
+            {
+                "key": "scales_ssr",
+                "quality_flag": "source_history_gap",
+                "raw_snapshot_latest_status": "ok",
+                "coverage_pct": 23.5,
+                "archive_window_coverage_pct": 98.5,
+                "forward_archive_status": "ready",
+            },
+            {
+                "key": "fin_netflow",
+                "quality_flag": "source_auth_blocked",
+                "raw_snapshot_latest_status": "auth_missing",
+                "coverage_pct": 0.0,
+                "archive_window_coverage_pct": 0.0,
+                "raw_snapshot_events": 99,
+                "forward_archive_status": "ready",
+            },
+            {
+                "key": "nest_pred",
+                "quality_flag": "source_tls_verify_failed",
+                "raw_snapshot_latest_status": "tls_verify_failed",
+                "coverage_pct": 16.3,
+                "archive_window_coverage_pct": 98.6,
+                "forward_archive_status": "ready",
+            },
+        ],
+    }
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "1191",
+        {"raw_market_data": 33005, "features_normalized": 24335, "labels": 66296, "simulated_pyramid_win_rate": 0.5681},
+        source_blockers,
+        {"primary_summary": {}},
+        {
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+            "current_live_structure_bucket_rows": 18,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 32,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {},
+        {},
+        {},
+        {},
+        run_mode="fast",
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+    for content in (issues_md, roadmap_md, orid_md):
+        assert "top source blockers" in content
+        assert "fin_netflow(source_auth_blocked/auth_missing, coverage=0.0%, archive_window=0.0%, forward_archive=ready)" in content
+        assert "nest_pred(source_tls_verify_failed/tls_verify_failed, coverage=16.3%, archive_window=98.6%, forward_archive=ready)" in content
+
+
+
+def test_top_source_blockers_docs_line_handles_missing_payload():
+    assert "source blocker 資訊暫缺" in hb_parallel_runner._top_source_blockers_docs_line({})
+
+
+
 def test_overwrite_current_state_docs_keeps_reference_only_patch_truth_from_issue_summary(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
