@@ -2,10 +2,10 @@
   "generated_at": "2026-05-13T12:21:36.841568+00:00",
   "artifact_freshness_status": "fresh",
   "artifact_freshness_reason": "artifact_within_policy",
-  "artifact_age_minutes": 0.22497151666666668,
+  "artifact_age_minutes": 40.571434733333334,
   "artifact_stale_after_minutes": 60.0,
   "artifact_deployment_blocking": false,
-  "artifact_freshness_checked_at": "2026-05-13T12:21:50.339859+00:00",
+  "artifact_freshness_checked_at": "2026-05-13T13:02:11.127652+00:00",
   "target_col": "simulated_pyramid_win",
   "samples": 24255,
   "top_k_grid": [
@@ -23,21 +23,21 @@
     "support_route": "deployable"
   },
   "support_context": {
-    "support_route_verdict": "exact_bucket_supported",
-    "support_governance_route": "exact_live_bucket_supported",
-    "support_route_deployable": true,
-    "deployment_blocker": "decision_quality_below_trade_floor",
-    "runtime_closure_state": "patch_active_but_execution_blocked",
-    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-    "current_live_structure_bucket_rows": 95,
+    "support_route_verdict": "exact_bucket_present_but_below_minimum",
+    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+    "support_route_deployable": false,
+    "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+    "runtime_closure_state": "patch_inactive_or_blocked",
+    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+    "current_live_structure_bucket_rows": 1,
     "minimum_support_rows": 50,
-    "current_live_structure_bucket_gap_to_minimum": 0,
+    "current_live_structure_bucket_gap_to_minimum": 49,
     "allowed_layers": 0,
     "signal": "HOLD",
-    "execution_guardrail_reason": "decision_quality_below_trade_floor",
-    "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+    "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+    "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
     "live_truth_source_artifact": "data/live_predict_probe.json",
-    "support_context_current_as_of": "2026-05-13T12:21:43.793988Z"
+    "support_context_current_as_of": "2026-05-13T13:01:28.578564Z"
   },
   "artifact": "data/high_conviction_topk_oos_matrix.json",
   "rows": [
@@ -58,19 +58,19 @@
       "regime_mix": {
         "bull": 29
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -84,6 +84,7 @@
       "gate_failures": [
         "min_trades_not_met",
         "worst_fold_negative",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
@@ -91,6 +92,7 @@
         "worst_fold_negative"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -114,19 +116,19 @@
       "regime_mix": {
         "bull": 58
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -139,12 +141,14 @@
       "deployment_candidate_tier": "research_oos_gate_failed",
       "gate_failures": [
         "worst_fold_negative",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
         "worst_fold_negative"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -168,19 +172,19 @@
       "regime_mix": {
         "bull": 146
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -194,6 +198,7 @@
       "gate_failures": [
         "max_drawdown_too_high",
         "worst_fold_negative",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
@@ -201,6 +206,7 @@
         "worst_fold_negative"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -224,19 +230,19 @@
       "regime_mix": {
         "bull": 292
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -250,6 +256,7 @@
       "gate_failures": [
         "max_drawdown_too_high",
         "worst_fold_negative",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
@@ -257,6 +264,7 @@
         "worst_fold_negative"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -280,19 +288,19 @@
       "regime_mix": {
         "bull": 29
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -306,6 +314,7 @@
       "gate_failures": [
         "min_trades_not_met",
         "worst_fold_negative",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
@@ -313,6 +322,7 @@
         "worst_fold_negative"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -336,19 +346,19 @@
       "regime_mix": {
         "bull": 58
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -361,12 +371,14 @@
       "deployment_candidate_tier": "research_oos_gate_failed",
       "gate_failures": [
         "worst_fold_negative",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
         "worst_fold_negative"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -390,19 +402,19 @@
       "regime_mix": {
         "bull": 146
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -416,6 +428,7 @@
       "gate_failures": [
         "max_drawdown_too_high",
         "worst_fold_negative",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
@@ -423,6 +436,7 @@
         "worst_fold_negative"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -446,19 +460,19 @@
       "regime_mix": {
         "bull": 292
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -472,6 +486,7 @@
       "gate_failures": [
         "max_drawdown_too_high",
         "worst_fold_negative",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
@@ -479,6 +494,7 @@
         "worst_fold_negative"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -502,19 +518,19 @@
       "regime_mix": {
         "bull": 29
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -527,12 +543,14 @@
       "deployment_candidate_tier": "research_oos_gate_failed",
       "gate_failures": [
         "min_trades_not_met",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
         "min_trades_not_met"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -556,19 +574,19 @@
       "regime_mix": {
         "bull": 58
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -580,10 +598,12 @@
       "deployable_verdict": "not_deployable",
       "deployment_candidate_tier": "runtime_blocked_oos_pass",
       "gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": true,
@@ -607,19 +627,19 @@
       "regime_mix": {
         "bull": 146
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -631,10 +651,12 @@
       "deployable_verdict": "not_deployable",
       "deployment_candidate_tier": "runtime_blocked_oos_pass",
       "gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": true,
@@ -658,19 +680,19 @@
       "regime_mix": {
         "bull": 292
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -683,12 +705,14 @@
       "deployment_candidate_tier": "research_oos_gate_failed",
       "gate_failures": [
         "max_drawdown_too_high",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
         "max_drawdown_too_high"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -712,19 +736,19 @@
       "regime_mix": {
         "bull": 29
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -737,12 +761,14 @@
       "deployment_candidate_tier": "research_oos_gate_failed",
       "gate_failures": [
         "min_trades_not_met",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
         "min_trades_not_met"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -766,19 +792,19 @@
       "regime_mix": {
         "bull": 58
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -790,10 +816,12 @@
       "deployable_verdict": "not_deployable",
       "deployment_candidate_tier": "runtime_blocked_oos_pass",
       "gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": true,
@@ -817,19 +845,19 @@
       "regime_mix": {
         "bull": 146
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -841,10 +869,12 @@
       "deployable_verdict": "not_deployable",
       "deployment_candidate_tier": "runtime_blocked_oos_pass",
       "gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": true,
@@ -868,19 +898,19 @@
       "regime_mix": {
         "bull": 292
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -893,12 +923,14 @@
       "deployment_candidate_tier": "research_oos_gate_failed",
       "gate_failures": [
         "max_drawdown_too_high",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
         "max_drawdown_too_high"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -922,19 +954,19 @@
       "regime_mix": {
         "bull": 29
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -947,12 +979,14 @@
       "deployment_candidate_tier": "research_oos_gate_failed",
       "gate_failures": [
         "min_trades_not_met",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
         "min_trades_not_met"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -976,19 +1010,19 @@
       "regime_mix": {
         "bull": 58
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -1000,10 +1034,12 @@
       "deployable_verdict": "not_deployable",
       "deployment_candidate_tier": "runtime_blocked_oos_pass",
       "gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": true,
@@ -1027,19 +1063,19 @@
       "regime_mix": {
         "bull": 146
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -1052,12 +1088,14 @@
       "deployment_candidate_tier": "research_oos_gate_failed",
       "gate_failures": [
         "max_drawdown_too_high",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
         "max_drawdown_too_high"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -1081,19 +1119,19 @@
       "regime_mix": {
         "bull": 292
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -1106,12 +1144,14 @@
       "deployment_candidate_tier": "research_oos_gate_failed",
       "gate_failures": [
         "max_drawdown_too_high",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
         "max_drawdown_too_high"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -1135,19 +1175,19 @@
       "regime_mix": {
         "bull": 29
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -1160,12 +1200,14 @@
       "deployment_candidate_tier": "research_oos_gate_failed",
       "gate_failures": [
         "min_trades_not_met",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
         "min_trades_not_met"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -1189,19 +1231,19 @@
       "regime_mix": {
         "bull": 58
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -1213,10 +1255,12 @@
       "deployable_verdict": "not_deployable",
       "deployment_candidate_tier": "runtime_blocked_oos_pass",
       "gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": true,
@@ -1240,19 +1284,19 @@
       "regime_mix": {
         "bull": 146
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -1265,12 +1309,14 @@
       "deployment_candidate_tier": "research_oos_gate_failed",
       "gate_failures": [
         "max_drawdown_too_high",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
         "max_drawdown_too_high"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -1294,19 +1340,19 @@
       "regime_mix": {
         "bull": 292
       },
-      "support_route": "exact_bucket_supported",
-      "support_governance_route": "exact_live_bucket_supported",
-      "support_route_deployable": true,
-      "deployment_blocker": "decision_quality_below_trade_floor",
-      "runtime_closure_state": "patch_active_but_execution_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 95,
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route_deployable": false,
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "runtime_closure_state": "patch_inactive_or_blocked",
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 1,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 0,
+      "current_live_structure_bucket_gap_to_minimum": 49,
       "allowed_layers": 0,
       "signal": "HOLD",
-      "execution_guardrail_reason": "decision_quality_below_trade_floor",
-      "source_live_probe_generated_at": "2026-05-13T12:21:43.793988Z",
+      "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+      "source_live_probe_generated_at": "2026-05-13T13:01:28.578564Z",
       "minimum_deployment_gates": {
         "min_trades": 50,
         "min_win_rate": 0.6,
@@ -1319,12 +1365,14 @@
       "deployment_candidate_tier": "research_oos_gate_failed",
       "gate_failures": [
         "max_drawdown_too_high",
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "model_gate_failures": [
         "max_drawdown_too_high"
       ],
       "live_gate_failures": [
+        "support_route_not_deployable",
         "deployment_blocker_active"
       ],
       "oos_gate_passed": false,
@@ -3235,5 +3283,5 @@
   "risk_qualified_rows": 6,
   "runtime_blocked_candidate_rows": 6,
   "support_context_source": "latest_live_predict_probe",
-  "support_context_current_as_of": "2026-05-13T12:21:43.793988Z"
+  "support_context_current_as_of": "2026-05-13T13:01:28.578564Z"
 }
