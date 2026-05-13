@@ -1389,9 +1389,9 @@ def test_build_live_runtime_closure_surface_marks_circuit_breaker_as_runtime_blo
     assert payload["decision_quality_recent_pathology_window"] == 100
     assert payload["decision_quality_recent_pathology_alerts"] == ["label_imbalance", "regime_concentration"]
     assert payload["decision_quality_recent_pathology_summary"]["avg_pnl"] == -0.0123
-    assert "release condition = streak < 50 且 recent 50 win rate >= 30%" in payload["runtime_closure_summary"]
-    assert "目前 recent 50 只贏 5/50，至少還差 10 勝" in payload["runtime_closure_summary"]
-    assert "recent pathology=recent scope slice 100 rows shows distribution_pathology" in payload["runtime_closure_summary"]
+    assert "解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%" in payload["runtime_closure_summary"]
+    assert "目前最近 50 筆只贏 5/50，至少還差 10 勝" in payload["runtime_closure_summary"]
+    assert "近期病態=近期範圍切片 100 筆 顯示 分佈病態" in payload["runtime_closure_summary"]
 
 
 def test_build_live_runtime_closure_surface_marks_exact_supported_q15_trade_floor_blocker_as_no_deploy():
@@ -1436,8 +1436,8 @@ def test_build_live_runtime_closure_surface_marks_exact_supported_q15_trade_floo
     assert payload["minimum_support_rows"] == 50
     assert payload["current_live_structure_bucket_gap_to_minimum"] == 0
     assert payload["support_rows_text"] == "96 / 50"
-    assert "已完成 exact support closure" in payload["runtime_closure_summary"]
-    assert "不可把 support closure 誤讀成 deployment closure" in payload["runtime_closure_summary"]
+    assert "已完成精準樣本閉環" in payload["runtime_closure_summary"]
+    assert "不可把支持樣本閉環誤讀成部署閉環" in payload["runtime_closure_summary"]
 
 
 def test_build_live_runtime_closure_surface_keeps_q15_patch_active_execution_blocked_state():
@@ -1481,7 +1481,7 @@ def test_build_live_runtime_closure_surface_keeps_q15_patch_active_execution_blo
     assert payload["deployment_blocker"] == "decision_quality_below_trade_floor"
     assert payload["support_route_verdict"] == "exact_bucket_supported"
     assert "q15 patch 已啟用" in payload["runtime_closure_summary"]
-    assert "decision_quality_below_trade_floor" in payload["runtime_closure_summary"]
+    assert "決策品質低於交易門檻" in payload["runtime_closure_summary"]
 
 
 def test_build_live_runtime_closure_surface_keeps_q35_exact_supported_patch_active_execution_blocked_state():
@@ -1531,7 +1531,7 @@ def test_build_live_runtime_closure_surface_keeps_q35_exact_supported_patch_acti
     assert payload["minimum_support_rows"] == 50
     assert payload["current_live_structure_bucket_gap_to_minimum"] == 0
     assert "q35 discriminative redesign 已啟用" in payload["runtime_closure_summary"]
-    assert "decision_quality_below_trade_floor" in payload["runtime_closure_summary"]
+    assert "決策品質低於交易門檻" in payload["runtime_closure_summary"]
 
 
 def test_build_live_runtime_closure_surface_describes_exact_support_blocker_without_stale_q15_copy():
@@ -1571,10 +1571,10 @@ def test_build_live_runtime_closure_surface_describes_exact_support_blocker_with
     )
 
     assert payload["runtime_closure_state"] == "patch_inactive_or_blocked"
-    assert "current live bucket CAUTION|base_caution_regime_or_bias|q35" in payload["runtime_closure_summary"]
+    assert "當前即時分桶 CAUTION|base_caution_regime_or_bias|q35" in payload["runtime_closure_summary"]
     assert "0/50" in payload["runtime_closure_summary"]
-    assert "exact support" in payload["runtime_closure_summary"]
-    assert "reference-only" in payload["runtime_closure_summary"]
+    assert "精準樣本" in payload["runtime_closure_summary"]
+    assert "僅供治理參考" in payload["runtime_closure_summary"]
     assert "q15 patch" not in payload["runtime_closure_summary"]
 
 
@@ -1617,7 +1617,7 @@ def test_build_live_runtime_closure_surface_keeps_q35_redesign_runtime_copy():
 
     assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
     assert "q35 discriminative redesign" in payload["runtime_closure_summary"]
-    assert "unsupported_exact_live_structure_bucket" in payload["runtime_closure_summary"]
+    assert "精準樣本尚未建立" in payload["runtime_closure_summary"]
     assert "q15 patch" not in payload["runtime_closure_summary"]
 
 
@@ -2352,8 +2352,8 @@ def test_build_live_runtime_closure_surface_exposes_exact_vs_spillover_summary(m
     assert scope_summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|ALLOW"
     assert scope_summary["exact_live_lane"]["rows"] == 104
     assert "bull|ALLOW" in scope_summary["summary"]
-    assert "exact-vs-spillover" in result["runtime_closure_summary"]
-    assert "bull|ALLOW" in result["runtime_closure_summary"]
+    assert "精準路徑與外溢對照" in result["runtime_closure_summary"]
+    assert "牛市|允許" in result["runtime_closure_summary"]
 
 
 def test_build_live_runtime_closure_surface_surfaces_bull_caution_patch_summary(monkeypatch, tmp_path):

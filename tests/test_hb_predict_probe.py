@@ -122,7 +122,7 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
     assert payload["api_trade_allowed_risk_off_sides"] == ["reduce", "sell"]
     assert payload["api_trade_allowed_actions"] == ["reduce", "sell", "diagnostics", "mode_toggle"]
     assert "ExecutionService.submit_order" in payload["api_trade_guardrail_context"]
-    assert "q35 discriminative redesign 已啟用並把 entry_quality 拉到 0.5621" in payload["runtime_closure_summary"]
+    assert "q35 discriminative redesign 已啟用並把進場品質拉到 0.5621" in payload["runtime_closure_summary"]
     assert json.loads(out_path.read_text()) == payload
 
 
@@ -378,7 +378,7 @@ def test_hb_predict_probe_treats_live_exact_lane_bucket_proxy_as_bucket_proxy_ro
             "execution_guardrail_applied": True,
             "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
             "deployment_blocker": "unsupported_exact_live_structure_bucket",
-            "deployment_blocker_reason": "missing exact support",
+            "deployment_blocker_reason": "missing 精準樣本",
             "deployment_blocker_source": "decision_quality_contract",
             "deployment_blocker_details": {
                 "support_mode": "exact_bucket_unsupported_block",
@@ -605,8 +605,8 @@ def test_hb_predict_probe_emits_explicit_no_deploy_governance_for_exact_supporte
     assert payload["runtime_closure_state"] == "support_closed_but_trade_floor_blocked"
     assert payload["support_route_verdict"] == "exact_bucket_supported"
     assert payload["component_experiment_verdict"] == "exact_supported_component_experiment_ready"
-    assert "已完成 exact support closure" in payload["runtime_closure_summary"]
-    assert "不可把 support closure 誤讀成 deployment closure" in payload["runtime_closure_summary"]
+    assert "已完成精準樣本閉環" in payload["runtime_closure_summary"]
+    assert "不可把支持樣本閉環誤讀成部署閉環" in payload["runtime_closure_summary"]
     assert json.loads(out_path.read_text()) == payload
 
 
@@ -687,7 +687,7 @@ def test_hb_predict_probe_backfills_support_route_into_runtime_closure_from_q15_
 
     assert payload["support_route_verdict"] == "exact_bucket_supported"
     assert payload["runtime_closure_state"] == "support_closed_but_trade_floor_blocked"
-    assert "已完成 exact support closure" in payload["runtime_closure_summary"]
+    assert "已完成精準樣本閉環" in payload["runtime_closure_summary"]
     assert payload["support_progress"]["current_rows"] == 96
 
 
@@ -985,9 +985,9 @@ def test_hb_predict_probe_replays_when_refreshed_q15_audit_invalidates_patch(mon
     assert payload["runtime_closure_state"] == "patch_inactive_or_blocked"
     assert payload["support_route_verdict"] == "exact_bucket_missing_proxy_reference_only"
     assert payload["component_experiment_verdict"] == "reference_only_until_exact_support_ready"
-    assert "current live bucket CAUTION|structure_quality_caution|q15" in payload["runtime_closure_summary"]
-    assert "exact support" in payload["runtime_closure_summary"]
-    assert "reference-only" in payload["runtime_closure_summary"]
+    assert "當前即時分桶 CAUTION|structure_quality_caution|q15" in payload["runtime_closure_summary"]
+    assert "精準樣本" in payload["runtime_closure_summary"]
+    assert "僅供治理參考" in payload["runtime_closure_summary"]
     assert "q15 patch" not in payload["runtime_closure_summary"]
     assert json.loads(out_path.read_text()) == payload
 
@@ -1049,8 +1049,8 @@ def test_hb_predict_probe_emits_toxic_exact_lane_runtime_blocker_summary(monkeyp
 
     assert payload["deployment_blocker"] == "exact_live_lane_toxic_sub_bucket_current_bucket"
     assert payload["runtime_closure_state"] == "deployment_guardrail_blocks_trade"
-    assert "已具 exact support" in payload["runtime_closure_summary"]
-    assert "不可把 support closure 誤讀成 deployment closure" in payload["runtime_closure_summary"]
+    assert "已具精準樣本" in payload["runtime_closure_summary"]
+    assert "不可把支持樣本閉環誤讀成部署閉環" in payload["runtime_closure_summary"]
     assert json.loads(out_path.read_text()) == payload
 
 
@@ -1082,7 +1082,7 @@ def test_hb_predict_probe_emits_capacity_opened_hold_summary(monkeypatch, capsys
     payload = json.loads(capsys.readouterr().out)
     assert payload["q15_exact_supported_component_patch_applied"] is True
     assert payload["runtime_closure_state"] == "capacity_opened_signal_hold"
-    assert "1 層 deployment capacity" in payload["runtime_closure_summary"]
+    assert "1 層部署容量" in payload["runtime_closure_summary"]
 
 
 def test_hb_predict_probe_emits_patch_active_when_q15_capacity_is_live_and_signal_is_buy(monkeypatch, capsys, tmp_path):
@@ -1115,7 +1115,7 @@ def test_hb_predict_probe_emits_patch_active_when_q15_capacity_is_live_and_signa
     payload = json.loads(capsys.readouterr().out)
     assert payload["q15_exact_supported_component_patch_applied"] is True
     assert payload["runtime_closure_state"] == "patch_active"
-    assert "q15 patch active" in payload["runtime_closure_summary"]
+    assert "q15 patch 已啟用" in payload["runtime_closure_summary"]
 
 
 def test_hb_predict_probe_emits_patch_active_but_execution_blocked_summary(monkeypatch, capsys, tmp_path):
@@ -1139,8 +1139,8 @@ def test_hb_predict_probe_emits_patch_active_but_execution_blocked_summary(monke
     payload = json.loads(capsys.readouterr().out)
     assert payload["q15_exact_supported_component_patch_applied"] is True
     assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
-    assert "q15 patch 已啟用並把 entry_quality 拉到 0.5500" in payload["runtime_closure_summary"]
-    assert "不可把 patch active 誤讀成可部署" in payload["runtime_closure_summary"]
+    assert "q15 patch 已啟用並把進場品質拉到 0.5500" in payload["runtime_closure_summary"]
+    assert "不可把修補方案已啟用誤讀成可部署" in payload["runtime_closure_summary"]
 
 
 def test_hb_predict_probe_emits_q15_patch_active_trade_floor_blocker_summary(monkeypatch, capsys, tmp_path):
@@ -1176,8 +1176,8 @@ def test_hb_predict_probe_emits_q15_patch_active_trade_floor_blocker_summary(mon
     assert payload["deployment_blocker"] == "decision_quality_below_trade_floor"
     assert payload["q15_exact_supported_component_patch_applied"] is True
     assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
-    assert "q15 patch 已啟用並把 entry_quality 拉到 0.5500（raw layers=1）" in payload["runtime_closure_summary"]
-    assert "decision_quality_below_trade_floor" in payload["runtime_closure_summary"]
+    assert "q15 patch 已啟用並把進場品質拉到 0.5500（原始層數=1）" in payload["runtime_closure_summary"]
+    assert "決策品質低於交易門檻" in payload["runtime_closure_summary"]
 
 
 def test_hb_predict_probe_emits_q35_patch_active_but_execution_blocked_summary(monkeypatch, capsys, tmp_path):
@@ -1204,8 +1204,8 @@ def test_hb_predict_probe_emits_q35_patch_active_but_execution_blocked_summary(m
     assert payload["q35_discriminative_redesign_applied"] is True
     assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
     assert payload["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
-    assert "q35 discriminative redesign 已啟用並把 entry_quality 拉到 0.5514" in payload["runtime_closure_summary"]
-    assert "unsupported_exact_live_structure_bucket" in payload["runtime_closure_summary"]
+    assert "q35 discriminative redesign 已啟用並把進場品質拉到 0.5514" in payload["runtime_closure_summary"]
+    assert "精準樣本尚未建立" in payload["runtime_closure_summary"]
 
 
 def test_hb_predict_probe_emits_circuit_breaker_runtime_closure(monkeypatch, capsys, tmp_path):
@@ -1250,9 +1250,9 @@ def test_hb_predict_probe_emits_circuit_breaker_runtime_closure(monkeypatch, cap
     assert payload["allowed_layers_reason"] == "circuit_breaker_blocks_trade"
     assert payload["execution_guardrail_reason"] == "circuit_breaker_blocks_trade"
     assert payload["deployment_blocker"] == "circuit_breaker_active"
-    assert "release condition = streak < 50 且 recent 50 win rate >= 30%" in payload["runtime_closure_summary"]
-    assert "目前 recent 50 只贏 5/50，至少還差 10 勝" in payload["runtime_closure_summary"]
-    assert "recent pathology=recent drift primary window 500 rows shows distribution_pathology" in payload["runtime_closure_summary"]
+    assert "解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%" in payload["runtime_closure_summary"]
+    assert "目前最近 50 筆只贏 5/50，至少還差 10 勝" in payload["runtime_closure_summary"]
+    assert "近期病態=近期漂移主要視窗 500 筆 顯示 分佈病態" in payload["runtime_closure_summary"]
 
 
 def test_hb_predict_probe_prefers_q15_audit_support_progress_even_under_circuit_breaker(monkeypatch, capsys, tmp_path):

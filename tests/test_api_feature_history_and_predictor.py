@@ -506,6 +506,19 @@ def test_infer_deployment_blocker_flags_exact_supported_q15_live_trade_floor_blo
     assert blocker["current_live_structure_bucket_rows"] == 96
     assert blocker["trade_floor"] == 0.55
     assert blocker["component_experiment"]["verdict"] == "exact_supported_component_experiment_ready"
+    assert "當前即時結構分桶" in blocker["reason"]
+    assert "精準樣本閉環" in blocker["reason"]
+    assert "不可部署治理" in blocker["reason"]
+    for leaked_copy in [
+        "current live structure bucket",
+        "exact support closure",
+        "top-level live baseline",
+        "trade floor",
+        "no-deploy governance",
+        "support closure",
+        "deployment closure",
+    ]:
+        assert leaked_copy not in blocker["reason"]
     assert guarded["deployment_blocker"] == "decision_quality_below_trade_floor"
     assert guarded["allowed_layers_reason"] == "decision_quality_below_trade_floor"
     assert guarded["execution_guardrail_reason"] == "decision_quality_below_trade_floor"
@@ -586,7 +599,18 @@ def test_infer_deployment_blocker_flags_exact_supported_q15_patch_active_executi
     assert blocker["q15_exact_supported_component_patch_applied"] is True
     assert blocker["allowed_layers_raw"] == 1
     assert blocker["support_route_verdict"] == "exact_bucket_supported"
-    assert "q15 patch 已啟用並把 raw entry 拉到 entry_quality=0.5500" in blocker["reason"]
+    assert "q15 patch 已啟用並把原始進場品質拉到進場品質=0.5500" in blocker["reason"]
+    assert "最終執行" in blocker["reason"]
+    assert "交易門檻" in blocker["reason"]
+    for leaked_copy in [
+        "current live structure bucket",
+        "exact support closure",
+        "final execution",
+        "decision-quality trade floor",
+        "support closure",
+        "deployment closure",
+    ]:
+        assert leaked_copy not in blocker["reason"]
     assert guarded["deployment_blocker"] == "decision_quality_below_trade_floor"
     assert guarded["allowed_layers_reason"] == "decision_quality_below_trade_floor"
     assert guarded["execution_guardrail_reason"] == "decision_quality_below_trade_floor"
@@ -640,7 +664,17 @@ def test_infer_deployment_blocker_flags_exact_supported_q35_patch_active_executi
     assert blocker["allowed_layers_raw"] == 1
     assert blocker["q35_discriminative_redesign_applied"] is True
     assert blocker["q35_discriminative_redesign"]["weights"] == {"feat_nose": 0.5, "feat_ear": 0.5}
-    assert "q35 discriminative redesign 已把 raw entry 拉到 entry_quality=0.5534" in blocker["reason"]
+    assert "q35 discriminative redesign 已把原始進場品質拉到進場品質=0.5534" in blocker["reason"]
+    assert "最終執行" in blocker["reason"]
+    for leaked_copy in [
+        "current live structure bucket",
+        "exact support closure",
+        "final execution",
+        "decision-quality trade floor",
+        "patch active",
+        "deployment closure",
+    ]:
+        assert leaked_copy not in blocker["reason"]
     assert guarded["deployment_blocker"] == "decision_quality_below_trade_floor"
     assert guarded["allowed_layers_reason"] == "decision_quality_below_trade_floor"
     assert guarded["execution_guardrail_reason"] == "decision_quality_below_trade_floor"

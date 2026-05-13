@@ -1732,9 +1732,9 @@ def _infer_deployment_blocker(
         return {
             "type": "decision_quality_below_trade_floor",
             "reason": (
-                f"current live structure bucket `{structure_bucket}` 已完成 exact support closure（{current_live_structure_bucket_rows}/{minimum_support_rows}），"
-                f"但 top-level live baseline 仍停在 entry_quality={entry_quality:.4f}，低於 trade floor {trade_floor:.2f}；"
-                "目前只能維持明確 no-deploy governance，不可把 support closure 或 component-experiment readiness 誤讀成 deployment closure。"
+                f"當前即時結構分桶 `{structure_bucket}` 已完成精準樣本閉環（{current_live_structure_bucket_rows}/{minimum_support_rows}），"
+                f"但頂層即時基準仍停在進場品質={entry_quality:.4f}，低於交易門檻 {trade_floor:.2f}；"
+                "目前只能維持明確不可部署治理，不可把支持樣本閉環或元件實驗就緒誤讀成部署閉環。"
             ),
             "source": "decision_quality_contract+q15_support_audit",
             "structure_bucket": structure_bucket,
@@ -1772,10 +1772,10 @@ def _infer_deployment_blocker(
         return {
             "type": "decision_quality_below_trade_floor",
             "reason": (
-                f"current live structure bucket `{structure_bucket}` 已完成 exact support closure（{current_live_structure_bucket_rows}/{minimum_support_rows}），"
-                f"且 q15 patch 已啟用並把 raw entry 拉到 entry_quality={entry_quality:.4f}（raw layers={raw_allowed_layers}），"
-                "但 final execution 仍被 decision-quality trade floor 擋住；目前必須維持 patch_active_but_execution_blocked，"
-                "不可把 q15 patch active 或 support closure 誤讀成 deployment closure。"
+                f"當前即時結構分桶 `{structure_bucket}` 已完成精準樣本閉環（{current_live_structure_bucket_rows}/{minimum_support_rows}），"
+                f"且 q15 patch 已啟用並把原始進場品質拉到進場品質={entry_quality:.4f}（原始層數={raw_allowed_layers}），"
+                "但最終執行仍被決策品質交易門檻擋住；目前必須維持修補方案已套用但執行期仍阻塞，"
+                "不可把 q15 patch 已啟用或支持樣本閉環誤讀成部署閉環。"
             ),
             "source": "decision_quality_contract+q15_support_audit",
             "structure_bucket": structure_bucket,
@@ -1811,15 +1811,15 @@ def _infer_deployment_blocker(
 
     if support_progress.get("status") == "exact_supported" and quality_below_trade_floor:
         reason_parts = [
-            f"current live structure bucket `{structure_bucket}` 已完成 exact support closure（{current_live_structure_bucket_rows}/{minimum_support_rows}）"
+            f"當前即時結構分桶 `{structure_bucket}` 已完成精準樣本閉環（{current_live_structure_bucket_rows}/{minimum_support_rows}）"
         ]
         if runtime_patch_name and raw_allowed_layers > 0:
             reason_parts.append(
-                f"{runtime_patch_name} 已把 raw entry 拉到 entry_quality={entry_quality:.4f}（raw layers={raw_allowed_layers}）"
+                f"{runtime_patch_name} 已把原始進場品質拉到進場品質={entry_quality:.4f}（原始層數={raw_allowed_layers}）"
             )
         else:
             reason_parts.append(
-                f"但 final execution 的 decision-quality 仍停在 {decision_quality_label or '—'}"
+                f"但最終執行的決策品質仍停在 {decision_quality_label or '—'}"
                 + (
                     f" / score={float(decision_quality_score):.4f}"
                     if decision_quality_score is not None
@@ -1827,9 +1827,9 @@ def _infer_deployment_blocker(
                 )
             )
         if runtime_patch_name and raw_allowed_layers > 0:
-            reason = "；".join(reason_parts) + "，但 final execution 仍被 decision-quality trade floor 擋住；目前不可把 patch active 誤讀成 deployment closure。"
+            reason = "；".join(reason_parts) + "，但最終執行仍被決策品質交易門檻擋住；目前不可把修補方案已啟用誤讀成部署閉環。"
         else:
-            reason = "；".join(reason_parts) + "；目前仍必須維持明確 no-deploy governance，不可把 support closure 誤讀成 deployment closure。"
+            reason = "；".join(reason_parts) + "；目前仍必須維持明確不可部署治理，不可把支持樣本閉環誤讀成部署閉環。"
         blocker = {
             "type": "decision_quality_below_trade_floor",
             "reason": reason,
@@ -1890,8 +1890,8 @@ def _infer_deployment_blocker(
     best_floor = redesign.get("best_floor_candidate") or {}
     machine_read = redesign.get("machine_read_answer") or {}
     reason = (
-        "bull q35 live lane 已 exact-supported，但 base-stack safe redesign 仍無法跨過 trade floor；"
-        "唯一可跨 floor 的候選屬於 non-discriminative unsafe reweight，必須維持 no-deploy governance。"
+        "bull q35 即時路徑已有精準樣本，但基礎堆疊安全重設仍無法跨過交易門檻；"
+        "唯一可跨門檻的候選屬於無辨別力的不安全重權重，必須維持不可部署治理。"
     )
     return {
         "type": "bull_q35_no_deploy_governance",

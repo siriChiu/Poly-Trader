@@ -79,23 +79,24 @@ def build_runtime_closure_summary(
     if result.get("signal") == "CIRCUIT_BREAKER":
         release_floor_pct = ((release_floor if isinstance(release_floor, (int, float)) else 0.3) * 100)
         streak_cap = breaker_release.get("streak_must_be_below", 50)
+        reason_text = _humanize_runtime_text(result.get("reason") or blocker_reason or "風控熔斷條件仍未解除")
         summary = (
-            f"circuit breaker active：{result.get('reason')}; release condition = streak < {streak_cap} 且 recent {release_window} win rate >= {release_floor_pct:.0f}%"
+            f"風控熔斷啟用中：{reason_text}；解除條件：連續虧損筆數 < {streak_cap} 且最近 {release_window} 筆勝率 >= {release_floor_pct:.0f}%"
             + (
-                f"；目前 recent {release_window} 只贏 {current_wins}/{release_window}，至少還差 {release_gap} 勝。"
+                f"；目前最近 {release_window} 筆只贏 {current_wins}/{release_window}，至少還差 {release_gap} 勝。"
                 if release_gap not in (None, 0) and current_wins is not None
                 else "。"
             )
         )
         if result.get("decision_quality_recent_pathology_applied") and result.get("decision_quality_recent_pathology_reason"):
-            summary += f" 同時 recent pathology={result.get('decision_quality_recent_pathology_reason')}。"
+            summary += f" 同時近期病態={_humanize_runtime_text(result.get('decision_quality_recent_pathology_reason'))}。"
         return _append_scope_summary(summary, scope_pathology_summary)
 
     if blocker.startswith("exact_live_lane_toxic_"):
         summary = (
-            f"current live bucket {bucket} 已具 exact support，但 runtime 仍被 {blocker} 擋住；"
-            f"{blocker_reason or 'exact live lane 毒性治理仍未解除'}。"
-            "目前保持 hold-only，不可把 support closure 誤讀成 deployment closure。"
+            f"當前即時分桶 {bucket} 已具精準樣本，但執行期仍被 {_humanize_runtime_text(blocker)} 擋住；"
+            f"{_humanize_runtime_text(blocker_reason or '精準即時路徑毒性治理仍未解除')}。"
+            "目前保持僅觀察，不可把支持樣本閉環誤讀成部署閉環。"
         )
         return _append_scope_summary(summary, scope_pathology_summary)
 
@@ -105,19 +106,19 @@ def build_runtime_closure_summary(
         entry_quality = _float_or_zero(result.get("entry_quality"))
         entry_label = result.get("entry_quality_label") or "—"
         summary = (
-            f"current live bucket {bucket} 已完成 exact support closure"
+            f"當前即時分桶 {bucket} 已完成精準樣本閉環"
             + (f"（{current_rows}/{minimum_rows}）" if current_rows is not None and minimum_rows is not None else "")
-            + f"，但 top-level live baseline 仍停在 entry_quality={entry_quality:.4f} ({entry_label})"
-            + (f" < trade floor {trade_floor:.2f}" if trade_floor is not None else "")
-            + "；目前維持明確 no-deploy governance。"
-            + (f" q15 audit 的 {component_verdict} 只代表研究型 component experiment readiness，" if component_verdict else " ")
-            + "不可把 support closure 誤讀成 deployment closure。"
+            + f"，但頂層即時基準仍停在進場品質={entry_quality:.4f} ({entry_label})"
+            + (f" < 交易門檻 {trade_floor:.2f}" if trade_floor is not None else "")
+            + "；目前維持明確不可部署治理。"
+            + (f" q15 審核的 {_humanize_runtime_text(component_verdict)} 只代表研究型元件實驗就緒，" if component_verdict else " ")
+            + "不可把支持樣本閉環誤讀成部署閉環。"
         )
         return _append_scope_summary(summary, scope_pathology_summary)
 
     if patch_name and result.get("signal") == "HOLD" and (_int_or_zero(result.get("allowed_layers")) > 0):
         return (
-            f"{patch_name} 已啟用；runtime 已開出 {_int_or_zero(result.get('allowed_layers'))} 層 deployment capacity，"
+            f"{patch_name} 已啟用；執行期已開出 {_int_or_zero(result.get('allowed_layers'))} 層部署容量，"
             "但 signal 仍是 HOLD，不等於自動 BUY。"
         )
 
@@ -128,38 +129,38 @@ def build_runtime_closure_summary(
     ):
         raw_layers = _int_or_zero(result.get("allowed_layers_raw") or result.get("allowed_layers"))
         summary = (
-            f"{patch_name} 已啟用並把 entry_quality 拉到 {_float_or_zero(result.get('entry_quality')):.4f}（raw layers={raw_layers}），"
-            f"但最終 execution 仍被 {blocker or blocker_reason or 'unknown_guardrail'} 擋住；目前不可把 patch active 誤讀成可部署。"
+            f"{patch_name} 已啟用並把進場品質拉到 {_float_or_zero(result.get('entry_quality')):.4f}（原始層數={raw_layers}），"
+            f"但最終執行仍被 {_humanize_runtime_text(blocker or blocker_reason or 'unknown_guardrail')} 擋住；目前不可把修補方案已啟用誤讀成可部署。"
         )
         return _append_scope_summary(summary, scope_pathology_summary)
 
     if patch_name:
-        return f"{patch_name} active，但當前 runtime 狀態不屬於 capacity_opened_signal_hold。"
+        return f"{patch_name} 已啟用，但當前執行期狀態不屬於容量已開且訊號觀望。"
 
     if blocker in _EXACT_SUPPORT_PENDING_BLOCKERS or support_route_verdict in _EXACT_SUPPORT_PENDING_VERDICTS:
         support_text = _format_support_rows(current_rows, minimum_rows)
         summary = (
-            f"current live bucket {bucket} 的 exact support 仍未就緒（{support_text}"
-            + (f"，route={support_route_verdict}" if support_route_verdict else "")
-            + (f" / governance={support_governance_route}" if support_governance_route else "")
-            + "）；broader / proxy rows"
+            f"當前即時分桶 {bucket} 的精準樣本仍未就緒（{support_text}"
+            + (f"，路徑={_humanize_runtime_text(support_route_verdict)}" if support_route_verdict else "")
+            + (f" / 治理={_humanize_runtime_text(support_governance_route)}" if support_governance_route else "")
+            + "）；較寬範圍 / 近似樣本"
         )
         if isinstance(recommended_patch, Mapping) and (recommended_patch.get("recommended_profile") or recommended_patch.get("status")):
-            summary += " 與 recommended patch"
-        summary += " 目前都只屬 reference-only 治理，不可視為 deployment closure。"
+            summary += " 與建議修補方案"
+        summary += " 目前都只屬僅供治理參考，不可視為部署閉環。"
         if isinstance(recommended_patch, Mapping):
             profile = recommended_patch.get("recommended_profile")
             status = recommended_patch.get("status")
             if profile or status:
-                summary += f" recommended_patch={profile or '—'} ({status or 'reference_only'})."
+                summary += f" 建議修補方案={_humanize_runtime_text(profile or '—')} ({_humanize_runtime_text(status or 'reference_only')})."
         if blocker_reason and blocker_reason not in summary:
-            summary += f" blocker={blocker_reason}."
+            summary += f" 阻塞點={_humanize_runtime_text(blocker_reason)}。"
         return _append_scope_summary(summary, scope_pathology_summary)
 
     if blocker or blocker_reason:
         summary = (
-            f"current live runtime 仍被 {blocker or 'unknown_blocker'} 擋住；"
-            f"{blocker_reason or '需檢查 deployment / execution guardrails'}。"
+            f"當前即時執行期仍被 {_humanize_runtime_text(blocker or 'unknown_blocker')} 擋住；"
+            f"{_humanize_runtime_text(blocker_reason or '需檢查部署 / 執行保護欄')}。"
         )
         return _append_scope_summary(summary, scope_pathology_summary)
 
@@ -169,8 +170,84 @@ def build_runtime_closure_summary(
 
 def _append_scope_summary(summary: str, scope_pathology_summary: Mapping[str, Any] | None) -> str:
     if isinstance(scope_pathology_summary, Mapping) and scope_pathology_summary.get("summary"):
-        return f"{summary} exact-vs-spillover={scope_pathology_summary.get('summary')}"
+        return f"{summary} 精準路徑與外溢對照：{_humanize_runtime_text(scope_pathology_summary.get('summary'))}"
     return summary
+
+
+def _humanize_runtime_text(value: Any) -> str:
+    text = str(value or "")
+    replacements = [
+        ("Consecutive loss streak:", "連續虧損筆數："),
+        ("Consecutive loss streak", "連續虧損筆數"),
+        ("Recent 50-sample win rate", "最近 50 筆勝率"),
+        ("recent 50 win rate", "最近 50 筆勝率"),
+        ("recent 50", "最近 50 筆"),
+        ("decision_quality_below_trade_floor", "決策品質低於交易門檻"),
+        ("entry_quality_below_trade_floor", "進場品質低於交易門檻"),
+        ("decision-quality trade floor", "決策品質交易門檻"),
+        ("decision-quality", "決策品質"),
+        ("top-level live baseline", "頂層即時基準"),
+        ("current live structure bucket", "當前即時結構分桶"),
+        ("current live bucket", "當前即時分桶"),
+        ("exact support closure", "精準樣本閉環"),
+        ("support closure", "支持樣本閉環"),
+        ("deployment closure", "部署閉環"),
+        ("component-experiment readiness", "元件實驗就緒"),
+        ("component experiment readiness", "元件實驗就緒"),
+        ("no-deploy governance", "不可部署治理"),
+        ("patch_active_but_execution_blocked", "修補方案已套用但執行期仍阻塞"),
+        ("patch active", "修補方案已啟用"),
+        ("final execution", "最終執行"),
+        ("deployment capacity", "部署容量"),
+        ("trade floor", "交易門檻"),
+        ("entry_quality", "進場品質"),
+        ("raw layers", "原始層數"),
+        ("raw entry", "原始進場品質"),
+        ("release condition =", "解除條件："),
+        ("release condition", "解除條件"),
+        ("streak", "連續虧損筆數"),
+        ("sample win rate", "筆勝率"),
+        ("circuit breaker active", "風控熔斷啟用中"),
+        ("circuit breaker", "風控熔斷"),
+        ("exact live lane", "精準即時路徑"),
+        ("exact support", "精準樣本"),
+        ("hold-only", "僅觀察"),
+        ("broader / proxy rows", "較寬範圍 / 近似樣本"),
+        ("reference_only_until_exact_support_ready", "精準樣本就緒前僅供治理參考"),
+        ("reference-only", "僅供治理參考"),
+        ("reference_only", "僅供治理參考"),
+        ("exact_supported_component_experiment_ready", "精準樣本元件實驗就緒"),
+        ("unsupported_exact_live_structure_bucket", "精準樣本尚未建立"),
+        ("under_minimum_exact_live_structure_bucket", "精準樣本未達最小門檻"),
+        ("exact_bucket_supported", "精準樣本已就緒"),
+        ("exact_bucket_unsupported_block", "精準樣本尚未建立"),
+        ("exact_bucket_present_but_below_minimum", "精準樣本未達最小門檻"),
+        ("bull|BLOCK", "牛市|阻塞"),
+        ("bull|ALLOW", "牛市|允許"),
+        ("bull|CAUTION", "牛市|警戒"),
+        ("chop|CAUTION", "盤整|警戒"),
+        ("distribution_pathology", "分佈病態"),
+        ("label_imbalance", "標籤失衡"),
+        ("regime_concentration", "市場狀態過度集中"),
+        ("dominant_regime", "主導市場狀態"),
+        ("recent drift primary window", "近期漂移主要視窗"),
+        ("recent scope slice", "近期範圍切片"),
+        ("shows", "顯示"),
+        ("alerts=", "警示="),
+        ("同 quality 寬 scope", "同品質寬範圍"),
+        ("quality", "品質"),
+        ("scope", "範圍"),
+        ("spillover", "外溢"),
+        ("rows", "筆"),
+        ("WR", "勝率"),
+        ("runtime", "執行期"),
+        ("deployment", "部署"),
+        ("execution", "執行"),
+        ("blocker", "阻塞點"),
+    ]
+    for old, new in replacements:
+        text = text.replace(old, new)
+    return text
 
 
 

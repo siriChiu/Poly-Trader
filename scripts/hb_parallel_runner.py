@@ -2628,24 +2628,28 @@ def overwrite_current_state_docs(
         f"{support_scope_operator_label}支持樣本={support_current_rows}/{support_minimum_rows}，缺口={support_gap}；"
         "目前不是熔斷解除數學，候選修補不可取代同分桶最低樣本門檻"
     )
+    runtime_copy_docs_clause = (
+        "`runtime_closure_summary` 已由 `model/runtime_closure.py` 共用中文化，"
+        "避免後端英文枚舉與混合式治理文案泄漏到 Dashboard / Strategy Lab / Execution Status"
+    )
     if has_release_math:
         execution_status_fact_heading = "- **Execution Status / Bot 營運 已顯示熔斷解除條件**"
         execution_status_fact_line = (
-            f"  - {breaker_release_ui_line}；`/execution/status` 與 `/execution` 會先顯示熔斷解除條件，再顯示 {support_scope_operator_label} support / 治理背景"
+            f"  - {breaker_release_ui_line}；`/execution/status` 與 `/execution` 會先顯示熔斷解除條件，再顯示 {support_scope_operator_label} support / 治理背景；{runtime_copy_docs_clause}"
         )
         execution_status_roadmap_heading = "- **Execution Status / Bot 營運 已顯示熔斷解除條件**"
         execution_status_roadmap_line = (
-            f"  - {breaker_release_ui_line}；操作員執行介面先看熔斷解除條件，再看 {support_scope_operator_label} support / 背景治理"
+            f"  - {breaker_release_ui_line}；操作員執行介面先看熔斷解除條件，再看 {support_scope_operator_label} support / 背景治理；{runtime_copy_docs_clause}"
         )
         execution_status_docs_sync_clause = "`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡"
     else:
         execution_status_fact_heading = "- **Execution Status / Bot 營運 已顯示即時部署阻塞條件**"
         execution_status_fact_line = (
-            f"  - {current_live_blocker_ui_line}；`/execution/status` 與 `/execution` 會先顯示即時部署阻塞點，再顯示 {support_scope_operator_label} support / 治理背景"
+            f"  - {current_live_blocker_ui_line}；`/execution/status` 與 `/execution` 會先顯示即時部署阻塞點，再顯示 {support_scope_operator_label} support / 治理背景；{runtime_copy_docs_clause}"
         )
         execution_status_roadmap_heading = "- **Execution Status / Bot 營運 已顯示即時部署阻塞條件**"
         execution_status_roadmap_line = (
-            f"  - {current_live_blocker_ui_line}；操作員執行介面先看即時部署阻塞點，再看 {support_scope_operator_label} support / 背景治理"
+            f"  - {current_live_blocker_ui_line}；操作員執行介面先看即時部署阻塞點，再看 {support_scope_operator_label} support / 背景治理；{runtime_copy_docs_clause}"
         )
         execution_status_docs_sync_clause = "`/execution/status` 與 `/execution` 已顯示即時部署阻塞條件卡"
     primary_alerts = drift_diagnostics.get("primary_alerts") or []
@@ -3110,7 +3114,7 @@ def overwrite_current_state_docs(
     live_regime = live_predictor_diagnostics.get("regime_label") or "—"
     live_gate = live_predictor_diagnostics.get("regime_gate") or "—"
     live_bucket = live_predictor_diagnostics.get("current_live_structure_bucket") or "—"
-    docs_sync_line = f"current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，減碼保留；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留減倉 / 賣出風險降低路徑；{execution_status_docs_sync_clause}；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口"
+    docs_sync_line = f"current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，減碼保留；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留減倉 / 賣出風險降低路徑；{execution_status_docs_sync_clause}；{runtime_copy_docs_clause}；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口"
 
     orid_lines = [
         "# ORID_DECISIONS.md — Current ORID Only",
