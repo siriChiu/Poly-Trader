@@ -113,3 +113,36 @@ def test_collect_all_senses_preserves_missing_sparse_source_values(monkeypatch):
     assert by_subtype["claw_snapshot"].value is None
     assert claw_payload["status"] == "missing"
     assert fang_payload["status"] == "missing"
+
+
+def test_collect_all_senses_preserves_sparse_source_tls_operator_metadata(monkeypatch):
+    _patch_sources(
+        monkeypatch,
+        nest={
+            "feat_nest_pred": None,
+            "nest_raw_prob": None,
+            "_meta": {
+                "status": "tls_verify_failed",
+                "message": "Polymarket Gamma TLS verification failed; refusing insecure fallback.",
+                "source": "polymarket_gamma",
+                "endpoint": "https://gamma-api.polymarket.com/markets?closed=false&limit=500",
+                "trust_policy": "tls_verify_required_no_insecure_fallback",
+                "tls_verification": "required",
+                "operator_action": "Fix trusted CA / proxy root; do not disable TLS verification in production.",
+            },
+        },
+    )
+
+    record = collector.collect_all_senses("BTCUSDT")
+    by_subtype = {event.subtype: event for event in record._raw_events}
+    nest_event = by_subtype["nest_snapshot"]
+    nest_payload = json.loads(nest_event.payload_json)
+
+    assert nest_event.quality_score == 0.0
+    assert nest_event.value is None
+    assert nest_payload["status"] == "tls_verify_failed"
+    assert nest_payload["message"].startswith("Polymarket Gamma TLS verification failed")
+    assert nest_payload["source"] == "polymarket_gamma"
+    assert nest_payload["trust_policy"] == "tls_verify_required_no_insecure_fallback"
+    assert nest_payload["tls_verification"] == "required"
+    assert "do not disable tls verification" in nest_payload["operator_action"].lower()

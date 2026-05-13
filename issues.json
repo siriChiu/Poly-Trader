@@ -3,22 +3,27 @@
     {
       "id": "P0_current_live_deployment_blocker",
       "priority": "P0",
-      "title": "current live bucket CAUTION|base_caution_regime_or_bias|q00 exact support remains under minimum and remains the deployment blocker (1/50)",
+      "title": "current live bucket CAUTION|base_caution_regime_or_bias|q00 exact support remains under minimum and remains the deployment blocker (37/50)",
       "action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "status": "open",
       "created_at": "2026-05-13T13:02:10.121524",
-      "updated_at": "2026-05-13T13:02:11.080775",
+      "updated_at": "2026-05-13T14:15:00.995783",
       "hb_detected": null,
       "next_action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "summary": {
         "deployment_blocker": "under_minimum_exact_live_structure_bucket",
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-        "current_live_structure_bucket_rows": 1,
+        "current_live_structure_bucket_rows": 37,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 49,
+        "gap_to_minimum": 13,
         "support_route_verdict": "exact_bucket_present_but_below_minimum",
         "support_governance_route": "exact_live_bucket_present_but_below_minimum",
         "runtime_closure_state": "patch_inactive_or_blocked",
+        "recommended_patch": "core_plus_macro_plus_all_4h",
+        "recommended_patch_status": "reference_only_non_current_live_scope",
+        "recommended_patch_support_route": "exact_bucket_present_but_below_minimum",
+        "reference_patch_scope": "bull|CAUTION",
+        "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
         "deployment_blocker_reason": "current live structure bucket 已有 exact rows，但仍低於 deployment-grade minimum support；在 support 補滿前，runtime 只能維持 guardrail，不可把這條 lane 視為已可部署。",
         "deployment_blocker_source": "decision_quality_contract",
         "signal": "HOLD",
@@ -30,9 +35,9 @@
         "entry_quality_label": "D",
         "support_progress": {
           "status": "accumulating",
-          "current_rows": 1,
+          "current_rows": 37,
           "minimum_support_rows": 50,
-          "gap_to_minimum": 49
+          "gap_to_minimum": 13
         }
       }
     },
@@ -43,7 +48,7 @@
       "action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "status": "open",
       "created_at": "2026-04-29T18:00:00+08:00",
-      "updated_at": "2026-05-13T13:02:11.093397",
+      "updated_at": "2026-05-13T14:15:01.004940",
       "hb_detected": null,
       "next_action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "summary": {
@@ -91,14 +96,14 @@
         "strategy_lab_contract": "Strategy Lab 必須優先顯示 nearest_deployable_rows，並把離線驗證 / 模型門檻失敗與即時分桶 / 支持阻塞分開呈現；此研究 gate 不暴露 live automation 按鈕。",
         "execution_contract": "current-live blocker / unsupported support route keeps buy/add exposure fail-closed; reduce/sell diagnostics remain available",
         "latest_matrix": {
-          "generated_at": "2026-05-13T12:21:36.841568+00:00",
+          "generated_at": "2026-05-13T14:02:38.768593+00:00",
           "artifact_freshness_status": "fresh",
           "artifact_freshness_reason": "artifact_within_policy",
-          "artifact_age_minutes": 40.57086225,
+          "artifact_age_minutes": 12.370603933333333,
           "artifact_stale_after_minutes": 60.0,
           "artifact_deployment_blocking": false,
           "artifact": "data/high_conviction_topk_oos_matrix.json",
-          "samples": 24255,
+          "samples": 24257,
           "rows": 24,
           "evaluated_models": [
             "logistic_regression",
@@ -114,9 +119,9 @@
           "deployment_blocker": "under_minimum_exact_live_structure_bucket",
           "runtime_closure_state": "patch_inactive_or_blocked",
           "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-          "current_live_structure_bucket_rows": 1,
+          "current_live_structure_bucket_rows": 37,
           "minimum_support_rows": 50,
-          "current_live_structure_bucket_gap_to_minimum": 49,
+          "current_live_structure_bucket_gap_to_minimum": 13,
           "nearest_deployable_candidate": {
             "model": "logistic_regression",
             "feature_profile": "current_full",
@@ -146,9 +151,9 @@
             "deployment_blocker": "under_minimum_exact_live_structure_bucket",
             "runtime_closure_state": "patch_inactive_or_blocked",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-            "current_live_structure_bucket_rows": 1,
+            "current_live_structure_bucket_rows": 37,
             "minimum_support_rows": 50,
-            "current_live_structure_bucket_gap_to_minimum": 49,
+            "current_live_structure_bucket_gap_to_minimum": 13,
             "support_route_deployable": false,
             "allowed_layers": 0,
             "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket"
@@ -187,9 +192,9 @@
             "deployment_blocker": "under_minimum_exact_live_structure_bucket",
             "runtime_closure_state": "patch_inactive_or_blocked",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-            "current_live_structure_bucket_rows": 1,
+            "current_live_structure_bucket_rows": 37,
             "minimum_support_rows": 50,
-            "current_live_structure_bucket_gap_to_minimum": 49,
+            "current_live_structure_bucket_gap_to_minimum": 13,
             "support_route_deployable": false,
             "allowed_layers": 0,
             "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket"
@@ -223,9 +228,9 @@
             "deployment_blocker": "under_minimum_exact_live_structure_bucket",
             "runtime_closure_state": "patch_inactive_or_blocked",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-            "current_live_structure_bucket_rows": 1,
+            "current_live_structure_bucket_rows": 37,
             "minimum_support_rows": 50,
-            "current_live_structure_bucket_gap_to_minimum": 49,
+            "current_live_structure_bucket_gap_to_minimum": 13,
             "support_route_deployable": false,
             "allowed_layers": 0,
             "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket"
@@ -276,33 +281,64 @@
     {
       "id": "#H_AUTO_MODEL_STABILITY",
       "priority": "P1",
-      "title": "model stability still needs work (cv=0.6251, cv_std=0.0856, cv_worst=0.5395)",
+      "title": "model stability still needs work (cv=0.6645, cv_std=0.1014, cv_worst=0.5631)",
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-05-13T13:02:10.121552",
+      "updated_at": "2026-05-13T14:15:00.036216",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
-        "cv_accuracy": 0.6250521920668058,
-        "cv_std": 0.08559498956158662,
-        "cv_worst": 0.5394572025052192
+        "cv_accuracy": 0.6644682605111294,
+        "cv_std": 0.101401483924155,
+        "cv_worst": 0.5630667765869745
       }
     },
     {
       "id": "#H_AUTO_REGIME_DRIFT",
       "priority": "P1",
-      "title": "TW-IC 20 vs Global IC 17 — 信號強依賴近期資料",
+      "title": "TW-IC 21 vs Global IC 17 — 信號強依賴近期資料",
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-05-13T13:02:10.121578",
-      "updated_at": "2026-05-13T13:02:10.121580",
+      "updated_at": "2026-05-13T14:15:00.036241",
       "hb_detected": null,
       "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "summary": {
         "global_pass": 17,
-        "tw_pass": 20,
+        "tw_pass": 21,
         "total_features": 30
+      }
+    },
+    {
+      "id": "P1_bull_caution_spillover_patch_reference_only",
+      "priority": "P1",
+      "title": "support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only outside current live scope",
+      "action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
+      "status": "open",
+      "created_at": "2026-05-13T14:02:48.875185",
+      "updated_at": "2026-05-13T14:15:00.036190",
+      "hb_detected": null,
+      "next_action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
+      "summary": {
+        "actual_live_spillover_scope": "bull|BLOCK",
+        "reference_patch_scope": "bull|CAUTION",
+        "current_live_regime_gate": "chop|CAUTION",
+        "reference_only_cause": "non_current_live_scope",
+        "exact_live_lane_rows": 446,
+        "recommended_patch": "core_plus_macro_plus_all_4h",
+        "recommended_patch_status": "reference_only_non_current_live_scope",
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+        "current_live_structure_bucket_rows": 37,
+        "minimum_support_rows": 50,
+        "gap_to_minimum": 13,
+        "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
+        "collapse_features": [
+          "feat_4h_dist_swing_low",
+          "feat_4h_dist_bb_lower",
+          "feat_4h_bb_pct_b"
+        ]
       }
     },
     {
@@ -340,7 +376,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 3992,
+        "forward_archive_rows": 3994,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -348,8 +384,33 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-05-13T13:02:11.080744",
+      "updated_at": "2026-05-13T14:15:00.995765",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
+    },
+    {
+      "id": "P1_nest_pred_tls_verify_failed",
+      "priority": "P1",
+      "status": "open",
+      "title": "nest_pred remains blocked by verified Polymarket Gamma TLS trust failure",
+      "summary": {
+        "feature": "nest_pred",
+        "quality_flag": "source_tls_verify_failed",
+        "latest_status": "tls_verify_failed",
+        "source": "polymarket_gamma",
+        "trust_policy": "tls_verify_required_no_insecure_fallback",
+        "tls_verification": "required",
+        "forward_archive_rows": 3994,
+        "archive_window_coverage_pct": 98.58,
+        "operator_action": "Fix the trusted CA / proxy root for Python and curl, or route the heartbeat through a verified network path. Do not disable TLS verification in production."
+      },
+      "next_action": "Fix the Polymarket Gamma TLS trust chain before treating nest_pred as a pure historical coverage gap; keep TLS verification required and do not enable insecure production fallback.",
+      "verify": [
+        "data/heartbeat_1190_summary.json source_blockers.nest_pred",
+        "PYTHONPATH=. python /tmp/hb1190_nest_tls_probe_after_patch.py",
+        "pytest tests/test_nest_polymarket.py tests/test_collector_snapshot_archives.py tests/test_feature_history_policy.py -q"
+      ],
+      "updated_at": "2026-05-13T14:15:00.995765",
+      "action": "Fix the Polymarket Gamma TLS trust chain before treating nest_pred as a pure historical coverage gap; keep TLS verification required and do not enable insecure production fallback."
     },
     {
       "id": "P1_leaderboard_recent_window_contract",
@@ -367,8 +428,8 @@
         "current_closure": "global_ranking_vs_support_aware_production_split",
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": false,
-        "leaderboard_payload_cache_age_sec": 1,
-        "leaderboard_payload_updated_at": "2026-05-13T13:02:04.354586Z",
+        "leaderboard_payload_cache_age_sec": 738,
+        "leaderboard_payload_updated_at": "2026-05-13T14:02:36.881697Z",
         "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
@@ -377,7 +438,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-05-13T13:02:10.121545",
+      "updated_at": "2026-05-13T14:15:00.036211",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     }
   ]

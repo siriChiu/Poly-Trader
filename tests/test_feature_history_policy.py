@@ -155,6 +155,55 @@ def test_source_blocker_surfaces_auth_missing_snapshot_status(tmp_path: Path):
     assert "Configure COINGLASS_API_KEY" in claw["recommended_action"]
 
 
+def test_source_blocker_surfaces_tls_verify_failure_as_trust_gate(tmp_path: Path):
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE features_normalized (id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, feat_nest_pred REAL)")
+    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT, payload_json TEXT)")
+    conn.execute(
+        "INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES (?, ?, ?)",
+        (
+            "nest_snapshot",
+            "2026-04-09 01:00:00",
+            (
+                '{"status": "tls_verify_failed", '
+                '"message": "Polymarket Gamma TLS verification failed; refusing insecure fallback.", '
+                '"source": "polymarket_gamma", '
+                '"endpoint": "https://gamma-api.polymarket.com/markets?closed=false&limit=500", '
+                '"trust_policy": "tls_verify_required_no_insecure_fallback", '
+                '"tls_verification": "required", '
+                '"operator_action": "Fix trusted CA / proxy root; do not disable TLS verification in production."}'
+            ),
+        ),
+    )
+    conn.execute(
+        "INSERT INTO features_normalized (timestamp, symbol, feat_nest_pred) VALUES (?, 'BTCUSDT', NULL)",
+        ("2026-04-09T01:00:00",),
+    )
+    conn.commit()
+    conn.close()
+
+    payload = compute_sqlite_feature_coverage(db_path)
+    nest = next(row for row in payload["features"] if row["key"] == "nest_pred")
+    summary = build_source_blocker_summary(payload)
+    nest_summary = next(row for row in summary["blocked_features"] if row["key"] == "nest_pred")
+
+    assert nest["raw_snapshot_latest_status"] == "tls_verify_failed"
+    assert nest["raw_snapshot_latest_source"] == "polymarket_gamma"
+    assert nest["raw_snapshot_latest_trust_policy"] == "tls_verify_required_no_insecure_fallback"
+    assert nest["raw_snapshot_latest_tls_verification"] == "required"
+    assert nest["raw_snapshot_latest_operator_action"].startswith("Fix trusted CA")
+    assert nest["quality_flag"] == "source_tls_verify_failed"
+    assert nest["quality_label"] == "source TLS verification failed; insecure fallback refused"
+    assert nest["reasons"][0] == "source_tls_verify_failed"
+    assert "Latest snapshot status=tls_verify_failed" in nest["backfill_blocker"]
+    assert "Operator action: Fix trusted CA" in nest["backfill_blocker"]
+    assert "TLS trust failure" in nest["recommended_action"]
+    assert "do not disable tls verification" in nest["recommended_action"].lower()
+    assert nest_summary["raw_snapshot_latest_operator_action"].startswith("Fix trusted CA")
+    assert nest_summary["raw_snapshot_latest_trust_policy"] == "tls_verify_required_no_insecure_fallback"
+
+
 def test_partial_archive_window_recommends_fixing_active_source_path_gap(tmp_path: Path):
     db_path = tmp_path / "poly_trader.db"
     conn = sqlite3.connect(db_path)

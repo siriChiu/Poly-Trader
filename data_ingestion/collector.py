@@ -77,6 +77,18 @@ def _snapshot_event(source: str, entity: str, subtype: str, snapshot: Dict, *, v
     }
     if meta.get("message"):
         payload["message"] = meta["message"]
+    # Persist non-sensitive operational metadata so feature-history coverage can
+    # distinguish credential, TLS trust, endpoint, and parser failures instead
+    # of collapsing every sparse-source blocker into a generic history gap.
+    for key in (
+        "source",
+        "endpoint",
+        "trust_policy",
+        "tls_verification",
+        "operator_action",
+    ):
+        if meta.get(key):
+            payload[key] = meta[key]
     return _raw_event(
         source,
         entity,

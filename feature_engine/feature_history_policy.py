@@ -361,6 +361,11 @@ def compute_raw_snapshot_stats(conn: sqlite3.Connection) -> Dict[str, Dict[str, 
             'latest_age_minutes': age_minutes,
             'latest_status': latest_payload.get('status'),
             'latest_message': latest_payload.get('message'),
+            'latest_source': latest_payload.get('source'),
+            'latest_endpoint': latest_payload.get('endpoint'),
+            'latest_trust_policy': latest_payload.get('trust_policy'),
+            'latest_tls_verification': latest_payload.get('tls_verification'),
+            'latest_operator_action': latest_payload.get('operator_action'),
             'minute_keys': sorted(bucket['minute_keys']),
         }
     return normalized
@@ -385,6 +390,11 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
     oldest_ts_values = [row.get('oldest_ts') for row in relevant_stats if row.get('oldest_ts')]
     latest_statuses = [row.get('latest_status') for row in relevant_stats if row.get('latest_status')]
     latest_messages = [row.get('latest_message') for row in relevant_stats if row.get('latest_message')]
+    latest_sources = [row.get('latest_source') for row in relevant_stats if row.get('latest_source')]
+    latest_endpoints = [row.get('latest_endpoint') for row in relevant_stats if row.get('latest_endpoint')]
+    latest_trust_policies = [row.get('latest_trust_policy') for row in relevant_stats if row.get('latest_trust_policy')]
+    latest_tls_verifications = [row.get('latest_tls_verification') for row in relevant_stats if row.get('latest_tls_verification')]
+    latest_operator_actions = [row.get('latest_operator_action') for row in relevant_stats if row.get('latest_operator_action')]
     latest_age_minutes = min(latest_ages) if latest_ages else None
     max_span_hours = max(spans) if spans else None
     latest_snapshot_ts = max(latest_ts_values) if latest_ts_values else None
@@ -411,6 +421,11 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
     enriched['raw_snapshot_latest_age_min'] = latest_age_minutes
     enriched['raw_snapshot_latest_status'] = latest_statuses[0] if latest_statuses else None
     enriched['raw_snapshot_latest_message'] = latest_messages[0] if latest_messages else None
+    enriched['raw_snapshot_latest_source'] = latest_sources[0] if latest_sources else None
+    enriched['raw_snapshot_latest_endpoint'] = latest_endpoints[0] if latest_endpoints else None
+    enriched['raw_snapshot_latest_trust_policy'] = latest_trust_policies[0] if latest_trust_policies else None
+    enriched['raw_snapshot_latest_tls_verification'] = latest_tls_verifications[0] if latest_tls_verifications else None
+    enriched['raw_snapshot_latest_operator_action'] = latest_operator_actions[0] if latest_operator_actions else None
     enriched['forward_archive_started'] = archive_started
     enriched['forward_archive_ready'] = archive_ready
     enriched['forward_archive_stale'] = archive_stale
@@ -429,6 +444,13 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
             if 'source_auth_blocked' not in reasons:
                 reasons.insert(0, 'source_auth_blocked')
             enriched['reasons'] = reasons
+        elif latest_status == 'tls_verify_failed':
+            enriched['quality_flag'] = 'source_tls_verify_failed'
+            enriched['quality_label'] = 'source TLS verification failed; insecure fallback refused'
+            reasons = list(enriched.get('reasons', []))
+            if 'source_tls_verify_failed' not in reasons:
+                reasons.insert(0, 'source_tls_verify_failed')
+            enriched['reasons'] = reasons
         elif latest_status and latest_status not in ('ok', 'missing'):
             enriched['quality_flag'] = 'source_fetch_error'
             detail = f': {latest_message}' if latest_message else ''
@@ -443,6 +465,7 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
         blocker = enriched.get('backfill_blocker')
         latest_status = enriched.get('raw_snapshot_latest_status')
         latest_message = enriched.get('raw_snapshot_latest_message')
+        latest_operator_action = enriched.get('raw_snapshot_latest_operator_action')
         archive_window_cov = enriched.get('archive_window_coverage_pct')
         archive_window_started = bool(enriched.get('archive_window_started'))
         blocker_note = (
@@ -454,6 +477,8 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
             blocker_note += f' Latest snapshot status={latest_status}.'
             if latest_message:
                 blocker_note += f' Detail: {latest_message}'
+            if latest_operator_action:
+                blocker_note += f' Operator action: {latest_operator_action}'
         if archive_stale and latest_age_minutes is not None:
             blocker_note += (
                 f' Latest archive event is {latest_age_minutes:.1f} minutes old, so forward collection is not progressing right now.'
@@ -466,6 +491,16 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
                 'but they currently contain auth_missing snapshots so feature coverage cannot improve until credentials work. '
                 'After auth is fixed, keep running heartbeat collection until at least '
                 f'{FORWARD_ARCHIVE_READY_MIN_EVENTS} successful forward snapshots accumulate, then evaluate whether historical export/backfill is still needed.'
+            )
+        elif latest_status == 'tls_verify_failed':
+            action = latest_operator_action or (
+                'Fix the trusted CA / proxy root for Python and curl, or route the heartbeat through a verified network path. '
+                'Do not disable TLS verification in production.'
+            )
+            enriched['recommended_action'] = (
+                f'Fix the current source TLS trust failure before treating this as a pure history gap: {action} '
+                f'Once verified TLS snapshots succeed, keep collecting until at least {FORWARD_ARCHIVE_READY_MIN_EVENTS} '
+                'forward raw snapshots accumulate, then decide whether a dedicated historical export/archive loader is still required.'
             )
         elif latest_status and latest_status not in ('ok', 'missing'):
             detail = f' ({latest_message})' if latest_message else ''
@@ -604,6 +639,11 @@ def build_source_blocker_summary(feature_rows: Sequence[Dict[str, Any]] | Dict[s
                 'raw_snapshot_latest_age_min': row.get('raw_snapshot_latest_age_min'),
                 'raw_snapshot_latest_status': row.get('raw_snapshot_latest_status'),
                 'raw_snapshot_latest_message': row.get('raw_snapshot_latest_message'),
+                'raw_snapshot_latest_source': row.get('raw_snapshot_latest_source'),
+                'raw_snapshot_latest_endpoint': row.get('raw_snapshot_latest_endpoint'),
+                'raw_snapshot_latest_trust_policy': row.get('raw_snapshot_latest_trust_policy'),
+                'raw_snapshot_latest_tls_verification': row.get('raw_snapshot_latest_tls_verification'),
+                'raw_snapshot_latest_operator_action': row.get('raw_snapshot_latest_operator_action'),
                 'forward_archive_started': row.get('forward_archive_started', False),
                 'forward_archive_ready': row.get('forward_archive_ready', False),
                 'forward_archive_stale': row.get('forward_archive_stale', False),
