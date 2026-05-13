@@ -567,6 +567,8 @@ const LIFECYCLE_DIAGNOSTIC_LABEL_MAPPINGS: Array<[string, string]> = [
   ["config_disabled_metadata_only", "場館停用，僅元資料觀測"],
   ["public_metadata_only", "僅公開元資料，尚無交易憑證"],
   ["credentials_configured_missing_runtime_lifecycle", "已配置憑證，仍缺執行生命週期"],
+  ["blocked_until_runtime_lifecycle_proof", "尚未完成實單生命週期證據"],
+  ["runtime_ready", "實單生命週期證據完成"],
 ];
 
 const STRUCTURE_BUCKET_TOKEN_REPLACEMENTS: Array<[string, string]> = [

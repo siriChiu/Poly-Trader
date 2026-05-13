@@ -1898,6 +1898,12 @@ def test_venue_readiness_summary_component_surfaces_per_venue_contract():
         'const readinessTone = (item: VenueReadinessItem) => {',
         'const readinessLabel = (item: VenueReadinessItem) => {',
         'const readinessBadgeLabel = (item: VenueReadinessItem) => {',
+        'runtime_ready?: boolean | null;',
+        'const hasRuntimeProofBlockers = (item: VenueReadinessItem) => Boolean(item.blockers?.length) || item.runtime_ready === false;',
+        'const isRuntimeReady = (item: VenueReadinessItem) => item.runtime_ready === true && !hasRuntimeProofBlockers(item);',
+        'if (isRuntimeReady(item)) return "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";',
+        'return "待補證據";',
+        'return "可交易";',
         'return "公開資料";',
         'return "停用";',
         'const blockerSummary = (item.blockers?.length ? item.blockers : defaultProofSummary)',
@@ -1953,6 +1959,8 @@ def test_runtime_copy_humanizes_execution_governance_without_raw_runtime_english
         '["runtime_governance_visibility_only", "執行治理可視化"]',
         '["installed-but-not-ticking", "已安裝但尚未觀察到自然排程觸發"]',
         '["installed_but_artifact_not_fresh", "已安裝但產物未維持新鮮"]',
+        '["blocked_until_runtime_lifecycle_proof", "尚未完成實單生命週期證據"]',
+        '["runtime_ready", "實單生命週期證據完成"]',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -2036,9 +2044,11 @@ def test_execution_status_reuses_shared_venue_readiness_component_and_explains_p
     required_component_snippets = [
         'proof_state?: string | null;',
         'readiness_scope?: string | null;',
+        'readiness_state?: string | null;',
+        'runtime_ready?: boolean | null;',
         'operator_next_action?: string | null;',
         'verify_next?: string | null;',
-        'const proofStateLabel = humanizeLifecycleDiagnosticLabel(item.proof_state || item.readiness_scope || "unknown");',
+        'const proofStateLabel = humanizeLifecycleDiagnosticLabel(item.proof_state || item.readiness_state || item.readiness_scope || "unknown");',
         '證據狀態 {proofStateLabel}',
         '下一步 {operatorNextAction}',
         '驗證 {verifyNext}',

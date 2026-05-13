@@ -9,6 +9,8 @@ type VenueReadinessItem = {
   blockers?: string[] | null;
   proof_state?: string | null;
   readiness_scope?: string | null;
+  readiness_state?: string | null;
+  runtime_ready?: boolean | null;
   operator_next_action?: string | null;
   verify_next?: string | null;
   contract?: {
@@ -25,23 +27,29 @@ type VenueReadinessSummaryProps = {
   compact?: boolean;
 };
 
+const hasRuntimeProofBlockers = (item: VenueReadinessItem) => Boolean(item.blockers?.length) || item.runtime_ready === false;
+
+const isRuntimeReady = (item: VenueReadinessItem) => item.runtime_ready === true && !hasRuntimeProofBlockers(item);
+
 const readinessTone = (item: VenueReadinessItem) => {
   if (!item.ok) return "border-rose-500/30 bg-rose-500/10 text-rose-100";
-  if (item.enabled_in_config && item.credentials_configured) return "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";
+  if (isRuntimeReady(item)) return "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";
   if (item.enabled_in_config) return "border-amber-500/30 bg-amber-500/10 text-amber-100";
   return "border-slate-500/30 bg-slate-500/10 text-slate-200";
 };
 
 const readinessLabel = (item: VenueReadinessItem) => {
   if (!item.ok) return "元資料契約失敗";
-  if (item.enabled_in_config && item.credentials_configured) return "已配置憑證 / 待補實單證據";
+  if (isRuntimeReady(item)) return "可交易 / 實單證據完成";
+  if (item.enabled_in_config && item.credentials_configured) return "已配置憑證 / 實單證據未完成";
   if (item.enabled_in_config) return "僅公開資料 / 元資料路徑";
   return "停用場館 / 僅元資料";
 };
 
 const readinessBadgeLabel = (item: VenueReadinessItem) => {
   if (!item.ok) return "元資料失敗";
-  if (item.enabled_in_config && item.credentials_configured) return "已配置";
+  if (isRuntimeReady(item)) return "可交易";
+  if (item.enabled_in_config && item.credentials_configured) return "待補證據";
   if (item.enabled_in_config) return "公開資料";
   return "停用";
 };
@@ -65,7 +73,7 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
         const blockerSummary = (item.blockers?.length ? item.blockers : defaultProofSummary)
           .map((entry) => humanizeExecutionReason(entry))
           .join(" · ");
-        const proofStateLabel = humanizeLifecycleDiagnosticLabel(item.proof_state || item.readiness_scope || "unknown");
+        const proofStateLabel = humanizeLifecycleDiagnosticLabel(item.proof_state || item.readiness_state || item.readiness_scope || "unknown");
         const operatorNextAction = item.operator_next_action ? humanizeExecutionReason(item.operator_next_action) : null;
         const verifyNext = item.verify_next ? humanizeExecutionReason(item.verify_next) : null;
         if (compact) {

@@ -1900,9 +1900,20 @@ def test_load_execution_metadata_smoke_summary_reports_freshness(tmp_path, monke
     assert summary["freshness"]["age_minutes"] is not None
     assert summary["freshness"]["age_minutes"] >= 0
     assert summary["freshness"]["stale_after_minutes"] == api_module._EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES
+    assert summary["runtime_ready"] is False
+    assert summary["runtime_ready_count"] == 0
+    assert summary["readiness_scope"] == "venue_runtime_proof_required"
+    assert summary["readiness_state"] == "blocked_until_runtime_lifecycle_proof"
+    assert summary["runtime_ready_blockers"] == [
+        "fill lifecycle 尚未驗證",
+        "live exchange credential 尚未驗證",
+        "order ack lifecycle 尚未驗證",
+    ]
     venue = summary["venues"][0]
     assert venue["proof_state"] == "public_metadata_only"
     assert venue["readiness_scope"] == "venue_runtime_proof_required"
+    assert venue["readiness_state"] == "blocked_until_runtime_lifecycle_proof"
+    assert venue["runtime_ready"] is False
     assert venue["blockers"] == [
         "live exchange credential 尚未驗證",
         "order ack lifecycle 尚未驗證",
@@ -1948,6 +1959,8 @@ def test_build_venue_runtime_proof_contract_marks_credentials_configured_lifecyc
     })
 
     assert contract["proof_state"] == "credentials_configured_missing_runtime_lifecycle"
+    assert contract["readiness_state"] == "blocked_until_runtime_lifecycle_proof"
+    assert contract["runtime_ready"] is False
     assert contract["blockers"] == [
         "order ack lifecycle 尚未驗證",
         "fill lifecycle 尚未驗證",

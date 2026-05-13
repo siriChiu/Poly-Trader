@@ -137,6 +137,7 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 - **減碼 / 賣出風險降低 / 切手動 / diagnostics / refresh**：保持可用；這些是降風險或觀測路徑，不可被 buy blocker 一起鎖死。
 - `/api/trade` blocked response 應提供前端可讀結構：`success=false`、`trade_blocked=true`、`blocked_side`、`reason`、`runtime_blocker`。
 - venue readiness 要分清楚 metadata OK 與 live/canary proof；缺 credential、order ack、fill lifecycle 時不可宣稱 live-ready。
+- `execution/metadata_smoke.py` 與 `/api/status.execution_metadata_smoke` 必須輸出 top-level `runtime_ready / runtime_ready_count / readiness_scope / readiness_state / runtime_ready_blockers`，且每個 venue row 保留 `proof_state / readiness_state / runtime_ready / blockers / operator_next_action / verify_next`；UI badge 只有在 `runtime_ready=true` 且無 blockers 時才能顯示可交易，`all_ok=true` 只能代表 metadata contract OK。
 
 ---
 

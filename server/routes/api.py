@@ -726,6 +726,8 @@ def _build_venue_runtime_proof_contract(venue: str, item: Dict[str, Any]) -> Dic
         "operator_next_action": operator_next_action,
         "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。",
         "readiness_scope": "venue_runtime_proof_required",
+        "readiness_state": "blocked_until_runtime_lifecycle_proof",
+        "runtime_ready": False,
     }
 
 
@@ -776,6 +778,13 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
         })
 
     generated_at = payload.get("generated_at")
+    runtime_ready_count = sum(1 for item in venues if item.get("runtime_ready") is True)
+    runtime_ready_blockers = sorted({
+        str(blocker)
+        for item in venues
+        for blocker in (item.get("blockers") or [])
+        if blocker
+    })
     return {
         "available": True,
         "artifact_path": str(_EXECUTION_METADATA_SMOKE_PATH),
@@ -785,6 +794,11 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
         "ok_count": payload.get("ok_count"),
         "venues_checked": payload.get("venues_checked"),
         "freshness": _build_execution_metadata_smoke_freshness(generated_at),
+        "runtime_ready": bool(venues) and runtime_ready_count == len(venues),
+        "runtime_ready_count": runtime_ready_count,
+        "readiness_scope": "venue_runtime_proof_required",
+        "readiness_state": "runtime_ready" if venues and runtime_ready_count == len(venues) else "blocked_until_runtime_lifecycle_proof",
+        "runtime_ready_blockers": runtime_ready_blockers,
         "venues": venues,
     }
 

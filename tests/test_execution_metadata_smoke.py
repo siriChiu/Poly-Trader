@@ -57,12 +57,22 @@ def test_run_metadata_smoke_collects_contract_for_okx_only(monkeypatch):
     assert payload["venues_checked"] == 1
     assert payload["ok_count"] == 1
     assert payload["all_ok"] is True
+    assert payload["runtime_ready"] is False
+    assert payload["runtime_ready_count"] == 0
+    assert payload["readiness_scope"] == "venue_runtime_proof_required"
+    assert payload["readiness_state"] == "blocked_until_runtime_lifecycle_proof"
+    assert payload["runtime_ready_blockers"] == [
+        "fill lifecycle 尚未驗證",
+        "order ack lifecycle 尚未驗證",
+    ]
     assert set(payload["results"]) == {"okx"}
     assert payload["results"]["okx"]["contract"]["step_size"] == "0.001"
     assert payload["results"]["okx"]["enabled_in_config"] is True
     assert payload["results"]["okx"]["credentials_configured"] is True
     assert payload["results"]["okx"]["proof_state"] == "credentials_configured_missing_runtime_lifecycle"
     assert payload["results"]["okx"]["readiness_scope"] == "venue_runtime_proof_required"
+    assert payload["results"]["okx"]["readiness_state"] == "blocked_until_runtime_lifecycle_proof"
+    assert payload["results"]["okx"]["runtime_ready"] is False
     assert payload["results"]["okx"]["blockers"] == [
         "order ack lifecycle 尚未驗證",
         "fill lifecycle 尚未驗證",
@@ -88,6 +98,8 @@ def test_run_metadata_smoke_rejects_unsupported_configured_venue(monkeypatch):
     assert payload["results"]["binance"]["ok"] is False
     assert payload["results"]["binance"]["enabled_in_config"] is False
     assert payload["results"]["binance"]["credentials_configured"] is False
+    assert payload["results"]["binance"]["runtime_ready"] is False
+    assert payload["results"]["binance"]["readiness_state"] == "blocked_until_runtime_lifecycle_proof"
     assert "unsupported venue" in payload["results"]["binance"]["error"]
 
 
@@ -109,6 +121,8 @@ def test_run_metadata_smoke_surfaces_failures_without_hiding_venue(monkeypatch):
     assert "metadata unavailable" in payload["results"]["okx"]["error"]
     assert payload["results"]["okx"]["proof_state"] == "metadata_contract_failed"
     assert payload["results"]["okx"]["readiness_scope"] == "venue_runtime_proof_required"
+    assert payload["results"]["okx"]["readiness_state"] == "blocked_until_runtime_lifecycle_proof"
+    assert payload["results"]["okx"]["runtime_ready"] is False
     assert "元資料契約尚未通過" in payload["results"]["okx"]["blockers"]
     assert "order ack lifecycle 尚未驗證" in payload["results"]["okx"]["blockers"]
     assert payload["results"]["okx"]["operator_next_action"].startswith("先修復 okx 元資料檢查")
