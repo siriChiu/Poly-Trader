@@ -7,7 +7,7 @@
       "action": "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆需至少 15 勝，當前 14 勝，還差 1 勝；同時連續虧損必須 < 50。",
       "status": "open",
       "created_at": "2026-05-13T13:02:10.121524",
-      "updated_at": "2026-05-13T19:03:04.966948",
+      "updated_at": "2026-05-13T20:02:38.674092",
       "hb_detected": null,
       "next_action": "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆需至少 15 勝，當前 14 勝，還差 1 勝；同時連續虧損必須 < 50。",
       "summary": {
@@ -20,9 +20,9 @@
         "streak": 0,
         "streak_must_be_below": 50,
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-        "current_live_structure_bucket_rows": 18,
+        "current_live_structure_bucket_rows": 37,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 32,
+        "gap_to_minimum": 13,
         "support_route_verdict": "exact_bucket_present_but_below_minimum",
         "support_governance_route": "exact_live_bucket_present_but_below_minimum",
         "runtime_closure_state": "circuit_breaker_active",
@@ -36,14 +36,14 @@
         "deployment_blocker_source": "circuit_breaker",
         "signal": "CIRCUIT_BREAKER",
         "support_route_deployable": false,
-        "allowed_layers_raw": 1,
-        "allowed_layers_raw_reason": "entry_quality_C_single_layer",
+        "allowed_layers_raw": 0,
+        "allowed_layers_raw_reason": "entry_quality_below_trade_floor",
         "allowed_layers": 0,
-        "allowed_layers_reason": "exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade; circuit_breaker_active",
+        "allowed_layers_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
         "recent_window_win_rate": 0.28,
         "recent_window_wins": 14,
         "window_size": 50,
-        "entry_quality_label": "C",
+        "entry_quality_label": "D",
         "release_condition": {
           "release_ready": false,
           "blocked_by": [
@@ -58,9 +58,9 @@
         },
         "support_progress": {
           "status": "accumulating",
-          "current_rows": 18,
+          "current_rows": 37,
           "minimum_support_rows": 50,
-          "gap_to_minimum": 32
+          "gap_to_minimum": 13
         }
       }
     },
@@ -71,7 +71,7 @@
       "action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "status": "open",
       "created_at": "2026-04-29T18:00:00+08:00",
-      "updated_at": "2026-05-13T19:03:04.976639",
+      "updated_at": "2026-05-13T20:02:38.684046",
       "hb_detected": null,
       "next_action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "summary": {
@@ -119,14 +119,14 @@
         "strategy_lab_contract": "Strategy Lab 必須優先顯示 nearest_deployable_rows，並把離線驗證 / 模型門檻失敗與即時分桶 / 支持阻塞分開呈現；此研究 gate 不暴露 live automation 按鈕。",
         "execution_contract": "current-live blocker / unsupported support route keeps buy/add exposure fail-closed; reduce/sell diagnostics remain available",
         "latest_matrix": {
-          "generated_at": "2026-05-13T19:02:55.215328+00:00",
+          "generated_at": "2026-05-13T20:02:28.123369+00:00",
           "artifact_freshness_status": "fresh",
           "artifact_freshness_reason": "artifact_within_policy",
-          "artifact_age_minutes": 0.16268653333333333,
+          "artifact_age_minutes": 0.17600921666666666,
           "artifact_stale_after_minutes": 60.0,
           "artifact_deployment_blocking": false,
           "artifact": "data/high_conviction_topk_oos_matrix.json",
-          "samples": 24262,
+          "samples": 24263,
           "rows": 24,
           "evaluated_models": [
             "logistic_regression",
@@ -142,9 +142,9 @@
           "deployment_blocker": "circuit_breaker_active",
           "runtime_closure_state": "circuit_breaker_active",
           "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-          "current_live_structure_bucket_rows": 18,
+          "current_live_structure_bucket_rows": 37,
           "minimum_support_rows": 50,
-          "current_live_structure_bucket_gap_to_minimum": 32,
+          "current_live_structure_bucket_gap_to_minimum": 13,
           "nearest_deployable_candidate": {
             "model": "logistic_regression",
             "feature_profile": "current_full",
@@ -174,12 +174,12 @@
             "deployment_blocker": "circuit_breaker_active",
             "runtime_closure_state": "circuit_breaker_active",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-            "current_live_structure_bucket_rows": 18,
+            "current_live_structure_bucket_rows": 37,
             "minimum_support_rows": 50,
-            "current_live_structure_bucket_gap_to_minimum": 32,
+            "current_live_structure_bucket_gap_to_minimum": 13,
             "support_route_deployable": false,
             "allowed_layers": 0,
-            "execution_guardrail_reason": "exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade; circuit_breaker_active"
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active"
           },
           "highest_roi_not_deployable": {
             "model": "xgboost",
@@ -215,12 +215,12 @@
             "deployment_blocker": "circuit_breaker_active",
             "runtime_closure_state": "circuit_breaker_active",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-            "current_live_structure_bucket_rows": 18,
+            "current_live_structure_bucket_rows": 37,
             "minimum_support_rows": 50,
-            "current_live_structure_bucket_gap_to_minimum": 32,
+            "current_live_structure_bucket_gap_to_minimum": 13,
             "support_route_deployable": false,
             "allowed_layers": 0,
-            "execution_guardrail_reason": "exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade; circuit_breaker_active"
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active"
           },
           "best_not_deployable": {
             "model": "logistic_regression",
@@ -251,12 +251,12 @@
             "deployment_blocker": "circuit_breaker_active",
             "runtime_closure_state": "circuit_breaker_active",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-            "current_live_structure_bucket_rows": 18,
+            "current_live_structure_bucket_rows": 37,
             "minimum_support_rows": 50,
-            "current_live_structure_bucket_gap_to_minimum": 32,
+            "current_live_structure_bucket_gap_to_minimum": 13,
             "support_route_deployable": false,
             "allowed_layers": 0,
-            "execution_guardrail_reason": "exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade; circuit_breaker_active"
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active"
           }
         },
         "surfacing_status": "api_leaderboard_and_strategy_lab_visible_fail_closed",
@@ -302,42 +302,39 @@
       ]
     },
     {
-      "id": "#H_AUTO_CURRENT_BUCKET_TOXICITY",
+      "id": "P1_feature_continuity_startup_deferred",
       "priority": "P1",
-      "title": "current live bucket CAUTION|base_caution_regime_or_bias|q00 shows toxic exact-lane signals while exact support remains under minimum (18/50, gap=32)",
-      "action": "把 toxic exact-lane 訊號視為 secondary hold-only 證據；先保留 support_route/minimum/gap 與 primary blocker，不要把 under-minimum support 或熔斷期間的 toxic 診斷寫成已具備 exact support 的部署阻塞。 熔斷解除條件仍是 primary deployment blocker；toxicity 只作後續 bucket quality drill-down。",
+      "title": "recent feature continuity backfill must remain visible but not block API readiness",
+      "action": "Keep startup feature repair non-blocking with max_backfill_rows=0; expose deferred/remaining_missing through /health and /api/status; close missing rows via bounded heartbeat or maintenance backfill.",
       "status": "open",
-      "created_at": "2026-05-13T19:03:04.010603",
-      "updated_at": "2026-05-13T19:03:04.010605",
-      "hb_detected": null,
-      "next_action": "把 toxic exact-lane 訊號視為 secondary hold-only 證據；先保留 support_route/minimum/gap 與 primary blocker，不要把 under-minimum support 或熔斷期間的 toxic 診斷寫成已具備 exact support 的部署阻塞。 熔斷解除條件仍是 primary deployment blocker；toxicity 只作後續 bucket quality drill-down。",
+      "created_at": "2026-05-13T20:22:00Z",
+      "updated_at": "2026-05-13T20:22:00Z",
+      "hb_detected": 1199,
+      "next_action": "Implement bounded/incremental maintenance backfill for the 217 missing recent feature rows, then verify feature_continuity returns clean or repaired without slowing startup.",
       "summary": {
-        "deployment_blocker": "circuit_breaker_active",
-        "primary_blocker": "circuit_breaker_active",
-        "circuit_breaker_active": true,
-        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-        "current_live_structure_bucket_rows": 18,
-        "minimum_support_rows": 50,
-        "gap_to_minimum": 32,
-        "support_route_verdict": "exact_bucket_present_but_below_minimum",
-        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-        "toxic_primary_blocker": false
+        "feature_continuity_status": "deferred",
+        "missing_before": 217,
+        "remaining_missing": 217,
+        "max_backfill_rows": 0,
+        "api_startup_blocking": false,
+        "runtime_contract": "/health and /api/status expose deferred feature continuity instead of blocking readiness",
+        "next_gate": "move heavy missing-feature backfill to bounded maintenance lane and close the 217-row gap"
       }
     },
     {
       "id": "#H_AUTO_MODEL_STABILITY",
       "priority": "P1",
-      "title": "model stability still needs work (cv=0.6024, cv_std=0.0423, cv_worst=0.5602)",
+      "title": "model stability still needs work (cv=0.5684, cv_std=0.0078, cv_worst=0.5606)",
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-05-13T19:03:04.010624",
+      "updated_at": "2026-05-13T20:02:37.715000",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
-        "cv_accuracy": 0.6024319868095631,
-        "cv_std": 0.04225061830173121,
-        "cv_worst": 0.5601813685078318
+        "cv_accuracy": 0.5684253915910964,
+        "cv_std": 0.007831821929101423,
+        "cv_worst": 0.560593569661995
       }
     },
     {
@@ -347,23 +344,23 @@
       "action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
       "status": "open",
       "created_at": "2026-05-13T14:02:48.875185",
-      "updated_at": "2026-05-13T19:03:04.010582",
+      "updated_at": "2026-05-13T20:02:37.714959",
       "hb_detected": null,
       "next_action": "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, so do not promote it to a deployable runtime patch even though exact support is available.",
       "summary": {
-        "actual_live_spillover_scope": "bull|CAUTION",
+        "actual_live_spillover_scope": "bull|BLOCK",
         "reference_patch_scope": "bull|CAUTION",
         "current_live_regime_gate": "chop|CAUTION",
         "reference_only_cause": "non_current_live_scope",
-        "exact_live_lane_rows": 42,
+        "exact_live_lane_rows": 452,
         "recommended_patch": "core_plus_macro_plus_all_4h",
         "recommended_patch_status": "reference_only_non_current_live_scope",
         "support_route_verdict": "exact_bucket_present_but_below_minimum",
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
-        "current_live_structure_bucket_rows": 18,
+        "current_live_structure_bucket_rows": 37,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 32,
-        "reference_source": "live_scope_spillover",
+        "gap_to_minimum": 13,
+        "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
         "collapse_features": [
           "feat_4h_dist_swing_low",
           "feat_4h_dist_bb_lower",
@@ -419,7 +416,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 4003,
+        "forward_archive_rows": 4004,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -427,7 +424,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-05-13T19:03:04.966921",
+      "updated_at": "2026-05-13T20:02:38.674063",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -446,8 +443,8 @@
         "current_closure": "global_ranking_vs_support_aware_production_split",
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": false,
-        "leaderboard_payload_cache_age_sec": 6,
-        "leaderboard_payload_updated_at": "2026-05-13T19:02:53.140242Z",
+        "leaderboard_payload_cache_age_sec": 7,
+        "leaderboard_payload_updated_at": "2026-05-13T20:02:25.838345Z",
         "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
@@ -456,7 +453,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-05-13T19:03:04.010617",
+      "updated_at": "2026-05-13T20:02:37.714993",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {

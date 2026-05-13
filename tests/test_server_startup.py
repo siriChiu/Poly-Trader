@@ -107,6 +107,55 @@ def test_run_startup_raw_continuity_check_records_repaired_status():
     assert app.state.feature_continuity_status["status"] == "repaired"
 
 
+def test_run_startup_raw_continuity_check_defers_heavy_feature_backfill():
+    app = SimpleNamespace(state=SimpleNamespace())
+    dummy_session = DummySession()
+    with ExitStack() as stack:
+        stack.enter_context(patch.object(server_main, "get_db", return_value=dummy_session))
+        stack.enter_context(
+            patch.object(
+                server_main,
+                "repair_recent_raw_continuity",
+                return_value={
+                    "symbol": "BTCUSDT",
+                    "inserted_total": 0,
+                    "coarse_inserted": 0,
+                    "fine_inserted": 0,
+                    "bridge_inserted": 0,
+                    "used_bridge": False,
+                    "used_fine_grain": False,
+                    "skipped_no_klines": False,
+                },
+            )
+        )
+        feature_repair = stack.enter_context(
+            patch.object(
+                server_main,
+                "repair_recent_feature_continuity",
+                return_value={
+                    "symbol": "BTCUSDT",
+                    "inserted_total": 0,
+                    "missing_before": 217,
+                    "remaining_missing": 217,
+                    "repair_deferred": True,
+                    "max_backfill_rows": 0,
+                    "gap_count_over_expected": 0,
+                },
+            )
+        )
+
+        server_main._run_startup_raw_continuity_check(app)
+
+    feature_repair.assert_called_once_with(
+        dummy_session,
+        "BTCUSDT",
+        return_details=True,
+        max_backfill_rows=0,
+    )
+    assert app.state.feature_continuity_status["status"] == "deferred"
+    assert app.state.feature_continuity_status["continuity_repair"]["remaining_missing"] == 217
+
+
 def test_run_startup_raw_continuity_check_records_failure_status():
     app = SimpleNamespace(state=SimpleNamespace())
     with ExitStack() as stack:

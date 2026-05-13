@@ -108,3 +108,43 @@ def test_repair_recent_feature_continuity_reports_and_repairs_missing_recent_row
         assert details["gap_count_over_expected"] == 0
     finally:
         session.close()
+
+
+def test_repair_recent_feature_continuity_can_defer_startup_backfill(monkeypatch, tmp_path):
+    db_path = tmp_path / "recent_feature_continuity_deferred.sqlite"
+    session = init_db(f"sqlite:///{db_path}")
+    try:
+        base = datetime.utcnow() - timedelta(hours=11)
+        raw_rows = [
+            RawMarketData(
+                timestamp=base + timedelta(hours=i),
+                symbol="BTCUSDT",
+                close_price=300 + i,
+                volume=800 + i,
+            )
+            for i in range(12)
+        ]
+        session.add_all(raw_rows)
+        session.add(FeaturesNormalized(timestamp=base + timedelta(hours=9), symbol="BTCUSDT", feat_eye=0.1))
+        session.commit()
+
+        def fail_if_called(window):
+            raise AssertionError("startup continuity check must not compute heavy feature windows when deferred")
+
+        monkeypatch.setattr(preprocessor, "compute_features_from_raw", fail_if_called)
+
+        details = preprocessor.repair_recent_feature_continuity(
+            session,
+            "BTCUSDT",
+            lookback_days=3,
+            max_backfill_rows=0,
+            return_details=True,
+        )
+
+        assert details["missing_before"] == 2
+        assert details["inserted_total"] == 0
+        assert details["remaining_missing"] == 2
+        assert details["repair_deferred"] is True
+        assert details["max_backfill_rows"] == 0
+    finally:
+        session.close()

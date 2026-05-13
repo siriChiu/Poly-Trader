@@ -30,6 +30,7 @@ logger = setup_logger(__name__)
 
 _PROCESS_STARTED_AT = datetime.now(timezone.utc)
 _EXECUTION_METADATA_BACKGROUND_INTERVAL_SECONDS = 60.0
+_STARTUP_FEATURE_BACKFILL_MAX_ROWS = 0
 _RUNTIME_SOURCE_METADATA_CACHE_TTL_SECONDS = 5.0
 _RUNTIME_SOURCE_SCAN_DIRS = (
     "server",
@@ -283,9 +284,16 @@ def _run_startup_raw_continuity_check(app: FastAPI) -> dict:
         else:
             logger.info("啟動檢查完成：近期 raw data 無需回填")
 
-        feature_repair_meta = repair_recent_feature_continuity(session, "BTCUSDT", return_details=True)
+        feature_repair_meta = repair_recent_feature_continuity(
+            session,
+            "BTCUSDT",
+            return_details=True,
+            max_backfill_rows=_STARTUP_FEATURE_BACKFILL_MAX_ROWS,
+        )
         feature_status = "repaired" if int(feature_repair_meta.get("inserted_total") or 0) > 0 else "clean"
-        if int(feature_repair_meta.get("remaining_missing") or 0) > 0:
+        if feature_repair_meta.get("repair_deferred"):
+            feature_status = "deferred"
+        elif int(feature_repair_meta.get("remaining_missing") or 0) > 0:
             feature_status = "error"
         feature_payload = {
             "status": feature_status,
@@ -296,6 +304,8 @@ def _run_startup_raw_continuity_check(app: FastAPI) -> dict:
         set_runtime_status("feature_continuity", feature_payload)
         if feature_status == "repaired":
             logger.warning("啟動檢查發現 feature 斷點，已自動補回：%s", feature_repair_meta)
+        elif feature_status == "deferred":
+            logger.warning("啟動 feature 連續性修復已延後，避免阻塞 API readiness：%s", feature_repair_meta)
         elif feature_status == "error":
             logger.error("啟動檢查後仍有 feature 斷點未補齊：%s", feature_repair_meta)
         else:

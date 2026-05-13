@@ -75,6 +75,7 @@ Poly-Trader/
 - feature coverage 必須輸出 maturity：`core / research / blocked`，讓 UI 與模型區分正式決策特徵與研究觀察。
 - 4H 欄位（`feat_4h_*`、`regime_label`）需與 training / predictor 使用同一套 as-of alignment。
 - warning-safe math：指標分母可能為 0 時要使用安全除法，避免 RuntimeWarning 污染 heartbeat stderr。
+- API startup continuity probe 不得同步執行重型 historical feature backfill；若 recent feature rows 缺失過多，`/health` 與 `/api/status.feature_continuity` 必須顯示 `status=deferred`、`remaining_missing`、`max_backfill_rows`，再交給 heartbeat/maintenance lane 關閉缺口。
 
 ---
 

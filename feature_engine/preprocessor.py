@@ -757,6 +757,7 @@ def backfill_missing_feature_rows(
     symbol: str = "BTC/USDT",
     *,
     lookback_days: int | None = None,
+    max_rows: int | None = None,
 ) -> int:
     """Compute features for raw timestamps that do not yet have a feature row.
 
@@ -774,9 +775,14 @@ def backfill_missing_feature_rows(
     if lookback_days is not None and lookback_days > 0:
         cutoff = datetime.utcnow() - timedelta(days=lookback_days)
 
+    if max_rows is not None and max_rows <= 0:
+        return 0
+
     inserted = 0
     min_window = 10
     for end_idx in range(min_window, len(df) + 1):
+        if max_rows is not None and inserted >= max_rows:
+            break
         ts = df.iloc[end_idx - 1].get("timestamp")
         if ts is None or ts in existing_timestamps:
             continue
@@ -803,6 +809,7 @@ def repair_recent_feature_continuity(
     *,
     lookback_days: int = 30,
     expected_gap_hours: float = 4.0,
+    max_backfill_rows: int | None = None,
     return_details: bool = False,
 ) -> int | Dict:
     """Backfill missing feature rows for recent raw timestamps and report continuity status."""
@@ -829,7 +836,12 @@ def repair_recent_feature_continuity(
     existing_before = _load_existing_feature_timestamps(session, symbol)
     missing_before = [ts for ts in eligible_recent_timestamps if ts not in existing_before]
 
-    inserted = backfill_missing_feature_rows(session, symbol, lookback_days=lookback_days)
+    inserted = backfill_missing_feature_rows(
+        session,
+        symbol,
+        lookback_days=lookback_days,
+        max_rows=max_backfill_rows,
+    )
 
     existing_after = _load_existing_feature_timestamps(session, symbol)
     remaining_missing = [ts for ts in eligible_recent_timestamps if ts not in existing_after]
@@ -840,10 +852,14 @@ def repair_recent_feature_continuity(
     details = {
         "symbol": symbol,
         "lookback_days": lookback_days,
+        "max_backfill_rows": max_backfill_rows,
         "raw_rows_in_window": len(eligible_recent_timestamps),
         "missing_before": len(missing_before),
         "inserted_total": inserted,
         "remaining_missing": len(remaining_missing),
+        "repair_deferred": bool(remaining_missing)
+        and max_backfill_rows is not None
+        and inserted >= max(max_backfill_rows, 0),
         "first_missing_before": missing_before[0].isoformat() if missing_before else None,
         "last_missing_before": missing_before[-1].isoformat() if missing_before else None,
         "first_remaining_missing": remaining_missing[0].isoformat() if remaining_missing else None,
