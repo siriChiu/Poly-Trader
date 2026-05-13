@@ -1,29 +1,29 @@
 # ORID_DECISIONS.md — Current ORID Only
 
-_最後更新：2026-05-14 02:08:57 CST_
+_最後更新：2026-05-14 03:03:04 CST_
 
 ---
 
-## 心跳 #1197 ORID
+## 心跳 #1198 ORID
 
 ### O｜客觀事實
-- collect + diagnostics refresh 完成：`Raw=33015 / Features=24345 / Labels=66308`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=56.80%`。
-- 即時部署阻塞點：`deployment_blocker=circuit_breaker_active` / `streak=6` / `recent_window_wins=14/50` / `additional_recent_window_wins_needed=1`。
-- q00 current-live bucket truth：`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q00` / `support=37/50` / `gap=13` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
+- collect + diagnostics refresh 完成：`Raw=33017 / Features=24347 / Labels=66311`；歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`；`simulated_pyramid_win=56.80%`。
+- 即時部署阻塞點：`deployment_blocker=circuit_breaker_active` / `streak=0` / `recent_window_wins=14/50` / `additional_recent_window_wins_needed=1`。
+- q00 current-live bucket truth：`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q00` / `support=18/50` / `gap=32` / `support_route_verdict=exact_bucket_present_but_below_minimum`。
 - support progress：`status=accumulating` / `regression_basis=—` / `legacy_supported_reference=—`。
-- latest recent-window diagnostics：`latest_window=100` / `win_rate=59.0%` / `dominant_regime=chop(100.0%)` / `avg_quality=+0.2202` / `avg_pnl=+0.0011` / `alerts=regime_concentration,regime_shift`。
-- current blocking pathological pocket：`blocking_window=250` / `win_rate=64.8%` / `dominant_regime=chop(94.4%)` / `avg_quality=+0.2802` / `avg_pnl=+0.0040` / `alerts=regime_concentration,regime_shift`。
-- leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=5.8m`。
-- source / venue blockers：`blocked_sparse_features=8`；top source blockers=`fin_netflow(source_auth_blocked/auth_missing, coverage=0.0%, archive_window=0.0%, forward_archive=ready)` / `claw(source_auth_blocked/auth_missing, coverage=14.7%, archive_window=88.5%, forward_archive=ready)` / `claw_intensity(source_auth_blocked/auth_missing, coverage=14.7%, archive_window=88.5%, forward_archive=ready)` / `nest_pred(source_tls_verify_failed/tls_verify_failed, coverage=16.3%, archive_window=98.4%, forward_archive=ready)`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=4002` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle；metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next。
-- 實戰化 P0：`data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at=2026-05-13T18:08:47.738777+00:00` / `freshness=fresh` / `age_min=0.2` / `stale_after_min=60` / `deployment_blocking=False` / `rows=24` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `bucket_rows=37/50` / `gap=13`；最接近部署候選 `model=logistic_regression` / `top_k=top_2pct` / `tier=runtime_blocked_oos_pass` / `bucket_rows=37/50` / `gap=13`，仍被矩陣新鮮度或即時分桶 / 支持 gate 擋下。
+- latest recent-window diagnostics：`latest_window=100` / `win_rate=59.0%` / `dominant_regime=chop(100.0%)` / `avg_quality=+0.2182` / `avg_pnl=+0.0010` / `alerts=regime_concentration,regime_shift`。
+- current blocking pathological pocket：`blocking_window=250` / `win_rate=64.8%` / `dominant_regime=chop(94.4%)` / `avg_quality=+0.2788` / `avg_pnl=+0.0040` / `alerts=regime_concentration,regime_shift`。
+- leaderboard / governance：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=0.1m`。
+- source / venue blockers：`blocked_sparse_features=8`；top source blockers=`fin_netflow(source_auth_blocked/auth_missing, coverage=0.0%, archive_window=0.0%, forward_archive=ready)` / `claw(source_auth_blocked/auth_missing, coverage=14.7%, archive_window=88.5%, forward_archive=ready)` / `claw_intensity(source_auth_blocked/auth_missing, coverage=14.7%, archive_window=88.5%, forward_archive=ready)` / `nest_pred(source_tls_verify_failed/tls_verify_failed, coverage=16.3%, archive_window=98.3%, forward_archive=ready)`；fin_netflow=`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=4003` / `archive_window_coverage_pct=0.0`；venue proof 仍缺 credential / order ack / fill lifecycle；metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next。
+- 實戰化 P0：`data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at=2026-05-13T19:02:55.215328+00:00` / `freshness=fresh` / `age_min=0.2` / `stale_after_min=60` / `deployment_blocking=False` / `rows=24` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `bucket_rows=18/50` / `gap=32`；最接近部署候選 `model=logistic_regression` / `top_k=top_2pct` / `tier=runtime_blocked_oos_pass` / `bucket_rows=18/50` / `gap=32`，仍被矩陣新鮮度或即時分桶 / 支持 gate 擋下。
 - 本輪產品化前進：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，減碼保留；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留減倉 / 賣出風險降低路徑；`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口；`recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`。
 
 ### R｜感受直覺
-- 這輪最需要防止的誤讀，是把 `37/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；熔斷解除條件仍是唯一即時部署阻塞點。
+- 這輪最需要防止的誤讀，是把 `18/50` 的 same-bucket support 或 `bull|CAUTION` 參考 patch 誤讀成已可部署；熔斷解除條件仍是唯一即時部署阻塞點。
 - current live 已落在 `chop/CAUTION/CAUTION|base_caution_regime_or_bias|q00`；如果 UI / docs 沒同步 latest artifacts，operator 很容易把 spillover pocket、舊 bucket，或 `/api/status` 尚未返回的 loading 狀態誤讀成可操作 runtime 真相。
 
 ### I｜意義洞察
-1. **support truth ≠ deployment closure**：`support=37/50` 且 `support_route_verdict=exact_bucket_present_but_below_minimum` 只代表治理前進，還不能把 reference-only patch 升級成 runtime patch。
+1. **support truth ≠ deployment closure**：`support=18/50` 且 `support_route_verdict=exact_bucket_present_but_below_minimum` 只代表治理前進，還不能把 reference-only patch 升級成 runtime patch。
 2. **真正主阻塞仍是熔斷 + recent pathological slice**：目前該追的是解除條件與 recent canonical pathology，不是把 q15/q35 support 或 venue 話題誤升級成唯一根因。
 3. **docs overwrite sync 的角色是護欄，不是主阻塞**：current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，減碼保留；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留減倉 / 賣出風險降低路徑；`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口；這會讓 operator-facing surfaces 與 machine-readable artifacts 保持同輪收斂。
 4. **實戰化不是堆模型，而是可拒單部署治理**：high-conviction top-k OOS ROI gate 把六色帽 / 研究交叉分析轉成產品契約；排序先分離離線驗證 / 模型風控門檻與即時分桶 / 支持 gate，避免最高 ROI 但高回撤 / 負最差分折的列誤導部署決策。

@@ -1,16 +1,16 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-13 18:08:21.474122**
+- generated_at: **2026-05-13 19:01:52.164394**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
 - signal: **CIRCUIT_BREAKER**
-- regime / gate / label: **chop / CAUTION / D**
+- regime / gate / label: **chop / CAUTION / C**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q00**
-- current_live_structure_bucket_rows: **37**
-- allowed_layers: **0** (decision_quality_below_trade_floor; circuit_breaker_active)
-- execution_guardrail_reason: **decision_quality_below_trade_floor; circuit_breaker_active**
+- current_live_structure_bucket_rows: **18**
+- allowed_layers: **0** (exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade; circuit_breaker_active)
+- execution_guardrail_reason: **exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade; circuit_breaker_active**
 
 ## Scope applicability
 - status: **current_live_not_q15_lane**
@@ -25,42 +25,42 @@
 - deployable: **False**
 - governance_reference_only: **True**
 - preferred_support_cohort: **bull_exact_live_lane_proxy**
-- current bucket gap to minimum: **13**
+- current bucket gap to minimum: **32**
 - exact-bucket proxy rows: **0**
-- exact-lane proxy rows: **899**
+- exact-lane proxy rows: **7**
 - supported neighbor rows: **0**
 - reason: current live exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
 - support_progress.status: **stalled_under_minimum**
 - support_progress.regression_basis: **same_identity_same_semantic_signature**
-- support_progress.current_rows / minimum: **37 / 50**
-- support_progress.previous_rows: **37**
+- support_progress.current_rows / minimum: **18 / 50**
+- support_progress.previous_rows: **18**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **2**
-- support_progress.escalate_to_blocker: **False**
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q00', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- support_progress.stagnant_run_count: **5**
+- support_progress.escalate_to_blocker: **True**
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q00', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `None`
 - support_progress.reason: current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。
 
 ## Floor-cross legality
 - verdict: **runtime_blocker_preempts_floor_analysis**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0133**
-- best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.0443**
-- best_single_component_can_cross_floor: **True**
+- remaining_gap_to_floor: **0.0**
+- best_single_component: **None**
+- best_single_component_required_score_delta: **None**
+- best_single_component_can_cross_floor: **False**
 - reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 28.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
-- feature: **feat_4h_bias50**
+- feature: **None**
 - mode: **None**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5367**
+- current_entry_quality: **0.5607**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.0133**
-- current_entry_quality_ge_trade_floor: **False**
+- current_trade_floor_gap: **0.0107**
+- current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
 - reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 28.00% < 30%），q15 component experiment 只能保留為背景研究。
@@ -72,9 +72,9 @@
 - component_verify_ready: **False**
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
-- current_signal / layers / guardrail: **CIRCUIT_BREAKER / 0 / decision_quality_below_trade_floor; circuit_breaker_active**
-- support rows / minimum / gap: **37 / 50 / 13**
-- stagnant_run_count: **2**
+- current_signal / layers / guardrail: **CIRCUIT_BREAKER / 0 / exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade; circuit_breaker_active**
+- support rows / minimum / gap: **18 / 50 / 32**
+- stagnant_run_count: **5**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh']`
 - legacy_semantic_evidence.verdict: **None**
 - legacy_semantic_evidence.supports_current_identity: **None**
