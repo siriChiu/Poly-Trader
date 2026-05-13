@@ -1,6 +1,6 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-13 22:01:26.175866**
+- feature_timestamp: **2026-05-13 23:02:08.190973**
 - target: `simulated_pyramid_win`
 - live path: **chop / CAUTION / D**
 - signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
@@ -10,10 +10,10 @@
 - execution_guardrail_reason: `decision_quality_below_trade_floor; circuit_breaker_active`
 - runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 28.00% < 30%`
 - deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 28.00% < 30%`
-- support blocker summary: **exact support 189/50 (gap 0) 已達 deployable support；deployment 仍以 `circuit_breaker_active` 與 allowed_layers 為準。**
+- support blocker summary: **exact support 190/50 (gap 0) 已達 deployable support；deployment 仍以 `circuit_breaker_active` 與 allowed_layers 為準。**
 - support next action: 不要把 support closure 誤讀成 deployment closure；繼續檢查 allowed_layers / signal / venue proof。
 - q15 exact-supported patch: **inactive** | support_route `exact_bucket_supported` | floor_cross `None`
-- runtime closure summary: **circuit breaker active：Recent 50-sample win rate: 28.00% < 30%; release condition = streak < 50 且 recent 50 win rate >= 30%；目前 recent 50 只贏 14/50，至少還差 1 勝。 exact-vs-spillover=同 quality 寬 scope 出現 bull|BLOCK spillover，443 rows / WR 20.2% / 品質 -0.058，明顯劣於 exact live lane WR 58.9% / 品質 0.221。**
+- runtime closure summary: **風控熔斷啟用中：最近 50 筆勝率: 28.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 14/50，至少還差 1 勝。 精準路徑與外溢對照：同品質寬範圍 出現 牛市|阻塞 外溢，442 筆 / 勝率 20.2% / 品質 -0.058，明顯劣於 精準即時路徑 勝率 58.7% / 品質 0.220。**
 - q35 scaling audit: overall=`None` / redesign=`None` / runtime_gap=`None` / mode=`None` / next_patch=`None`
 - q35 audit action: None
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
@@ -24,18 +24,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.495** / trade_floor **0.55** / gap **-0.055**
-- base_quality: **0.6381** × weight **0.75**
-- structure_quality: **0.0656** × weight **0.25**
-- base components: feat_4h_bias50=0.823 (w=0.4, contrib=0.3292), feat_nose=0.2273 (w=0.18, contrib=0.0409), feat_pulse=0.4665 (w=0.27, contrib=0.1259), feat_ear=0.9468 (w=0.15, contrib=0.142)
-- structure components: feat_4h_bb_pct_b=0.1515 (w=0.34, contrib=0.0515), feat_4h_dist_bb_lower=0.0428 (w=0.33, contrib=0.0141), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
+- final entry_quality: **0.5275** / trade_floor **0.55** / gap **-0.0225**
+- base_quality: **0.679** × weight **0.75**
+- structure_quality: **0.0731** × weight **0.25**
+- base components: feat_4h_bias50=0.8137 (w=0.4, contrib=0.3255), feat_nose=0.3604 (w=0.18, contrib=0.0649), feat_pulse=0.5165 (w=0.27, contrib=0.1395), feat_ear=0.9946 (w=0.15, contrib=0.1492)
+- structure components: feat_4h_bb_pct_b=0.1687 (w=0.34, contrib=0.0573), feat_4h_dist_bb_lower=0.0476 (w=0.33, contrib=0.0157), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.055**
-- base_group_max_entry_gain: **0.2714** | structure_group_max_entry_gain: **0.2336**
-- best_single_component: **feat_pulse**（group=base, Δscore≈0.2716, max_gain≈0.108）
-- single-component floor crossers: feat_pulse (Δscore≈0.2716), feat_nose (Δscore≈0.4074), feat_4h_bb_pct_b (Δscore≈0.6471), feat_4h_dist_bb_lower (Δscore≈0.6667)
+- remaining_gap_to_floor: **0.0225**
+- base_group_max_entry_gain: **0.2407** | structure_group_max_entry_gain: **0.2318**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.075, max_gain≈0.0559）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.075), feat_pulse (Δscore≈0.1111), feat_nose (Δscore≈0.1667), feat_4h_bb_pct_b (Δscore≈0.2647)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -43,10 +43,10 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label+regime_gate+entry_quality_label` | 418 | 0.5885 | 0.2209 | 0.1411 | 0.4625 | 189 | False |
-| exact `regime_label+regime_gate+entry_quality_label` | 418 | 0.5885 | 0.2209 | 0.1411 | 0.4625 | 189 | False |
-| narrow `regime_label+entry_quality_label` | 418 | 0.5885 | 0.2209 | 0.1411 | 0.4625 | 189 | False |
-| broad `regime_gate+entry_quality_label` | 471 | 0.5732 | 0.2107 | 0.1457 | 0.4682 | 189 | False |
+| chosen `regime_label+regime_gate+entry_quality_label` | 419 | 0.5871 | 0.2197 | 0.1416 | 0.4637 | 190 | False |
+| exact `regime_label+regime_gate+entry_quality_label` | 419 | 0.5871 | 0.2197 | 0.1416 | 0.4637 | 190 | False |
+| narrow `regime_label+entry_quality_label` | 419 | 0.5871 | 0.2197 | 0.1416 | 0.4637 | 190 | False |
+| broad `regime_gate+entry_quality_label` | 472 | 0.572 | 0.2096 | 0.1462 | 0.4692 | 190 | False |
 
 ## Shared shifts
 

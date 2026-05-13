@@ -156,10 +156,10 @@ CV accuracy 只作診斷欄位，不可單獨作為 deployment ranking。
 - 交叉評估 `model × feature_profile × regime × top_k`。
 - 每列包含：離線 ROI、勝率、盈虧比、最大回撤、最差分折、交易數、支持路徑與部署判定。
 - 未達 `min_trades / win_rate / drawdown / profit_factor / worst_fold / support_route` 門檻時 fail-closed；UI 必須以操作員繁中 copy 顯示失敗原因，不直接露出 raw gate token。
-- 排序不得只看最高 ROI：必須先分離 `model_gate_failures`（例如最大回撤、最差分折、最低交易數）與 `live_gate_failures`（即時分桶支持 / 部署阻塞），並優先顯示 `nearest_deployable_rows`。
-- 若離線驗證 / 模型風控 gate 已通過但只剩即時分桶 / 支持阻塞，標為 `runtime_blocked_oos_pass`，只能進模擬觀察 / 影子驗證 / 僅觀察，不可直接 live automation。
+- 排序不得只看最高 ROI：必須先分離 `model_gate_failures`（例如最大回撤、最差分折、最低交易數）與 `live_gate_failures`（即時部署阻塞：熔斷、支持樣本或場館 proof），並優先顯示 `nearest_deployable_rows`。
+- 若離線驗證 / 模型風控 gate 已通過但仍有即時部署阻塞，標為 `runtime_blocked_oos_pass`，只能進模擬觀察 / 影子驗證 / 僅觀察，不可直接 live automation。
 - `/api/models/leaderboard.high_conviction_topk` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板必須顯示 `risk_qualified_count / runtime_blocked_candidate_count / nearest_deployable_rows / gate_failures`，避免 operator 被高 ROI 但高回撤或負最差分折的列誤導。
-- 最新 matrix truth：`rows=24` / `risk_qualified_rows=6` / `runtime_blocked_candidate_rows=6` / `deployable_rows=0`；最接近部署候選為 `logistic_regression top_2pct`（離線 ROI `0.9324`、勝率 `0.8621`、最大回撤 `0.022`、最差分折 `0.2068`），但因支持路徑尚不可部署 / 部署阻塞點仍啟動而維持 fail-closed。
+- 最新 matrix truth：`rows=24` / `risk_qualified_rows=6` / `runtime_blocked_candidate_rows=6` / `deployable_rows=0`；最接近部署候選為 `logistic_regression top_2pct`（離線 ROI `0.9324`、勝率 `0.8621`、最大回撤 `0.022`、最差分折 `0.2068`），support route 已是 `exact_bucket_supported`，但因 `deployment_blocker=circuit_breaker_active` 仍啟動而維持 fail-closed。
 - 目前 scan 上 CatBoost 約 `ROI=19.78% / win_rate=62.16% / max_drawdown=6.55% / trades=37` 只能作研究線索，因 trades 太少且尚未通過 high-conviction top-k gate，不可直接部署。
 
 ---

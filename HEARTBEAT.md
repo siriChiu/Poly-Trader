@@ -17,12 +17,24 @@ Heartbeat 的目的不是「回報狀態」，而是讓專案閉環前進：
 
 若一輪只有 summary、沒有 patch/verify/current-state sync，視為不完整。
 
+### 1.1 Harness engineering / 一問一答擴充
+
+Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 記憶，而是靠可導航文件、可機械驗證的 Q&A gate、agent-readable artifacts 與回饋迴圈推進。
+
+- 入口地圖：`docs/harness/README.md`
+- 每輪問答 gate：`docs/harness/heartbeat-qa.md`
+- machine-readable 契約：`docs/harness/heartbeat-harness-contract.json`
+- 結構檢查：`python scripts/heartbeat_harness_check.py --format text`
+
+若 heartbeat 卡在同一 blocker 超過兩輪，下一輪必須先回答：缺的是 Map / Tool / Signal / Constraint / Review 哪一種 harness 能力，而不是只重寫敘事。
+
 ---
 
 ## 2. 固定順序
 
 1. **Preflight**
    - `git status --short --branch`
+   - `python scripts/heartbeat_harness_check.py --format text`（確認 harness map / Q&A gate / doc references 未腐爛）
    - 確認是否已有未提交變更，避免覆蓋使用者工作。
    - 讀取 `ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md` 與最新 machine artifacts。
 
@@ -113,6 +125,8 @@ Heartbeat 的目的不是「回報狀態」，而是讓專案閉環前進：
 
 ```bash
 source venv/bin/activate
+python scripts/heartbeat_harness_check.py --format text
+python -m pytest tests/test_heartbeat_harness_contract.py -q
 python -m pytest tests/test_repo_hygiene.py -q
 python -m pytest tests/test_server_startup.py -k 'api_trade or current_live_trade_blocker' -q
 python -m pytest tests/test_frontend_decision_contract.py -q

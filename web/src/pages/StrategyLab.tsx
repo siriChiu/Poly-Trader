@@ -1887,8 +1887,9 @@ export default function StrategyLab() {
   const highConvictionDeploymentReadinessLabel = humanizeRuntimeDetailText(highConvictionTopK?.deployment_readiness_status || highConvictionTopK?.status || "paper_shadow_only");
   const highConvictionRuntimeBlockedCount = highConvictionTopK?.runtime_blocked_candidate_count ?? highConvictionRows.filter((row) => row.blocked_only_by_live_guardrails).length;
   const highConvictionRiskQualifiedCount = highConvictionTopK?.risk_qualified_count ?? highConvictionRows.filter((row) => row.oos_gate_passed).length;
-  const highConvictionStatusLabel = highConvictionFreshnessBlocking ? "矩陣過期 / 僅影子觀察" : (highConvictionDeployable ? "已有候選，但仍需人工灰度確認" : "研究觀察 / 影子驗證");
-  const highConvictionCardTone = highConvictionFreshnessBlocking ? "border-amber-500/30 bg-amber-500/10 text-amber-50" : (highConvictionDeployable ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-50" : "border-violet-500/30 bg-violet-500/10 text-violet-50");
+  const highConvictionRuntimeBlocked = !highConvictionFreshnessBlocking && !highConvictionDeployable && highConvictionRuntimeBlockedCount > 0;
+  const highConvictionStatusLabel = highConvictionFreshnessBlocking ? "矩陣過期 / 僅影子觀察" : (highConvictionDeployable ? "已有候選，但仍需人工灰度確認" : (highConvictionRuntimeBlocked ? "離線通過，但即時部署阻塞 / 影子觀察" : "研究觀察 / 影子驗證"));
+  const highConvictionCardTone = highConvictionFreshnessBlocking ? "border-amber-500/30 bg-amber-500/10 text-amber-50" : (highConvictionDeployable ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-50" : (highConvictionRuntimeBlocked ? "border-rose-500/30 bg-rose-500/10 text-rose-50" : "border-violet-500/30 bg-violet-500/10 text-violet-50"));
   const highConvictionGridLabel = Array.isArray(highConvictionTopK?.top_k_grid) && highConvictionTopK.top_k_grid.length > 0 ? highConvictionTopK.top_k_grid.map((label) => humanizeRuntimeDetailText(label)).join(" / ") : "Top-K 分層 —";
   const highConvictionGeneratedAtLabel = highConvictionTopK?.generated_at ? new Date(highConvictionTopK.generated_at).toLocaleString("zh-TW") : "生成時間 —";
   const highConvictionGateSummary = highConvictionTopK?.minimum_deployment_gates ? Object.entries(highConvictionTopK.minimum_deployment_gates).map(([key, value]) => `${humanizeRuntimeDetailText(key)}=${formatHighConvictionGateValue(key, value)}`).join(" · ") : "部署門檻 —";
@@ -1897,6 +1898,11 @@ export default function StrategyLab() {
   const highConvictionSupportGovernanceLabel = highConvictionSupportContext ? humanizeSupportGovernanceRouteLabel(highConvictionSupportContext.support_governance_route || null) : "—";
   const highConvictionDeploymentBlockerLabel = highConvictionSupportContext ? humanizeCurrentLiveBlockerLabel(highConvictionSupportContext.deployment_blocker || null) : "—";
   const highConvictionRuntimeClosureLabel = highConvictionSupportContext?.runtime_closure_state ? humanizeRuntimeClosureStateLabel(highConvictionSupportContext.runtime_closure_state) : "—";
+  const highConvictionPrimaryRuntimeRow = highConvictionRows.find((row) => row.blocked_only_by_live_guardrails || row.deployment_candidate_tier === "runtime_blocked_oos_pass") || highConvictionRows[0] || null;
+  const highConvictionRuntimeSignalLabel = humanizeRuntimeDetailText(String(highConvictionSupportContext?.signal || highConvictionPrimaryRuntimeRow?.signal || "—"));
+  const highConvictionAllowedLayersValue = highConvictionSupportContext?.allowed_layers ?? highConvictionPrimaryRuntimeRow?.allowed_layers;
+  const highConvictionAllowedLayersLabel = isFiniteNumber(highConvictionAllowedLayersValue) ? formatDecimal(highConvictionAllowedLayersValue, 0) : "—";
+  const highConvictionRuntimeBlockerSummary = `即時阻塞 ${highConvictionDeploymentBlockerLabel} · 閉環 ${highConvictionRuntimeClosureLabel} · 訊號 ${highConvictionRuntimeSignalLabel} · 可用層 ${highConvictionAllowedLayersLabel}`;
   const highConvictionSupportBucketLabel = highConvictionSupportContext?.current_live_structure_bucket ? humanizeStructureBucketLabel(highConvictionSupportContext.current_live_structure_bucket) : "—";
   const highConvictionSupportRows = highConvictionSupportContext?.current_live_structure_bucket_rows;
   const highConvictionMinimumRows = highConvictionSupportContext?.minimum_support_rows;
@@ -3648,7 +3654,7 @@ export default function StrategyLab() {
                         <div>
                           <div className="font-semibold text-violet-100">高信心 OOS Top-K 部署門檻</div>
                           <div className="mt-1 text-[11px] text-violet-100/80">
-                            最接近部署候選優先顯示；離線驗證 / 風控門檻已過但只剩即時分桶 / 支持樣本阻塞時，仍維持模擬觀察 / 影子驗證 / 僅觀察，不開新倉。
+                            最接近部署候選優先顯示；離線驗證 / 風控門檻已過但遇到即時部署阻塞（例如熔斷、支持樣本或場館保護）時，仍維持模擬觀察 / 影子驗證 / 僅觀察，不開新倉。
                           </div>
                         </div>
                         <div className="text-right text-[11px] text-violet-100/80">
@@ -3661,6 +3667,12 @@ export default function StrategyLab() {
                         <div className="rounded-lg border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-5 text-amber-50">
                           <div className="font-semibold text-amber-100">Top-K 矩陣過期，部署降級為影子觀察</div>
                           <div className="mt-1">{highConvictionArtifactAgeLabel} · {highConvictionStaleAfterLabel} · 後端狀態 {highConvictionDeploymentReadinessLabel}。請先重跑 high-conviction Top-K / model leaderboard refresh，再把候選視為灰度部署對象。</div>
+                        </div>
+                      )}
+                      {highConvictionRuntimeBlocked && (
+                        <div className="rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-[11px] leading-5 text-rose-50">
+                          <div className="font-semibold text-rose-100">OOS 候選已過門檻，但即時部署仍阻塞</div>
+                          <div className="mt-1">離線驗證 / 風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} 筆；可部署 {formatDecimal(highConvictionTopK.deployable_count, 0)} 筆。{highConvictionRuntimeBlockerSummary} · 支持樣本 {highConvictionSupportRowsLabel}。請先解除熔斷 / 執行保護，再把候選視為灰度部署對象。</div>
                         </div>
                       )}
                       <div className="rounded-lg border border-violet-300/20 bg-slate-950/20 px-3 py-2 text-[11px] text-violet-50">
@@ -3723,7 +3735,7 @@ export default function StrategyLab() {
                                       <div className="mt-1 text-[10px] text-violet-100/60">分桶 {row.current_live_structure_bucket ? humanizeStructureBucketLabel(row.current_live_structure_bucket) : "—"} · 樣本 {formatHighConvictionRowSupportRowsLabel(row)}</div>
                                     )}
                                     {row.blocked_only_by_live_guardrails && (
-                                      <div className="mt-1 text-[10px] text-amber-200">離線驗證 / 風控門檻已過 · 只剩即時分桶 / 支持樣本阻塞</div>
+                                      <div className="mt-1 text-[10px] text-amber-200">離線驗證 / 風控門檻已過 · 即時部署仍阻塞：{row.deployment_blocker ? humanizeCurrentLiveBlockerLabel(row.deployment_blocker) : "支持樣本或熔斷保護"}；不開新倉</div>
                                     )}
                                   </td>
                                   <td className={`px-2 py-2 text-right ${isFiniteNumber(row.oos_roi) && row.oos_roi >= 0 ? "text-green-300" : "text-red-300"}`}>{formatPct(row.oos_roi, 1, true)}</td>

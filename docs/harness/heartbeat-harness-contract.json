@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-05-14T07:12:38+08:00",
+  "definition_reference": {
+    "title": "OpenAI Harness Engineering: using Codex in an agent-first world",
+    "url": "https://openai.com/zh-Hant/index/harness-engineering/",
+    "poly_trader_translation": "Human steers; heartbeat agents execute inside repo-native maps, tools, observability, mechanical constraints, and review loops."
+  },
+  "entrypoints": {
+    "agent_map": "AGENTS.md",
+    "agent_role": "AI_AGENT_ROLE.md",
+    "heartbeat_charter": "HEARTBEAT.md",
+    "harness_readme": "docs/harness/README.md",
+    "qa_playbook": "docs/harness/heartbeat-qa.md",
+    "validator": "scripts/heartbeat_harness_check.py",
+    "validator_test": "tests/test_heartbeat_harness_contract.py"
+  },
+  "required_docs": [
+    {
+      "path": "AGENTS.md",
+      "role": "short agent map, not an encyclopedia"
+    },
+    {
+      "path": "AI_AGENT_ROLE.md",
+      "role": "agent identity, autonomy, safety boundaries"
+    },
+    {
+      "path": "HEARTBEAT.md",
+      "role": "evergreen heartbeat operating procedure"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "role": "stable architecture and runtime contracts"
+    },
+    {
+      "path": "ISSUES.md",
+      "role": "current blockers only"
+    },
+    {
+      "path": "ROADMAP.md",
+      "role": "current plan and next gates only"
+    },
+    {
+      "path": "ORID_DECISIONS.md",
+      "role": "current ORID decision only"
+    },
+    {
+      "path": "docs/harness/README.md",
+      "role": "heartbeat harness map"
+    },
+    {
+      "path": "docs/harness/heartbeat-qa.md",
+      "role": "question-answer gates for each heartbeat"
+    }
+  ],
+  "question_gates": [
+    {
+      "id": "HQ0_context_map",
+      "question": "Do I have the shortest usable repo map and dirty-file boundary?",
+      "required_evidence": ["git status", "AGENTS.md", "HEARTBEAT.md", "graphify when present"]
+    },
+    {
+      "id": "HQ1_goal_and_boundary",
+      "question": "What is this run's human intent and what must not be changed?",
+      "required_evidence": ["user request", "ISSUES.md current priority", "ROADMAP.md next gate"]
+    },
+    {
+      "id": "HQ2_current_truth",
+      "question": "What are the current-live, research, venue/source, and governance truths?",
+      "required_evidence": ["issues.json", "data/live_predict_probe.json", "data/live_decision_quality_drilldown.json", "data/recent_drift_report.json"]
+    },
+    {
+      "id": "HQ3_missing_capability",
+      "question": "Is the blocker a strategy/data issue or a harness capability gap?",
+      "required_evidence": ["map gap", "tool gap", "signal gap", "constraint gap", "review gap"]
+    },
+    {
+      "id": "HQ4_patch_contract",
+      "question": "What is the smallest testable and rollback-safe patch?",
+      "required_evidence": ["target file list", "deployment fail-closed boundary", "generated artifact policy"]
+    },
+    {
+      "id": "HQ5_verification_loop",
+      "question": "How can another agent verify the result without trusting the author?",
+      "required_evidence": ["pytest or script", "build/API/browser smoke when relevant", "git diff --check"]
+    },
+    {
+      "id": "HQ6_docs_sync",
+      "question": "Are current-state docs synchronized by overwrite instead of append-only history?",
+      "required_evidence": ["ISSUES.md", "ROADMAP.md", "ORID_DECISIONS.md", "source artifact"]
+    },
+    {
+      "id": "HQ7_failure_escalation",
+      "question": "If the same blocker fails again, what harness capability or architecture path changes?",
+      "required_evidence": ["same-blocker count", "fallback", "issue ID"]
+    },
+    {
+      "id": "HQ8_user_report",
+      "question": "Can the user understand completion, verification, blockers, and next gate within 30 seconds?",
+      "required_evidence": ["Traditional Chinese summary", "files changed", "commands run", "commit hash when applicable"]
+    }
+  ],
+  "agent_readable_signals": [
+    {
+      "name": "current_live_truth",
+      "paths": ["data/live_predict_probe.json", "data/live_decision_quality_drilldown.json"],
+      "purpose": "current runtime blocker, live bucket, support route, fail-closed state"
+    },
+    {
+      "name": "recent_drift_truth",
+      "paths": ["data/recent_drift_report.json", "data/full_ic_result.json", "data/ic_regime_analysis.json"],
+      "purpose": "recent weighted IC, pathological windows, regime concentration"
+    },
+    {
+      "name": "deployment_candidate_truth",
+      "paths": ["data/high_conviction_topk_oos_matrix.json", "model/topk_walkforward_precision.json"],
+      "purpose": "walk-forward OOS top-k deployment gate and fail-closed candidate tier"
+    },
+    {
+      "name": "venue_readiness_truth",
+      "paths": ["data/execution_metadata_smoke.json", "data/execution_metadata_external_monitor.json"],
+      "purpose": "venue proof state, runtime readiness blockers, operator next action"
+    },
+    {
+      "name": "current_state_docs",
+      "paths": ["issues.json", "ISSUES.md", "ROADMAP.md", "ORID_DECISIONS.md"],
+      "purpose": "machine and human current-state views"
+    }
+  ],
+  "mechanical_invariants": [
+    {
+      "id": "harness_docs_exist",
+      "description": "All entrypoint and required docs exist."
+    },
+    {
+      "id": "qa_gates_complete",
+      "description": "Contract and QA playbook contain every HQ0-HQ8 gate."
+    },
+    {
+      "id": "agent_map_links_harness",
+      "description": "AGENTS.md links to HEARTBEAT.md and docs/harness/README.md without becoming a giant manual."
+    },
+    {
+      "id": "heartbeat_runs_harness_checker",
+      "description": "HEARTBEAT.md names scripts/heartbeat_harness_check.py and docs/harness/heartbeat-qa.md."
+    },
+    {
+      "id": "readme_exposes_harness_entry",
+      "description": "README.md lists docs/harness as a first-class documentation entry."
+    }
+  ],
+  "verification_commands": [
+    "python scripts/heartbeat_harness_check.py --format text",
+    "python -m pytest tests/test_heartbeat_harness_contract.py -q",
+    "git diff --check -- AGENTS.md AI_AGENT_ROLE.md HEARTBEAT.md ARCHITECTURE.md README.md docs/harness scripts/heartbeat_harness_check.py tests/test_heartbeat_harness_contract.py"
+  ]
+}
