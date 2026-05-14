@@ -120,6 +120,20 @@ def _payload_missing_selection_fields(payload: dict[str, Any]) -> bool:
     return not bool(first.get("selected_feature_profile") and first.get("selected_deployment_profile"))
 
 
+def _payload_has_primary_leaderboard_rows(payload: dict[str, Any]) -> bool:
+    """Return true only for real comparable leaderboard rows, not placeholders.
+
+    Placeholder-only payloads are still useful as an operator-facing no-trade
+    state and must remain visible even when old. Real leaderboard rows, however,
+    are a runtime readiness surface; if they are stale and rebuilding is allowed,
+    refresh them before downstream docs/UI infer Strategy Lab posture.
+    """
+    if not isinstance(payload, dict):
+        return False
+    rows = payload.get("leaderboard")
+    return isinstance(rows, list) and any(isinstance(row, dict) for row in rows)
+
+
 def _load_leaderboard_payload(*, allow_rebuild: bool = True) -> tuple[dict[str, Any], dict[str, Any]]:
     payload: dict[str, Any] = {}
     source: str | None = None
@@ -193,6 +207,22 @@ def _load_leaderboard_payload(*, allow_rebuild: bool = True) -> tuple[dict[str, 
         age_sec = max(int(time.time() - updated_at), 0) if updated_at else None
         stale = None if source is None else bool(age_sec is None or age_sec > 900)
 
+    refresh_error = None
+    stale_primary_refresh_needed = bool(
+        allow_rebuild
+        and stale
+        and payload
+        and _payload_has_primary_leaderboard_rows(payload)
+    )
+    if stale_primary_refresh_needed:
+        try:
+            rebuilt_payload, rebuilt_meta = _live_rebuild_leaderboard_payload()
+            rebuilt_meta["stale_refresh_reason"] = "stale_primary_leaderboard_payload"
+            rebuilt_meta["refresh_error"] = None
+            return rebuilt_payload if isinstance(rebuilt_payload, dict) else {}, rebuilt_meta
+        except Exception as exc:
+            refresh_error = str(exc)
+
     meta = {
         "source": source,
         "updated_at": _timestamp_to_iso(updated_at),
@@ -200,6 +230,10 @@ def _load_leaderboard_payload(*, allow_rebuild: bool = True) -> tuple[dict[str, 
         "stale": stale,
         "error": source_error,
         "cache_error": cache_error,
+        "stale_refresh_reason": "stale_primary_leaderboard_payload"
+        if stale_primary_refresh_needed
+        else None,
+        "refresh_error": refresh_error,
     }
     return payload if isinstance(payload, dict) else {}, meta
 
@@ -915,6 +949,8 @@ def build_probe_result(*, allow_rebuild: bool = True, generated_at: str | None =
         "leaderboard_payload_updated_at": payload_meta.get("updated_at"),
         "leaderboard_payload_cache_age_sec": payload_meta.get("cache_age_sec"),
         "leaderboard_payload_stale": payload_meta.get("stale"),
+        "leaderboard_payload_stale_refresh_reason": payload_meta.get("stale_refresh_reason"),
+        "leaderboard_payload_refresh_error": payload_meta.get("refresh_error"),
         "leaderboard_payload_error": payload_meta.get("error"),
         "leaderboard_payload_cache_error": payload_meta.get("cache_error"),
         "target_col": payload.get("target_col"),

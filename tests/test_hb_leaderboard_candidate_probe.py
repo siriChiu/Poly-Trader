@@ -1282,6 +1282,77 @@ def test_load_leaderboard_payload_keeps_placeholder_only_cache_without_rebuild(t
     assert top_model["selected_deployment_profile"] == "standard"
 
 
+def test_load_leaderboard_payload_rebuilds_stale_primary_rows_even_when_selection_fields_exist(tmp_path, monkeypatch):
+    cache_path = tmp_path / "model_leaderboard_cache.json"
+    stale_updated_at = 1_713_100_000.0
+    cache_path.write_text(
+        json.dumps(
+            {
+                "payload": {
+                    "target_col": "simulated_pyramid_win",
+                    "count": 1,
+                    "leaderboard": [
+                        {
+                            "model_name": "stale_model",
+                            "selected_feature_profile": "core_only",
+                            "selected_deployment_profile": "standard",
+                        }
+                    ],
+                },
+                "updated_at": stale_updated_at,
+                "error": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    writes = {}
+    monkeypatch.setattr(hb_leaderboard_candidate_probe.api_module, "MODEL_LB_CACHE_PATH", cache_path, raising=False)
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_load_latest_model_leaderboard_snapshot_payload",
+        lambda: None,
+    )
+    monkeypatch.setattr(hb_leaderboard_candidate_probe.time, "time", lambda: stale_updated_at + 3600)
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_build_model_leaderboard_payload",
+        lambda: {
+            "target_col": "simulated_pyramid_win",
+            "count": 1,
+            "leaderboard": [
+                {
+                    "model_name": "fresh_model",
+                    "selected_feature_profile": "core_plus_macro",
+                    "selected_deployment_profile": "scan_backed_best",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_write_model_leaderboard_cache",
+        lambda payload, updated_at, error=None: writes.update({"cache_payload": payload, "cache_updated_at": updated_at}),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe.api_module,
+        "_persist_model_leaderboard_snapshot",
+        lambda payload: writes.update({"snapshot_payload": payload}),
+        raising=False,
+    )
+
+    payload, meta = hb_leaderboard_candidate_probe._load_leaderboard_payload(allow_rebuild=True)
+
+    assert payload["leaderboard"][0]["model_name"] == "fresh_model"
+    assert payload["leaderboard"][0]["selected_feature_profile"] == "core_plus_macro"
+    assert meta["source"] == "live_rebuild"
+    assert meta["stale"] is False
+    assert meta["stale_refresh_reason"] == "stale_primary_leaderboard_payload"
+    assert meta["refresh_error"] is None
+    assert writes["cache_payload"]["leaderboard"][0]["model_name"] == "fresh_model"
+    assert writes["snapshot_payload"]["leaderboard"][0]["model_name"] == "fresh_model"
+
+
 
 def test_load_leaderboard_payload_rebuilds_when_cached_payload_is_stale_and_missing_selection_fields(tmp_path, monkeypatch):
     cache_path = tmp_path / "model_leaderboard_cache.json"
