@@ -7669,6 +7669,80 @@ def test_sync_high_conviction_topk_matrix_can_promote_oos_pass_row_when_live_sup
     assert row["current_live_structure_bucket_rows"] == 54
 
 
+def test_sync_high_conviction_topk_matrix_fail_closes_release_not_ready_row(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    matrix_path = data_dir / "high_conviction_topk_oos_matrix.json"
+    matrix_path.write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "model": "random_forest",
+                        "feature_profile": "current_full",
+                        "regime": "bull",
+                        "top_k": "top_5pct",
+                        "oos_roi": 1.715,
+                        "win_rate": 0.7808,
+                        "profit_factor": 7.8873,
+                        "max_drawdown": 0.0698,
+                        "worst_fold": 0.1442,
+                        "trade_count": 146,
+                        "gate_failures": [],
+                        "model_gate_failures": [],
+                        "live_gate_failures": [],
+                        "oos_gate_passed": True,
+                        "blocked_only_by_live_guardrails": False,
+                        "deployable_verdict": "deployable",
+                        "deployment_candidate_tier": "deployable",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    changed = hb_parallel_runner._sync_high_conviction_topk_matrix_live_context(
+        {
+            "generated_at": "2026-04-30T09:00:00Z",
+            "support_route_verdict": "exact_bucket_supported",
+            "support_route_deployable": True,
+            "deployment_blocker": None,
+            "runtime_closure_state": "breaker_clear",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 64,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "release_ready": False,
+            "release_condition": {
+                "release_ready": False,
+                "recent_window": 50,
+                "current_recent_window_wins": 11,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 4,
+            },
+        }
+    )
+
+    assert changed is True
+    payload = json.loads(matrix_path.read_text(encoding="utf-8"))
+    row = payload["rows"][0]
+    assert payload["deployable_rows"] == 0
+    assert payload["risk_qualified_rows"] == 1
+    assert payload["runtime_blocked_candidate_rows"] == 1
+    assert row["gate_failures"] == ["breaker_release_not_ready"]
+    assert row["live_gate_failures"] == ["breaker_release_not_ready"]
+    assert row["model_gate_failures"] == []
+    assert row["oos_gate_passed"] is True
+    assert row["blocked_only_by_live_guardrails"] is True
+    assert row["deployable_verdict"] == "not_deployable"
+    assert row["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+    assert row["release_ready"] is False
+
+
 def test_sync_high_conviction_topk_recomputes_model_gates_before_promotion(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"

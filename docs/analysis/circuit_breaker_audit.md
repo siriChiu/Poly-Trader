@@ -1,4 +1,4 @@
-# Circuit Breaker Audit（Heartbeat #1212）
+# Circuit Breaker Audit（Heartbeat #1214）
 
 ## 結論
 - verdict: **canonical_breaker_active**
@@ -8,7 +8,7 @@
 ## Mixed scope（現況錯誤口徑）
 - triggered: **False** via []
 - streak: 0 / threshold 50
-- recent 50: win_rate=0.38 wins=19 losses=31
+- recent 50: win_rate=0.48 wins=24 losses=26
 - streak horizons: {}
 
 ## Aligned scope（1440m canonical live horizon）

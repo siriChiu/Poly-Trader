@@ -1294,6 +1294,32 @@ def _deployment_blocker_context_is_active(support_context: Dict[str, Any]) -> bo
     return text not in {"", "none", "no_deployment_blocker", "breaker_clear", "support_closed_trade_floor_hold_only"}
 
 
+def _explicit_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return bool(value)
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in {"1", "true", "yes", "y", "ready", "release_ready"}:
+            return True
+        if text in {"0", "false", "no", "n", "not_ready", "blocked"}:
+            return False
+    return None
+
+
+def _release_condition_context_not_ready(support_context: Dict[str, Any]) -> bool:
+    release_ready = _explicit_bool(support_context.get("release_ready"))
+    if release_ready is False:
+        return True
+    release_condition = support_context.get("release_condition")
+    if isinstance(release_condition, dict):
+        release_ready = _explicit_bool(release_condition.get("release_ready"))
+        if release_ready is False:
+            return True
+    return False
+
+
 def _unique_string_list(items: list[Any]) -> list[str]:
     values: list[str] = []
     for item in items:
@@ -1312,6 +1338,12 @@ _HIGH_CONVICTION_TOPK_MODEL_FAILURES = {
     "profit_factor_too_low",
     "worst_fold_missing",
     "worst_fold_negative",
+}
+
+_HIGH_CONVICTION_TOPK_LIVE_FAILURES = {
+    "support_route_not_deployable",
+    "deployment_blocker_active",
+    "breaker_release_not_ready",
 }
 
 
@@ -1371,7 +1403,7 @@ def _apply_live_support_context_to_high_conviction_row(
     support_context: Dict[str, Any],
     gates: Dict[str, Any] | None = None,
 ) -> None:
-    live_guardrail_failures = {"support_route_not_deployable", "deployment_blocker_active"}
+    live_guardrail_failures = _HIGH_CONVICTION_TOPK_LIVE_FAILURES
     existing_gate_failures = row.get("gate_failures") if isinstance(row.get("gate_failures"), list) else []
     if isinstance(row.get("model_gate_failures"), list):
         persisted_model_gate_failures = _unique_string_list(row.get("model_gate_failures") or [])
@@ -1392,6 +1424,8 @@ def _apply_live_support_context_to_high_conviction_row(
         live_gate_failures.append("support_route_not_deployable")
     if _deployment_blocker_context_is_active(support_context):
         live_gate_failures.append("deployment_blocker_active")
+    if _release_condition_context_not_ready(support_context):
+        live_gate_failures.append("breaker_release_not_ready")
     live_gate_failures = _unique_string_list(live_gate_failures)
 
     gate_failures = _unique_string_list(model_gate_failures + live_gate_failures)

@@ -237,6 +237,57 @@ def test_build_high_conviction_oos_matrix_treats_string_false_support_deployable
     assert row["model_gate_failures"] == []
 
 
+def test_build_high_conviction_oos_matrix_release_not_ready_blocks_otherwise_deployable_row():
+    passing_metrics = {
+        "trade_count": 80,
+        "n": 80,
+        "win_rate": 0.67,
+        "oos_roi": 0.21,
+        "profit_factor": 2.2,
+        "max_drawdown": 0.03,
+        "avg_score": 0.86,
+        "wins": 54,
+        "losses": 26,
+        "regime_mix": {"bull": 80},
+    }
+    report = {
+        "folds": [
+            {"fold": 0, "top_slices": {"top_2pct": {**passing_metrics, "oos_roi": 0.08}}},
+            {"fold": 1, "top_slices": {"top_2pct": {**passing_metrics, "oos_roi": 0.06}}},
+        ],
+        "aggregate_top_slices": {"top_2pct": passing_metrics},
+        "aggregate_regime_top_slices": {},
+    }
+
+    rows = topk.build_high_conviction_oos_matrix_rows(
+        "logistic_regression",
+        report,
+        support_context={
+            "support_route_verdict": "exact_bucket_supported",
+            "support_route_deployable": True,
+            "deployment_blocker": None,
+            "runtime_closure_state": "breaker_clear",
+            "release_ready": False,
+            "release_condition": {
+                "release_ready": False,
+                "recent_window": 50,
+                "current_recent_window_wins": 11,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 4,
+            },
+        },
+    )
+
+    row = rows[0]
+    assert row["oos_gate_passed"] is True
+    assert row["deployable_verdict"] == "not_deployable"
+    assert row["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+    assert row["gate_failures"] == ["breaker_release_not_ready"]
+    assert row["live_gate_failures"] == ["breaker_release_not_ready"]
+    assert row["model_gate_failures"] == []
+    assert row["blocked_only_by_live_guardrails"] is True
+
+
 def test_load_support_context_preserves_current_live_support_progress(monkeypatch, tmp_path):
     data_dir = tmp_path / "data"
     data_dir.mkdir()

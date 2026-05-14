@@ -26,7 +26,7 @@ MINIMUM_DEPLOYMENT_GATES = {
     "worst_fold": "non_negative_or_above_baseline",
     "support_route": "deployable",
 }
-LIVE_GUARDRAIL_FAILURES = {"support_route_not_deployable", "deployment_blocker_active"}
+LIVE_GUARDRAIL_FAILURES = {"support_route_not_deployable", "deployment_blocker_active", "breaker_release_not_ready"}
 ARTIFACT_STALE_AFTER_MINUTES = 60.0
 
 
@@ -277,6 +277,32 @@ def _deployment_blocker_active(support_context: dict) -> bool:
     return text not in {"", "none", "no_deployment_blocker", "breaker_clear", "support_closed_trade_floor_hold_only"}
 
 
+def _explicit_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return bool(value)
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in {"1", "true", "yes", "y", "ready", "release_ready"}:
+            return True
+        if text in {"0", "false", "no", "n", "not_ready", "blocked"}:
+            return False
+    return None
+
+
+def _release_condition_not_ready(support_context: dict) -> bool:
+    release_ready = _explicit_bool(support_context.get("release_ready"))
+    if release_ready is False:
+        return True
+    release_condition = support_context.get("release_condition")
+    if isinstance(release_condition, dict):
+        release_ready = _explicit_bool(release_condition.get("release_ready"))
+        if release_ready is False:
+            return True
+    return False
+
+
 def _gate_failures(metrics: dict, worst_fold: Optional[float], support_context: dict, gates: dict) -> list[str]:
     failures: list[str] = []
     trade_count = int(metrics.get("trade_count", metrics.get("n", 0)) or 0)
@@ -300,6 +326,8 @@ def _gate_failures(metrics: dict, worst_fold: Optional[float], support_context: 
         failures.append("support_route_not_deployable")
     if _deployment_blocker_active(support_context):
         failures.append("deployment_blocker_active")
+    if _release_condition_not_ready(support_context):
+        failures.append("breaker_release_not_ready")
     return failures
 
 
