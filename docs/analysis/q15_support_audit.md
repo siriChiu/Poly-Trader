@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-14 03:06:29.393564**
+- generated_at: **2026-05-14 04:07:57.597708**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -26,8 +26,8 @@
 - governance_reference_only: **True**
 - preferred_support_cohort: **bull_exact_live_lane_proxy**
 - current bucket gap to minimum: **28**
-- exact-bucket proxy rows: **0**
-- exact-lane proxy rows: **7**
+- exact-bucket proxy rows: **8**
+- exact-lane proxy rows: **11**
 - supported neighbor rows: **0**
 - reason: current live exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
@@ -49,7 +49,7 @@
 - best_single_component: **None**
 - best_single_component_required_score_delta: **None**
 - best_single_component_can_cross_floor: **False**
-- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 26.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
+- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 24.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
@@ -57,13 +57,13 @@
 - mode: **None**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.6176**
+- current_entry_quality: **0.5563**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.0676**
+- current_trade_floor_gap: **0.0063**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
-- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 26.00% < 30%），q15 component experiment 只能保留為背景研究。
+- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 24.00% < 30%），q15 component experiment 只能保留為背景研究。
 - verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Active repair plan

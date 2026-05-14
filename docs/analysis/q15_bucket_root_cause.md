@@ -1,6 +1,6 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-14 03:06:29.393564**
+- generated_at: **2026-05-14 04:07:57.597708**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q00 bucket**
 - verdict: **runtime_blocker_preempts_bucket_root_cause**
@@ -12,8 +12,8 @@
 ## Current live
 - live path: **bear / BLOCK / C**
 - structure_bucket: `BLOCK|structure_quality_block|q00`
-- structure_quality: **0.1065**
-- gap_to_q35_boundary: **0.2435**
+- structure_quality: **0.1203**
+- gap_to_q35_boundary: **0.2297**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `circuit_breaker_active`
 - support rows/minimum/gap: **22 / 50 / 28**
@@ -22,8 +22,8 @@
 - rows: **22**
 - bucket_counts: `{'BLOCK|structure_quality_block|q00': 22}`
 - dominant_neighbor_bucket: **None** (0 rows)
-- near_boundary_window: `{'lower': 0.1065, 'upper': 0.35}`
-- near_boundary_rows: **14**
+- near_boundary_window: `{'lower': 0.1203, 'upper': 0.35}`
+- near_boundary_rows: **13**
 
 ## Decision
 - reason: 目前 live runtime 已先被 circuit breaker 擋下；current-live q00 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。
@@ -31,9 +31,9 @@
 - verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.2466 / norm=0.2466 / Δto_cross_q35=0.7162 / target_p25=None / target_median=None
-- `feat_4h_dist_bb_lower`: current=0.5483 / norm=0.0685 / Δto_cross_q35=5.903 / target_p25=None / target_median=None
-- `feat_4h_dist_swing_low`: current=-1.139 / norm=0.0 / Δto_cross_q35=8.5178 / target_p25=None / target_median=None
+- `feat_4h_bb_pct_b`: current=0.279 / norm=0.279 / Δto_cross_q35=0.6756 / target_p25=None / target_median=None
+- `feat_4h_dist_bb_lower`: current=0.6174 / norm=0.0772 / Δto_cross_q35=5.5685 / target_p25=None / target_median=None
+- `feat_4h_dist_swing_low`: current=-1.3675 / norm=0.0 / Δto_cross_q35=8.3281 / target_p25=None / target_median=None
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
