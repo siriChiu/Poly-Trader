@@ -58,6 +58,25 @@ interface ModelStats {
   model_params: Record<string, any>;
 }
 
+type SupportProgress = {
+  status?: string | null;
+  reason?: string | null;
+  current_rows?: number | null;
+  minimum_support_rows?: number | null;
+  gap_to_minimum?: number | null;
+  delta_vs_previous?: number | null;
+  previous_rows?: number | null;
+  previous_route_changed?: boolean | null;
+  regressed_from_supported?: boolean | null;
+  recent_supported_rows?: number | null;
+  recent_supported_heartbeat?: string | null;
+  delta_vs_recent_supported?: number | null;
+  regression_basis?: string | null;
+  stagnant_run_count?: number | null;
+  stalled_support_accumulation?: boolean | null;
+  escalate_to_blocker?: boolean | null;
+} | null;
+
 type LiveRuntimeTruth = {
   runtime_closure_state?: string | null;
   runtime_closure_summary?: string | null;
@@ -73,9 +92,7 @@ type LiveRuntimeTruth = {
   support_rows_text?: string | null;
   support_route_verdict?: string | null;
   support_governance_route?: string | null;
-  support_progress?: {
-    gap_to_minimum?: number | null;
-  } | null;
+  support_progress?: SupportProgress;
   current_live_structure_bucket_gap_to_minimum?: number | null;
   q15_exact_supported_component_patch_applied?: boolean | null;
   runtime_exact_support_rows?: number | null;

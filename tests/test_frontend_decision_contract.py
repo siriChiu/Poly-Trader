@@ -574,6 +574,12 @@ def test_runtime_copy_and_execution_surfaces_use_humanized_chinese_operator_copy
         'export function humanizeRegimeGateLabel(value?: string | null): string {',
         'export function humanizeTradeReasonLabel(value?: string | null): string {',
         '["tp_turning_point", "頂部轉折止盈"]',
+        'stagnant_run_count?: number | null;',
+        'stalled_support_accumulation?: boolean | null;',
+        'escalate_to_blocker?: boolean | null;',
+        'const stalledSupportAccumulation = Boolean(normalized.stalled_support_accumulation) || status === "stalled_under_minimum";',
+        '連續停滯 ${stagnantRunCount} 輪',
+        '樣本累積停滯',
     ]
     for snippet in required_runtime_copy_snippets:
         assert snippet in runtime_copy
@@ -830,6 +836,11 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
         'allowedLayers={confidenceData.allowed_layers}',
         'deploymentBlocker={confidenceData.deployment_blocker}',
         'supportProgress={confidenceData.support_progress}',
+        'type SupportProgress = {',
+        'support_progress?: SupportProgress;',
+        'stagnant_run_count?: number | null;',
+        'stalled_support_accumulation?: boolean | null;',
+        'escalate_to_blocker?: boolean | null;',
         'currentBucketRootCause={confidenceData.current_bucket_root_cause ?? confidenceData.q15_bucket_root_cause ?? confidenceData.deployment_blocker_details?.current_bucket_root_cause ?? confidenceData.deployment_blocker_details?.q15_bucket_root_cause ?? null}',
         'const { data: runtimeStatus, loading: runtimeStatusLoading, error: runtimeStatusError, refresh: refreshRuntimeStatus } = useApi<RuntimeStatusResponse>("/api/status", 60000);',
         'const runtimeStatusPending = runtimeStatusLoading && !runtimeStatus && !runtimeStatusError;',
@@ -1057,6 +1068,14 @@ def test_support_regression_visibility_surfaces_show_last_supported_reference():
         'const supportReferenceLabel = humanizeSupportProgressReferenceLabel(supportProgress);',
         '樣本變化',
         '{supportReferenceLabel}',
+        'supportStagnantRunCount',
+        'supportStalledAccumulation',
+        'supportEscalatesToBlocker',
+        'supportProgressReasonLabel',
+        '支持累積停滯{supportEscalatesToBlocker ? "已升級為部署阻塞" : "需人工追蹤"}',
+        '連續停滯 ${supportStagnantRunCount} 輪',
+        'q35 分數重設 / 基礎堆疊重設仍是分數層治理參考',
+        '不能用僅分數改善結論替代部署條件。',
     ]
     for snippet in confidence_snippets:
         assert snippet in confidence_source

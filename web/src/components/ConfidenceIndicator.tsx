@@ -91,14 +91,20 @@ interface Props {
   } | null;
   supportProgress?: {
     status?: string | null;
+    reason?: string | null;
     current_rows?: number | null;
     minimum_support_rows?: number | null;
     gap_to_minimum?: number | null;
     delta_vs_previous?: number | null;
+    previous_rows?: number | null;
     regressed_from_supported?: boolean | null;
     recent_supported_rows?: number | null;
     recent_supported_heartbeat?: string | null;
     delta_vs_recent_supported?: number | null;
+    regression_basis?: string | null;
+    stagnant_run_count?: number | null;
+    stalled_support_accumulation?: boolean | null;
+    escalate_to_blocker?: boolean | null;
   } | null;
   minimumSupportRows?: number | null;
   currentLiveStructureBucketGapToMinimum?: number | null;
@@ -217,6 +223,16 @@ export default function ConfidenceIndicator({
     : (typeof currentLiveStructureBucketGapToMinimum === "number" ? currentLiveStructureBucketGapToMinimum : null);
   const supportDeltaLabel = humanizeSupportProgressDeltaLabel(supportProgress);
   const supportReferenceLabel = humanizeSupportProgressReferenceLabel(supportProgress);
+  const supportStagnantRunCount = typeof supportProgress?.stagnant_run_count === "number"
+    ? supportProgress.stagnant_run_count
+    : null;
+  const supportStalledAccumulation = Boolean(supportProgress?.stalled_support_accumulation)
+    || supportStatus === "stalled_under_minimum";
+  const supportEscalatesToBlocker = Boolean(supportProgress?.escalate_to_blocker)
+    || Boolean(supportStalledAccumulation && deploymentBlocker);
+  const supportProgressReasonLabel = supportProgress?.reason
+    ? humanizeRuntimeDetailText(supportProgress.reason)
+    : null;
   const q15PatchExecutionBlocked = Boolean(
     q15ExactSupportedComponentPatchApplied
     && (deploymentBlocker || (typeof allowedLayers === "number" && allowedLayers <= 0))
@@ -259,6 +275,9 @@ export default function ConfidenceIndicator({
   const bestSingleComponentLabel = humanizeFeatureKey(bestSingleComponent || null, { preferShortLabel: true });
   const q15SupportAuditApplicable = bucketKey === "q15" || bucketKey.endsWith("|q15");
   const q35ScalingAuditApplicable = bucketKey === "q35" || bucketKey.endsWith("|q35");
+  const supportStallOperatorAction = q35ScalingAuditApplicable
+    ? "q35 分數重設 / 基礎堆疊重設仍是分數層治理參考；下一步必須先補齊當前 q35 分桶精準支持樣本，不能用僅分數改善結論替代部署條件。"
+    : "下一步必須先補齊當前分桶精準支持樣本或修復資料累積路徑；不要把近似樣本、舊分桶或元件實驗誤當成部署閉環。";
   const q15FloorCrossLabel = q15SupportAuditApplicable
     ? humanizeQ15FloorCrossVerdictLabel(floorCrossVerdict || "—")
     : "目前不適用";
@@ -490,6 +509,20 @@ export default function ConfidenceIndicator({
               </>
             )}
           </div>
+
+          {supportStalledAccumulation && (
+            <div className={`mt-3 rounded-lg border px-3 py-2 text-xs ${supportEscalatesToBlocker ? "border-rose-500/40 bg-rose-950/20 text-rose-100" : "border-amber-500/40 bg-amber-950/20 text-amber-100"}`}>
+              <div className="font-semibold text-rose-100">
+                支持累積停滯{supportEscalatesToBlocker ? "已升級為部署阻塞" : "需人工追蹤"}
+              </div>
+              <div className="mt-1 leading-5 text-rose-100/80">
+                當前精準樣本 {supportRows ?? "—"} / {supportMinimum ?? "—"}，缺口 {supportGap ?? "—"}；
+                {supportStagnantRunCount !== null ? `連續停滯 ${supportStagnantRunCount} 輪。` : "樣本累積沒有明顯推進。"}
+                {supportProgressReasonLabel ? ` ${supportProgressReasonLabel}` : ""}
+              </div>
+              <div className="mt-1 leading-5 text-rose-100/80">{supportStallOperatorAction}</div>
+            </div>
+          )}
         </div>
       )}
 

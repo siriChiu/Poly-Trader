@@ -115,8 +115,12 @@ type LegacySupportedReferenceLike = {
 
 type SupportProgressLike = {
   status?: string | null;
+  reason?: string | null;
   current_rows?: number | null;
+  minimum_support_rows?: number | null;
+  gap_to_minimum?: number | null;
   delta_vs_previous?: number | null;
+  previous_rows?: number | null;
   regressed_from_supported?: boolean | null;
   recent_supported_rows?: number | null;
   recent_supported_heartbeat?: string | null;
@@ -124,6 +128,9 @@ type SupportProgressLike = {
   regression_basis?: string | null;
   support_identity?: SupportIdentityLike | null;
   legacy_supported_reference?: LegacySupportedReferenceLike | null;
+  stagnant_run_count?: number | null;
+  stalled_support_accumulation?: boolean | null;
+  escalate_to_blocker?: boolean | null;
 };
 
 const EXECUTION_MODE_LABEL_MAPPINGS: Array<[string, string]> = [
@@ -850,6 +857,8 @@ export function humanizeSupportProgressDeltaLabel(progress?: SupportProgressLike
   const deltaVsPrevious = normalizeSupportProgressCount(normalized.delta_vs_previous);
   const recentSupportedRows = normalizeSupportProgressCount(normalized.recent_supported_rows);
   const deltaVsRecentSupported = normalizeSupportProgressCount(normalized.delta_vs_recent_supported);
+  const stagnantRunCount = normalizeSupportProgressCount(normalized.stagnant_run_count);
+  const stalledSupportAccumulation = Boolean(normalized.stalled_support_accumulation) || status === "stalled_under_minimum";
   const regressedFromSupported = Boolean(normalized.regressed_from_supported) || status === "regressed_under_minimum";
   const semanticRebaseline = status === "semantic_rebaseline_under_minimum";
   const legacyReference = normalized.legacy_supported_reference ?? null;
@@ -873,6 +882,19 @@ export function humanizeSupportProgressDeltaLabel(progress?: SupportProgressLike
       return `相對最近已就緒 ${formatSupportProgressDelta(deltaVsRecentSupported)}（${recentSupportedRows} → ${currentRows}）`;
     }
     return `相對最近已就緒 ${formatSupportProgressDelta(deltaVsRecentSupported)}`;
+  }
+
+  // Stalled support accumulation is a blocker signal, not a neutral zero-delta.
+  // Show the consecutive stagnant heartbeat count so operators do not read "0"
+  // as harmless progress while exact support remains below the deployment floor.
+  if (stalledSupportAccumulation) {
+    const stagnantPrefix = stagnantRunCount !== null && stagnantRunCount > 0
+      ? `連續停滯 ${stagnantRunCount} 輪`
+      : "樣本累積停滯";
+    if (currentRows !== null) {
+      return `${stagnantPrefix}（目前 ${currentRows} 筆）`;
+    }
+    return stagnantPrefix;
   }
 
   if (deltaVsPrevious !== null) {
