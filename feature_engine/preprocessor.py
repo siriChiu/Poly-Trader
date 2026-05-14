@@ -15,6 +15,24 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 
+def _symbol_variants(symbol: str | None) -> list[str]:
+    """Return DB symbol spellings that should be treated as the same market.
+
+    Historical heartbeat paths mix ccxt-style symbols (``BTC/USDT``) and
+    exchange/API-style symbols (``BTCUSDT``).  Continuity checks only care about
+    timestamp coverage for the market, so treating those spellings as distinct
+    creates false missing-feature blockers at startup.
+    """
+    if not symbol:
+        return []
+    text = str(symbol)
+    compact = text.replace("/", "")
+    variants = {text, compact}
+    if "/" not in text and text.endswith("USDT") and len(text) > 4:
+        variants.add(f"{text[:-4]}/USDT")
+    return sorted(v for v in variants if v)
+
+
 def _compute_technical_indicators_from_df(df: pd.DataFrame) -> Dict[str, float]:
     """Compute IC-validated technical indicators from OHLCV data.
     
@@ -564,10 +582,11 @@ def save_features_to_db(
     try:
         ts = features["timestamp"]
         symbol = features.get("symbol", "BTC/USDT")
+        symbol_variants = _symbol_variants(symbol)
         existing = (
             session.query(FeaturesNormalized)
             .filter(FeaturesNormalized.timestamp == ts)
-            .filter((FeaturesNormalized.symbol == symbol) | (FeaturesNormalized.symbol.is_(None)))
+            .filter((FeaturesNormalized.symbol.in_(symbol_variants)) | (FeaturesNormalized.symbol.is_(None)))
             .order_by(FeaturesNormalized.symbol.is_(None))
             .first()
         )
@@ -710,9 +729,10 @@ def run_preprocessor(
 
 
 def _load_existing_feature_timestamps(session: Session, symbol: str = "BTC/USDT") -> set:
+    symbol_variants = _symbol_variants(symbol)
     rows = (
         session.query(FeaturesNormalized.timestamp)
-        .filter((FeaturesNormalized.symbol == symbol) | (FeaturesNormalized.symbol.is_(None)))
+        .filter((FeaturesNormalized.symbol.in_(symbol_variants)) | (FeaturesNormalized.symbol.is_(None)))
         .order_by(FeaturesNormalized.timestamp)
         .all()
     )

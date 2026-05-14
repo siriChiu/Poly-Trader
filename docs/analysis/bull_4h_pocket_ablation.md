@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-14 19:01:54 UTC**
+- generated_at: **2026-05-14 22:02:09 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -59,10 +59,10 @@
 - current bucket gap to minimum: **22**
 - exact-bucket proxy gap to minimum: **50**
 - exact-lane proxy gap to minimum: **0**
-- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q00` rows=210
-- bucket gap vs dominant neighbor: **182**
+- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q00` rows=217
+- bucket gap vs dominant neighbor: **189**
 - exact bucket root cause: **exact_bucket_present_but_below_minimum**
-- broader q65 rows / dominant regime: **28 / chop (0.8929)**
+- broader q65 rows / dominant regime: **28 / chop (0.8980)**
 - root cause interpretation: bull exact lane 已出現當前 bucket 樣本，但距離 minimum support 仍有缺口；需持續累積 exact rows，不能當成已解 blocker。
 - bucket comparison takeaway: **support_gap_unresolved**
 - proxy boundary verdict: **insufficient_recent_exact_bucket_rows**
@@ -78,18 +78,18 @@
 
 | cohort | bucket | rows | win_rate | quality / cv | note |
 |---|---|---:|---:|---:|---|
-| exact live lane | CAUTION|base_caution_regime_or_bias|q35 | 442 | 0.5837 | 0.2164 | current bucket rows=28 |
+| exact live lane | CAUTION|base_caution_regime_or_bias|q35 | 449 | 0.5902 | 0.223 | current bucket rows=28 |
 | exact bucket proxy | CAUTION|base_caution_regime_or_bias|q35 | 0 | 0.0 | None | proxy-vs-broader win Δ=-0.75 |
 | broader same bucket | CAUTION|base_caution_regime_or_bias|q35 | 28 | 0.75 | 0.4818 | dominant_regime=chop |
 
 ## Proxy boundary diagnostics
 
 - recent exact current bucket rows / win_rate: **0 / None**
-- recent exact live lane rows / win_rate: **442 / 0.4638**
+- recent exact live lane rows / win_rate: **449 / 0.4566**
 - historical exact-bucket proxy rows / win_rate: **0 / None**
 - recent broader same-bucket rows / dominant regime: **28 / chop**
 - proxy vs current bucket win Δ / row ratio: **None / None**
-- exact lane vs current bucket win Δ / quality Δ: **None / -0.2654**
+- exact lane vs current bucket win Δ / quality Δ: **None / -0.2588**
 - broader same-bucket vs current bucket win Δ / quality Δ: **None / 0.0**
 
 ## Exact lane sub-bucket diagnostics

@@ -148,3 +148,87 @@ def test_repair_recent_feature_continuity_can_defer_startup_backfill(monkeypatch
         assert details["max_backfill_rows"] == 0
     finally:
         session.close()
+
+
+
+def test_repair_recent_feature_continuity_treats_slash_and_compact_symbols_as_same_market(
+    monkeypatch,
+    tmp_path,
+):
+    db_path = tmp_path / "recent_feature_continuity_symbol_alias.sqlite"
+    session = init_db(f"sqlite:///{db_path}")
+    try:
+        base = datetime.utcnow() - timedelta(hours=11)
+        raw_rows = [
+            RawMarketData(
+                timestamp=base + timedelta(hours=i),
+                symbol="BTCUSDT",
+                close_price=400 + i,
+                volume=900 + i,
+            )
+            for i in range(12)
+        ]
+        feature_rows = [
+            FeaturesNormalized(
+                timestamp=base + timedelta(hours=i),
+                symbol="BTC/USDT",
+                feat_eye=0.1,
+            )
+            for i in range(9, 12)
+        ]
+        session.add_all(raw_rows + feature_rows)
+        session.commit()
+
+        def fail_if_called(window):
+            raise AssertionError("symbol alias rows should satisfy feature continuity without recomputing")
+
+        monkeypatch.setattr(preprocessor, "compute_features_from_raw", fail_if_called)
+
+        details = preprocessor.repair_recent_feature_continuity(
+            session,
+            "BTCUSDT",
+            lookback_days=3,
+            max_backfill_rows=25,
+            return_details=True,
+        )
+
+        assert details["missing_before"] == 0
+        assert details["inserted_total"] == 0
+        assert details["remaining_missing"] == 0
+        assert details["repair_deferred"] is False
+    finally:
+        session.close()
+
+
+
+def test_save_features_to_db_updates_existing_slash_symbol_row_instead_of_duplicating(tmp_path):
+    db_path = tmp_path / "feature_symbol_alias_save.sqlite"
+    session = init_db(f"sqlite:///{db_path}")
+    try:
+        ts = datetime.utcnow().replace(microsecond=0)
+        session.add(FeaturesNormalized(timestamp=ts, symbol="BTC/USDT", feat_eye=0.1))
+        session.commit()
+
+        saved = preprocessor.save_features_to_db(
+            session,
+            {
+                "timestamp": ts,
+                "symbol": "BTCUSDT",
+                "feat_eye": 0.42,
+                "feat_ear": 0.2,
+                "feat_nose": 0.3,
+                "feat_tongue": 0.4,
+                "feat_body": 0.5,
+                "feat_pulse": 0.6,
+                "feat_aura": 0.7,
+                "feat_mind": 0.8,
+            },
+        )
+
+        rows = session.query(FeaturesNormalized).all()
+        assert saved is not None
+        assert len(rows) == 1
+        assert rows[0].symbol == "BTCUSDT"
+        assert rows[0].feat_eye == 0.42
+    finally:
+        session.close()
