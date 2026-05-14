@@ -169,17 +169,17 @@ function renderCanonicalTailRootCause(rootCause?: CanonicalTailRootCause | null)
   const keyFindings = Array.isArray(rootCause.key_findings) ? rootCause.key_findings.filter(Boolean).slice(0, 2) : [];
   return (
     <div className="rounded-lg border border-rose-400/20 bg-rose-500/8 px-3 py-2">
-      <div className="font-medium text-rose-100">最近 100 筆 loss path 根因</div>
+      <div className="font-medium text-rose-100">最近 100 筆未達標路徑根因</div>
       <div>
-        樣本 {rootCause.rows ?? "—"} · loss {rootCause.losses ?? "—"} · win {rootCause.wins ?? "—"} · dominant loss regime {humanizeRecentDriftDominantRegimeLabel(rootCause.dominant_loss_regime)}
+        樣本 {rootCause.rows ?? "—"} · 未達標 {rootCause.losses ?? "—"} · 達標 {rootCause.wins ?? "—"} · 主要未達標市場 {humanizeRecentDriftDominantRegimeLabel(rootCause.dominant_loss_regime)}
       </div>
       <div>
-        TP miss {pathBreakdown.tp_miss_count ?? "—"} · DD breach {pathBreakdown.dd_breach_count ?? "—"} · underwater {pathBreakdown.high_underwater_count ?? "—"} · 平均 underwater {formatPct(pathBreakdown.avg_time_underwater)}
+        停利未觸發 {pathBreakdown.tp_miss_count ?? "—"} · 回撤超限 {pathBreakdown.dd_breach_count ?? "—"} · 深套 {pathBreakdown.high_underwater_count ?? "—"} · 平均深套 {formatPct(pathBreakdown.avg_time_underwater)}
       </div>
       <div>
         盤整 {formatRegimeLossLabel("chop", regimeBreakdown?.chop)} · 牛市 {formatRegimeLossLabel("bull", regimeBreakdown?.bull)} · 熊市 {formatRegimeLossLabel("bear", regimeBreakdown?.bear)}
       </div>
-      <div>4H shift {topShiftLabels}</div>
+      <div>4H 主要偏移 {topShiftLabels}</div>
       {keyFindings.length ? <div>結論 {keyFindings.join(" · ")}</div> : null}
     </div>
   );
@@ -244,7 +244,9 @@ function renderWindowSummary(
     .map((value) => humanizeFeatureKey(value, { preferShortLabel: true }));
   const adverseStreak = targetPath?.longest_zero_target_streak ?? targetPath?.longest_one_target_streak ?? null;
   const lowDistinctFeatureLabels = formatFeatureLabels(featureDiag?.low_distinct_features ?? null);
+  const unexpectedFrozenFeatureLabels = formatFeatureLabels(featureDiag?.unexpected_frozen_features ?? null);
   const unexpectedCompressedFeatureLabels = formatFeatureLabels(featureDiag?.unexpected_compressed_features ?? null);
+  const newUnexpectedFrozenFeatureLabels = formatFeatureLabels(reference?.new_unexpected_frozen_features ?? null);
   const newUnexpectedCompressedFeatureLabels = formatFeatureLabels(reference?.new_unexpected_compressed_features ?? null);
   const toneClass = emphasize
     ? "border-amber-400/25 bg-amber-500/8"
@@ -263,7 +265,7 @@ function renderWindowSummary(
         低變異 {featureDiag?.low_variance_count ?? "—"}/{featureDiag?.feature_count ?? "—"} · 低唯一值 {featureDiag?.low_distinct_count ?? "—"} · 壓縮 {featureDiag?.compressed_count ?? "—"}（預期 {featureDiag?.expected_compressed_count ?? "—"} / 非預期 {featureDiag?.unexpected_compressed_count ?? "—"}） · 非預期凍結 {featureDiag?.unexpected_frozen_count ?? "—"} · 高缺值 {featureDiag?.null_heavy_count ?? "—"} · 疊層觀察 {featureDiag?.overlay_only_count ?? "—"} · 預期靜態 {featureDiag?.expected_static_count ?? "—"}
       </div>
       <div>
-        非預期壓縮特徵 {unexpectedCompressedFeatureLabels} · 低唯一值特徵 {lowDistinctFeatureLabels} · 新增壓縮 {newUnexpectedCompressedFeatureLabels}
+        非預期壓縮特徵 {unexpectedCompressedFeatureLabels} · 非預期凍結特徵 {unexpectedFrozenFeatureLabels} · 低唯一值特徵 {lowDistinctFeatureLabels} · 新增壓縮 {newUnexpectedCompressedFeatureLabels} · 新增凍結 {newUnexpectedFrozenFeatureLabels}
       </div>
       <div>
         尾端 {formatStreak(targetPath?.tail_target_streak)} · 最長連續 {formatStreak(targetPath?.longest_target_streak)} · 最長逆向 {formatStreak(adverseStreak)} · 前一窗 勝率 {formatPct(reference?.prev_win_rate)} ({formatSignedPct(reference?.win_rate_delta)})
@@ -278,7 +280,7 @@ function renderWindowSummary(
 export default function RecentCanonicalDriftCard({
   summary,
   pending = false,
-  title = "📉 最近 canonical drift",
+  title = "📉 最近金字塔漂移",
   className = "",
 }: RecentCanonicalDriftCardProps) {
   const latestWindow = summary?.primary_window ?? null;
@@ -303,7 +305,7 @@ export default function RecentCanonicalDriftCard({
         <div>
           <div className="font-semibold">{title}</div>
           <div className="mt-1 text-[11px] text-slate-300/80">
-            {pending ? "正在向 /api/status 同步 recent canonical drift。" : `產物時間 ${summaryGeneratedAt}`}
+            {pending ? "正在向 /api/status 同步近期金字塔漂移。" : `產物時間 ${summaryGeneratedAt}`}
           </div>
         </div>
         <div className="flex flex-wrap justify-end gap-2 text-[11px] uppercase tracking-[0.18em] text-slate-200">
@@ -324,7 +326,7 @@ export default function RecentCanonicalDriftCard({
         </div>
       ) : !latestWindowSummary && !blockingWindowSummary ? (
         <div className="mt-3 leading-6 text-slate-200/80">
-          尚未取得 recent drift 產物；請先重跑 recent_drift_report 與 heartbeat fast diagnostics。
+          尚未取得近期漂移產物；請先重跑近期漂移報告與快速心跳診斷。
         </div>
       ) : (
         <div className="mt-3 space-y-3 text-[12px] leading-6 text-slate-100/90">

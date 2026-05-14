@@ -620,6 +620,12 @@ def test_drift_and_live_pathology_cards_do_not_leak_raw_internal_english_tokens(
         '阻塞視窗',
         '分布病態',
         '市場狀態過度集中',
+        '📉 最近金字塔漂移',
+        '最近 100 筆未達標路徑根因',
+        '停利未觸發 {pathBreakdown.tp_miss_count ?? "—"}',
+        '回撤超限 {pathBreakdown.dd_breach_count ?? "—"}',
+        '非預期凍結特徵 {unexpectedFrozenFeatureLabels}',
+        '新增凍結 {newUnexpectedFrozenFeatureLabels}',
     ]
     for snippet in required_drift_snippets:
         assert snippet in drift_card_source
@@ -628,6 +634,21 @@ def test_drift_and_live_pathology_cards_do_not_leak_raw_internal_english_tokens(
     assert 'blocker ${blockingInterpretation}' not in drift_card_source
     assert 'distribution_pathology' not in drift_card_source
     assert 'regime_concentration' not in drift_card_source
+    for leaked_drift_copy in [
+        '最近 canonical drift',
+        'recent canonical drift',
+        'recent drift 產物',
+        'recent_drift_report',
+        'heartbeat fast diagnostics',
+        'loss path',
+        'dominant loss regime',
+        'TP miss',
+        'DD breach',
+        'underwater {pathBreakdown',
+        '平均 underwater',
+        '4H shift',
+    ]:
+        assert leaked_drift_copy not in drift_card_source
 
     required_pathology_snippets = [
         '精準路徑',
@@ -837,7 +858,7 @@ def test_dashboard_keeps_live_decision_quality_and_execution_guardrails_surfaces
         'RecentCanonicalDriftCard',
         'summary={recentCanonicalDrift}',
         'pending={runtimeStatusPending && !recentCanonicalDrift}',
-        'title="📉 最近 canonical drift"',
+        'title="📉 最近金字塔漂移"',
         '主決策：4H 關卡 ${canonicalGate} · 進場分數 ${canonicalEntryQuality} (${canonicalEntryLabel}) · 層數 ${canonicalLayers}',
         '主決策：等待即時決策品質契約載入',
         '主決策以即時決策品質契約為準；以下 4H 指標僅作背景解讀。',
@@ -1474,7 +1495,7 @@ def test_strategy_lab_surfaces_recent_canonical_drift_summary_beside_live_lane_t
         'RecentCanonicalDriftCard',
         'summary={recentCanonicalDrift}',
         'pending={runtimeStatusPending && !recentCanonicalDrift}',
-        'title="📉 最近 canonical drift"',
+        'title="📉 最近金字塔漂移"',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -1505,19 +1526,21 @@ def test_recent_canonical_drift_card_surfaces_latest_and_blocking_windows():
         '非預期 {featureDiag?.unexpected_compressed_count ?? "—"}',
         '非預期凍結 {featureDiag?.unexpected_frozen_count ?? "—"}',
         '非預期壓縮特徵 {unexpectedCompressedFeatureLabels}',
+        '非預期凍結特徵 {unexpectedFrozenFeatureLabels}',
         '低唯一值特徵 {lowDistinctFeatureLabels}',
         '新增壓縮 {newUnexpectedCompressedFeatureLabels}',
+        '新增凍結 {newUnexpectedFrozenFeatureLabels}',
         '最長連續 {formatStreak(targetPath?.longest_target_streak)}',
         'function humanizeTargetStreakTarget(',
         'return `${streak.count} 筆${targetLabel}${span}`;',
         'type CanonicalTailRootCause = {',
         'canonical_tail_root_cause?: CanonicalTailRootCause | null;',
         'function renderCanonicalTailRootCause(rootCause?: CanonicalTailRootCause | null)',
-        '最近 100 筆 loss path 根因',
-        'TP miss {pathBreakdown.tp_miss_count ?? "—"}',
-        'DD breach {pathBreakdown.dd_breach_count ?? "—"}',
-        'underwater {pathBreakdown.high_underwater_count ?? "—"}',
-        '4H shift {topShiftLabels}',
+        '最近 100 筆未達標路徑根因',
+        '停利未觸發 {pathBreakdown.tp_miss_count ?? "—"}',
+        '回撤超限 {pathBreakdown.dd_breach_count ?? "—"}',
+        '深套 {pathBreakdown.high_underwater_count ?? "—"}',
+        '4H 主要偏移 {topShiftLabels}',
         '盤整 {formatRegimeLossLabel("chop", regimeBreakdown?.chop)}',
         '{renderCanonicalTailRootCause(summary?.canonical_tail_root_cause ?? null)}',
     ]

@@ -1,6 +1,6 @@
 # Q35 Scaling Audit
 
-- generated_at: **2026-05-14 04:07:57.597708**
+- generated_at: **2026-05-14 05:02:05.701320**
 - overall_verdict: **reference_only_current_bucket_outside_q35**
 - structure_scaling_verdict: **reference_only_current_bucket_outside_q35**
 - scope_applicability: **reference_only_current_bucket_outside_q35**
@@ -9,10 +9,10 @@
 
 ## Reference-only current row
 
-- regime/gate/quality: **bear / BLOCK / C**
-- structure_bucket: **BLOCK|structure_quality_block|q00**
-- feat_4h_bias50: **-1.8589**
-- structure_quality: **0.1203**
+- regime/gate/quality: **bear / CAUTION / C**
+- structure_bucket: **CAUTION|structure_quality_caution|q15**
+- feat_4h_bias50: **-1.6123**
+- structure_quality: **0.1616**
 
 ## Recommended action
 

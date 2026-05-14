@@ -3473,7 +3473,7 @@ export default function StrategyLab() {
               summary={recentCanonicalDrift}
               pending={runtimeStatusPending && !recentCanonicalDrift}
               className="mt-3"
-              title="📉 最近 canonical drift"
+              title="📉 最近金字塔漂移"
             />
 
             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr),320px] gap-4">

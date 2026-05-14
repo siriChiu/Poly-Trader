@@ -1324,7 +1324,7 @@ export default function Dashboard() {
               summary={recentCanonicalDrift}
               pending={runtimeStatusPending && !recentCanonicalDrift}
               className="mt-3"
-              title="📉 最近 canonical drift"
+              title="📉 最近金字塔漂移"
             />
           </>
         )}
