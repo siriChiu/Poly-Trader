@@ -86,6 +86,8 @@ COLLECT_TIMEOUT_SECONDS = 180
 FAST_CACHE_REUSE_MAX_LABEL_DELTA = 12
 FAST_CACHE_REUSE_MAX_LABEL_TIME_DRIFT_SECONDS = 6 * 3600
 FAST_HEARTBEAT_CRON_BUDGET_SECONDS = 240
+LEADERBOARD_PAYLOAD_STALE_AFTER_SECONDS = 900.0
+LEADERBOARD_PAYLOAD_REUSE_FRESHNESS_MARGIN_SECONDS = FAST_HEARTBEAT_CRON_BUDGET_SECONDS
 CANDIDATE_REFRESH_LANES = (
     "feature_group_ablation",
     "bull_4h_pocket_ablation",
@@ -3600,16 +3602,22 @@ def _leaderboard_candidate_semantic_signature(payload: Dict[str, Any]) -> Dict[s
 
 
 
-def _leaderboard_payload_cache_is_stale(payload: Dict[str, Any]) -> bool:
+def _leaderboard_payload_cache_is_stale(
+    payload: Dict[str, Any],
+    *,
+    freshness_margin_seconds: float = 0.0,
+) -> bool:
     if payload.get("leaderboard_payload_stale") is True:
         return True
     cache_age = payload.get("leaderboard_payload_cache_age_sec")
     if cache_age is None:
         return False
     try:
-        return float(cache_age) > 900.0
+        age = float(cache_age)
+        margin = max(float(freshness_margin_seconds or 0.0), 0.0)
     except (TypeError, ValueError):
         return False
+    return age + margin >= LEADERBOARD_PAYLOAD_STALE_AFTER_SECONDS
 
 
 
@@ -3735,9 +3743,15 @@ def _leaderboard_candidate_cache_hit() -> Dict[str, Any] | None:
     if artifact_signature is None or artifact_signature != current_signature:
         return None
 
-    if _leaderboard_payload_cache_is_stale(payload):
+    if _leaderboard_payload_cache_is_stale(
+        payload,
+        freshness_margin_seconds=LEADERBOARD_PAYLOAD_REUSE_FRESHNESS_MARGIN_SECONDS,
+    ):
         _attempt_refresh(allow_rebuild=True)
-    if _leaderboard_payload_cache_is_stale(payload):
+    if _leaderboard_payload_cache_is_stale(
+        payload,
+        freshness_margin_seconds=LEADERBOARD_PAYLOAD_REUSE_FRESHNESS_MARGIN_SECONDS,
+    ):
         return None
     if artifact_signature is None or artifact_signature != current_signature:
         return None
