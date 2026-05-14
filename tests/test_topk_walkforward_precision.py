@@ -112,6 +112,19 @@ def test_build_high_conviction_oos_matrix_keeps_current_live_blocker_fail_closed
             "allowed_layers": 0,
             "signal": "HOLD",
             "source_live_probe_generated_at": "2026-04-30T05:28:04Z",
+            "release_condition": {
+                "release_ready": False,
+                "recent_window": 25,
+                "current_recent_window_wins": 5,
+                "required_recent_window_wins": 13,
+                "additional_recent_window_wins_needed": 8,
+                "current_recent_window_win_rate": 0.2,
+            },
+            "release_ready": False,
+            "recent_window": 25,
+            "current_recent_window_wins": 5,
+            "required_recent_window_wins": 13,
+            "additional_recent_window_wins_needed": 8,
         },
     )
 
@@ -132,6 +145,12 @@ def test_build_high_conviction_oos_matrix_keeps_current_live_blocker_fail_closed
     assert row["allowed_layers"] == 0
     assert row["signal"] == "HOLD"
     assert row["source_live_probe_generated_at"] == "2026-04-30T05:28:04Z"
+    assert row["release_condition"]["release_ready"] is False
+    assert row["release_ready"] is False
+    assert row["recent_window"] == 25
+    assert row["current_recent_window_wins"] == 5
+    assert row["required_recent_window_wins"] == 13
+    assert row["additional_recent_window_wins_needed"] == 8
     assert row["deployable_verdict"] == "not_deployable"
     assert "support_route_not_deployable" in row["gate_failures"]
     assert "deployment_blocker_active" in row["gate_failures"]
@@ -237,6 +256,16 @@ def test_load_support_context_preserves_current_live_support_progress(monkeypatc
                     "minimum_support_rows": 50,
                     "gap_to_minimum": 50,
                 },
+                "deployment_blocker_details": {
+                    "release_condition": {
+                        "release_ready": False,
+                        "recent_window": 50,
+                        "current_recent_window_wins": 9,
+                        "required_recent_window_wins": 25,
+                        "additional_recent_window_wins_needed": 16,
+                        "current_recent_window_win_rate": 0.18,
+                    }
+                },
             }
         ),
         encoding="utf-8",
@@ -256,6 +285,13 @@ def test_load_support_context_preserves_current_live_support_progress(monkeypatc
     assert context["signal"] == "HOLD"
     assert context["source_live_probe_generated_at"] == "2026-04-30T05:28:04.465304Z"
     assert context["live_truth_source_artifact"] == "data/live_predict_probe.json"
+    assert context["release_condition"]["release_ready"] is False
+    assert context["release_ready"] is False
+    assert context["recent_window"] == 50
+    assert context["current_recent_window_wins"] == 9
+    assert context["required_recent_window_wins"] == 25
+    assert context["additional_recent_window_wins_needed"] == 16
+    assert context["current_recent_window_win_rate"] == pytest.approx(0.18)
 
 
 def test_coalesce_regime_label_handles_merge_suffixes():

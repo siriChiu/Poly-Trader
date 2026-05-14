@@ -129,8 +129,45 @@ def _load_support_context() -> dict:
         "allowed_layers",
         "signal",
         "execution_guardrail_reason",
+        "release_ready",
+        "current_streak",
+        "recent_window",
+        "current_recent_window_win_rate",
+        "current_recent_window_wins",
+        "required_recent_window_wins",
+        "additional_recent_window_wins_needed",
     ]
     context = {key: probe.get(key) for key in keys if key in probe}
+    if isinstance(context.get("recent_window"), dict):
+        context["recent_window"] = context["recent_window"].get("window_size")
+    blocker_details = probe.get("deployment_blocker_details") if isinstance(probe.get("deployment_blocker_details"), dict) else {}
+    release_condition = blocker_details.get("release_condition") if isinstance(blocker_details.get("release_condition"), dict) else {}
+    if not release_condition and isinstance(probe.get("release_condition"), dict):
+        release_condition = probe.get("release_condition")
+    recent_window = blocker_details.get("recent_window") if isinstance(blocker_details.get("recent_window"), dict) else {}
+    if not recent_window and isinstance(probe.get("recent_window"), dict):
+        recent_window = probe.get("recent_window")
+
+    def _first_present(*values):
+        for value in values:
+            if value is not None:
+                return value
+        return None
+
+    if release_condition:
+        context["release_condition"] = release_condition
+    release_fallbacks = {
+        "release_ready": _first_present(release_condition.get("release_ready"), blocker_details.get("release_ready")),
+        "current_streak": _first_present(release_condition.get("current_streak"), blocker_details.get("streak"), probe.get("streak")),
+        "recent_window": _first_present(release_condition.get("recent_window"), recent_window.get("window_size"), blocker_details.get("window_size"), probe.get("window_size")),
+        "current_recent_window_win_rate": _first_present(release_condition.get("current_recent_window_win_rate"), recent_window.get("win_rate"), blocker_details.get("recent_window_win_rate"), probe.get("recent_window_win_rate")),
+        "current_recent_window_wins": _first_present(release_condition.get("current_recent_window_wins"), recent_window.get("wins"), blocker_details.get("recent_window_wins"), probe.get("recent_window_wins")),
+        "required_recent_window_wins": _first_present(release_condition.get("required_recent_window_wins"), blocker_details.get("required_recent_window_wins"), probe.get("required_recent_window_wins")),
+        "additional_recent_window_wins_needed": _first_present(release_condition.get("additional_recent_window_wins_needed"), blocker_details.get("additional_recent_window_wins_needed"), probe.get("additional_recent_window_wins_needed")),
+    }
+    for context_key, value in release_fallbacks.items():
+        if context.get(context_key) is None and value is not None:
+            context[context_key] = value
     support_progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
     fallback_map = {
         "current_live_structure_bucket_rows": "current_rows",
@@ -343,7 +380,16 @@ def build_high_conviction_oos_matrix_rows(
                 "allowed_layers": support_context.get("allowed_layers"),
                 "signal": support_context.get("signal"),
                 "execution_guardrail_reason": support_context.get("execution_guardrail_reason"),
+                "release_condition": support_context.get("release_condition"),
+                "release_ready": support_context.get("release_ready"),
+                "current_streak": support_context.get("current_streak"),
+                "recent_window": support_context.get("recent_window"),
+                "current_recent_window_win_rate": support_context.get("current_recent_window_win_rate"),
+                "current_recent_window_wins": support_context.get("current_recent_window_wins"),
+                "required_recent_window_wins": support_context.get("required_recent_window_wins"),
+                "additional_recent_window_wins_needed": support_context.get("additional_recent_window_wins_needed"),
                 "source_live_probe_generated_at": support_context.get("source_live_probe_generated_at"),
+                "live_truth_source_artifact": support_context.get("live_truth_source_artifact"),
                 "minimum_deployment_gates": gates,
                 "deployable_verdict": deployable_verdict,
                 "deployment_candidate_tier": deployment_candidate_tier,

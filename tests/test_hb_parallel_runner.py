@@ -3548,6 +3548,16 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
         "support_governance_route": "exact_live_lane_proxy_available",
         "support_route_deployable": False,
         "current_live_structure_bucket_gap_to_minimum": 50,
+        "deployment_blocker_details": {
+            "release_condition": {
+                "release_ready": False,
+                "recent_window": 50,
+                "current_recent_window_wins": 9,
+                "required_recent_window_wins": 25,
+                "additional_recent_window_wins_needed": 16,
+                "current_recent_window_win_rate": 0.18,
+            }
+        },
     }
     result = hb_parallel_runner.overwrite_current_state_docs(
         "1125topk",
@@ -3569,6 +3579,13 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert latest["current_live_structure_bucket_rows"] == 0
     assert latest["minimum_support_rows"] == 50
     assert latest["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert latest["release_ready"] is False
+    assert latest["recent_window"] == 50
+    assert latest["current_recent_window_wins"] == 9
+    assert latest["required_recent_window_wins"] == 25
+    assert latest["additional_recent_window_wins_needed"] == 16
+    assert latest["nearest_deployable_candidate"]["release_ready"] is False
+    assert latest["nearest_deployable_candidate"]["current_recent_window_wins"] == 9
     assert latest["deployable_rows"] == 0
     assert latest["risk_qualified_rows"] == 1
     assert latest["runtime_blocked_candidate_rows"] == 1
@@ -3598,6 +3615,10 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert "current_live_structure_bucket_gap_to_minimum=50" in issues_md
     assert "bucket_rows=0/50" in issues_md
     assert "gap=50" in issues_md
+    assert "release_ready=False" in issues_md
+    assert "recent_window_wins=9/50" in issues_md
+    assert "required_recent_window_wins=25" in issues_md
+    assert "additional_recent_window_wins_needed=16" in issues_md
     assert "CAUTION|structure_quality_caution|q35" not in issues_md
     roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
     assert "freshness=stale" in roadmap_md
@@ -3605,8 +3626,12 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert "deployment_blocking=True" in roadmap_md
     assert "artifact_freshness_status" in roadmap_md
     assert "矩陣新鮮度" in roadmap_md
+    assert "release_ready=False" in roadmap_md
+    assert "additional_recent_window_wins_needed=16" in roadmap_md
     orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
     assert "freshness=stale" in orid_md
+    assert "release_ready=False" in orid_md
+    assert "additional_recent_window_wins_needed=16" in orid_md
     assert "矩陣過期或即時分桶" in orid_md
 
 

@@ -1072,6 +1072,14 @@ def _compact_high_conviction_topk_matrix_summary(
         "support_route_deployable",
         "allowed_layers",
         "execution_guardrail_reason",
+        "release_condition",
+        "release_ready",
+        "current_streak",
+        "recent_window",
+        "current_recent_window_win_rate",
+        "current_recent_window_wins",
+        "required_recent_window_wins",
+        "additional_recent_window_wins_needed",
     ]
 
     def _compact_row(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -1091,6 +1099,14 @@ def _compact_high_conviction_topk_matrix_summary(
             "support_route_deployable": "support_route_deployable",
             "allowed_layers": "allowed_layers",
             "execution_guardrail_reason": "execution_guardrail_reason",
+            "release_condition": "release_condition",
+            "release_ready": "release_ready",
+            "current_streak": "current_streak",
+            "recent_window": "recent_window",
+            "current_recent_window_win_rate": "current_recent_window_win_rate",
+            "current_recent_window_wins": "current_recent_window_wins",
+            "required_recent_window_wins": "required_recent_window_wins",
+            "additional_recent_window_wins_needed": "additional_recent_window_wins_needed",
         }
         for row_key, support_key in support_fallback_keys.items():
             fallback_value = _support_value(support_key)
@@ -1135,6 +1151,13 @@ def _compact_high_conviction_topk_matrix_summary(
         "current_live_structure_bucket_rows": _support_value("current_live_structure_bucket_rows"),
         "minimum_support_rows": _support_value("minimum_support_rows"),
         "current_live_structure_bucket_gap_to_minimum": _support_value("current_live_structure_bucket_gap_to_minimum"),
+        "release_ready": _support_value("release_ready"),
+        "current_streak": _support_value("current_streak"),
+        "recent_window": _support_value("recent_window"),
+        "current_recent_window_win_rate": _support_value("current_recent_window_win_rate"),
+        "current_recent_window_wins": _support_value("current_recent_window_wins"),
+        "required_recent_window_wins": _support_value("required_recent_window_wins"),
+        "additional_recent_window_wins_needed": _support_value("additional_recent_window_wins_needed"),
         "nearest_deployable_candidate": _compact_row(nearest_row),
         "highest_roi_not_deployable": _compact_row(highest_roi_row),
         "best_not_deployable": _compact_row(nearest_row),
@@ -1155,6 +1178,14 @@ _HIGH_CONVICTION_LIVE_SUPPORT_KEYS = (
     "allowed_layers",
     "signal",
     "execution_guardrail_reason",
+    "release_condition",
+    "release_ready",
+    "current_streak",
+    "recent_window",
+    "current_recent_window_win_rate",
+    "current_recent_window_wins",
+    "required_recent_window_wins",
+    "additional_recent_window_wins_needed",
 )
 
 
@@ -1178,6 +1209,18 @@ def _high_conviction_support_context_from_live(
     support_progress = live_predictor_diagnostics.get("support_progress")
     if not isinstance(support_progress, dict):
         support_progress = details.get("support_progress") if isinstance(details.get("support_progress"), dict) else {}
+    release_condition = details.get("release_condition") if isinstance(details.get("release_condition"), dict) else {}
+    if not release_condition and isinstance(live_predictor_diagnostics.get("release_condition"), dict):
+        release_condition = live_predictor_diagnostics.get("release_condition") or {}
+    recent_window = details.get("recent_window") if isinstance(details.get("recent_window"), dict) else {}
+    if not recent_window and isinstance(live_predictor_diagnostics.get("recent_window"), dict):
+        recent_window = live_predictor_diagnostics.get("recent_window") or {}
+
+    def _first_present(*values: Any) -> Any:
+        for value in values:
+            if value is not None:
+                return value
+        return None
 
     context: Dict[str, Any] = {}
     for key in _HIGH_CONVICTION_LIVE_SUPPORT_KEYS:
@@ -1195,6 +1238,24 @@ def _high_conviction_support_context_from_live(
                 live_predictor_diagnostics.get("allowed_layers_reason")
                 or live_predictor_diagnostics.get("allowed_layers_raw_reason")
             )
+        if key == "release_condition" and release_condition:
+            value = release_condition
+        if value is None and key == "release_ready":
+            value = _first_present(release_condition.get("release_ready"), details.get("release_ready"))
+        if value is None and key == "current_streak":
+            value = _first_present(release_condition.get("current_streak"), details.get("streak"), live_predictor_diagnostics.get("streak"))
+        if value is None and key == "recent_window":
+            value = _first_present(release_condition.get("recent_window"), recent_window.get("window_size"), details.get("window_size"), live_predictor_diagnostics.get("window_size"))
+        if value is None and key == "current_recent_window_win_rate":
+            value = _first_present(release_condition.get("current_recent_window_win_rate"), recent_window.get("win_rate"), details.get("recent_window_win_rate"), live_predictor_diagnostics.get("recent_window_win_rate"))
+        if value is None and key == "current_recent_window_wins":
+            value = _first_present(release_condition.get("current_recent_window_wins"), recent_window.get("wins"), details.get("recent_window_wins"), live_predictor_diagnostics.get("recent_window_wins"))
+        if value is None and key == "required_recent_window_wins":
+            value = _first_present(release_condition.get("required_recent_window_wins"), details.get("required_recent_window_wins"), live_predictor_diagnostics.get("required_recent_window_wins"))
+        if value is None and key == "additional_recent_window_wins_needed":
+            value = _first_present(release_condition.get("additional_recent_window_wins_needed"), details.get("additional_recent_window_wins_needed"), live_predictor_diagnostics.get("additional_recent_window_wins_needed"))
+        if key == "recent_window" and isinstance(value, dict):
+            value = value.get("window_size")
         if value is not None:
             context[key] = value
 
@@ -1350,6 +1411,14 @@ def _apply_live_support_context_to_high_conviction_row(
         "allowed_layers": "allowed_layers",
         "signal": "signal",
         "execution_guardrail_reason": "execution_guardrail_reason",
+        "release_condition": "release_condition",
+        "release_ready": "release_ready",
+        "current_streak": "current_streak",
+        "recent_window": "recent_window",
+        "current_recent_window_win_rate": "current_recent_window_win_rate",
+        "current_recent_window_wins": "current_recent_window_wins",
+        "required_recent_window_wins": "required_recent_window_wins",
+        "additional_recent_window_wins_needed": "additional_recent_window_wins_needed",
         "source_live_probe_generated_at": "source_live_probe_generated_at",
         "live_truth_source_artifact": "live_truth_source_artifact",
     }
@@ -2549,6 +2618,39 @@ def overwrite_current_state_docs(
         if isinstance(high_conviction_latest_matrix.get("best_not_deployable"), dict)
         else {}
     )
+
+    def _high_conviction_release_doc_fragment(source: Dict[str, Any]) -> str:
+        if not isinstance(source, dict):
+            return ""
+        release_condition = source.get("release_condition") if isinstance(source.get("release_condition"), dict) else {}
+        source_recent_window = source.get("recent_window")
+        if isinstance(source_recent_window, dict):
+            source_recent_window = source_recent_window.get("window_size")
+        recent_window = (
+            release_condition.get("recent_window")
+            if release_condition.get("recent_window") is not None
+            else source_recent_window
+        )
+        wins = source.get("current_recent_window_wins", release_condition.get("current_recent_window_wins"))
+        required = source.get("required_recent_window_wins", release_condition.get("required_recent_window_wins"))
+        additional = source.get(
+            "additional_recent_window_wins_needed",
+            release_condition.get("additional_recent_window_wins_needed"),
+        )
+        release_ready = source.get("release_ready", release_condition.get("release_ready"))
+        win_rate = source.get("current_recent_window_win_rate", release_condition.get("current_recent_window_win_rate"))
+        if all(value is None for value in [recent_window, wins, required, additional, release_ready, win_rate]):
+            return ""
+        return (
+            f"`release_ready={release_ready if release_ready is not None else '—'}` / "
+            f"`recent_window_wins={wins if wins is not None else '—'}/{recent_window if recent_window is not None else '—'}` / "
+            f"`required_recent_window_wins={required if required is not None else '—'}` / "
+            f"`additional_recent_window_wins_needed={additional if additional is not None else '—'}` / "
+            f"`current_recent_window_win_rate={_format_doc_number(win_rate, 3) if win_rate is not None else '—'}`"
+        )
+
+    high_conviction_matrix_release_fragment = _high_conviction_release_doc_fragment(high_conviction_latest_matrix)
+    high_conviction_best_release_fragment = _high_conviction_release_doc_fragment(high_conviction_best_row)
     current_support_bucket = _current_support_bucket(live_predictor_diagnostics, q15_support_audit)
     support_scope_label = _support_scope_label(current_support_bucket)
     support_scope_operator_label = _support_scope_operator_label(current_support_bucket)
@@ -2939,7 +3041,7 @@ def overwrite_current_state_docs(
             (
                 f"   - `data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at={high_conviction_latest_matrix.get('generated_at', '—')}` / "
                 f"`freshness={high_conviction_latest_matrix.get('artifact_freshness_status', '—')}` / `age_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_age_minutes'), 1)}` / `stale_after_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_stale_after_minutes'), 0)}` / `deployment_blocking={high_conviction_latest_matrix.get('artifact_deployment_blocking', '—')}` / "
-                f"`rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `gap={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`；`/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板已改為最接近部署候選優先，並以操作員繁中 copy 顯示矩陣新鮮度與即時支持脈絡；矩陣過期或即時分桶 / 支持阻塞未解除前仍 fail-closed。"
+                f"`rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `gap={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_matrix_release_fragment) if high_conviction_matrix_release_fragment else ''}；`/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板已改為最接近部署候選優先，並以操作員繁中 copy 顯示矩陣新鮮度、breaker release math 與即時支持脈絡；矩陣過期或即時分桶 / 支持 / release 條件未解除前仍 fail-closed。"
                 if high_conviction_latest_matrix
                 else "   - 先產出 `data/high_conviction_topk_oos_matrix.json`，用 walk-forward OOS 比較 `model × feature_profile × regime × top_k`；未達最低交易數 / 勝率 / 最大回撤 / 盈虧比 / 支持路徑時保持模擬觀察 / 影子驗證 / 僅觀察。"
             ),
@@ -2967,8 +3069,8 @@ def overwrite_current_state_docs(
         high_conviction_matrix_lines = []
         if high_conviction_latest_matrix:
             high_conviction_matrix_lines = [
-                f"- 最新 matrix artifact 已產出：`artifact={high_conviction_latest_matrix.get('artifact', 'data/high_conviction_topk_oos_matrix.json')}` / `generated_at={high_conviction_latest_matrix.get('generated_at', '—')}` / `freshness={high_conviction_latest_matrix.get('artifact_freshness_status', '—')}` / `age_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_age_minutes'), 1)}` / `stale_after_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_stale_after_minutes'), 0)}` / `deployment_blocking={high_conviction_latest_matrix.get('artifact_deployment_blocking', '—')}` / `samples={high_conviction_latest_matrix.get('samples', '—')}` / `rows={high_conviction_latest_matrix.get('rows', '—')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows', '—')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `support_route={high_conviction_latest_matrix.get('support_route', '—')}` / `deployment_blocker={high_conviction_latest_matrix.get('deployment_blocker', '—')}` / `current_live_structure_bucket={high_conviction_latest_matrix.get('current_live_structure_bucket', '—')}` / `current_live_structure_bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `current_live_structure_bucket_gap_to_minimum={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`。",
-                f"- 最接近部署候選優先：`model={high_conviction_best_row.get('model', '—')}` / `regime={high_conviction_best_row.get('regime', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` / `win_rate={high_conviction_best_row.get('win_rate', '—')}` / `profit_factor={high_conviction_best_row.get('profit_factor', '—')}` / `max_drawdown={high_conviction_best_row.get('max_drawdown', '—')}` / `worst_fold={high_conviction_best_row.get('worst_fold', '—')}` / `trades={high_conviction_best_row.get('trade_count', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` / `verdict={high_conviction_best_row.get('deployable_verdict', '—')}` / `support_route={high_conviction_best_row.get('support_route', '—')}` / `governance={high_conviction_best_row.get('support_governance_route', '—')}` / `bucket={high_conviction_best_row.get('current_live_structure_bucket', '—')}` / `bucket_rows={high_conviction_best_row.get('current_live_structure_bucket_rows', '—')}/{high_conviction_best_row.get('minimum_support_rows', '—')}` / `gap={high_conviction_best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`；若只剩即時分桶 / 支持 gate，仍模擬觀察 / 影子驗證 / 僅觀察。",
+                f"- 最新 matrix artifact 已產出：`artifact={high_conviction_latest_matrix.get('artifact', 'data/high_conviction_topk_oos_matrix.json')}` / `generated_at={high_conviction_latest_matrix.get('generated_at', '—')}` / `freshness={high_conviction_latest_matrix.get('artifact_freshness_status', '—')}` / `age_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_age_minutes'), 1)}` / `stale_after_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_stale_after_minutes'), 0)}` / `deployment_blocking={high_conviction_latest_matrix.get('artifact_deployment_blocking', '—')}` / `samples={high_conviction_latest_matrix.get('samples', '—')}` / `rows={high_conviction_latest_matrix.get('rows', '—')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows', '—')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `support_route={high_conviction_latest_matrix.get('support_route', '—')}` / `deployment_blocker={high_conviction_latest_matrix.get('deployment_blocker', '—')}` / `current_live_structure_bucket={high_conviction_latest_matrix.get('current_live_structure_bucket', '—')}` / `current_live_structure_bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `current_live_structure_bucket_gap_to_minimum={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_matrix_release_fragment) if high_conviction_matrix_release_fragment else ''}。",
+                f"- 最接近部署候選優先：`model={high_conviction_best_row.get('model', '—')}` / `regime={high_conviction_best_row.get('regime', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` / `win_rate={high_conviction_best_row.get('win_rate', '—')}` / `profit_factor={high_conviction_best_row.get('profit_factor', '—')}` / `max_drawdown={high_conviction_best_row.get('max_drawdown', '—')}` / `worst_fold={high_conviction_best_row.get('worst_fold', '—')}` / `trades={high_conviction_best_row.get('trade_count', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` / `verdict={high_conviction_best_row.get('deployable_verdict', '—')}` / `support_route={high_conviction_best_row.get('support_route', '—')}` / `governance={high_conviction_best_row.get('support_governance_route', '—')}` / `bucket={high_conviction_best_row.get('current_live_structure_bucket', '—')}` / `bucket_rows={high_conviction_best_row.get('current_live_structure_bucket_rows', '—')}/{high_conviction_best_row.get('minimum_support_rows', '—')}` / `gap={high_conviction_best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_best_release_fragment) if high_conviction_best_release_fragment else ''}；若只剩即時分桶 / 支持 / release gate，仍模擬觀察 / 影子驗證 / 僅觀察。",
             ]
         else:
             high_conviction_matrix_lines = [
@@ -2980,8 +3082,8 @@ def overwrite_current_state_docs(
             "- 六色帽會議與研究交叉分析已收斂：下一步不是增加交易頻率，而是用 walk-forward OOS / top-k precision / ROI / max drawdown / meta-labeling / uncertainty gate 決定是否允許 candidate 進入部署候選。",
             *high_conviction_matrix_lines,
             "**成功標準**",
-            "- `data/high_conviction_topk_oos_matrix.json` 必須持續輸出 `generated_at / artifact_freshness_status / artifact_age_minutes / artifact_stale_after_minutes / artifact_deployment_blocking / model / feature_profile / regime / top_k / OOS ROI / win_rate / profit_factor / max_drawdown / worst_fold / trade_count / support_route / support_governance_route / deployment_blocker / runtime_closure_state / current_live_structure_bucket / current_live_structure_bucket_rows / minimum_support_rows / current_live_structure_bucket_gap_to_minimum / deployable_verdict / gate_failures / model_gate_failures / live_gate_failures / deployment_candidate_tier`。",
-            "- `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板以最接近部署候選優先排序：先看離線驗證 / 風控門檻、低回撤、最差分折，再看 ROI；若候選只剩矩陣新鮮度 / 即時分桶 / 支持 / 場館 proof 未過，仍 fail-closed 到模擬觀察 / 影子驗證 / 僅觀察，並顯示矩陣新鮮度、支持狀態、治理路徑、部署阻塞、即時分桶與樣本數。",
+            "- `data/high_conviction_topk_oos_matrix.json` 必須持續輸出 `generated_at / artifact_freshness_status / artifact_age_minutes / artifact_stale_after_minutes / artifact_deployment_blocking / model / feature_profile / regime / top_k / OOS ROI / win_rate / profit_factor / max_drawdown / worst_fold / trade_count / support_route / support_governance_route / deployment_blocker / runtime_closure_state / current_live_structure_bucket / current_live_structure_bucket_rows / minimum_support_rows / current_live_structure_bucket_gap_to_minimum / release_ready / current_recent_window_wins / required_recent_window_wins / additional_recent_window_wins_needed / deployable_verdict / gate_failures / model_gate_failures / live_gate_failures / deployment_candidate_tier`。",
+            "- `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板以最接近部署候選優先排序：先看離線驗證 / 風控門檻、低回撤、最差分折，再看 ROI；若候選只剩矩陣新鮮度 / 即時分桶 / 支持 / breaker release 條件 / 場館 proof 未過，仍 fail-closed 到模擬觀察 / 影子驗證 / 僅觀察，並顯示矩陣新鮮度、支持狀態、治理路徑、部署阻塞、即時分桶與樣本數，外加 release math。",
             "",
         ]
 
@@ -3075,7 +3177,7 @@ def overwrite_current_state_docs(
             [
                 "4. **建立 high-conviction top-k OOS ROI gate，讓 Strategy Lab winner 先經研究→模擬觀察→影子驗證→小流量分級**",
                 "   - 驗證：`data/high_conviction_topk_oos_matrix.json`、`/api/models/leaderboard.high_conviction_topk`、Strategy Lab 高信心 OOS Top-K 部署門檻面板、`python -m pytest tests/test_model_leaderboard.py tests/test_frontend_decision_contract.py -k high_conviction -q`",
-                "   - 升級 blocker：若 scan winner 未經 OOS top-k / minimum support / drawdown gate 就被標成 deployable，或 current-live unsupported 時仍允許 buy/add exposure",
+                "   - 升級 blocker：若 scan winner 未經 OOS top-k / minimum support / drawdown / breaker release gate 就被標成 deployable，或 current-live unsupported 時仍允許 buy/add exposure",
             ]
             if high_conviction_issue
             else []
@@ -3099,7 +3201,7 @@ def overwrite_current_state_docs(
     if high_conviction_issue:
         high_conviction_orid_fact_lines = [
             (
-                f"- 實戰化 P0：`data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at={high_conviction_latest_matrix.get('generated_at', '—')}` / `freshness={high_conviction_latest_matrix.get('artifact_freshness_status', '—')}` / `age_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_age_minutes'), 1)}` / `stale_after_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_stale_after_minutes'), 0)}` / `deployment_blocking={high_conviction_latest_matrix.get('artifact_deployment_blocking', '—')}` / `rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `gap={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`；最接近部署候選 `model={high_conviction_best_row.get('model', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` / `bucket_rows={high_conviction_best_row.get('current_live_structure_bucket_rows', '—')}/{high_conviction_best_row.get('minimum_support_rows', '—')}` / `gap={high_conviction_best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`，仍被矩陣新鮮度或即時分桶 / 支持 gate 擋下。"
+                f"- 實戰化 P0：`data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at={high_conviction_latest_matrix.get('generated_at', '—')}` / `freshness={high_conviction_latest_matrix.get('artifact_freshness_status', '—')}` / `age_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_age_minutes'), 1)}` / `stale_after_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_stale_after_minutes'), 0)}` / `deployment_blocking={high_conviction_latest_matrix.get('artifact_deployment_blocking', '—')}` / `rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `gap={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_matrix_release_fragment) if high_conviction_matrix_release_fragment else ''}；最接近部署候選 `model={high_conviction_best_row.get('model', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` / `bucket_rows={high_conviction_best_row.get('current_live_structure_bucket_rows', '—')}/{high_conviction_best_row.get('minimum_support_rows', '—')}` / `gap={high_conviction_best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_best_release_fragment) if high_conviction_best_release_fragment else ''}，仍被矩陣新鮮度或即時分桶 / 支持 / release gate 擋下。"
                 if high_conviction_latest_matrix
                 else "- 實戰化新 P0：high-conviction top-k OOS ROI gate 已進入 current-state issues；下一步產出 `data/high_conviction_topk_oos_matrix.json`，用 walk-forward OOS top-k matrix 驗證 ROI、勝率、回撤、盈虧比、最差分折、最低交易數與即時支持。"
             ),
@@ -3108,7 +3210,7 @@ def overwrite_current_state_docs(
             "4. **實戰化不是堆模型，而是可拒單部署治理**：high-conviction top-k OOS ROI gate 把六色帽 / 研究交叉分析轉成產品契約；排序先分離離線驗證 / 模型風控門檻與即時分桶 / 支持 gate，避免最高 ROI 但高回撤 / 負最差分折的列誤導部署決策。",
         ]
         high_conviction_orid_action_lines = [
-            "- **研究到產品 gate**：walk-forward OOS top-k matrix 已透過 `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板可視化；operator 現在會先看到最接近部署候選（離線驗證 / 風控已過但只剩矩陣新鮮度 / 即時分桶 / 支持 gate 的 rows），並看到矩陣新鮮度、支持狀態、治理路徑、部署阻塞、即時分桶、樣本數與 gap；矩陣過期或即時分桶 / 支持 blockers 未解除前仍維持 fail-closed。",
+            "- **研究到產品 gate**：walk-forward OOS top-k matrix 已透過 `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板可視化；operator 現在會先看到最接近部署候選（離線驗證 / 風控已過但只剩矩陣新鮮度 / 即時分桶 / 支持 / release gate 的 rows），並看到矩陣新鮮度、支持狀態、治理路徑、部署阻塞、即時分桶、樣本數、recent-window wins、required wins 與 additional wins needed；矩陣過期或即時分桶 / 支持 / release blockers 未解除前仍維持 fail-closed。",
         ]
 
     live_regime = live_predictor_diagnostics.get("regime_label") or "—"
