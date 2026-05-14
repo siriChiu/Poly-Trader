@@ -1286,6 +1286,80 @@ def _format_streak_fragment(name, streak, default_target=None):
     return text
 
 
+def _feature_names(rows):
+    names = []
+    for row in rows or []:
+        name = row.get("feature") if isinstance(row, dict) else row
+        if name:
+            names.append(str(name))
+    return names
+
+
+def _compact_feature_diagnostic_counts(feature_diag):
+    if not isinstance(feature_diag, dict) or not feature_diag:
+        return {}
+    ordered_keys = [
+        "feature_count",
+        "low_variance_count",
+        "frozen_count",
+        "compressed_count",
+        "expected_static_count",
+        "overlay_only_count",
+        "unexpected_frozen_count",
+        "unexpected_compressed_count",
+        "low_distinct_count",
+        "null_heavy_count",
+    ]
+    return {
+        key: feature_diag.get(key, 0)
+        for key in ordered_keys
+        if key in feature_diag or key.endswith("_count")
+    }
+
+
+def _compact_recent_drift_machine_summary(drift, summary):
+    """Bounded machine-readable drift evidence for current-state issues."""
+    drift = drift if isinstance(drift, dict) else {}
+    summary = summary if isinstance(summary, dict) else {}
+    compact = summary.get("compact_summary") if isinstance(summary.get("compact_summary"), dict) else {}
+    quality = summary.get("quality_metrics") if isinstance(summary.get("quality_metrics"), dict) else {}
+    feature_diag = summary.get("feature_diagnostics") if isinstance(summary.get("feature_diagnostics"), dict) else {}
+    target_path = summary.get("target_path_diagnostics") if isinstance(summary.get("target_path_diagnostics"), dict) else {}
+    reference = summary.get("reference_window_comparison") if isinstance(summary.get("reference_window_comparison"), dict) else {}
+
+    top_shift_features = (
+        _feature_names(compact.get("top_shift_features"))
+        or _feature_names(summary.get("top_mean_shift_features"))
+        or _feature_names(reference.get("top_mean_shift_features"))
+    )
+    tail_streak = compact.get("tail_streak") or target_path.get("tail_target_streak")
+    adverse_streak = compact.get("adverse_streak") or _select_adverse_target_streak(target_path)
+    reference_new_flags = {
+        "new_unexpected_frozen_features": reference.get("new_unexpected_frozen_features") or feature_diag.get("new_unexpected_frozen_features") or [],
+        "new_unexpected_compressed_features": reference.get("new_unexpected_compressed_features") or feature_diag.get("new_unexpected_compressed_features") or [],
+        "new_null_heavy_features": reference.get("new_null_heavy_features") or feature_diag.get("new_null_heavy_features") or [],
+    }
+    reference_new_flags = {key: value for key, value in reference_new_flags.items() if value}
+
+    result = {
+        "window": drift.get("window") or compact.get("window"),
+        "interpretation": compact.get("interpretation") or summary.get("drift_interpretation"),
+        "alerts": compact.get("alerts") or drift.get("alerts") or summary.get("alerts"),
+        "win_rate": compact.get("win_rate") if "win_rate" in compact else summary.get("win_rate"),
+        "dominant_regime": compact.get("dominant_regime") or summary.get("dominant_regime"),
+        "dominant_regime_share": compact.get("dominant_regime_share") if "dominant_regime_share" in compact else summary.get("dominant_regime_share"),
+        "avg_pnl": compact.get("avg_pnl") if "avg_pnl" in compact else quality.get("avg_simulated_pnl"),
+        "avg_quality": compact.get("avg_quality") if "avg_quality" in compact else quality.get("avg_simulated_quality"),
+        "spot_long_win_rate": quality.get("spot_long_win_rate"),
+        "top_shift_features": top_shift_features[:5],
+        "tail_streak": _format_streak_fragment("tail_streak", tail_streak) if tail_streak else None,
+        "adverse_streak": _format_streak_fragment("adverse_streak", adverse_streak, default_target=0) if adverse_streak else None,
+        "feature_diagnostics": _compact_feature_diagnostic_counts(feature_diag),
+        "reference_new_flags": reference_new_flags,
+    }
+    return {key: value for key, value in result.items() if value not in (None, "", [], {}, ())}
+
+
 def summarize_recent_drift(report):
     primary, primary_summary = _recent_drift_window_payload(report, "primary_window")
     blocking, blocking_summary = _blocking_recent_drift_window(report)
@@ -1682,6 +1756,7 @@ def main():
     pathology_drift = drift_blocking or drift_primary
     pathology_drift_summary = drift_blocking_summary or drift_primary_summary
     pathology_drift_summary_text = summarize_recent_drift_window(pathology_drift)
+    drift_machine_summary = _compact_recent_drift_machine_summary(pathology_drift, pathology_drift_summary)
 
     drift_interpretation = drift_primary_summary.get("drift_interpretation")
     drift_alerts = drift_primary.get("alerts") or []
@@ -1956,11 +2031,42 @@ def main():
                 "停止沿用近期優勢敘事；升級為 distribution-aware / calibration drift 調查，"
                 "檢查 recent label balance、regime mix、recent-window constant-target guardrail。"
             )
-        tracker.add(
+        tw_drift_summary = {
+            "tw_history": [
+                {
+                    "heartbeat": row.get("heartbeat"),
+                    "tw_pass": row.get("tw_pass"),
+                    "total_features": row.get("total_features") or ic_stats["total_features"],
+                }
+                for row in tw_history[:3]
+            ],
+            "threshold": "<14/30",
+            "recent_window": drift_machine_summary.get("window"),
+            "recent_interpretation": drift_machine_summary.get("interpretation"),
+            "feature_diagnostics": drift_machine_summary.get("feature_diagnostics"),
+            "reference_new_flags": drift_machine_summary.get("reference_new_flags"),
+            "top_shift_features": drift_machine_summary.get("top_shift_features"),
+            "tail_streak": drift_machine_summary.get("tail_streak"),
+            "adverse_streak": drift_machine_summary.get("adverse_streak"),
+        }
+        drift_context_bits = []
+        if drift_machine_summary.get("window"):
+            drift_context_bits.append(f"recent_window={drift_machine_summary['window']}")
+        if drift_machine_summary.get("interpretation"):
+            drift_context_bits.append(f"interpretation={drift_machine_summary['interpretation']}")
+        drift_context = f" {' / '.join(drift_context_bits)}。" if drift_context_bits else ""
+        drift_action_compact = (
+            f"{drift_action}{drift_context}"
+            " 詳細 window、alerts、feature diagnostics、reference new flags、target-path streaks "
+            "已保留於 issue.summary 與 recent_drift_report artifact；不要把長 telemetry 直接寫入 action/docs。"
+        )
+        upsert_issue(
+            tracker,
             "P0",
             "#H_AUTO_TW_DRIFT",
             f"TW-IC 連續低於 14/30：{history_desc}",
-            f"{drift_action}{drift_summary}",
+            drift_action_compact,
+            summary={key: value for key, value in tw_drift_summary.items() if value not in (None, "", [], {}, ())},
         )
     else:
         tracker.resolve("#H_AUTO_TW_DRIFT")

@@ -1310,8 +1310,129 @@ def test_main_escalates_tw_drift_on_consecutive_low_history(monkeypatch, capsys)
     assert any(issue_id == "#H_AUTO_TW_DRIFT" for _, issue_id, *_ in added)
     drift_issue = next(item for item in added if item[1] == "#H_AUTO_TW_DRIFT")
     assert "recent_window=100" in drift_issue[3]
+    assert "dominant_regime=chop" not in drift_issue[3]
+    assert "issue.summary" in drift_issue[3]
     assert "TW 歷史：#657=10/30, #656=12/30" in out
     assert "dominant_regime=chop(97.00%)" in out
+
+
+def test_main_tw_drift_issue_carries_feature_diagnostics_summary(monkeypatch, capsys):
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue.update({
+                        "priority": priority,
+                        "title": title,
+                        "action": action,
+                        "status": status,
+                    })
+                    return
+            self.issues.append({
+                "id": issue_id,
+                "priority": priority,
+                "title": title,
+                "action": action,
+                "status": status,
+            })
+
+        def resolve(self, issue_id):
+            return True
+
+        def save(self):
+            return None
+
+        def by_priority(self, priority):
+            return [issue for issue in self.issues if issue["priority"] == priority and issue["status"] == "open"]
+
+    tracker = DummyTracker()
+    monkeypatch.setattr(auto_propose_fixes, "check_db", lambda: {
+        "simulated_win_avg": 0.5748,
+        "losing_streak": 0,
+        "raw_latest_age_min": 0.5,
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_full_ic_data", lambda: {"total_features": 30})
+    monkeypatch.setattr(auto_propose_fixes, "check_ic", lambda ic_data, full_ic_data=None: {
+        "global_pass": 13,
+        "tw_pass": 10,
+        "total_core": 15,
+        "total_features": 30,
+        "no_data": [],
+        "low_data": [],
+        "best_ic": ("feat_aura", -0.35),
+        "worst_ic": ("feat_eye", 0.0),
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_tw_history", lambda limit=3, current_entry=None: [
+        {"heartbeat": "657", "tw_pass": 10, "total_features": 30},
+        {"heartbeat": "656", "tw_pass": 12, "total_features": 30},
+    ])
+    monkeypatch.setattr(auto_propose_fixes, "load_recent_drift_report", lambda: {
+        "primary_window": {
+            "window": "100",
+            "alerts": ["regime_concentration"],
+            "summary": {
+                "win_rate": 0.91,
+                "dominant_regime": "chop",
+                "dominant_regime_share": 0.97,
+                "drift_interpretation": "regime_concentration",
+                "quality_metrics": {
+                    "avg_simulated_pnl": 0.01,
+                    "avg_simulated_quality": 0.55,
+                    "spot_long_win_rate": 0.61,
+                },
+                "feature_diagnostics": {
+                    "feature_count": 56,
+                    "low_variance_count": 11,
+                    "frozen_count": 3,
+                    "compressed_count": 8,
+                    "expected_static_count": 2,
+                    "overlay_only_count": 1,
+                    "unexpected_frozen_count": 1,
+                    "unexpected_compressed_count": 1,
+                    "low_distinct_count": 13,
+                    "null_heavy_count": 10,
+                },
+                "reference_window_comparison": {
+                    "new_unexpected_frozen_features": ["feat_frozen"],
+                    "new_unexpected_compressed_features": ["feat_atr_pct"],
+                    "new_null_heavy_features": ["feat_sparse"],
+                    "top_mean_shift_features": [
+                        {"feature": "feat_4h_bias20"},
+                        {"feature": "feat_4h_rsi14"},
+                    ],
+                },
+            },
+        }
+    })
+    monkeypatch.setattr(auto_propose_fixes, "load_live_predict_probe", lambda: {})
+    monkeypatch.setattr(auto_propose_fixes, "check_metrics", lambda: {"train_accuracy": 0.60, "cv_accuracy": 0.55})
+    monkeypatch.setattr(auto_propose_fixes, "IssueTracker", type("IssueTrackerProxy", (), {"load": staticmethod(lambda: tracker)}))
+
+    auto_propose_fixes.main()
+    _ = capsys.readouterr().out
+
+    drift_issue = next(issue for issue in tracker.issues if issue["id"] == "#H_AUTO_TW_DRIFT")
+    assert drift_issue["summary"]["feature_diagnostics"] == {
+        "feature_count": 56,
+        "low_variance_count": 11,
+        "frozen_count": 3,
+        "compressed_count": 8,
+        "expected_static_count": 2,
+        "overlay_only_count": 1,
+        "unexpected_frozen_count": 1,
+        "unexpected_compressed_count": 1,
+        "low_distinct_count": 13,
+        "null_heavy_count": 10,
+    }
+    assert drift_issue["summary"]["reference_new_flags"] == {
+        "new_unexpected_frozen_features": ["feat_frozen"],
+        "new_unexpected_compressed_features": ["feat_atr_pct"],
+        "new_null_heavy_features": ["feat_sparse"],
+    }
+    assert drift_issue["summary"]["top_shift_features"] == ["feat_4h_bias20", "feat_4h_rsi14"]
 
 
 def test_main_tw_drift_uses_supported_extreme_trend_wording(monkeypatch, capsys):
