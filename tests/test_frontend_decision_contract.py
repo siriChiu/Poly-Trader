@@ -2061,16 +2061,26 @@ def test_execution_status_humanizes_hidden_diagnostics_runtime_order_and_timelin
 
 def test_dashboard_humanizes_execution_mode_and_continuity_status_copy():
     source = _read("pages/Dashboard.tsx")
+    runtime_copy_source = _read("utils/runtimeCopy.ts")
     required_snippets = [
         'const executionModeLabel = runtimeStatusPending ? "同步中" : humanizeExecutionModeLabel(executionSummary?.mode || accountSummary?.mode || "unknown");',
         'const executionVenueLabel = runtimeStatusPending ? "同步中" : humanizeExecutionVenueLabel(executionSummary?.venue || accountSummary?.venue || "—");',
         '<div>{executionModeLabel} · {executionVenueLabel}</div>',
-        'feature 狀態 {humanizeLifecycleDiagnosticLabel(featureContinuity.status || "unknown")}',
+        'const featureContinuityRepair = featureContinuity?.continuity_repair ?? null;',
+        'const featureStartupBackfillDeferred = Boolean(featureContinuityRepair?.repair_deferred)',
+        'featureContinuityRepair?.max_backfill_rows === 0',
+        '啟動安全：僅偵測特徵缺口，不在後端啟動時重補；剩餘缺口 ${featureContinuityRemainingMissing ?? "—"}，交由心跳流程收斂。',
+        '啟動安全：後端啟動時只偵測特徵缺口，不做重補，避免就緒狀態被長任務阻塞。',
+        '特徵狀態 {humanizeLifecycleDiagnosticLabel(featureContinuity.status || "unknown")}',
+        '特徵錯誤：{featureContinuity.error}',
     ]
     for snippet in required_snippets:
         assert snippet in source
+    assert '["deferred", "已延後"]' in runtime_copy_source
     assert 'executionSummary?.mode?.toUpperCase() || executionModeLabel.toUpperCase()' not in source
     assert 'feature 狀態 {featureContinuity.status ?? "unknown"}' not in source
+    assert 'feature 狀態' not in source
+    assert 'Feature 錯誤' not in source
 
 
 def test_execution_status_reuses_shared_venue_readiness_component_and_explains_public_only_balances():

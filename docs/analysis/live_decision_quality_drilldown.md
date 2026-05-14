@@ -1,19 +1,19 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-14 10:13:18.444784**
+- feature_timestamp: **2026-05-14 11:10:50.356196**
 - target: `simulated_pyramid_win`
 - live path: **bear / CAUTION / C**
-- signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
+- signal: **HOLD** @ confidence **0.3341**
 - layers: **1 → 0**
 - allowed_layers_raw_reason: `entry_quality_C_single_layer`
-- allowed_layers_reason: `decision_quality_below_trade_floor; circuit_breaker_active`
-- execution_guardrail_reason: `decision_quality_below_trade_floor; circuit_breaker_active`
-- runtime_blocker: `circuit_breaker` | reason: `Recent 50-sample win rate: 24.00% < 30%`
-- deployment_blocker: `circuit_breaker_active` | reason: `Recent 50-sample win rate: 24.00% < 30%`
+- allowed_layers_reason: `under_minimum_exact_live_structure_bucket`
+- execution_guardrail_reason: `under_minimum_exact_live_structure_bucket`
+- runtime_blocker: `None` | reason: `None`
+- deployment_blocker: `under_minimum_exact_live_structure_bucket` | reason: `current live structure bucket 已有 exact rows，但仍低於 deployment-grade minimum support；在 support 補滿前，runtime 只能維持 guardrail，不可把這條 lane 視為已可部署。`
 - support blocker summary: **exact support 20/50 (gap 30) 未達 current-live exact support；broader/proxy rows 僅可作治理參考。 建議 patch `core_plus_macro_plus_all_4h` 目前 status=`reference_only_non_current_live_scope`、reference_scope=`bull|CAUTION`、source=`live_scope_spillover`；只能作治理參考，不是目前即時可部署修補。**
 - support next action: 保持 no-deploy；先累積或回放同一 current-live structure bucket 的 exact lane 樣本，不可用 broader/proxy support 放行。 保留 recommended_patch 可見但 reference-only；適用範圍 / 來源對齊且 exact support 達標前不可放行。
-- q15 exact-supported patch: **inactive** | support_route `exact_bucket_present_but_below_minimum` | floor_cross `runtime_blocker_preempts_floor_analysis`
-- runtime closure summary: **風控熔斷啟用中：最近 50 筆勝率: 24.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 12/50，至少還差 3 勝。 精準路徑與外溢對照：同 gate 寬 範圍 出現 牛市|警戒 外溢，563 筆 / 勝率 41.9% / 品質 0.103，明顯劣於 精準即時路徑 勝率 65.0% / 品質 0.350。**
+- q15 exact-supported patch: **inactive** | support_route `exact_bucket_present_but_below_minimum` | floor_cross `floor_crossed_but_support_not_ready`
+- runtime closure summary: **當前即時分桶 CAUTION|structure_quality_caution|q15 的精準樣本仍未就緒（20/50，路徑=精準樣本未達最小門檻 / 治理=exact_live_bucket_present_but_below_minimum）；較寬範圍 / 近似樣本 與建議修補方案 目前都只屬僅供治理參考，不可視為部署閉環。 建議修補方案=core_plus_macro_plus_all_4h (僅供治理參考_non_current_live_範圍). 阻塞點=當前即時結構分桶 已有 exact 筆，但仍低於 部署-grade minimum support；在 support 補滿前，執行期 只能維持 guardrail，不可把這條 lane 視為已可部署。。 精準路徑與外溢對照：同 gate 寬 範圍 出現 牛市|警戒 外溢，568 筆 / 勝率 41.9% / 品質 0.103，明顯劣於 精準即時路徑 勝率 65.0% / 品質 0.350。**
 - q35 scaling audit: overall=`None` / redesign=`None` / runtime_gap=`None` / mode=`None` / next_patch=`None`
 - q35 audit action: None
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
@@ -24,16 +24,16 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.581** / trade_floor **0.55** / gap **0.031**
-- base_quality: **0.7025** × weight **0.75**
-- structure_quality: **0.2165** × weight **0.25**
-- base components: feat_4h_bias50=0.7391 (w=0.4, contrib=0.2956), feat_nose=0.3744 (w=0.18, contrib=0.0674), feat_pulse=0.7029 (w=0.27, contrib=0.1898), feat_ear=0.9978 (w=0.15, contrib=0.1497)
-- structure components: feat_4h_bb_pct_b=0.5 (w=0.34, contrib=0.17), feat_4h_dist_bb_lower=0.1408 (w=0.33, contrib=0.0465), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
+- final entry_quality: **0.6227** / trade_floor **0.55** / gap **0.0727**
+- base_quality: **0.7607** × weight **0.75**
+- structure_quality: **0.2088** × weight **0.25**
+- base components: feat_4h_bias50=0.7484 (w=0.4, contrib=0.2994), feat_nose=0.7407 (w=0.18, contrib=0.1333), feat_pulse=0.6609 (w=0.27, contrib=0.1784), feat_ear=0.9969 (w=0.15, contrib=0.1495)
+- structure components: feat_4h_bb_pct_b=0.4825 (w=0.34, contrib=0.164), feat_4h_dist_bb_lower=0.1356 (w=0.33, contrib=0.0448), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
 - remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.2232** | structure_group_max_entry_gain: **0.1959**
+- base_group_max_entry_gain: **0.1795** | structure_group_max_entry_gain: **0.1978**
 - best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
 - single-component floor crossers: None
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
@@ -43,10 +43,10 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_gate+entry_quality_label` | 99 | 0.6667 | 0.3344 | 0.1271 | 0.3633 | 20 | False |
+| chosen `regime_gate+entry_quality_label` | 101 | 0.6733 | 0.3347 | 0.1324 | 0.3653 | 20 | False |
 | exact `regime_label+regime_gate+entry_quality_label` | 20 | 0.65 | 0.3499 | 0.1753 | 0.4031 | 20 | False |
 | narrow `regime_label+entry_quality_label` | 42 | 0.8333 | 0.4508 | 0.1375 | 0.3268 | 20 | False |
-| broad `regime_gate+entry_quality_label` | 99 | 0.6667 | 0.3344 | 0.1271 | 0.3633 | 20 | False |
+| broad `regime_gate+entry_quality_label` | 101 | 0.6733 | 0.3347 | 0.1324 | 0.3653 | 20 | False |
 
 ## Shared shifts
 

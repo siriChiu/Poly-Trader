@@ -570,6 +570,8 @@ interface RuntimeStatusResponse {
     continuity_repair?: {
       inserted_total?: number;
       remaining_missing?: number;
+      max_backfill_rows?: number | null;
+      repair_deferred?: boolean;
     };
   } | null;
 }
@@ -1098,6 +1100,16 @@ export default function Dashboard() {
     : humanizeLifecycleDiagnosticLabel(metadataSmokeFreshness?.label || metadataSmokeFreshness?.status || "UNAVAILABLE");
   const rawContinuity = runtimeStatus?.raw_continuity ?? null;
   const featureContinuity = runtimeStatus?.feature_continuity ?? null;
+  const featureContinuityRepair = featureContinuity?.continuity_repair ?? null;
+  const featureContinuityRemainingMissing = featureContinuityRepair?.remaining_missing ?? null;
+  const featureStartupBackfillDeferred = Boolean(featureContinuityRepair?.repair_deferred)
+    || (featureContinuity?.status === "deferred" && Number(featureContinuityRemainingMissing ?? 0) > 0);
+  const featureStartupBackfillDisabled = featureContinuityRepair?.max_backfill_rows === 0;
+  const featureContinuitySafetyLabel = featureStartupBackfillDeferred
+    ? `啟動安全：僅偵測特徵缺口，不在後端啟動時重補；剩餘缺口 ${featureContinuityRemainingMissing ?? "—"}，交由心跳流程收斂。`
+    : featureStartupBackfillDisabled
+      ? "啟動安全：後端啟動時只偵測特徵缺口，不做重補，避免就緒狀態被長任務阻塞。"
+      : null;
   const executionModeRaw = executionSummary?.mode || accountSummary?.mode || "unknown";
   const executionModeLabel = runtimeStatusPending ? "同步中" : humanizeExecutionModeLabel(executionSummary?.mode || accountSummary?.mode || "unknown");
   const executionVenueLabel = runtimeStatusPending ? "同步中" : humanizeExecutionVenueLabel(executionSummary?.venue || accountSummary?.venue || "—");
@@ -1388,16 +1400,17 @@ export default function Dashboard() {
         )}
         {featureContinuity?.continuity_repair && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] opacity-90">
-            <span>feature 狀態 {humanizeLifecycleDiagnosticLabel(featureContinuity.status || "unknown")}</span>
-            <span>補回 {featureContinuity.continuity_repair.inserted_total ?? 0}</span>
-            <span>剩餘缺口 {featureContinuity.continuity_repair.remaining_missing ?? 0}</span>
+            <span>特徵狀態 {humanizeLifecycleDiagnosticLabel(featureContinuity.status || "unknown")}</span>
+            <span>補回 {featureContinuityRepair?.inserted_total ?? 0}</span>
+            <span>剩餘缺口 {featureContinuityRemainingMissing ?? 0}</span>
+            {featureContinuitySafetyLabel && <span className="text-amber-200">{featureContinuitySafetyLabel}</span>}
           </div>
         )}
         {rawContinuity?.error && (
           <div className="mt-2 text-[11px] text-red-200">錯誤：{rawContinuity.error}</div>
         )}
         {featureContinuity?.error && (
-          <div className="mt-2 text-[11px] text-red-200">Feature 錯誤：{featureContinuity.error}</div>
+          <div className="mt-2 text-[11px] text-red-200">特徵錯誤：{featureContinuity.error}</div>
         )}
       </div>
 

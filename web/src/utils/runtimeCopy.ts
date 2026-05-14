@@ -558,6 +558,7 @@ const LIFECYCLE_DIAGNOSTIC_LABEL_MAPPINGS: Array<[string, string]> = [
   ["fresh", "新鮮"],
   ["stale", "已過期"],
   ["pending", "等待中"],
+  ["deferred", "已延後"],
   ["blocked", "阻塞中"],
   ["ready", "已就緒"],
   ["available", "可用"],

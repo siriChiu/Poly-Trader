@@ -1,10 +1,10 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-14 10:13:18.444784**
+- generated_at: **2026-05-14 11:10:50.356196**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q15 bucket**
-- verdict: **runtime_blocker_preempts_bucket_root_cause**
-- candidate_patch_type: **None**
+- verdict: **current_exact_support_under_minimum**
+- candidate_patch_type: **support_accumulation_or_semantic_rebaseline**
 - candidate_patch_feature: **None**
 - artifact_context_freshness: **current_context** (`[]`)
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
@@ -12,28 +12,28 @@
 ## Current live
 - live path: **bear / CAUTION / C**
 - structure_bucket: `CAUTION|structure_quality_caution|q15`
-- structure_quality: **0.2165**
-- gap_to_q35_boundary: **0.1335**
+- structure_quality: **0.2088**
+- gap_to_q35_boundary: **0.1412**
 - non_null_4h_feature_count: **10**
-- execution_guardrail_reason: `decision_quality_below_trade_floor; circuit_breaker_active`
+- execution_guardrail_reason: `under_minimum_exact_live_structure_bucket`
 - support rows/minimum/gap: **20 / 50 / 30**
 
 ## Exact live lane
 - rows: **20**
 - bucket_counts: `{'CAUTION|structure_quality_caution|q15': 20}`
 - dominant_neighbor_bucket: **None** (0 rows)
-- near_boundary_window: `{'lower': 0.2165, 'upper': 0.35}`
-- near_boundary_rows: **13**
+- near_boundary_window: `{'lower': 0.2088, 'upper': 0.35}`
+- near_boundary_rows: **14**
 
 ## Decision
-- reason: 目前 live runtime 已先被 circuit breaker 擋下；current-live q15 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。
+- reason: current-live q15 bucket exact support 目前為 20/50，低於 minimum；這是 current exact support under minimum，不是 boundary candidate。
 - candidate_patch: `{}`
-- verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。
+- verify_next: 維持 minimum_support_rows=50 與 current-live guardrail，累積同 support_identity 的 exact rows；若只有 legacy / different semantic signature 支撐，文案必須標成 semantic rebaseline reference。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.5 / norm=0.5 / Δto_cross_q35=0.3926 / target_p25=None / target_median=None
-- `feat_4h_dist_bb_lower`: current=1.1268 / norm=0.1409 / Δto_cross_q35=3.2364 / target_p25=None / target_median=None
-- `feat_4h_dist_swing_low`: current=-0.824 / norm=0.0 / Δto_cross_q35=4.8695 / target_p25=None / target_median=None
+- `feat_4h_bb_pct_b`: current=0.4825 / norm=0.4825 / Δto_cross_q35=0.4153 / target_p25=None / target_median=None
+- `feat_4h_dist_bb_lower`: current=1.0849 / norm=0.1356 / Δto_cross_q35=3.423 / target_p25=None / target_median=None
+- `feat_4h_dist_swing_low`: current=-0.8725 / norm=0.0 / Δto_cross_q35=5.1513 / target_p25=None / target_median=None
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。

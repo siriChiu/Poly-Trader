@@ -1,25 +1,25 @@
-# Circuit Breaker Audit（Heartbeat #1218）
+# Circuit Breaker Audit（Heartbeat #1220）
 
 ## 結論
-- verdict: **canonical_breaker_active**
-- summary: 1440m canonical live horizon 仍觸發 breaker：['recent_win_rate']。
-- recommended_patch: 維持 breaker，改做 canonical tail root-cause / release-condition artifact。
+- verdict: **breaker_clear**
+- summary: 1440m canonical live horizon 未觸發 breaker。
+- recommended_patch: 維持 horizon-aligned breaker，繼續追 live q15/q35 / support route。
 
 ## Mixed scope（現況錯誤口徑）
 - triggered: **False** via []
-- streak: 4 / threshold 50
-- recent 50: win_rate=0.54 wins=27 losses=23
-- streak horizons: {'240': 4}
+- streak: 6 / threshold 50
+- recent 50: win_rate=0.52 wins=26 losses=24
+- streak horizons: {'240': 6}
 
 ## Aligned scope（1440m canonical live horizon）
-- triggered: **True** via ['recent_win_rate']
-- release_ready: **False**
+- triggered: **False** via []
+- release_ready: **True**
 - streak: 0 / threshold 50
-- recent 50: win_rate=0.24 wins=12 losses=38
+- recent 50: win_rate=0.3 wins=15 losses=35
 
 ## Release condition
 - streak < 50
 - recent 50 win_rate >= 30%
-- aligned_scope_now: streak=0, win_rate=0.24
-- additional recent-window wins needed: 3
-- tail pathology: losses=38 / wins=12 / loss_share=0.76
+- aligned_scope_now: streak=0, win_rate=0.3
+- additional recent-window wins needed: 0
+- tail pathology: losses=35 / wins=15 / loss_share=0.7
