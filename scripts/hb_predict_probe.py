@@ -134,7 +134,7 @@ def _infer_support_governance_route(
 
 
 def _load_q15_support_audit(current_live_structure_bucket: str | None) -> dict | None:
-    if not current_live_structure_bucket or "q15" not in str(current_live_structure_bucket):
+    if not current_live_structure_bucket:
         return None
     if not Q15_SUPPORT_AUDIT_PATH.exists():
         return None
@@ -144,16 +144,41 @@ def _load_q15_support_audit(current_live_structure_bucket: str | None) -> dict |
         return None
     if not isinstance(payload, dict):
         return None
+
     applicability = payload.get("scope_applicability") if isinstance(payload.get("scope_applicability"), dict) else {}
-    if not applicability.get("active_for_current_live_row"):
-        return None
+    current_live = payload.get("current_live") if isinstance(payload.get("current_live"), dict) else {}
+    support_route = payload.get("support_route") if isinstance(payload.get("support_route"), dict) else {}
+    support_progress = support_route.get("support_progress") if isinstance(support_route.get("support_progress"), dict) else {}
+    support_identity = support_route.get("support_identity") if isinstance(support_route.get("support_identity"), dict) else {}
+    if not support_identity and isinstance(support_progress.get("support_identity"), dict):
+        support_identity = support_progress.get("support_identity") or {}
+
     audit_bucket = (
         applicability.get("current_structure_bucket")
-        or ((payload.get("current_live") or {}).get("current_live_structure_bucket"))
+        or current_live.get("current_live_structure_bucket")
+        or current_live.get("structure_bucket")
+        or support_identity.get("current_live_structure_bucket")
     )
     if audit_bucket and str(audit_bucket) != str(current_live_structure_bucket):
         return None
-    return payload
+
+    is_q15_context = "q15" in str(current_live_structure_bucket) or "q15" in str(audit_bucket or "")
+    if is_q15_context:
+        if not applicability.get("active_for_current_live_row"):
+            return None
+        return payload
+
+    # The q15 audit artifact also carries current-live support-route/progress
+    # truth when the live row has drifted to q35.  Keep that support truth
+    # visible while leaving the component experiment reference-only.
+    current_live_bucket = current_live.get("current_live_structure_bucket") or current_live.get("structure_bucket")
+    identity_bucket = support_identity.get("current_live_structure_bucket")
+    if (
+        str(current_live_bucket or identity_bucket or "") == str(current_live_structure_bucket)
+        and (support_route.get("verdict") is not None or support_progress)
+    ):
+        return payload
+    return None
 
 
 def _load_q35_scaling_audit_summary(current_live_structure_bucket: str | None) -> dict | None:

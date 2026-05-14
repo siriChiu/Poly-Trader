@@ -254,6 +254,139 @@ def test_hb_predict_probe_falls_back_to_generic_support_progress_for_q35_blocker
     assert payload["q35_next_patch_target"] == "feat_4h_bias50_formula"
 
 
+def test_hb_predict_probe_preserves_q15_audit_support_progress_for_q35_current_bucket(monkeypatch, capsys, tmp_path):
+    session = DummySession()
+    out_path = tmp_path / "live_predict_probe.json"
+    q15_audit_path = tmp_path / "q15_support_audit.json"
+    q35_audit_path = tmp_path / "q35_scaling_audit.json"
+    q15_audit_path.write_text(
+        json.dumps(
+            {
+                "scope_applicability": {
+                    "status": "current_live_not_q15_lane",
+                    "active_for_current_live_row": False,
+                    "current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                    "target_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                },
+                "current_live": {
+                    "feature_timestamp": "2026-05-14 16:02:11.050276",
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                    "current_live_structure_bucket_rows": 28,
+                    "allowed_layers": 0,
+                    "allowed_layers_reason": "under_minimum_exact_live_structure_bucket",
+                },
+                "support_route": {
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "verdict": "exact_bucket_present_but_below_minimum",
+                    "deployable": False,
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 22,
+                    "support_progress": {
+                        "status": "stalled_under_minimum",
+                        "reason": "current live exact support 連續 heartbeat 停在同一數量。",
+                        "current_rows": 28,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 22,
+                        "stagnant_run_count": 2,
+                        "stalled_support_accumulation": True,
+                    },
+                },
+                "floor_cross_legality": {
+                    "verdict": "math_cross_possible_but_illegal_without_exact_support",
+                    "legal_to_relax_runtime_gate": False,
+                },
+                "component_experiment": {
+                    "verdict": "reference_only_current_live_not_q15_and_support_not_ready",
+                    "mode": "reference_only_non_current_live_scope",
+                },
+                "active_repair_plan": {
+                    "phase": "current_bucket_first",
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                    "support_status": "stalled_under_minimum",
+                    "current_rows": 28,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 22,
+                    "stagnant_run_count": 2,
+                    "current_allowed_layers": 0,
+                    "current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    q35_audit_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(hb_predict_probe, "OUT_PATH", out_path)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit_path)
+    monkeypatch.setattr(hb_predict_probe, "Q35_SCALING_AUDIT_PATH", q35_audit_path)
+    monkeypatch.setattr(hb_predict_probe, "init_db", lambda _db_url: session)
+    monkeypatch.setattr(hb_predict_probe, "load_predictor", lambda: (object(), {"chop": object()}))
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "load_latest_features",
+        lambda _session: {
+            "timestamp": "2026-05-14 16:02:11.050276",
+            "regime_label": "chop",
+            "feat_4h_bias50": 0.9226,
+        },
+    )
+    monkeypatch.setattr(
+        hb_predict_probe,
+        "predict",
+        lambda _session, _predictor, _regime_models: {
+            "target_col": "simulated_pyramid_win",
+            "used_model": "regime_chop_ensemble",
+            "model_type": "RegimeAwarePredictor",
+            "signal": "HOLD",
+            "confidence": 0.351358,
+            "regime_label": "chop",
+            "model_route_regime": "chop",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "entry_quality": 0.4322,
+            "entry_quality_label": "D",
+            "allowed_layers_raw": 0,
+            "allowed_layers_raw_reason": "entry_quality_below_trade_floor",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "under_minimum_exact_live_structure_bucket",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "deployment_blocker_reason": "support not enough",
+            "deployment_blocker_source": "decision_quality_contract",
+            "deployment_blocker_details": {
+                "structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                "support_mode": "exact_bucket_supported",
+                "current_live_structure_bucket_rows": 28,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 22,
+                "support_progress": {
+                    "status": "accumulating",
+                    "current_rows": 28,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 22,
+                },
+            },
+            "decision_quality_horizon_minutes": 1440,
+            "decision_quality_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "decision_quality_exact_live_structure_bucket_support_rows": 28,
+        },
+    )
+
+    hb_predict_probe.main()
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q35"
+    assert payload["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
+    assert payload["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
+    assert payload["support_progress"]["status"] == "stalled_under_minimum"
+    assert payload["support_progress"]["stagnant_run_count"] == 2
+    assert payload["deployment_blocker_details"]["support_progress"]["status"] == "stalled_under_minimum"
+    assert payload["q15_support_audit"]["scope_applicability"]["status"] == "current_live_not_q15_lane"
+    assert payload["floor_cross_verdict"] == "math_cross_possible_but_illegal_without_exact_support"
+    assert payload["component_experiment_verdict"] == "reference_only_current_live_not_q15_and_support_not_ready"
+
+
 def test_hb_predict_probe_infers_support_governance_route_from_reference_patch(monkeypatch, capsys, tmp_path):
     session = DummySession()
     out_path = tmp_path / "live_predict_probe.json"

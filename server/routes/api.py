@@ -831,15 +831,31 @@ def _load_q15_support_audit_summary(current_structure_bucket: Optional[str] = No
         applicability.get("current_structure_bucket")
         or current_live.get("current_live_structure_bucket")
         or current_live.get("structure_bucket")
+        or (support_identity.get("current_live_structure_bucket") if isinstance(support_identity, dict) else None)
     )
     if current_structure_bucket and audit_bucket and str(current_structure_bucket) != str(audit_bucket):
         return None
-    if current_structure_bucket and "q15" not in str(current_structure_bucket):
-        return None
-    if audit_bucket and "q15" not in str(audit_bucket):
-        return None
-    if not active_for_current_live_row:
-        return None
+
+    is_q15_context = "q15" in str(current_structure_bucket or "") or "q15" in str(audit_bucket or "")
+    if is_q15_context:
+        if audit_bucket and "q15" not in str(audit_bucket):
+            return None
+        if not active_for_current_live_row:
+            return None
+    else:
+        support_identity_bucket = (
+            support_identity.get("current_live_structure_bucket")
+            if isinstance(support_identity, dict)
+            else None
+        )
+        current_live_bucket = current_live.get("current_live_structure_bucket") or current_live.get("structure_bucket")
+        support_overlay_matches = (
+            current_structure_bucket
+            and str(current_live_bucket or support_identity_bucket or "") == str(current_structure_bucket)
+            and (support_route.get("verdict") is not None or support_progress)
+        )
+        if not support_overlay_matches:
+            return None
 
     return {
         "generated_at": payload.get("generated_at"),

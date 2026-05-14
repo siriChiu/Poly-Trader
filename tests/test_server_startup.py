@@ -1003,6 +1003,57 @@ def test_overlay_confidence_with_live_predict_probe_skips_stale_artifact(tmp_pat
 
 
 
+def test_load_q15_support_audit_summary_preserves_q35_current_support_progress(tmp_path, monkeypatch):
+    audit_path = tmp_path / "q15_support_audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-14 16:02:11.050276",
+                "scope_applicability": {
+                    "status": "current_live_not_q15_lane",
+                    "active_for_current_live_row": False,
+                    "current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                    "target_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                },
+                "current_live": {
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                    "current_live_structure_bucket_rows": 28,
+                    "allowed_layers": 0,
+                    "allowed_layers_reason": "under_minimum_exact_live_structure_bucket",
+                },
+                "support_route": {
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "verdict": "exact_bucket_present_but_below_minimum",
+                    "deployable": False,
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 22,
+                    "support_progress": {
+                        "status": "stalled_under_minimum",
+                        "current_rows": 28,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 22,
+                        "stagnant_run_count": 2,
+                        "stalled_support_accumulation": True,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_Q15_SUPPORT_AUDIT_PATH", audit_path)
+
+    summary = api_module._load_q15_support_audit_summary("CAUTION|base_caution_regime_or_bias|q35")
+
+    assert summary is not None
+    assert summary["scope_applicability"]["status"] == "current_live_not_q15_lane"
+    assert summary["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
+    assert summary["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
+    assert summary["support_progress"]["status"] == "stalled_under_minimum"
+    assert summary["support_progress"]["stagnant_run_count"] == 2
+    assert summary["minimum_support_rows"] == 50
+    assert summary["current_live_structure_bucket_gap_to_minimum"] == 22
+
+
 def test_enrich_confidence_with_q15_bucket_root_cause_surfaces_boundary_candidate(tmp_path, monkeypatch):
     report_path = tmp_path / "q15_bucket_root_cause.json"
     report_path.write_text(json.dumps({
