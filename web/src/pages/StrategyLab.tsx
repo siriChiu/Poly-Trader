@@ -1930,7 +1930,7 @@ export default function StrategyLab() {
     const winRate = highConvictionReleaseValue("current_recent_window_win_rate");
     const currentStreak = highConvictionReleaseValue("current_streak");
     if (!isFiniteNumber(windowSize) || !isFiniteNumber(wins) || !isFiniteNumber(requiredWins)) {
-      return "熔斷解除條件 —";
+      return "熔斷解除條件未啟用";
     }
     const additionalText = isFiniteNumber(additionalWins) && additionalWins > 0 ? `，還差 ${formatDecimal(additionalWins, 0)} 勝` : "";
     const winRateText = isFiniteNumber(winRate) ? ` · 目前勝率 ${formatPct(winRate)}` : "";
@@ -1938,9 +1938,15 @@ export default function StrategyLab() {
     return `熔斷解除${releaseReady === true ? "已滿足" : "未滿足"}：最近 ${formatDecimal(windowSize, 0)} 筆 ${formatDecimal(wins, 0)} 勝 / 需 ${formatDecimal(requiredWins, 0)} 勝${additionalText}${winRateText}${streakText}`;
   })();
   const highConvictionSupportBucketLabel = highConvictionSupportContext?.current_live_structure_bucket ? humanizeStructureBucketLabel(highConvictionSupportContext.current_live_structure_bucket) : "—";
-  const highConvictionSupportRows = highConvictionSupportContext?.current_live_structure_bucket_rows;
-  const highConvictionMinimumRows = highConvictionSupportContext?.minimum_support_rows;
-  const highConvictionSupportRowsLabel = isFiniteNumber(highConvictionSupportRows) && isFiniteNumber(highConvictionMinimumRows) ? `${formatDecimal(highConvictionSupportRows, 0)} / ${formatDecimal(highConvictionMinimumRows, 0)}` : "—";
+  const highConvictionSupportRows = highConvictionSupportContext?.current_live_structure_bucket_rows ?? highConvictionPrimaryRuntimeRow?.current_live_structure_bucket_rows;
+  const highConvictionMinimumRows = highConvictionSupportContext?.minimum_support_rows ?? highConvictionPrimaryRuntimeRow?.minimum_support_rows;
+  const highConvictionSupportGap = highConvictionSupportContext?.current_live_structure_bucket_gap_to_minimum ?? highConvictionPrimaryRuntimeRow?.current_live_structure_bucket_gap_to_minimum;
+  const highConvictionSupportRowsLabel = isFiniteNumber(highConvictionSupportRows) && isFiniteNumber(highConvictionMinimumRows)
+    ? `${formatDecimal(highConvictionSupportRows, 0)} / ${formatDecimal(highConvictionMinimumRows, 0)}${isFiniteNumber(highConvictionSupportGap) ? `（缺 ${formatDecimal(highConvictionSupportGap, 0)}）` : ""}`
+    : "—";
+  const highConvictionSupportGateNextAction = isFiniteNumber(highConvictionSupportGap) && highConvictionSupportGap > 0
+    ? `下一步補齊 ${formatDecimal(highConvictionSupportGap, 0)} 筆當前分桶支持樣本`
+    : "支持樣本已達門檻或等待最新同步";
   const governanceContract = leaderboardGovernance?.governance_contract ?? null;
   const profileSplit = leaderboardGovernance?.profile_split ?? null;
   const modelLeaderboardStaleStateLabel = modelMeta.refreshing
@@ -3706,13 +3712,13 @@ export default function StrategyLab() {
                       {highConvictionRuntimeBlocked && (
                         <div className="rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-[11px] leading-5 text-rose-50">
                           <div className="font-semibold text-rose-100">OOS 候選已過門檻，但即時部署仍阻塞</div>
-                          <div className="mt-1">離線驗證 / 風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} 筆；可部署 {formatDecimal(highConvictionTopK.deployable_count, 0)} 筆。{highConvictionRuntimeBlockerSummary} · 支持樣本 {highConvictionSupportRowsLabel} · {highConvictionCircuitBreakerReleaseLabel}。請先解除熔斷 / 執行保護，再把候選視為灰度部署對象。</div>
+                          <div className="mt-1">離線驗證 / 風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} 筆；可部署 {formatDecimal(highConvictionTopK.deployable_count, 0)} 筆。{highConvictionRuntimeBlockerSummary} · 支持樣本 {highConvictionSupportRowsLabel} · {highConvictionSupportGateNextAction} · {highConvictionCircuitBreakerReleaseLabel}。請先補齊當前分桶支持樣本 / 解除執行保護，再把候選視為灰度部署對象。</div>
                         </div>
                       )}
                       <div className="rounded-lg border border-violet-300/20 bg-slate-950/20 px-3 py-2 text-[11px] text-violet-50">
                         <div className="font-semibold text-violet-100">即時支持脈絡</div>
                         <div className="mt-1">支持狀態 {highConvictionSupportRouteLabel} · 治理 {highConvictionSupportGovernanceLabel} · 部署阻塞 {highConvictionDeploymentBlockerLabel}</div>
-                        <div className="mt-1 text-violet-100/75">即時分桶 {highConvictionSupportBucketLabel} · 樣本 {highConvictionSupportRowsLabel} · 閉環 {highConvictionRuntimeClosureLabel}</div>
+                        <div className="text-[10px] text-violet-100/70">即時分桶 {highConvictionSupportBucketLabel} · 樣本 {highConvictionSupportRowsLabel} · {highConvictionSupportGateNextAction} · 閉環 {highConvictionRuntimeClosureLabel}</div>
                         <div className="mt-1 text-violet-100/75">{highConvictionCircuitBreakerReleaseLabel}</div>
                       </div>
                       <div className="grid gap-2 xl:grid-cols-4">
