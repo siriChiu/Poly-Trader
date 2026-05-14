@@ -3633,7 +3633,11 @@ def _coerce_int_or_none(value: Any) -> Optional[int]:
         return None
 
 
-_HIGH_CONVICTION_LIVE_FAILURES = {"support_route_not_deployable", "deployment_blocker_active"}
+_HIGH_CONVICTION_LIVE_FAILURES = {
+    "support_route_not_deployable",
+    "deployment_blocker_active",
+    "breaker_release_not_ready",
+}
 _HIGH_CONVICTION_MODEL_FAILURES = {
     "min_trades_not_met",
     "min_win_rate_not_met",
@@ -3762,6 +3766,59 @@ def _high_conviction_deployment_blocker_active(support_context: Dict[str, Any]) 
     }
 
 
+def _coerce_bool_or_none(value: Any) -> Optional[bool]:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "ready", "release_ready"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "not_ready", "blocked"}:
+            return False
+    return None
+
+
+def _high_conviction_release_condition_blocking(support_context: Dict[str, Any]) -> bool:
+    release_condition = support_context.get("release_condition")
+    if not isinstance(release_condition, dict):
+        release_condition = {}
+
+    release_ready = _coerce_bool_or_none(
+        support_context.get("release_ready")
+        if support_context.get("release_ready") is not None
+        else release_condition.get("release_ready")
+    )
+    if release_ready is False:
+        return True
+    if release_ready is True:
+        return False
+
+    additional_wins = _coerce_float_or_none(
+        support_context.get("additional_recent_window_wins_needed")
+        if support_context.get("additional_recent_window_wins_needed") is not None
+        else release_condition.get("additional_recent_window_wins_needed")
+    )
+    if additional_wins is not None and additional_wins > 0:
+        return True
+
+    current_wins = _coerce_float_or_none(
+        support_context.get("current_recent_window_wins")
+        if support_context.get("current_recent_window_wins") is not None
+        else release_condition.get("current_recent_window_wins")
+    )
+    required_wins = _coerce_float_or_none(
+        support_context.get("required_recent_window_wins")
+        if support_context.get("required_recent_window_wins") is not None
+        else release_condition.get("required_recent_window_wins")
+    )
+    if current_wins is not None and required_wins is not None and current_wins < required_wins:
+        return True
+
+    return False
+
+
 def _high_conviction_support_context_has_live_gate(support_context: Dict[str, Any]) -> bool:
     return any(
         support_context.get(key) is not None
@@ -3771,6 +3828,11 @@ def _high_conviction_support_context_has_live_gate(support_context: Dict[str, An
             "support_route_deployable",
             "deployment_blocker",
             "runtime_closure_state",
+            "release_condition",
+            "release_ready",
+            "current_recent_window_wins",
+            "required_recent_window_wins",
+            "additional_recent_window_wins_needed",
         )
     )
 
@@ -3781,6 +3843,8 @@ def _high_conviction_live_failures_from_support_context(support_context: Dict[st
         failures.append("support_route_not_deployable")
     if _high_conviction_deployment_blocker_active(support_context):
         failures.append("deployment_blocker_active")
+    if _high_conviction_release_condition_blocking(support_context):
+        failures.append("breaker_release_not_ready")
     return failures
 
 

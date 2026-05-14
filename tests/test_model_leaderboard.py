@@ -1081,6 +1081,109 @@ def test_high_conviction_topk_summary_recomputes_model_gates_before_promotion(mo
     assert row["current_live_structure_bucket_rows"] == 54
 
 
+
+def test_high_conviction_topk_release_math_fail_closes_otherwise_deployable_rows(monkeypatch, tmp_path: Path):
+    artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
+    live_probe = tmp_path / "live_predict_probe.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T10:15:21Z",
+                "target_col": "simulated_pyramid_win",
+                "samples": 1234,
+                "support_context": {
+                    "support_route_verdict": "exact_bucket_supported",
+                    "support_route_deployable": True,
+                    "deployment_blocker": "none",
+                    "runtime_closure_state": "breaker_clear",
+                },
+                "rows": [
+                    {
+                        "model": "logistic_regression",
+                        "feature_profile": "core_only",
+                        "regime": "all",
+                        "top_k": "top_2pct",
+                        "oos_roi": 0.93,
+                        "win_rate": 0.86,
+                        "profit_factor": 19.8,
+                        "max_drawdown": 0.022,
+                        "worst_fold": 0.20,
+                        "trade_count": 58,
+                        "support_route": "exact_bucket_supported",
+                        "support_route_deployable": True,
+                        "deployment_blocker": "none",
+                        "runtime_closure_state": "breaker_clear",
+                        "deployable_verdict": "deployable",
+                        "deployment_candidate_tier": "deployable",
+                        "gate_failures": [],
+                        "model_gate_failures": [],
+                        "live_gate_failures": [],
+                        "oos_gate_passed": True,
+                        "blocked_only_by_live_guardrails": False,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    live_probe.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T19:03:45Z",
+                "support_route_verdict": "exact_bucket_supported",
+                "support_route_deployable": True,
+                "deployment_blocker": "none",
+                "runtime_closure_state": "breaker_clear",
+                "allowed_layers": 1,
+                "signal": "HOLD",
+                "deployment_blocker_details": {
+                    "release_condition": {
+                        "release_ready": False,
+                        "current_streak": 0,
+                        "recent_window": 50,
+                        "current_recent_window_win_rate": 0.22,
+                        "current_recent_window_wins": 11,
+                        "required_recent_window_wins": 15,
+                        "additional_recent_window_wins_needed": 4,
+                    }
+                },
+                "support_progress": {
+                    "current_rows": 64,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_LIVE_PREDICT_PROBE_PATH", live_probe, raising=False)
+
+    summary = api_module._load_high_conviction_topk_summary(artifact)
+
+    assert summary["deployable_count"] == 0
+    assert summary["risk_qualified_count"] == 1
+    assert summary["runtime_blocked_candidate_count"] == 1
+    assert summary["deployment_ready"] is False
+    support_context = summary["support_context"]
+    assert support_context["release_ready"] is False
+    assert support_context["current_recent_window_wins"] == 11
+    assert support_context["required_recent_window_wins"] == 15
+    assert support_context["additional_recent_window_wins_needed"] == 4
+    nearest = summary["nearest_deployable_rows"][0]
+    assert nearest["deployable_verdict"] == "not_deployable"
+    assert nearest["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+    assert nearest["oos_gate_passed"] is True
+    assert nearest["blocked_only_by_live_guardrails"] is True
+    assert nearest["model_gate_failures"] == []
+    assert nearest["live_gate_failures"] == ["breaker_release_not_ready"]
+    assert nearest["gate_failures"] == ["breaker_release_not_ready"]
+    assert nearest["release_ready"] is False
+    assert nearest["current_recent_window_wins"] == 11
+    assert nearest["required_recent_window_wins"] == 15
+    assert nearest["additional_recent_window_wins_needed"] == 4
+
+
+
 def test_build_model_leaderboard_payload_includes_strategy_param_scan_when_placeholder_only(monkeypatch):
     df = pd.DataFrame(
         {
