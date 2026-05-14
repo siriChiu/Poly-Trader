@@ -754,18 +754,38 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
     if not isinstance(results, dict):
         results = {}
 
-    venues = []
-    for venue, item in results.items():
+    def _normalize_venue_for_status(venue: str, item: Dict[str, Any]) -> Dict[str, Any]:
         item = item if isinstance(item, dict) else {}
         contract = item.get("contract") if isinstance(item.get("contract"), dict) else {}
         proof_contract = _build_venue_runtime_proof_contract(str(venue), item)
-        venues.append({
+        raw_blockers = item.get("blockers")
+        blockers = (
+            [str(blocker) for blocker in raw_blockers if blocker]
+            if isinstance(raw_blockers, list)
+            else list(proof_contract.get("blockers") or [])
+        )
+        readiness_scope = item.get("readiness_scope") or proof_contract.get("readiness_scope")
+        readiness_state = item.get("readiness_state") or proof_contract.get("readiness_state")
+        runtime_ready = bool(
+            item.get("runtime_ready") is True
+            and readiness_state == "runtime_ready"
+            and not blockers
+        )
+        if not runtime_ready and readiness_state == "runtime_ready":
+            readiness_state = "blocked_until_runtime_lifecycle_proof"
+        return {
             "venue": venue,
             "ok": bool(item.get("ok")),
             "enabled_in_config": bool(item.get("enabled_in_config")),
             "credentials_configured": bool(item.get("credentials_configured")),
             "error": item.get("error"),
-            **proof_contract,
+            "proof_state": item.get("proof_state") or proof_contract.get("proof_state"),
+            "blockers": blockers,
+            "operator_next_action": item.get("operator_next_action") or proof_contract.get("operator_next_action"),
+            "verify_next": item.get("verify_next") or proof_contract.get("verify_next"),
+            "readiness_scope": readiness_scope,
+            "readiness_state": readiness_state,
+            "runtime_ready": runtime_ready,
             "contract": {
                 "symbol": contract.get("symbol"),
                 "min_qty": contract.get("min_qty"),
@@ -775,7 +795,18 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
                 "qty_contract": contract.get("qty_contract") or {},
                 "price_contract": contract.get("price_contract") or {},
             },
-        })
+        }
+
+    artifact_venues = payload.get("venues") if isinstance(payload, dict) else None
+    venues = []
+    if isinstance(artifact_venues, list) and artifact_venues:
+        for index, item in enumerate(artifact_venues):
+            item = item if isinstance(item, dict) else {}
+            venue = str(item.get("venue") or f"venue_{index + 1}")
+            venues.append(_normalize_venue_for_status(venue, item))
+    else:
+        for venue, item in results.items():
+            venues.append(_normalize_venue_for_status(str(venue), item if isinstance(item, dict) else {}))
 
     generated_at = payload.get("generated_at")
     runtime_ready_count = sum(1 for item in venues if item.get("runtime_ready") is True)

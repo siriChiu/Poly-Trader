@@ -184,24 +184,35 @@ def run_metadata_smoke(
                 ),
             }
 
-    ok_count = sum(1 for item in results.values() if item.get("ok"))
-    runtime_ready_count = sum(1 for item in results.values() if item.get("runtime_ready") is True)
+    venues = []
+    for venue, item in results.items():
+        venue_row = dict(item) if isinstance(item, dict) else {}
+        venue_row.setdefault("venue", venue)
+        venues.append(venue_row)
+
+    ok_count = sum(1 for item in venues if item.get("ok"))
+    runtime_ready_count = sum(1 for item in venues if item.get("runtime_ready") is True)
     runtime_ready_blockers = sorted({
         str(blocker)
-        for item in results.values()
+        for item in venues
         for blocker in (item.get("blockers") or [])
         if blocker
     })
     return {
         "generated_at": _utc_now(),
         "symbol": smoke_symbol,
-        "all_ok": bool(results) and ok_count == len(results),
+        "all_ok": bool(venues) and ok_count == len(venues),
         "ok_count": ok_count,
-        "venues_checked": len(results),
-        "runtime_ready": bool(results) and runtime_ready_count == len(results),
+        "venues_checked": len(venues),
+        "runtime_ready": bool(venues) and runtime_ready_count == len(venues),
         "runtime_ready_count": runtime_ready_count,
         "readiness_scope": "venue_runtime_proof_required",
-        "readiness_state": "runtime_ready" if results and runtime_ready_count == len(results) else "blocked_until_runtime_lifecycle_proof",
+        "readiness_state": "runtime_ready" if venues and runtime_ready_count == len(venues) else "blocked_until_runtime_lifecycle_proof",
         "runtime_ready_blockers": runtime_ready_blockers,
+        # Canonical per-venue contract for operator surfaces. Keep the legacy
+        # results map for compatibility, but expose venues[] directly so API,
+        # Dashboard, Execution Console, Strategy Lab, and docs automation do not
+        # have to infer runtime proof state from public metadata OK/FAIL.
+        "venues": venues,
         "results": results,
     }

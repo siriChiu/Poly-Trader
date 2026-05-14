@@ -2023,6 +2023,51 @@ def test_load_execution_metadata_smoke_summary_reports_freshness(tmp_path, monke
     assert "場館生命週期通道" in venue["verify_next"]
 
 
+def test_load_execution_metadata_smoke_summary_uses_artifact_venues_contract(tmp_path, monkeypatch):
+    fresh_path = tmp_path / "execution_metadata_smoke.json"
+    fresh_path.write_text(json.dumps({
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "symbol": "BTC/USDT",
+        "all_ok": True,
+        "ok_count": 1,
+        "venues_checked": 1,
+        "venues": [
+            {
+                "venue": "okx",
+                "ok": True,
+                "enabled_in_config": True,
+                "credentials_configured": True,
+                "proof_state": "credentials_configured_missing_runtime_lifecycle",
+                "readiness_scope": "venue_runtime_proof_required",
+                "readiness_state": "blocked_until_runtime_lifecycle_proof",
+                "runtime_ready": False,
+                "blockers": ["order ack lifecycle 尚未驗證", "fill lifecycle 尚未驗證"],
+                "operator_next_action": "artifact-level operator action",
+                "verify_next": "artifact-level verify next",
+                "contract": {"step_size": "0.001", "tick_size": "0.1"},
+            }
+        ],
+        "results": {},
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_SMOKE_PATH", fresh_path)
+
+    summary = api_module._load_execution_metadata_smoke_summary()
+
+    assert summary is not None
+    assert summary["runtime_ready"] is False
+    assert summary["runtime_ready_blockers"] == [
+        "fill lifecycle 尚未驗證",
+        "order ack lifecycle 尚未驗證",
+    ]
+    venue = summary["venues"][0]
+    assert venue["venue"] == "okx"
+    assert venue["credentials_configured"] is True
+    assert venue["proof_state"] == "credentials_configured_missing_runtime_lifecycle"
+    assert venue["operator_next_action"] == "artifact-level operator action"
+    assert venue["verify_next"] == "artifact-level verify next"
+    assert venue["contract"]["step_size"] == "0.001"
+
+
 def test_load_execution_metadata_smoke_summary_marks_disabled_venue_as_metadata_only(tmp_path, monkeypatch):
     fresh_path = tmp_path / "execution_metadata_smoke.json"
     fresh_path.write_text(json.dumps({

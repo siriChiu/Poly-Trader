@@ -66,6 +66,20 @@ def test_run_metadata_smoke_collects_contract_for_okx_only(monkeypatch):
         "order ack lifecycle 尚未驗證",
     ]
     assert set(payload["results"]) == {"okx"}
+    assert len(payload["venues"]) == 1
+    venue = payload["venues"][0]
+    assert venue["venue"] == "okx"
+    assert venue["contract"]["step_size"] == "0.001"
+    assert venue["proof_state"] == "credentials_configured_missing_runtime_lifecycle"
+    assert venue["readiness_scope"] == "venue_runtime_proof_required"
+    assert venue["readiness_state"] == "blocked_until_runtime_lifecycle_proof"
+    assert venue["runtime_ready"] is False
+    assert venue["blockers"] == [
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+    ]
+    assert venue["operator_next_action"].startswith("使用 okx 沙盒")
+    assert "委託確認 / 成交 / 取消證據" in venue["verify_next"]
     assert payload["results"]["okx"]["contract"]["step_size"] == "0.001"
     assert payload["results"]["okx"]["enabled_in_config"] is True
     assert payload["results"]["okx"]["credentials_configured"] is True
