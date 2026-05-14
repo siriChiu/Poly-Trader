@@ -436,7 +436,10 @@ def _build_probe_payload(
     support_progress = result.get("support_progress") if isinstance(result.get("support_progress"), dict) else {}
     floor_cross = q15_support_audit.get("floor_cross_legality") if isinstance((q15_support_audit or {}).get("floor_cross_legality"), dict) else {}
     component_experiment = q15_support_audit.get("component_experiment") if isinstance((q15_support_audit or {}).get("component_experiment"), dict) else {}
+    active_repair_plan = q15_support_audit.get("active_repair_plan") if isinstance((q15_support_audit or {}).get("active_repair_plan"), dict) else {}
     deployment_blocker_details = dict(result.get("deployment_blocker_details")) if isinstance(result.get("deployment_blocker_details"), dict) else {}
+    if active_repair_plan:
+        deployment_blocker_details["active_repair_plan"] = active_repair_plan
     if isinstance((q15_support_audit or {}).get("support_route"), dict):
         support_route = q15_support_audit.get("support_route")
         if isinstance(support_route.get("support_progress"), dict):
@@ -644,6 +647,7 @@ def _build_probe_payload(
         "best_single_component": floor_cross.get("best_single_component"),
         "best_single_component_required_score_delta": floor_cross.get("best_single_component_required_score_delta"),
         "component_experiment_verdict": component_experiment.get("verdict"),
+        "active_repair_plan": active_repair_plan or None,
         "runtime_closure_state": runtime_closure_state,
         "runtime_closure_summary": runtime_closure_summary,
         **api_trade_guardrail,

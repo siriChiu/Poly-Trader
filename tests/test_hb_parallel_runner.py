@@ -1024,6 +1024,141 @@ def test_support_truth_context_surfaces_q15_support_stagnation_metadata():
     assert "legacy_mismatched=regime_label,calibration_window" in doc_line
 
 
+def test_current_live_issue_summary_surfaces_q15_active_repair_plan():
+    live_predictor_diagnostics = {
+        "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+        "signal": "HOLD",
+        "runtime_closure_state": "patch_inactive_or_blocked",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "current_live_structure_bucket_rows": 19,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 31,
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+        "support_progress": {
+            "status": "semantic_rebaseline_under_minimum",
+            "current_rows": 19,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 31,
+            "legacy_supported_reference": {
+                "heartbeat": "20260419b",
+                "live_current_structure_bucket_rows": 53,
+                "minimum_support_rows": 50,
+                "semantic_identity_evidence": {
+                    "verdict": "reference_only_semantic_mismatch_or_missing_fields",
+                    "supports_current_identity": False,
+                    "promotable_to_same_identity_history": False,
+                    "mismatched_fields": ["calibration_window"],
+                    "missing_fields": [],
+                },
+            },
+        },
+        "q15_support_audit": {
+            "active_repair_plan": {
+                "phase": "semantic_evidence_backfill_or_exact_accumulation",
+                "component_verify_ready": False,
+                "live_exposure_allowed": False,
+                "shadow_or_paper_allowed": True,
+                "current_signal": "HOLD",
+                "current_allowed_layers": 0,
+                "current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+                "current_rows": 19,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 31,
+                "actions": [
+                    {"id": "collect_exact_current_bucket_rows"},
+                    {"id": "force_q15_support_audit_refresh"},
+                ],
+            },
+        },
+    }
+
+    summary = hb_parallel_runner._current_live_blocker_issue_summary(live_predictor_diagnostics)
+
+    assert summary["active_repair_plan"]["phase"] == "semantic_evidence_backfill_or_exact_accumulation"
+    assert summary["active_repair"]["active_repair_live_exposure_allowed"] is False
+    assert summary["active_repair"]["active_repair_shadow_or_paper_allowed"] is True
+    assert summary["active_repair"]["active_repair_current_signal"] == "HOLD"
+    assert summary["active_repair"]["active_repair_current_allowed_layers"] == 0
+    assert summary["active_repair"]["active_repair_action_ids"] == [
+        "collect_exact_current_bucket_rows",
+        "force_q15_support_audit_refresh",
+    ]
+    assert summary["active_repair"]["legacy_semantic_evidence_verdict"] == "reference_only_semantic_mismatch_or_missing_fields"
+    assert summary["active_repair"]["legacy_semantic_evidence_supports_current_identity"] is False
+    assert summary["active_repair"]["legacy_semantic_evidence_mismatched_fields"] == ["calibration_window"]
+
+
+def test_high_conviction_live_context_and_rows_surface_q15_active_repair(monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "_read_json_file", lambda _path: {})
+    live_predictor_diagnostics = {
+        "generated_at": "2026-05-14T13:02:00Z",
+        "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+        "runtime_closure_state": "patch_inactive_or_blocked",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "current_live_structure_bucket_rows": 19,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 31,
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+        "support_route_deployable": False,
+        "allowed_layers": 0,
+        "signal": "HOLD",
+        "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+        "q15_support_audit": {
+            "active_repair_plan": {
+                "phase": "semantic_evidence_backfill_or_exact_accumulation",
+                "component_verify_ready": False,
+                "live_exposure_allowed": False,
+                "shadow_or_paper_allowed": True,
+                "current_signal": "HOLD",
+                "current_allowed_layers": 0,
+                "current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+                "support_status": "semantic_rebaseline_under_minimum",
+                "actions": [
+                    {"id": "collect_exact_current_bucket_rows"},
+                    {"id": "semantic_legacy_evidence_backfill"},
+                ],
+                "legacy_semantic_evidence": {
+                    "verdict": "same_identity_evidence_backfilled",
+                    "supports_current_identity": True,
+                    "promotable_to_same_identity_history": True,
+                    "mismatched_fields": [],
+                    "missing_fields": [],
+                },
+            }
+        },
+    }
+
+    context = hb_parallel_runner._high_conviction_support_context_from_live(live_predictor_diagnostics)
+    row = {
+        "model": "logistic_regression",
+        "top_k": 20,
+        "trade_count": 100,
+        "win_rate": 0.62,
+        "max_drawdown": 0.04,
+        "profit_factor": 1.8,
+        "worst_fold": 0.01,
+    }
+    hb_parallel_runner._apply_live_support_context_to_high_conviction_row(row, context)
+
+    assert context["active_repair_phase"] == "semantic_evidence_backfill_or_exact_accumulation"
+    assert context["active_repair_live_exposure_allowed"] is False
+    assert context["active_repair_shadow_or_paper_allowed"] is True
+    assert context["active_repair_action_ids"] == [
+        "collect_exact_current_bucket_rows",
+        "semantic_legacy_evidence_backfill",
+    ]
+    assert context["legacy_semantic_evidence_verdict"] == "same_identity_evidence_backfilled"
+    assert row["active_repair_phase"] == context["active_repair_phase"]
+    assert row["active_repair_current_signal"] == "HOLD"
+    assert row["active_repair_current_allowed_layers"] == 0
+    assert row["active_repair_current_execution_guardrail_reason"] == "under_minimum_exact_live_structure_bucket"
+    assert row["legacy_semantic_evidence_promotable_to_same_identity_history"] is True
+    assert row["deployable_verdict"] == "not_deployable"
+    assert row["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+
+
 def test_needs_q15_post_audit_runtime_resync_when_support_ready_but_probe_still_unpatched():
     live_predictor_diagnostics = {
         "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",

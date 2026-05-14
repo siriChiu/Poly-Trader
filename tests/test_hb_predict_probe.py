@@ -34,6 +34,19 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
                     "best_single_component": "feat_4h_bias50",
                 },
                 "component_experiment": {"verdict": "reference_only_until_exact_support_ready"},
+                "active_repair_plan": {
+                    "phase": "active_support_accumulation",
+                    "component_verify_ready": False,
+                    "live_exposure_allowed": False,
+                    "shadow_or_paper_allowed": True,
+                    "current_signal": "HOLD",
+                    "current_allowed_layers": 0,
+                    "current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+                    "actions": [
+                        {"id": "collect_exact_current_bucket_rows"},
+                        {"id": "force_q15_support_audit_refresh"},
+                    ],
+                },
             }
         ),
         encoding="utf-8",
@@ -114,6 +127,13 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
     assert payload["support_progress"]["status"] == "accumulating"
     assert payload["best_single_component"] == "feat_4h_bias50"
     assert payload["component_experiment_verdict"] == "reference_only_until_exact_support_ready"
+    assert payload["active_repair_plan"]["phase"] == "active_support_accumulation"
+    assert payload["active_repair_plan"]["live_exposure_allowed"] is False
+    assert payload["active_repair_plan"]["shadow_or_paper_allowed"] is True
+    assert [action["id"] for action in payload["active_repair_plan"]["actions"]] == [
+        "collect_exact_current_bucket_rows",
+        "force_q15_support_audit_refresh",
+    ]
     assert payload["runtime_closure_state"] == "patch_active_but_execution_blocked"
     assert payload["api_trade_guardrail_active"] is True
     assert payload["api_trade_buy_guardrail"] == "current_live_deployment_blocker_409"

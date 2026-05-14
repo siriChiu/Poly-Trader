@@ -796,6 +796,80 @@ def _int_or_none(value: Any) -> int | None:
         return None
 
 
+_ACTIVE_REPAIR_FIELD_MAP = {
+    "phase": "active_repair_phase",
+    "component_verify_ready": "active_repair_component_verify_ready",
+    "live_exposure_allowed": "active_repair_live_exposure_allowed",
+    "shadow_or_paper_allowed": "active_repair_shadow_or_paper_allowed",
+    "current_signal": "active_repair_current_signal",
+    "current_allowed_layers": "active_repair_current_allowed_layers",
+    "current_execution_guardrail_reason": "active_repair_current_execution_guardrail_reason",
+    "support_status": "active_repair_support_status",
+    "current_rows": "active_repair_current_rows",
+    "minimum_support_rows": "active_repair_minimum_support_rows",
+    "gap_to_minimum": "active_repair_gap_to_minimum",
+}
+
+_LEGACY_SEMANTIC_EVIDENCE_FIELD_MAP = {
+    "verdict": "legacy_semantic_evidence_verdict",
+    "supports_current_identity": "legacy_semantic_evidence_supports_current_identity",
+    "promotable_to_same_identity_history": "legacy_semantic_evidence_promotable_to_same_identity_history",
+    "mismatched_fields": "legacy_semantic_evidence_mismatched_fields",
+    "missing_fields": "legacy_semantic_evidence_missing_fields",
+}
+
+
+def _active_repair_context_from_live(
+    live_predictor_diagnostics: Dict[str, Any] | None,
+    deployment_details: Dict[str, Any] | None = None,
+    q15_support_audit: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """Flatten q15 active-repair truth so current-state surfaces do not hide it in the audit artifact."""
+    live_predictor_diagnostics = live_predictor_diagnostics or {}
+    deployment_details = deployment_details if isinstance(deployment_details, dict) else {}
+    q15_support_audit = q15_support_audit if isinstance(q15_support_audit, dict) else {}
+    if not q15_support_audit and isinstance(live_predictor_diagnostics.get("q15_support_audit"), dict):
+        q15_support_audit = live_predictor_diagnostics.get("q15_support_audit") or {}
+
+    support_route = q15_support_audit.get("support_route") if isinstance(q15_support_audit.get("support_route"), dict) else {}
+    support_progress = live_predictor_diagnostics.get("support_progress")
+    if not isinstance(support_progress, dict):
+        support_progress = deployment_details.get("support_progress") if isinstance(deployment_details.get("support_progress"), dict) else {}
+    if not support_progress and isinstance(support_route.get("support_progress"), dict):
+        support_progress = support_route.get("support_progress") or {}
+
+    candidates = [
+        live_predictor_diagnostics.get("active_repair_plan"),
+        deployment_details.get("active_repair_plan"),
+        q15_support_audit.get("active_repair_plan"),
+    ]
+    active_repair_plan = next((candidate for candidate in candidates if isinstance(candidate, dict) and candidate), {})
+    if not active_repair_plan:
+        return {}
+
+    context: Dict[str, Any] = {"active_repair_plan": active_repair_plan}
+    for plan_key, context_key in _ACTIVE_REPAIR_FIELD_MAP.items():
+        if active_repair_plan.get(plan_key) is not None:
+            context[context_key] = active_repair_plan.get(plan_key)
+
+    actions = active_repair_plan.get("actions") or []
+    if isinstance(actions, list):
+        action_ids = [str(action.get("id")) for action in actions if isinstance(action, dict) and action.get("id")]
+        if action_ids:
+            context["active_repair_action_ids"] = action_ids
+
+    legacy_evidence = active_repair_plan.get("legacy_semantic_evidence") or {}
+    if not legacy_evidence:
+        legacy_ref = support_progress.get("legacy_supported_reference") if isinstance(support_progress, dict) else {}
+        if isinstance(legacy_ref, dict):
+            legacy_evidence = legacy_ref.get("semantic_identity_evidence") or {}
+    if isinstance(legacy_evidence, dict) and legacy_evidence:
+        for evidence_key, context_key in _LEGACY_SEMANTIC_EVIDENCE_FIELD_MAP.items():
+            if legacy_evidence.get(evidence_key) is not None:
+                context[context_key] = legacy_evidence.get(evidence_key)
+    return context
+
+
 def _current_live_blocker_issue_summary(live_predictor_diagnostics: Dict[str, Any] | None) -> Dict[str, Any]:
     """Compact live runtime truth for issues.json so docs cannot preserve stale buckets."""
     live_predictor_diagnostics = live_predictor_diagnostics or {}
@@ -811,6 +885,7 @@ def _current_live_blocker_issue_summary(live_predictor_diagnostics: Dict[str, An
     support_progress = live_predictor_diagnostics.get("support_progress") or details.get("support_progress") or {}
     if not isinstance(support_progress, dict):
         support_progress = {}
+    active_repair_context = _active_repair_context_from_live(live_predictor_diagnostics, details)
 
     current_rows = live_predictor_diagnostics.get("current_live_structure_bucket_rows")
     minimum_rows = live_predictor_diagnostics.get("minimum_support_rows")
@@ -894,6 +969,17 @@ def _current_live_blocker_issue_summary(live_predictor_diagnostics: Dict[str, An
             ]
             if key in support_progress
         }
+    if active_repair_context:
+        active_plan = active_repair_context.get("active_repair_plan")
+        if isinstance(active_plan, dict) and active_plan:
+            summary["active_repair_plan"] = active_plan
+        compact_active_repair = {
+            key: value
+            for key, value in active_repair_context.items()
+            if key != "active_repair_plan" and value is not None
+        }
+        if compact_active_repair:
+            summary["active_repair"] = compact_active_repair
     return {key: value for key, value in summary.items() if value is not None}
 
 
@@ -1082,6 +1168,20 @@ def _compact_high_conviction_topk_matrix_summary(
         "current_recent_window_wins",
         "required_recent_window_wins",
         "additional_recent_window_wins_needed",
+        "active_repair_phase",
+        "active_repair_component_verify_ready",
+        "active_repair_live_exposure_allowed",
+        "active_repair_shadow_or_paper_allowed",
+        "active_repair_current_signal",
+        "active_repair_current_allowed_layers",
+        "active_repair_current_execution_guardrail_reason",
+        "active_repair_support_status",
+        "active_repair_action_ids",
+        "legacy_semantic_evidence_verdict",
+        "legacy_semantic_evidence_supports_current_identity",
+        "legacy_semantic_evidence_promotable_to_same_identity_history",
+        "legacy_semantic_evidence_mismatched_fields",
+        "legacy_semantic_evidence_missing_fields",
     ]
 
     def _compact_row(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -1109,6 +1209,20 @@ def _compact_high_conviction_topk_matrix_summary(
             "current_recent_window_wins": "current_recent_window_wins",
             "required_recent_window_wins": "required_recent_window_wins",
             "additional_recent_window_wins_needed": "additional_recent_window_wins_needed",
+            "active_repair_phase": "active_repair_phase",
+            "active_repair_component_verify_ready": "active_repair_component_verify_ready",
+            "active_repair_live_exposure_allowed": "active_repair_live_exposure_allowed",
+            "active_repair_shadow_or_paper_allowed": "active_repair_shadow_or_paper_allowed",
+            "active_repair_current_signal": "active_repair_current_signal",
+            "active_repair_current_allowed_layers": "active_repair_current_allowed_layers",
+            "active_repair_current_execution_guardrail_reason": "active_repair_current_execution_guardrail_reason",
+            "active_repair_support_status": "active_repair_support_status",
+            "active_repair_action_ids": "active_repair_action_ids",
+            "legacy_semantic_evidence_verdict": "legacy_semantic_evidence_verdict",
+            "legacy_semantic_evidence_supports_current_identity": "legacy_semantic_evidence_supports_current_identity",
+            "legacy_semantic_evidence_promotable_to_same_identity_history": "legacy_semantic_evidence_promotable_to_same_identity_history",
+            "legacy_semantic_evidence_mismatched_fields": "legacy_semantic_evidence_mismatched_fields",
+            "legacy_semantic_evidence_missing_fields": "legacy_semantic_evidence_missing_fields",
         }
         for row_key, support_key in support_fallback_keys.items():
             fallback_value = _support_value(support_key)
@@ -1160,6 +1274,20 @@ def _compact_high_conviction_topk_matrix_summary(
         "current_recent_window_wins": _support_value("current_recent_window_wins"),
         "required_recent_window_wins": _support_value("required_recent_window_wins"),
         "additional_recent_window_wins_needed": _support_value("additional_recent_window_wins_needed"),
+        "active_repair_phase": _support_value("active_repair_phase"),
+        "active_repair_component_verify_ready": _support_value("active_repair_component_verify_ready"),
+        "active_repair_live_exposure_allowed": _support_value("active_repair_live_exposure_allowed"),
+        "active_repair_shadow_or_paper_allowed": _support_value("active_repair_shadow_or_paper_allowed"),
+        "active_repair_current_signal": _support_value("active_repair_current_signal"),
+        "active_repair_current_allowed_layers": _support_value("active_repair_current_allowed_layers"),
+        "active_repair_current_execution_guardrail_reason": _support_value("active_repair_current_execution_guardrail_reason"),
+        "active_repair_support_status": _support_value("active_repair_support_status"),
+        "active_repair_action_ids": _support_value("active_repair_action_ids"),
+        "legacy_semantic_evidence_verdict": _support_value("legacy_semantic_evidence_verdict"),
+        "legacy_semantic_evidence_supports_current_identity": _support_value("legacy_semantic_evidence_supports_current_identity"),
+        "legacy_semantic_evidence_promotable_to_same_identity_history": _support_value("legacy_semantic_evidence_promotable_to_same_identity_history"),
+        "legacy_semantic_evidence_mismatched_fields": _support_value("legacy_semantic_evidence_mismatched_fields"),
+        "legacy_semantic_evidence_missing_fields": _support_value("legacy_semantic_evidence_missing_fields"),
         "nearest_deployable_candidate": _compact_row(nearest_row),
         "highest_roi_not_deployable": _compact_row(highest_roi_row),
         "best_not_deployable": _compact_row(nearest_row),
@@ -1188,6 +1316,20 @@ _HIGH_CONVICTION_LIVE_SUPPORT_KEYS = (
     "current_recent_window_wins",
     "required_recent_window_wins",
     "additional_recent_window_wins_needed",
+    "active_repair_phase",
+    "active_repair_component_verify_ready",
+    "active_repair_live_exposure_allowed",
+    "active_repair_shadow_or_paper_allowed",
+    "active_repair_current_signal",
+    "active_repair_current_allowed_layers",
+    "active_repair_current_execution_guardrail_reason",
+    "active_repair_support_status",
+    "active_repair_action_ids",
+    "legacy_semantic_evidence_verdict",
+    "legacy_semantic_evidence_supports_current_identity",
+    "legacy_semantic_evidence_promotable_to_same_identity_history",
+    "legacy_semantic_evidence_mismatched_fields",
+    "legacy_semantic_evidence_missing_fields",
 )
 
 
@@ -1260,6 +1402,10 @@ def _high_conviction_support_context_from_live(
             value = value.get("window_size")
         if value is not None:
             context[key] = value
+
+    active_repair_context = _active_repair_context_from_live(live_predictor_diagnostics, details)
+    if active_repair_context:
+        context.update({key: value for key, value in active_repair_context.items() if value is not None})
 
     generated_at = live_predictor_diagnostics.get("generated_at") or live_predictor_diagnostics.get("feature_timestamp")
     if generated_at:
@@ -1455,6 +1601,20 @@ def _apply_live_support_context_to_high_conviction_row(
         "current_recent_window_wins": "current_recent_window_wins",
         "required_recent_window_wins": "required_recent_window_wins",
         "additional_recent_window_wins_needed": "additional_recent_window_wins_needed",
+        "active_repair_phase": "active_repair_phase",
+        "active_repair_component_verify_ready": "active_repair_component_verify_ready",
+        "active_repair_live_exposure_allowed": "active_repair_live_exposure_allowed",
+        "active_repair_shadow_or_paper_allowed": "active_repair_shadow_or_paper_allowed",
+        "active_repair_current_signal": "active_repair_current_signal",
+        "active_repair_current_allowed_layers": "active_repair_current_allowed_layers",
+        "active_repair_current_execution_guardrail_reason": "active_repair_current_execution_guardrail_reason",
+        "active_repair_support_status": "active_repair_support_status",
+        "active_repair_action_ids": "active_repair_action_ids",
+        "legacy_semantic_evidence_verdict": "legacy_semantic_evidence_verdict",
+        "legacy_semantic_evidence_supports_current_identity": "legacy_semantic_evidence_supports_current_identity",
+        "legacy_semantic_evidence_promotable_to_same_identity_history": "legacy_semantic_evidence_promotable_to_same_identity_history",
+        "legacy_semantic_evidence_mismatched_fields": "legacy_semantic_evidence_mismatched_fields",
+        "legacy_semantic_evidence_missing_fields": "legacy_semantic_evidence_missing_fields",
         "source_live_probe_generated_at": "source_live_probe_generated_at",
         "live_truth_source_artifact": "live_truth_source_artifact",
     }
