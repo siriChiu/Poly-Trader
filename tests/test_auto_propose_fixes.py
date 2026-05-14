@@ -2592,6 +2592,100 @@ def test_sync_current_state_governance_issues_refreshes_canonical_q15_and_patch_
 
 
 
+def test_sync_current_state_governance_issues_reference_only_scope_copy_requires_current_live_support():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["priority"] = priority
+                    issue["title"] = title
+                    issue["action"] = action
+                    issue["status"] = status
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue["status"] = "resolved"
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "selected_feature_profile": "core_only",
+                "governance_contract": {
+                    "verdict": "dual_role_governance_active",
+                    "production_profile": "core_plus_macro_plus_all_4h",
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 22,
+                    "support_progress": {
+                        "current_rows": 22,
+                        "minimum_support_rows": 50,
+                        "status": "accumulating",
+                    },
+                },
+            }
+        },
+        {
+            "signal": "CIRCUIT_BREAKER",
+            "deployment_blocker": "circuit_breaker_active",
+            "runtime_closure_state": "circuit_breaker_active",
+            "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+            "current_live_structure_bucket_rows": 22,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "allowed_layers_reason": "circuit_breaker_blocks_trade",
+            "decision_quality_scope_pathology_summary": {
+                "recommended_patch": {
+                    "status": "reference_only_non_current_live_scope",
+                    "recommended_profile": "core_plus_macro_plus_all_4h",
+                    "reference_patch_scope": "bull|CAUTION",
+                    "current_live_regime_gate": "bear|BLOCK",
+                    "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                    "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+                    "current_live_structure_bucket_rows": 22,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 28,
+                    "reference_source": "bull_4h_pocket_ablation.bull_collapse_q35",
+                }
+            },
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "current_recent_window_wins": 13,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 2,
+                    "recent_window": 50,
+                    "streak_must_be_below": 50,
+                }
+            },
+        },
+        {"cv_accuracy": 0.71, "cv_std": 0.05, "cv_worst": 0.66},
+    )
+
+    patch_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_bull_caution_spillover_patch_reference_only")
+    assert patch_issue["status"] == "open"
+    assert "current-live bucket itself reaches deployable support" in patch_issue["action"]
+    assert "even though exact support is available" not in patch_issue["action"]
+    assert patch_issue["summary"]["current_live_structure_bucket_rows"] == 22
+    assert patch_issue["summary"]["gap_to_minimum"] == 28
+
+
+
 def test_sync_current_state_governance_issues_marks_persistent_q15_support_regression():
     class DummyTracker:
         def __init__(self):

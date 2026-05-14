@@ -2684,7 +2684,11 @@ def test_overwrite_current_state_docs_keeps_reference_only_patch_truth_from_issu
                         "priority": "P1",
                         "status": "open",
                         "title": "support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only",
-                        "action": "keep patch summary consistent",
+                        "action": (
+                            "Keep the same recommended_patch summary across operator surfaces; the patch describes "
+                            "a spillover/broader lane rather than the current live scope, so do not promote it "
+                            "to a deployable runtime patch until the current-live bucket itself reaches deployable support."
+                        ),
                         "summary": {
                             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
                             "current_live_structure_bucket_rows": 0,
@@ -2740,6 +2744,8 @@ def test_overwrite_current_state_docs_keeps_reference_only_patch_truth_from_issu
     assert result["success"] is True
     issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
     assert "support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only" in issues_md
+    assert "until the current-live bucket itself reaches deployable support" in issues_md
+    assert "even though exact support is available" not in issues_md
     assert "`support_route_verdict=exact_bucket_missing_exact_lane_proxy_only`" in issues_md
     assert "`support=0/50`" in issues_md
 

@@ -754,7 +754,7 @@ def sync_current_state_governance_issues(
             patch_action = (
                 "Keep the same recommended_patch summary across /api/status, /lab, hb_predict_probe.py, "
                 "live_decision_quality_drilldown.py, and docs; the patch describes a spillover/broader lane rather than the current live scope, "
-                "so do not promote it to a deployable runtime patch even though exact support is available."
+                "so do not promote it to a deployable runtime patch until the current-live bucket itself reaches deployable support."
             )
         else:
             patch_title = f"support-aware {patch_profile} patch must stay visible but reference-only"
