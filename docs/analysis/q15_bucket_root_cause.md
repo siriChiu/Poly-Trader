@@ -1,6 +1,6 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-14 11:10:50.356196**
+- generated_at: **2026-05-14 12:01:53.858387**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q15 bucket**
 - verdict: **current_exact_support_under_minimum**
@@ -12,8 +12,8 @@
 ## Current live
 - live path: **bear / CAUTION / C**
 - structure_bucket: `CAUTION|structure_quality_caution|q15`
-- structure_quality: **0.2088**
-- gap_to_q35_boundary: **0.1412**
+- structure_quality: **0.1968**
+- gap_to_q35_boundary: **0.1532**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `under_minimum_exact_live_structure_bucket`
 - support rows/minimum/gap: **20 / 50 / 30**
@@ -22,7 +22,7 @@
 - rows: **20**
 - bucket_counts: `{'CAUTION|structure_quality_caution|q15': 20}`
 - dominant_neighbor_bucket: **None** (0 rows)
-- near_boundary_window: `{'lower': 0.2088, 'upper': 0.35}`
+- near_boundary_window: `{'lower': 0.1968, 'upper': 0.35}`
 - near_boundary_rows: **14**
 
 ## Decision
@@ -31,9 +31,9 @@
 - verify_next: 維持 minimum_support_rows=50 與 current-live guardrail，累積同 support_identity 的 exact rows；若只有 legacy / different semantic signature 支撐，文案必須標成 semantic rebaseline reference。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.4825 / norm=0.4825 / Δto_cross_q35=0.4153 / target_p25=None / target_median=None
-- `feat_4h_dist_bb_lower`: current=1.0849 / norm=0.1356 / Δto_cross_q35=3.423 / target_p25=None / target_median=None
-- `feat_4h_dist_swing_low`: current=-0.8725 / norm=0.0 / Δto_cross_q35=5.1513 / target_p25=None / target_median=None
+- `feat_4h_bb_pct_b`: current=0.4042 / norm=0.4042 / Δto_cross_q35=0.4506 / target_p25=None / target_median=None
+- `feat_4h_dist_bb_lower`: current=0.8912 / norm=0.1114 / Δto_cross_q35=3.7139 / target_p25=None / target_median=None
+- `feat_4h_dist_swing_low`: current=0.6837 / norm=0.0684 / Δto_cross_q35=4.6424 / target_p25=None / target_median=None
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。

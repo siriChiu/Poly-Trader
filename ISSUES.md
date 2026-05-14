@@ -1,14 +1,14 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-05-14 19:11:13 CST_
+_最後更新：2026-05-14 20:03:08 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 fast heartbeat #1220 已完成 collect + diagnostics refresh**
-  - `Raw=33207 / Features=24394 / Labels=66377`
+- **最新 full heartbeat #1221 已完成 collect + diagnostics refresh**
+  - `Raw=33209 / Features=24396 / Labels=66382`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `simulated_pyramid_win=56.79%`
 - **canonical current-live blocker 已切到 current-live exact-support truth**
@@ -16,13 +16,13 @@ _最後更新：2026-05-14 19:11:13 CST_
   - `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=20/50` / `gap=30` / `support_route_verdict=exact_bucket_present_but_below_minimum`
   - support progress：`status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `legacy_supported_reference=53/50@20260419b` / `stagnant_run_count=5` / `stalled_support_accumulation=False` / `escalate_to_blocker=True`；active repair：`phase=semantic_evidence_backfill_or_exact_accumulation` / `component_verify_ready=False` / `live_exposure_allowed=False` / `shadow_or_paper_allowed=True` / `current_signal=HOLD` / `current_allowed_layers=0` / `guardrail=under_minimum_exact_live_structure_bucket` / `actions=collect_exact_current_bucket_rows,force_q15_support_audit_refresh,semantic_legacy_evidence_backfill` / `legacy_evidence=reference_only_semantic_mismatch_or_missing_fields` / `legacy_supports_current_identity=False` / `legacy_promotable=False` / `legacy_mismatched=calibration_window,entry_quality_label,regime_label`
 - **recent canonical diagnostics 已刷新**
-  - `latest_window=100` / `win_rate=48.0%` / `dominant_regime=chop(100.0%)` / `avg_quality=+0.1209` / `avg_pnl=-0.0007` / `alerts=regime_concentration,regime_shift`
-- **leaderboard / governance 仍維持 dual-role contract**
-  - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=8.4m`
+  - `latest_window=100` / `win_rate=45.0%` / `dominant_regime=chop(100.0%)` / `avg_quality=+0.0955` / `avg_pnl=-0.0013` / `alerts=regime_concentration,regime_shift`
+- **leaderboard / governance 已收斂為 single-role alignment**
+  - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=0.1m`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - top source blockers：`fin_netflow(source_auth_blocked/auth_missing, coverage=0.0%, archive_window=0.0%, forward_archive=ready)` / `claw(source_auth_blocked/auth_missing, coverage=14.7%, archive_window=87.9%, forward_archive=ready)` / `claw_intensity(source_auth_blocked/auth_missing, coverage=14.7%, archive_window=87.9%, forward_archive=ready)` / `nest_pred(source_tls_verify_failed/tls_verify_failed, coverage=16.3%, archive_window=97.7%, forward_archive=ready)`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=4033` / `archive_window_coverage_pct=0.0`
+  - top source blockers：`fin_netflow(source_auth_blocked/auth_missing, coverage=0.0%, archive_window=0.0%, forward_archive=ready)` / `claw(source_auth_blocked/auth_missing, coverage=14.7%, archive_window=87.9%, forward_archive=ready)` / `claw_intensity(source_auth_blocked/auth_missing, coverage=14.7%, archive_window=87.9%, forward_archive=ready)` / `nest_pred(source_tls_verify_failed/tls_verify_failed, coverage=16.3%, archive_window=97.6%, forward_archive=ready)`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=4034` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof；`execution_metadata_smoke.venues[]` 已提供 per-venue `proof_state / blockers / operator_next_action / verify_next` 給 Dashboard / Execution / Lab 直接顯示證據缺口
 - **Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）**
   - 前端快捷：`manual_buy=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間只暫停買入 / 加倉與啟用自動模式，減碼 / 賣出風險降低、切到手動模式、查看阻塞原因與重新整理仍可用。`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`。後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑；`data/live_predict_probe.json` 同步輸出 `api_trade_guardrail_active / api_trade_buy_guardrail / api_trade_allowed_risk_off_sides` 作為 machine-readable proof
@@ -36,6 +36,10 @@ _最後更新：2026-05-14 19:11:13 CST_
 
 ## Open Issues
 
+### P0. TW-IC 連續低於 14/30：#1221=12/30 -> #1220=13/30
+- 目前真相：`tw_history={heartbeat:1221, tw_pass:12, total_features:30}, {heartbeat:1220, tw_pass:13, total_features:30}, {heartbeat:1219, tw_pass:14, total_features:30}` / `threshold=<14/30` / `recent_window=100` / `recent_interpretation=regime_concentration` / `feature_diagnostics={feature_count:56, low_variance_count:19, frozen_count:4, compressed_count:15, …(+6)}` / `reference_new_flags={new_unexpected_frozen_features:feat_nq_return_24h, new_unexpected_compressed_features:feat_vix}`
+- 下一步：停止沿用近期優勢敘事；升級為 distribution-aware / calibration drift 調查，檢查 recent label balance、regime mix、recent-window constant-target guardrail。 recent_window=100 / interpretation=regime_concentration。 詳細 window、alerts、feature diagnostics、reference new flags、target-path streaks 已保留於 issue.summary 與 recent_drift_report artifact；不要把長 telemetry 直接寫入 action/docs。
+
 ### P0. current live bucket CAUTION|structure_quality_caution|q15 exact support remains under minimum and remains the deployment blocker (20/50)
 - 目前真相：`deployment_blocker=under_minimum_exact_live_structure_bucket` / `bucket=CAUTION|structure_quality_caution|q15` / `support=20/50` / `gap=30` / `runtime_closure_state=patch_inactive_or_blocked`
 - same-bucket truth：`support_route_verdict=exact_bucket_present_but_below_minimum` / `support_governance_route=exact_live_bucket_present_but_below_minimum` / `recommended_patch=core_plus_macro_plus_all_4h` / `recommended_patch_status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`
@@ -45,7 +49,7 @@ _最後更新：2026-05-14 19:11:13 CST_
 
 ### P0. 建立 high-conviction top-k OOS ROI gate，讓 APP 從研究轉實戰
 - 目前真相：`mode_label=模擬觀察_影子驗證_即時阻塞` / `validation=walk_forward_oos_topk_matrix` / `top_k_grid=1%,2%,5%,10%` / `output_artifact=data/high_conviction_topk_oos_matrix.json`
-- latest matrix：`generated_at=2026-05-14T11:02:45.177442+00:00` / `freshness=fresh` / `age_min=8.5` / `stale_after_min=60` / `deployment_blocking=False` / `samples=24281` / `rows=24` / `models=logistic_regression,random_forest,xgboost` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `support_route=exact_bucket_present_but_below_minimum` / `deployment_blocker=under_minimum_exact_live_structure_bucket` / `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `current_live_structure_bucket_rows=20/50` / `current_live_structure_bucket_gap_to_minimum=30`
+- latest matrix：`generated_at=2026-05-14T12:02:59.409915+00:00` / `freshness=fresh` / `age_min=0.2` / `stale_after_min=60` / `deployment_blocking=False` / `samples=24285` / `rows=24` / `models=logistic_regression,random_forest,xgboost` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `support_route=exact_bucket_present_but_below_minimum` / `deployment_blocker=under_minimum_exact_live_structure_bucket` / `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `current_live_structure_bucket_rows=20/50` / `current_live_structure_bucket_gap_to_minimum=30`
 - nearest deployable candidate：`model=logistic_regression` / `regime=all` / `top_k=top_2pct` / `oos_roi=0.9324` / `win_rate=0.8621` / `profit_factor=19.8864` / `max_drawdown=0.022` / `worst_fold=0.2068` / `trade_count=58` / `tier=runtime_blocked_oos_pass` / `oos_gate_passed=True` / `verdict=not_deployable` / `support_route=exact_bucket_present_but_below_minimum` / `governance=exact_live_bucket_present_but_below_minimum` / `bucket=CAUTION|structure_quality_caution|q15` / `bucket_rows=20/50` / `gap=30`
 - 研究依據：`basis=walk_forward_oos,purged_cv,triple_barrier_pyramid_label,meta_labeling_take_skip,conformal_uncertainty_reject,regime_aware_deployment` / `目的=只讓高信心、低回撤、經 OOS 驗證的金字塔候選進入部署候選`
 - 部署門檻：`min_trades>=50` / `win_rate>=0.6` / `max_drawdown<=0.08` / `profit_factor>=1.5` / `worst_fold=non_negative_or_above_baseline` / `support_route=deployable`
@@ -62,8 +66,8 @@ _最後更新：2026-05-14 19:11:13 CST_
   - source venv/bin/activate && PYTHONPATH=. python -m pytest tests/test_model_leaderboard.py::test_high_conviction_topk_support_context_uses_fresher_live_probe -q
   - source venv/bin/activate && PYTHONPATH=. python -m pytest tests/test_model_leaderboard.py::test_high_conviction_topk_live_support_overlay_fail_closes_stale_deployable_rows -q
 
-### P1. model stability still needs work (cv=0.6143, cv_std=0.0583, cv_worst=0.5560)
-- 目前真相：`cv_accuracy=0.6142915980230643` / `cv_std=0.058278418451400305` / `cv_worst=0.556013179571664`
+### P1. model stability still needs work (cv=0.6269, cv_std=0.0655, cv_worst=0.5614)
+- 目前真相：`cv_accuracy=0.6268533772652389` / `cv_std=0.06548599670510707` / `cv_worst=0.5613673805601318`
 - 下一步：優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。
 
 ### P1. support-aware core_plus_macro_plus_all_4h patch must stay visible but reference-only outside current live scope
@@ -90,14 +94,14 @@ _最後更新：2026-05-14 19:11:13 CST_
 - 下一步：Keep startup feature repair non-blocking with max_backfill_rows=0; expose deferred/remaining_missing through /health and /api/status; close missing rows via bounded heartbeat or maintenance backfill.
 
 ### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=4033` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=4034` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json
   - /api/features/coverage
 
 ### P1. leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe
-- 目前真相：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=8.4m`
+- 目前真相：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=single_role_governance_ok` / `current_closure=single_profile_alignment` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=0.1m`
 - 下一步：Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.
 - 驗證：
   - browser /lab
@@ -118,7 +122,7 @@ _最後更新：2026-05-14 19:11:13 CST_
 - 下一步：Treat legacy supported rows as reference-only: keep support_identity/regression_basis/legacy_supported_reference visible in probe/API/UI/docs, keep the current-live exact-support blocker open, and do not describe this as same-identity support regression unless the semantic signature matches.
 
 ### P1. recent canonical window 100 rows = regime_concentration but current live regime is outside the blocker pocket
-- 目前真相：`window=100` / `interpretation=regime_concentration` / `win_rate=0.48` / `dominant_regime=chop` / `dominant_regime_share=1.0` / `avg_pnl=-0.0007`
+- 目前真相：`window=100` / `interpretation=regime_concentration` / `win_rate=0.45` / `dominant_regime=chop` / `dominant_regime_share=1.0` / `avg_pnl=-0.0013`
 - 下一步：保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。
 
 ---
@@ -126,7 +130,7 @@ _最後更新：2026-05-14 19:11:13 CST_
 ## Current Priority
 1. **維持 current-live exact-support blocker truth，同時保留 q15 current-live bucket support rows 可 machine-read**
 2. **持續沿 recent canonical pathological slice 追根因，不要 generic 化 blocker**
-3. **守住 q15 current-live bucket support / reference-only patch、leaderboard dual-role governance、venue/source blockers 可見性**
+3. **守住 q15 current-live bucket support / reference-only patch、leaderboard single-role governance、venue/source blockers 可見性**
 4. **讓 heartbeat 自動 overwrite sync current-state docs，不再把 docs drift 留給人工補寫**
 5. **P0 實戰化：建立 high-conviction top-k OOS ROI gate，把研究 winner 轉成可拒單部署候選**
-   - `data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at=2026-05-14T11:02:45.177442+00:00` / `freshness=fresh` / `age_min=8.5` / `stale_after_min=60` / `deployment_blocking=False` / `rows=24` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `bucket_rows=20/50` / `gap=30` / `release_ready=False` / `recent_window_wins=14/50` / `required_recent_window_wins=15` / `additional_recent_window_wins_needed=1` / `current_recent_window_win_rate=0.280`；`/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板已改為最接近部署候選優先，並以操作員繁中 copy 顯示矩陣新鮮度、breaker release math 與即時支持脈絡；矩陣過期或即時分桶 / 支持 / release 條件未解除前仍 fail-closed。
+   - `data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at=2026-05-14T12:02:59.409915+00:00` / `freshness=fresh` / `age_min=0.2` / `stale_after_min=60` / `deployment_blocking=False` / `rows=24` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `bucket_rows=20/50` / `gap=30`；`/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板已改為最接近部署候選優先，並以操作員繁中 copy 顯示矩陣新鮮度、breaker release math 與即時支持脈絡；矩陣過期或即時分桶 / 支持 / release 條件未解除前仍 fail-closed。

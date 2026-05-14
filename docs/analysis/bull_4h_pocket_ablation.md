@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-14 09:02:12 UTC**
+- generated_at: **2026-05-14 12:02:05 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -62,7 +62,7 @@
 - dominant neighbor bucket: `None` rows=0
 - bucket gap vs dominant neighbor: **0**
 - exact bucket root cause: **exact_bucket_present_but_below_minimum**
-- broader q65 rows / dominant regime: **20 / chop (0.7980)**
+- broader q65 rows / dominant regime: **20 / chop (0.8020)**
 - root cause interpretation: bull exact lane 已出現當前 bucket 樣本，但距離 minimum support 仍有缺口；需持續累積 exact rows，不能當成已解 blocker。
 - bucket comparison takeaway: **support_gap_unresolved**
 - proxy boundary verdict: **insufficient_recent_exact_bucket_rows**

@@ -1,9 +1,9 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-14 11:10:50.356196**
+- feature_timestamp: **2026-05-14 12:01:53.858387**
 - target: `simulated_pyramid_win`
 - live path: **bear / CAUTION / C**
-- signal: **HOLD** @ confidence **0.3341**
+- signal: **HOLD** @ confidence **0.3492**
 - layers: **1 → 0**
 - allowed_layers_raw_reason: `entry_quality_C_single_layer`
 - allowed_layers_reason: `under_minimum_exact_live_structure_bucket`
@@ -13,7 +13,7 @@
 - support blocker summary: **exact support 20/50 (gap 30) 未達 current-live exact support；broader/proxy rows 僅可作治理參考。 建議 patch `core_plus_macro_plus_all_4h` 目前 status=`reference_only_non_current_live_scope`、reference_scope=`bull|CAUTION`、source=`live_scope_spillover`；只能作治理參考，不是目前即時可部署修補。**
 - support next action: 保持 no-deploy；先累積或回放同一 current-live structure bucket 的 exact lane 樣本，不可用 broader/proxy support 放行。 保留 recommended_patch 可見但 reference-only；適用範圍 / 來源對齊且 exact support 達標前不可放行。
 - q15 exact-supported patch: **inactive** | support_route `exact_bucket_present_but_below_minimum` | floor_cross `floor_crossed_but_support_not_ready`
-- runtime closure summary: **當前即時分桶 CAUTION|structure_quality_caution|q15 的精準樣本仍未就緒（20/50，路徑=精準樣本未達最小門檻 / 治理=exact_live_bucket_present_but_below_minimum）；較寬範圍 / 近似樣本 與建議修補方案 目前都只屬僅供治理參考，不可視為部署閉環。 建議修補方案=core_plus_macro_plus_all_4h (僅供治理參考_non_current_live_範圍). 阻塞點=當前即時結構分桶 已有 exact 筆，但仍低於 部署-grade minimum support；在 support 補滿前，執行期 只能維持 guardrail，不可把這條 lane 視為已可部署。。 精準路徑與外溢對照：同 gate 寬 範圍 出現 牛市|警戒 外溢，568 筆 / 勝率 41.9% / 品質 0.103，明顯劣於 精準即時路徑 勝率 65.0% / 品質 0.350。**
+- runtime closure summary: **當前即時分桶 CAUTION|structure_quality_caution|q15 的精準樣本仍未就緒（20/50，路徑=精準樣本未達最小門檻 / 治理=exact_live_bucket_present_but_below_minimum）；較寬範圍 / 近似樣本 與建議修補方案 目前都只屬僅供治理參考，不可視為部署閉環。 建議修補方案=core_plus_macro_plus_all_4h (僅供治理參考_non_current_live_範圍). 阻塞點=當前即時結構分桶 已有 exact 筆，但仍低於 部署-grade minimum support；在 support 補滿前，執行期 只能維持 guardrail，不可把這條 lane 視為已可部署。。 精準路徑與外溢對照：同 gate 寬 範圍 出現 牛市|警戒 外溢，571 筆 / 勝率 41.9% / 品質 0.103，明顯劣於 精準即時路徑 勝率 65.0% / 品質 0.350。**
 - q35 scaling audit: overall=`None` / redesign=`None` / runtime_gap=`None` / mode=`None` / next_patch=`None`
 - q35 audit action: None
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
@@ -24,16 +24,16 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.6227** / trade_floor **0.55** / gap **0.0727**
-- base_quality: **0.7607** × weight **0.75**
-- structure_quality: **0.2088** × weight **0.25**
-- base components: feat_4h_bias50=0.7484 (w=0.4, contrib=0.2994), feat_nose=0.7407 (w=0.18, contrib=0.1333), feat_pulse=0.6609 (w=0.27, contrib=0.1784), feat_ear=0.9969 (w=0.15, contrib=0.1495)
-- structure components: feat_4h_bb_pct_b=0.4825 (w=0.34, contrib=0.164), feat_4h_dist_bb_lower=0.1356 (w=0.33, contrib=0.0448), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
+- final entry_quality: **0.5887** / trade_floor **0.55** / gap **0.0387**
+- base_quality: **0.7193** × weight **0.75**
+- structure_quality: **0.1968** × weight **0.25**
+- base components: feat_4h_bias50=0.807 (w=0.4, contrib=0.3228), feat_nose=0.8263 (w=0.18, contrib=0.1487), feat_pulse=0.3673 (w=0.27, contrib=0.0992), feat_ear=0.9909 (w=0.15, contrib=0.1486)
+- structure components: feat_4h_bb_pct_b=0.4042 (w=0.34, contrib=0.1374), feat_4h_dist_bb_lower=0.1114 (w=0.33, contrib=0.0368), feat_4h_dist_swing_low=0.0684 (w=0.33, contrib=0.0226)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
 - remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.1795** | structure_group_max_entry_gain: **0.1978**
+- base_group_max_entry_gain: **0.2104** | structure_group_max_entry_gain: **0.2008**
 - best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
 - single-component floor crossers: None
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
