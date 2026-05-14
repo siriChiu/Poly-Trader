@@ -1,92 +1,100 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-05-15 04:08:07 CST_
+_最後更新：2026-05-15 05:10:45 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
 ---
 
-## 已完成 / 本輪前進
-
-- **fast heartbeat #1232 完成 collect + diagnostics + docs sync**
-  - `Raw=33231 / Features=24418 / Labels=66426`；本輪 collect pipeline `+2/+2/+2`，runner `2/2 passed`，`elapsed=13.1s`。
-  - current docs sync 已由 runner 自動完成：`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` 對齊 `issues.json / live_predict_probe / live_decision_quality_drilldown`。
-- **本輪產品化 patch：Dashboard support-stall blocker 可視化**
-  - `web/src/components/ConfidenceIndicator.tsx` 新增 support accumulation 停滯卡，顯示 `28/50`、缺口 `22`、連續停滯 `5` 輪、停滯原因與 operator action。
-  - `web/src/utils/runtimeCopy.ts` 將 `stalled_under_minimum` / `stalled_support_accumulation` 人類化成「連續停滯 N 輪」，避免 operator 把 `delta=0` 誤讀為中性狀態。
-  - `web/src/pages/Dashboard.tsx` 接收完整 `support_progress` typed contract；`tests/test_frontend_decision_contract.py` 鎖定 runtime copy / Dashboard / ConfidenceIndicator contract。
-- **驗證已完成**
-  - `python -m pytest tests/test_frontend_decision_contract.py -q` → `76 passed`。
-  - `cd web && npm run build` → TypeScript + Vite build succeeded。
-  - `python -m pytest tests/test_server_startup.py tests/test_hb_predict_probe.py tests/test_hb_parallel_runner.py -q` → `207 passed`。
-  - `python scripts/heartbeat_harness_check.py --format text` → `RESULT: PASS`。
-  - `python scripts/hb_predict_probe.py` → fresh probe confirms `deployment_blocker=under_minimum_exact_live_structure_bucket` / q35 `28/50` / `allowed_layers=0` / support stall escalated。
+## 已完成
+- **fast heartbeat #1233 已完成 collect + diagnostics refresh**
+  - `Raw=33235 / Features=24422 / Labels=66434`
+  - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
+  - `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=—` / `recent_window_wins=—/—` / `additional_recent_window_wins_needed=—`
+  - `latest_window=100` / `win_rate=50.0%` / `dominant_regime=chop(97.0%)` / `avg_quality=+0.1531` / `avg_pnl=+0.0021` / `alerts=regime_concentration,regime_shift`
+  - `blocking_window=250` / `win_rate=60.4%` / `dominant_regime=chop(94.4%)` / `avg_quality=+0.2342` / `avg_pnl=+0.0030` / `alerts=regime_concentration,regime_shift`
+- **current-state docs overwrite sync 已自動化**
+  - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
+  - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫
+- **Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）**
+  - `/api/status` 初次同步前或部署阻塞存在時，買入 / 加倉與啟用自動模式快捷操作顯示暫停並保持 disabled；減碼 / 賣出風險降低、切到手動模式、查看阻塞原因與重新整理仍可用；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`；後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點，阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑；`data/live_predict_probe.json` 同步輸出 `api_trade_guardrail_active / api_trade_buy_guardrail / api_trade_allowed_risk_off_sides` 作為 machine-readable proof
+- **Execution Status / Bot 營運 已顯示即時部署阻塞條件**
+  - `即時部署阻塞點=under_minimum_exact_live_structure_bucket`；當前 q35 分桶支持樣本=28/50，缺口=22；目前不是熔斷解除數學，候選修補不可取代同分桶最低樣本門檻；操作員執行介面先看即時部署阻塞點，再看 當前 q35 分桶 support / 背景治理；`runtime_closure_summary` 已由 `model/runtime_closure.py` 共用中文化，避免後端英文枚舉與混合式治理文案泄漏到 Dashboard / Strategy Lab / Execution Status
+- **Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe**
+  - 列級 `signal` 透過 `formatHighConvictionRuntimeSignalLabel()` 轉成繁中操作語；即時分桶 / 支持 / release gate 未解除前，候選列維持模擬觀察 / 影子驗證 / 僅觀察，不用內部 enum 暗示可部署。
+- **本輪 current-state docs 已同步到最新 artifacts**
+  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊
 
 ---
 
 ## 主目標
 
-### 目標 A：補足 current-live q35 exact support，讓 blocker 可被真實解除
+### 目標 A：維持 current-live exact-support blocker 作為唯一 current-live blocker
 **目前真相**
-- `deployment_blocker=under_minimum_exact_live_structure_bucket`。
-- `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35` / `support=28/50` / `gap=22`。
-- `support_progress.status=stalled_under_minimum` / `delta_vs_previous=0` / `stagnant_run_count=5` / `stalled_support_accumulation=True` / `escalate_to_blocker=True`。
-
+- `deployment_blocker=under_minimum_exact_live_structure_bucket` / `streak=—` / `recent_window_wins=—/—` / `additional_recent_window_wins_needed=—`
+- `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35` / `support=28/50` / `gap=22` / `support_route_verdict=exact_bucket_present_but_below_minimum`
+- support progress：`status=stalled_under_minimum` / `regression_basis=same_identity_same_semantic_signature` / `legacy_supported_reference=—` / `stagnant_run_count=5` / `stalled_support_accumulation=True` / `escalate_to_blocker=True`
 **成功標準**
-- current-live exact support 達 `>=50` 且 support identity 沒有 semantic drift。
-- `/`、`/lab`、`/execution`、`/execution/status`、probe、docs 都顯示相同 current-live blocker truth。
-- buy/add exposure 在 blocker 解除前持續 fail-closed；risk-off path 保留。
+- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `under_minimum_exact_live_structure_bucket` 視為唯一 current-live deployment blocker，且不再誤回退成 breaker-first 舊敘事；`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 啟用自動模式，阻塞期間只暫停買入 / 加倉與啟用自動模式，減碼 / 賣出風險降低路徑仍可用；直接呼叫 `POST /api/trade` 的買入 / 加倉也必須依即時部署阻塞點以 409 暫停，且只保留減倉 / 賣出風險降低路徑。
+- q35 current-live bucket truth (`bucket / rows / minimum / gap / support route`) 仍在 top-level surfaces 可 machine-read。
 
-### 目標 B：讓 support-stall 與 score-only redesign 在 operator UI 中不可誤讀
+### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽
 **目前真相**
-- q35 redesign 可作 score-layer 研究參考，但 current runtime 仍 `allowed_layers=0`，support `28/50`。
-- Dashboard confidence card 已補上 support-stall 直觀卡與 q35 operator action。
-
+- `latest_window=100` / `win_rate=50.0%` / `dominant_regime=chop(97.0%)` / `avg_quality=+0.1531` / `avg_pnl=+0.0021` / `alerts=regime_concentration,regime_shift`
+- `blocking_window=250` / `win_rate=60.4%` / `dominant_regime=chop(94.4%)` / `avg_quality=+0.2342` / `avg_pnl=+0.0030` / `alerts=regime_concentration,regime_shift`
 **成功標準**
-- Operator 一眼能看到：停滯不是中性；q35 分數重設 / base-stack redesign 不能替代 exact support 與 deployment guardrail。
-- Frontend contract tests 持續鎖住停滯欄位、中文 copy 與 q35 警示。
+- drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。
 
-### 目標 C：把 high-conviction Top-K OOS gate 維持成研究→影子驗證→部署候選的 fail-closed pipeline
+### 目標 C：守住 q35 current-live bucket support + reference-only patch 真相
 **目前真相**
-- `data/high_conviction_topk_oos_matrix.json` fresh；`rows=24` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidate_rows=6`。
-- nearest candidate 離線通過 OOS/risk gate，但 live gate 仍失敗：`support_route_not_deployable` + `deployment_blocker_active`。
-
+- `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35` / `support=28/50` / `gap=22` / `support_route_verdict=exact_bucket_present_but_below_minimum`
+- support progress：`status=stalled_under_minimum` / `regression_basis=same_identity_same_semantic_signature` / `legacy_supported_reference=—` / `stagnant_run_count=5` / `stalled_support_accumulation=True` / `escalate_to_blocker=True`
+- `recommended_patch=core_plus_macro_plus_all_4h` / `status=reference_only_non_current_live_scope` / `reference_scope=bull|CAUTION`
+- q35 scaling audit 已指出目前不是單點 bias50 closure： `overall_verdict=bias50_formula_may_be_too_harsh` / `redesign_verdict=base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked` / `runtime_gap_to_floor=0.0713` / `redesign_entry_quality=0.5565` / `redesign_allowed_layers=0` / `positive_discriminative_gap=True` / `execution_blocked_after_floor_cross=True`
 **成功標準**
-- Strategy Lab/API 先顯示 nearest-deployable candidate 與 live gate failures，而不是只看最高 ROI。
-- live support/venue gates 未過前，所有候選保持 observe/shadow，不可 deploy。
+- probe / drilldown / `/api/status` / `/execution/status` / `/lab` / docs 全都承認 q35 current-live bucket exact support 未達 minimum rows，recommended patch 只能作治理 / 訓練參考。
 
-### 目標 D：維持 source / venue / leaderboard governance 的產品真相
+### 目標 D：維持 leaderboard、venue/source blockers 與 docs automation 一致 product truth
 **目前真相**
-- source blockers：`fin_netflow auth_missing`、`claw auth_missing`、`claw_intensity auth_missing`、`nest_pred tls_verify_failed`。
-- venue proof 仍缺 credential/order-ack/fill lifecycle。
-- leaderboard dual-role governance active；`leaderboard_count=6`，非 placeholder-only。
-
+- `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=8.4m`
+- top source blockers：`fin_netflow(source_auth_blocked/auth_missing, coverage=0.0%, archive_window=0.0%, forward_archive=ready)` / `claw(source_auth_blocked/auth_missing, coverage=14.7%, archive_window=87.5%, forward_archive=ready)` / `claw_intensity(source_auth_blocked/auth_missing, coverage=14.7%, archive_window=87.5%, forward_archive=ready)` / `nest_pred(source_tls_verify_failed/tls_verify_failed, coverage=16.3%, archive_window=97.2%, forward_archive=ready)`
+- fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=4052` / `archive_window_coverage_pct=0.0`
+- venue blockers：`live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證；API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows
+- docs automation：markdown docs 不再允許落後 live artifacts
 **成功標準**
-- Venue/source blocker 在 operator-facing surfaces 持續可見且 fail-closed。
-- Leaderboard 不回退成 placeholder-only 或混淆 global ranking 與 support-aware production。
+- Strategy Lab 不回退 placeholder-only；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。
+
+### 目標 E：建立 high-conviction top-k OOS ROI gate，把研究結論轉成實戰部署門檻
+**目前真相**
+- 六色帽會議與研究交叉分析已收斂：下一步不是增加交易頻率，而是用 walk-forward OOS / top-k precision / ROI / max drawdown / meta-labeling / uncertainty gate 決定是否允許 candidate 進入部署候選。
+- 最新 matrix artifact 已產出：`artifact=data/high_conviction_topk_oos_matrix.json` / `generated_at=2026-05-14T21:02:14.064832+00:00` / `freshness=fresh` / `age_min=8.5` / `stale_after_min=60` / `deployment_blocking=False` / `samples=24309` / `rows=24` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `support_route=exact_bucket_present_but_below_minimum` / `deployment_blocker=under_minimum_exact_live_structure_bucket` / `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35` / `current_live_structure_bucket_rows=28/50` / `current_live_structure_bucket_gap_to_minimum=22`。
+- 最接近部署候選優先：`model=logistic_regression` / `regime=all` / `top_k=top_2pct` / `oos_roi=0.9324` / `win_rate=0.8621` / `profit_factor=19.8864` / `max_drawdown=0.022` / `worst_fold=0.2068` / `trades=58` / `tier=runtime_blocked_oos_pass` / `verdict=not_deployable` / `support_route=exact_bucket_present_but_below_minimum` / `governance=exact_live_bucket_present_but_below_minimum` / `bucket=CAUTION|base_caution_regime_or_bias|q35` / `bucket_rows=28/50` / `gap=22`；若只剩即時分桶 / 支持 / release gate，仍模擬觀察 / 影子驗證 / 僅觀察。
+**成功標準**
+- `data/high_conviction_topk_oos_matrix.json` 必須持續輸出 `generated_at / artifact_freshness_status / artifact_age_minutes / artifact_stale_after_minutes / artifact_deployment_blocking / model / feature_profile / regime / top_k / OOS ROI / win_rate / profit_factor / max_drawdown / worst_fold / trade_count / support_route / support_governance_route / deployment_blocker / runtime_closure_state / current_live_structure_bucket / current_live_structure_bucket_rows / minimum_support_rows / current_live_structure_bucket_gap_to_minimum / release_ready / current_recent_window_wins / required_recent_window_wins / additional_recent_window_wins_needed / deployable_verdict / gate_failures / model_gate_failures / live_gate_failures / deployment_candidate_tier`。
+- `/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板以最接近部署候選優先排序：先看離線驗證 / 風控門檻、低回撤、最差分折，再看 ROI；若候選只剩矩陣新鮮度 / 即時分桶 / 支持 / breaker release 條件 / 場館 proof 未過，仍 fail-closed 到模擬觀察 / 影子驗證 / 僅觀察，並顯示矩陣新鮮度、支持狀態、治理路徑、部署阻塞、即時分桶與樣本數，外加 release math。
 
 ---
 
 ## 下一輪 gate
-
-1. **current-live q35 support accumulation gate**
-   - 驗證：`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、browser `/`、browser `/lab`、browser `/execution/status`。
-   - 升級 blocker：若 support rows 仍停在 `28` 且 `stagnant_run_count` 增加，需追資料累積/分桶 identity 路徑，而非重跑模型。
-2. **Dashboard support-stall UI guardrail gate**
-   - 驗證：`python -m pytest tests/test_frontend_decision_contract.py -q`、`cd web && npm run build`。
-   - 升級 blocker：若停滯卡或 q35 score-only 警示從 Dashboard 消失，或 copy 回退成 raw enum。
-3. **Top-K OOS fail-closed gate**
-   - 驗證：`data/high_conviction_topk_oos_matrix.json`、`/api/models/leaderboard.high_conviction_topk`、Strategy Lab Top-K panel。
-   - 升級 blocker：若 OOS-pass row 在 live support gate 未過時被標為 deployable。
-4. **venue/source proof gate**
-   - 驗證：`data/execution_metadata_smoke.json`、`/execution`、`/execution/status`。
-   - 升級 blocker：若 credential/order/fill proof 未補齊卻顯示 runtime-ready。
+1. **維持 current-live exact-support blocker + q35 current-live bucket visibility across API / UI / docs**
+   - 驗證：browser `/`、browser `/execution`（含初次同步時買入 / 啟用自動模式暫停、減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python -m pytest tests/test_server_startup.py -k api_trade -q`
+   - 升級 blocker：若 current-live blocker 被 breaker 舊敘事 / venue 話題覆蓋，或 q35 current-live bucket rows 再次從 top-level surfaces 消失
+2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**
+   - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`
+   - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據
+3. **守住 q35 current-live bucket support / reference-only patch、leaderboard governance、venue/source blockers 與 docs automation 閉環**
+   - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status
+   - 升級 blocker：若 patch 被誤升級成 deployable truth、排行榜 drift 成 placeholder-only、venue/source blocker 消失、或 docs 再次落後 latest artifacts
+4. **建立 high-conviction top-k OOS ROI gate，讓 Strategy Lab winner 先經研究→模擬觀察→影子驗證→小流量分級**
+   - 驗證：`data/high_conviction_topk_oos_matrix.json`、`/api/models/leaderboard.high_conviction_topk`、Strategy Lab 高信心 OOS Top-K 部署門檻面板、`python -m pytest tests/test_model_leaderboard.py tests/test_frontend_decision_contract.py -k high_conviction -q`
+   - 升級 blocker：若 scan winner 未經 OOS top-k / minimum support / drawdown / breaker release gate 就被標成 deployable，或 current-live unsupported 時仍允許 buy/add exposure
 
 ---
 
 ## 成功標準
-
-- current-live blocker 清楚且唯一：`under_minimum_exact_live_structure_bucket`。
-- q35 current-live support truth 維持：`28/50`、`gap=22`、`stalled_under_minimum`、`stagnant_run_count=5`。
-- Dashboard/Strategy Lab/Execution 不把 support stall、score-only redesign、OOS-pass candidate 或 venue metadata 誤解為 deployment closure。
-- 每輪 heartbeat 都完成：facts → patch/productization → verify → docs overwrite sync。
+- current-live blocker 清楚且唯一：**under_minimum_exact_live_structure_bucket**
+- current live bucket support truth 維持：**28/50 + exact_bucket_present_but_below_minimum + reference_only_non_current_live_scope**
+- recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋
+- leaderboard dual-role governance 維持；venue/source blockers 持續可見
+- heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**
+- `/api/trade` 直接 API 不能繞過即時部署阻塞點：買入 / 加倉在 no-deploy 狀態必須 409，減倉 / 賣出仍可用

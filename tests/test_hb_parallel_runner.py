@@ -2078,6 +2078,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "current-state docs overwrite sync 已自動化" in roadmap_md
     assert "Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）" in issues_md
     assert "`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout" in issues_md
+    assert "Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe" in issues_md
+    assert "最接近部署候選列不再把內部訊號 token 直接丟給 operator" in issues_md
     assert "把可用 payload 誤報成 `API timeout`" in issues_md
     assert "POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點" in issues_md
     assert "runtime/API guardrail：`POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點" in issues_md
@@ -2090,6 +2092,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows" in roadmap_md
     assert "manual_trade=paused_when_deployment_blocked" not in issues_md
     assert "Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）" in roadmap_md
+    assert "Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe" in roadmap_md
+    assert "候選列維持模擬觀察 / 影子驗證 / 僅觀察" in roadmap_md
     assert "operator-workspace timeout" in roadmap_md
     assert "直接呼叫 `POST /api/trade` 的買入 / 加倉也必須依即時部署阻塞點以 409 暫停" in roadmap_md
     assert "`/api/trade` 直接 API 不能繞過即時部署阻塞點" in roadmap_md
@@ -7702,6 +7706,7 @@ def test_overwrite_current_state_docs_surfaces_high_conviction_topk_gate(tmp_pat
     assert "Strategy Lab 高信心 OOS Top-K Gate panel" not in roadmap_md
     assert "`/api/models/leaderboard`" in roadmap_md
     assert "operator 現在會先看到最接近部署候選" in orid_md
+    assert "列級即時訊號已改用繁中操作語" in orid_md
     assert "walk-forward OOS top-k matrix" in orid_md
     assert "研究到產品 gate" in orid_md
     assert "Research-to-production gate" not in orid_md

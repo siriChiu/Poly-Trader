@@ -1071,6 +1071,18 @@ const formatHighConvictionRegimeLabel = (value?: string | null) => {
   if (normalized.toLowerCase() === "all") return "全市場";
   return regimeLabelMap[normalized.toLowerCase()] || humanizeRuntimeDetailText(normalized);
 };
+const formatHighConvictionRuntimeSignalLabel = (value?: string | null) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "—";
+  const signalLabelMap: Record<string, string> = {
+    BUY: "可分層進場",
+    SELL: "風險降低 / 賣出",
+    HOLD: "先觀望",
+    ABSTAIN: "暫停出手",
+    CIRCUIT_BREAKER: "風控熔斷中",
+  };
+  return signalLabelMap[normalized.toUpperCase()] || humanizeRuntimeDetailText(normalized);
+};
 const formatHighConvictionRowSupportRowsLabel = (row: HighConvictionTopKRow) => {
   const rows = row.current_live_structure_bucket_rows;
   const minimum = row.minimum_support_rows;
@@ -1908,7 +1920,7 @@ export default function StrategyLab() {
   const highConvictionDeploymentBlockerLabel = highConvictionSupportContext ? humanizeCurrentLiveBlockerLabel(highConvictionSupportContext.deployment_blocker || null) : "—";
   const highConvictionRuntimeClosureLabel = highConvictionSupportContext?.runtime_closure_state ? humanizeRuntimeClosureStateLabel(highConvictionSupportContext.runtime_closure_state) : "—";
   const highConvictionPrimaryRuntimeRow = highConvictionRows.find((row) => row.blocked_only_by_live_guardrails || row.deployment_candidate_tier === "runtime_blocked_oos_pass") || highConvictionRows[0] || null;
-  const highConvictionRuntimeSignalLabel = humanizeRuntimeDetailText(String(highConvictionSupportContext?.signal || highConvictionPrimaryRuntimeRow?.signal || "—"));
+  const highConvictionRuntimeSignalLabel = formatHighConvictionRuntimeSignalLabel(highConvictionSupportContext?.signal || highConvictionPrimaryRuntimeRow?.signal || null);
   const highConvictionAllowedLayersValue = highConvictionSupportContext?.allowed_layers ?? highConvictionPrimaryRuntimeRow?.allowed_layers;
   const highConvictionAllowedLayersLabel = isFiniteNumber(highConvictionAllowedLayersValue) ? formatDecimal(highConvictionAllowedLayersValue, 0) : "—";
   const highConvictionRuntimeBlockerSummary = `即時阻塞 ${highConvictionDeploymentBlockerLabel} · 閉環 ${highConvictionRuntimeClosureLabel} · 訊號 ${highConvictionRuntimeSignalLabel} · 可用層 ${highConvictionAllowedLayersLabel}`;
@@ -3767,7 +3779,7 @@ export default function StrategyLab() {
                                     <div className="mt-1 text-[10px] text-violet-100/70">{humanizeRuntimeDetailText(row.feature_profile || "特徵設定 —")} · {formatHighConvictionRegimeLabel(row.regime)} · {humanizeRuntimeDetailText(row.top_k || "Top-K —")}</div>
                                     <div className="mt-1 text-[10px] text-violet-100/60">部署判定 {humanizeRuntimeDetailText(row.deployable_verdict || "not_deployable")}</div>
                                     {(row.signal || isFiniteNumber(row.allowed_layers) || row.execution_guardrail_reason) && (
-                                      <div className="mt-1 text-[10px] text-violet-100/60">即時訊號 {row.signal || "—"} · 可用層 {isFiniteNumber(row.allowed_layers) ? formatDecimal(row.allowed_layers, 0) : "—"} · 原因 {row.execution_guardrail_reason ? humanizeRuntimeDetailText(row.execution_guardrail_reason) : "—"}</div>
+                                      <div className="mt-1 text-[10px] text-violet-100/60">即時訊號 {formatHighConvictionRuntimeSignalLabel(row.signal)} · 可用層 {isFiniteNumber(row.allowed_layers) ? formatDecimal(row.allowed_layers, 0) : "—"} · 原因 {row.execution_guardrail_reason ? humanizeRuntimeDetailText(row.execution_guardrail_reason) : "—"}</div>
                                     )}
                                     {(row.support_route || row.deployment_blocker || row.runtime_closure_state) && (
                                       <div className="mt-1 text-[10px] text-violet-100/60">支持 {row.support_route ? humanizeSupportRouteLabel(row.support_route) : "—"} · 阻塞 {row.deployment_blocker ? humanizeCurrentLiveBlockerLabel(row.deployment_blocker) : "—"} · 閉環 {row.runtime_closure_state ? humanizeRuntimeClosureStateLabel(row.runtime_closure_state) : "—"}</div>
