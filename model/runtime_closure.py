@@ -154,7 +154,8 @@ def build_runtime_closure_summary(
             if profile or status:
                 summary += f" 建議修補方案={_humanize_runtime_text(profile or '—')} ({_humanize_runtime_text(status or 'reference_only')})."
         if blocker_reason and blocker_reason not in summary:
-            summary += f" 阻塞點={_humanize_runtime_text(blocker_reason)}。"
+            reason_text = _humanize_runtime_text(blocker_reason).rstrip("。")
+            summary += f" 阻塞點={reason_text}。"
         return _append_scope_summary(summary, scope_pathology_summary)
 
     if blocker or blocker_reason:
@@ -184,6 +185,11 @@ def _humanize_runtime_text(value: Any) -> str:
         ("recent 50", "最近 50 筆"),
         ("decision_quality_below_trade_floor", "決策品質低於交易門檻"),
         ("entry_quality_below_trade_floor", "進場品質低於交易門檻"),
+        ("runtime gate/support", "執行期 gate/樣本支持"),
+        ("scoring floor", "評分門檻"),
+        ("score-only", "僅限評分"),
+        ("execution-blocked", "執行仍阻塞"),
+        ("floor-cross", "跨越門檻"),
         ("decision-quality trade floor", "決策品質交易門檻"),
         ("decision-quality", "決策品質"),
         ("top-level live baseline", "頂層即時基準"),
@@ -210,13 +216,18 @@ def _humanize_runtime_text(value: Any) -> str:
         ("circuit breaker active", "風控熔斷啟用中"),
         ("circuit breaker", "風控熔斷"),
         ("exact live lane", "精準即時路徑"),
+        ("missing exact support", "精準樣本缺失"),
         ("exact support", "精準樣本"),
         ("hold-only", "僅觀察"),
         ("broader / proxy rows", "較寬範圍 / 近似樣本"),
+        ("reference_only_non_current_live_scope", "非目前即時範圍，僅供治理參考"),
         ("reference_only_until_exact_support_ready", "精準樣本就緒前僅供治理參考"),
+        ("non_current_live_scope", "非目前即時範圍"),
         ("reference-only", "僅供治理參考"),
         ("reference_only", "僅供治理參考"),
         ("exact_supported_component_experiment_ready", "精準樣本元件實驗就緒"),
+        ("exact_live_bucket_present_but_below_minimum", "目前即時分桶精準樣本未達最小門檻"),
+        ("exact_live_bucket_supported", "目前即時分桶精準樣本已就緒"),
         ("unsupported_exact_live_structure_bucket", "精準樣本尚未建立"),
         ("under_minimum_exact_live_structure_bucket", "精準樣本未達最小門檻"),
         ("exact_bucket_supported", "精準樣本已就緒"),
@@ -235,6 +246,14 @@ def _humanize_runtime_text(value: Any) -> str:
         ("shows", "顯示"),
         ("alerts=", "警示="),
         ("同 quality 寬 scope", "同品質寬範圍"),
+        ("deployment-grade minimum support", "部署級最小精準樣本門檻"),
+        ("minimum support", "最小精準樣本門檻"),
+        ("support 補滿前", "精準樣本補滿前"),
+        ("exact rows", "精準筆數"),
+        ("exact 筆", "精準筆數"),
+        ("this lane", "這條路徑"),
+        ("這條 lane", "這條路徑"),
+        (" lane", " 路徑"),
         ("quality", "品質"),
         ("scope", "範圍"),
         ("spillover", "外溢"),
@@ -243,9 +262,18 @@ def _humanize_runtime_text(value: Any) -> str:
         ("runtime", "執行期"),
         ("deployment", "部署"),
         ("execution", "執行"),
+        ("guardrail", "保護欄"),
         ("blocker", "阻塞點"),
     ]
     for old, new in replacements:
+        text = text.replace(old, new)
+    cleanup_pairs = [
+        ("已有 精準筆數", "已有精準筆數"),
+        ("這條路徑 視為", "這條路徑視為"),
+        ("執行期 只能", "執行期只能"),
+        ("。。", "。"),
+    ]
+    for old, new in cleanup_pairs:
         text = text.replace(old, new)
     return text
 

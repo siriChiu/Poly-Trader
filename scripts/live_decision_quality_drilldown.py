@@ -18,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from server.live_pathology_summary import build_live_pathology_scope_surface
+from model.runtime_closure import _humanize_runtime_text
 
 PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 Q35_AUDIT_PATH = PROJECT_ROOT / "data" / "q35_scaling_audit.json"
@@ -287,38 +288,39 @@ def _support_blocker_summary(
     ):
         return None
 
-    support_text = "support rows unknown"
+    support_text = "精準樣本未知"
     if current_rows is not None and minimum_rows is not None:
-        support_text = f"exact support {current_rows}/{minimum_rows}"
+        support_text = f"精準樣本 {current_rows}/{minimum_rows}"
         if gap_to_minimum is not None:
-            support_text += f" (gap {gap_to_minimum})"
+            support_text += f"（缺口 {gap_to_minimum}）"
     deployable = bool(support_route_deployable) if isinstance(support_route_deployable, bool) else False
     if deployable:
-        operator_summary = f"{support_text} 已達 deployable support；deployment 仍以 `{blocker_type or 'none'}` 與 allowed_layers 為準。"
-        operator_next_action = "不要把 support closure 誤讀成 deployment closure；繼續檢查 allowed_layers / signal / venue proof。"
+        operator_summary = f"{support_text} 已達可部署樣本門檻；是否放行仍以即時部署阻塞與執行層數為準。"
+        operator_next_action = "不要把樣本達標誤讀成部署已放行；繼續檢查執行層數、訊號與場館證據。"
     else:
-        operator_summary = f"{support_text} 未達 current-live exact support；broader/proxy rows 僅可作治理參考。"
+        operator_summary = f"{support_text} 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。"
         operator_next_action = (
-            "保持 no-deploy；先累積或回放同一 current-live structure bucket 的 exact lane 樣本，"
-            "不可用 broader/proxy support 放行。"
+            "保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，"
+            "不可用較寬範圍或近似樣本放行。"
         )
 
     patch_status = str(patch_projection.get("recommended_patch_status") or "")
     patch_reference_only = patch_status.startswith("reference_only")
+    patch_status_label = "僅供治理參考" if patch_reference_only else (patch_status or "未標示")
     patch_profile = patch_projection.get("recommended_patch_profile")
     if patch_reference_only and patch_profile:
         patch_scope = patch_projection.get("recommended_patch_reference_scope") or "unknown_scope"
         patch_source = patch_projection.get("recommended_patch_reference_source") or "unknown_source"
         operator_summary += (
-            f" 建議 patch `{patch_profile}` 目前 status=`{patch_status}`、"
-            f"reference_scope=`{patch_scope}`、source=`{patch_source}`；只能作治理參考，"
+            f" 建議修補方案 {patch_profile} 目前為{patch_status_label}，"
+            f"適用範圍 {patch_scope}、來源 {patch_source}；只能作治理參考，"
             "不是目前即時可部署修補。"
         )
-        operator_next_action += " 保留 recommended_patch 可見但 reference-only；適用範圍 / 來源對齊且 exact support 達標前不可放行。"
+        operator_next_action += " 保留建議修補方案可見但標示為僅參考；適用範圍與來源對齊、且精準樣本達標前不可放行。"
 
     return {
         "deployment_blocker": blocker_type,
-        "deployment_blocker_reason": (deployment_blocker or {}).get("reason") or payload.get("deployment_blocker_reason"),
+        "deployment_blocker_reason": _humanize_runtime_text((deployment_blocker or {}).get("reason") or payload.get("deployment_blocker_reason")),
         "deployment_blocker_source": (deployment_blocker or {}).get("source") or payload.get("deployment_blocker_source"),
         "current_live_structure_bucket": current_bucket,
         "current_live_structure_bucket_rows": current_rows,
@@ -665,6 +667,11 @@ def main() -> None:
         for item in crossers[:4]
     ) or "None"
 
+    runtime_blocker_reason_text = _humanize_runtime_text((runtime_blocker or {}).get("reason") or "None")
+    deployment_blocker_reason_text = _humanize_runtime_text((deployment_blocker or {}).get("reason") or "None")
+    q35_audit_action_text = _humanize_runtime_text(q35_audit.get("recommended_action") or "None")
+    q15_patch_state_text = "啟用" if report["q15_exact_supported_component_patch_applied"] else "未啟用"
+
     lines = [
         "# Live Decision-Quality Drilldown",
         "",
@@ -676,19 +683,19 @@ def main() -> None:
         f"- allowed_layers_raw_reason: `{report['allowed_layers_raw_reason']}`",
         f"- allowed_layers_reason: `{report['allowed_layers_reason']}`",
         f"- execution_guardrail_reason: `{report['execution_guardrail_reason']}`",
-        f"- runtime_blocker: `{(runtime_blocker or {}).get('type')}` | reason: `{(runtime_blocker or {}).get('reason')}`",
-        f"- deployment_blocker: `{(deployment_blocker or {}).get('type')}` | reason: `{(deployment_blocker or {}).get('reason')}`",
+        f"- runtime_blocker: `{(runtime_blocker or {}).get('type')}` | reason: `{runtime_blocker_reason_text}`",
+        f"- deployment_blocker: `{(deployment_blocker or {}).get('type')}` | reason: `{deployment_blocker_reason_text}`",
         f"- support blocker summary: **{support_operator_summary}**",
         f"- support next action: {support_operator_next_action}",
-        f"- q15 exact-supported patch: **{'active' if report['q15_exact_supported_component_patch_applied'] else 'inactive'}** | support_route `{report.get('support_route_verdict')}` | floor_cross `{report.get('floor_cross_verdict')}`",
+        f"- q15 精準樣本修補: **{q15_patch_state_text}** | 支持路徑 `{report.get('support_route_verdict')}` | 跨越門檻 `{report.get('floor_cross_verdict')}`",
         f"- runtime closure summary: **{runtime_closure_summary}**",
         f"- q35 scaling audit: overall=`{q35_overall_verdict}` / redesign=`{q35_redesign_verdict}` / runtime_gap=`{q35_runtime_gap}` / mode=`{q35_recommended_mode}` / next_patch=`{q35_next_patch_target}`",
-        f"- q35 audit action: {q35_audit.get('recommended_action')}",
+        f"- q35 audit action: {q35_audit_action_text}",
         f"- q15 patch machine-read: support_ready={q15_patch_machine_read.get('support_ready')} / entry_quality_ge_0_55={q15_patch_machine_read.get('entry_quality_ge_0_55')} / allowed_layers_gt_0={q15_patch_machine_read.get('allowed_layers_gt_0')} / preserves_positive_discrimination_status=`{q15_patch_machine_read.get('preserves_positive_discrimination_status')}`",
-        f"- recommended_patch: **{recommended_patch_profile}** / status `{recommended_patch_status}` / support_route `{recommended_patch.get('support_route_verdict')}` / gap `{recommended_patch.get('gap_to_minimum')}` / reference_scope `{recommended_patch.get('reference_patch_scope') or recommended_patch.get('spillover_regime_gate')}` / source `{recommended_patch.get('reference_source')}`",
-        f"- recommended_patch_features: {recommended_patch_features}",
-        f"- recommended_patch_reason: {recommended_patch.get('reason')}",
-        f"- recommended_patch_action: {recommended_patch.get('recommended_action')}",
+        f"- 建議修補方案: **{recommended_patch_profile}** — 狀態：{'僅供治理參考' if str(recommended_patch_status).startswith('reference_only') else recommended_patch_status}；精準樣本缺口 `{recommended_patch.get('gap_to_minimum')}`；適用範圍 `{recommended_patch.get('reference_patch_scope') or recommended_patch.get('spillover_regime_gate')}`；來源 `{recommended_patch.get('reference_source')}`",
+        f"- 建議修補特徵: {recommended_patch_features}",
+        f"- 建議修補說明: {support_operator_summary}",
+        f"- 下一步: {support_operator_next_action}",
         "",
         "## Entry-quality component breakdown",
         "",
@@ -723,12 +730,12 @@ def main() -> None:
         "",
         "## Interpretation",
         "",
-        "- if `runtime_blocker.type=circuit_breaker`, the current live row is blocked before the decision-quality contract is evaluated; treat q35/q15 diagnostics as background research, not deployable live routing.",
-        "- if `deployment_blocker.type=bull_q35_no_deploy_governance`, the current bull q35 lane is exact-supported but still not deployable because only non-discriminative unsafe reweight can cross the floor; do not describe it as simple support shortage or generic floor gap.",
-        "- if `q15_exact_supported_component_patch_applied=true` while `signal=HOLD`, describe the state as 'capacity opened but signal still HOLD' — not as patch missing, and not as automatic BUY readiness.",
-        "- exact live lane and chosen scope are separated on purpose: if exact lane is tiny or lacks current structure-bucket support, runtime must not trust it blindly.",
-        "- broader same-gate scope is still useful only as a structure-bucket fallback, not as the primary semantic representative of the live bull path.",
-        "- if the shared shift set remains dominated by `feat_4h_dist_swing_low / feat_4h_dist_bb_lower / feat_4h_bb_pct_b`, the next fix should stay on 4H structure collapse rather than generic calibration tuning.",
+        "- 若 `runtime_blocker.type=circuit_breaker`，代表目前即時列在決策品質合約評估前已被熔斷；q35/q15 診斷只能作背景研究，不可當成即時部署路由。",
+        "- 若 `deployment_blocker.type=bull_q35_no_deploy_governance`，代表目前 bull q35 路徑雖有精準樣本，但只有非判別式高風險重配能跨過門檻；不得描述成單純樣本不足或一般門檻缺口。",
+        "- 若 `q15_exact_supported_component_patch_applied=true` 且 `signal=HOLD`，應描述為容量已開但訊號仍觀望；不是修補缺失，也不是自動買入就緒。",
+        "- 精準即時路徑與選用範圍刻意分離：若精準路徑樣本太少或缺少目前結構分桶支持，執行期不可盲目信任它。",
+        "- 較寬同 gate 範圍只可作結構分桶備援，不是目前即時牛市路徑的主要語義代表。",
+        "- 若共享位移仍由 `feat_4h_dist_swing_low / feat_4h_dist_bb_lower / feat_4h_bb_pct_b` 主導，下一步應持續聚焦 4H 結構塌陷，而不是泛化校準調參。",
     ]
 
     OUT_MD.parent.mkdir(parents=True, exist_ok=True)
@@ -739,9 +746,9 @@ def main() -> None:
         "chosen_scope": chosen_scope,
         "worst_pathology_scope": worst.get("scope"),
         "runtime_blocker": (runtime_blocker or {}).get("type"),
-        "runtime_blocker_reason": (runtime_blocker or {}).get("reason"),
+        "runtime_blocker_reason": runtime_blocker_reason_text,
         "deployment_blocker": (deployment_blocker or {}).get("type"),
-        "deployment_blocker_reason": (deployment_blocker or {}).get("reason"),
+        "deployment_blocker_reason": deployment_blocker_reason_text,
         "support_blocker_summary": support_blocker_summary,
         "support_operator_summary": support_operator_summary,
         "support_operator_next_action": support_operator_next_action,

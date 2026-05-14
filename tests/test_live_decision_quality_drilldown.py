@@ -305,6 +305,8 @@ def test_support_blocker_summary_compacts_exact_bucket_shortage_for_operator_sur
     summary = live_drilldown._support_blocker_summary(payload, blocker)
 
     assert summary["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert "精準樣本缺失" in summary["deployment_blocker_reason"]
+    assert "exact support" not in summary["deployment_blocker_reason"]
     assert summary["current_live_structure_bucket"] == "BLOCK|structure_quality_block|q00"
     assert summary["current_live_structure_bucket_rows"] == 0
     assert summary["minimum_support_rows"] == 50
@@ -312,9 +314,12 @@ def test_support_blocker_summary_compacts_exact_bucket_shortage_for_operator_sur
     assert summary["support_progress_status"] == "stalled_under_minimum"
     assert summary["support_route_verdict"] == "exact_bucket_unsupported_block"
     assert summary["support_governance_route"] == "no_support_proxy"
-    assert "exact support 0/50 (gap 50)" in summary["operator_summary"]
-    assert "broader/proxy rows 僅可作治理參考" in summary["operator_summary"]
-    assert "不可用 broader/proxy support 放行" in summary["operator_next_action"]
+    assert "精準樣本 0/50（缺口 50）" in summary["operator_summary"]
+    assert "較寬範圍或近似樣本只可作治理參考" in summary["operator_summary"]
+    assert "不可用較寬範圍或近似樣本放行" in summary["operator_next_action"]
+    assert "exact support" not in summary["operator_summary"]
+    assert "broader/proxy" not in summary["operator_summary"]
+    assert "broader/proxy" not in summary["operator_next_action"]
 
 
 def test_support_blocker_summary_projects_reference_only_patch_for_operator_surfaces():
@@ -356,7 +361,12 @@ def test_support_blocker_summary_projects_reference_only_patch_for_operator_surf
     assert summary["recommended_patch_minimum_support_rows"] == 50
     assert summary["recommended_patch_reference_only"] is True
     assert "不是目前即時可部署修補" in summary["operator_summary"]
-    assert "適用範圍 / 來源對齊且 exact support 達標前不可放行" in summary["operator_next_action"]
+    assert "適用範圍與來源對齊、且精準樣本達標前不可放行" in summary["operator_next_action"]
+    assert "建議 patch" not in summary["operator_summary"]
+    assert "status=" not in summary["operator_summary"]
+    assert "reference_scope=" not in summary["operator_summary"]
+    assert "reference_only" not in summary["operator_summary"]
+    assert "reference-only" not in summary["operator_next_action"]
 
 
 def test_drilldown_markdown_mentions_runtime_closure_summaries():
@@ -559,7 +569,11 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
     assert payload["recommended_patch"]["reference_patch_scope"] == "bull|CAUTION"
     assert payload["recommended_patch"]["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
     assert payload["recommended_patch"]["spillover_regime_gate"] == "bull|BLOCK"
-    assert "recommended_patch: **core_plus_macro**" in markdown
-    assert "reference_scope `bull|CAUTION`" in markdown
-    assert "source `bull_4h_pocket_ablation.bull_collapse_q35`" in markdown
-    assert "recommended_patch_features: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b" in markdown
+    assert "建議修補方案: **core_plus_macro**" in markdown
+    assert "狀態：僅供治理參考" in markdown
+    assert "適用範圍 `bull|CAUTION`" in markdown
+    assert "來源 `bull_4h_pocket_ablation.bull_collapse_q35`" in markdown
+    assert "建議修補特徵: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b" in markdown
+    assert "recommended_patch:" not in markdown
+    assert "reference_scope" not in markdown
+    assert "recommended_patch_reason" not in markdown

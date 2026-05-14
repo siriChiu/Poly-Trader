@@ -1,52 +1,52 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-14 14:02:03.138802**
+- feature_timestamp: **2026-05-14 15:32:59.233343**
 - target: `simulated_pyramid_win`
-- live path: **bear / CAUTION / C**
-- signal: **HOLD** @ confidence **0.3206**
-- layers: **1 → 0**
-- allowed_layers_raw_reason: `entry_quality_C_single_layer`
+- live path: **chop / CAUTION / D**
+- signal: **HOLD** @ confidence **0.3455**
+- layers: **0 → 0**
+- allowed_layers_raw_reason: `entry_quality_below_trade_floor`
 - allowed_layers_reason: `under_minimum_exact_live_structure_bucket`
 - execution_guardrail_reason: `under_minimum_exact_live_structure_bucket`
 - runtime_blocker: `None` | reason: `None`
-- deployment_blocker: `under_minimum_exact_live_structure_bucket` | reason: `current live structure bucket 已有 exact rows，但仍低於 deployment-grade minimum support；在 support 補滿前，runtime 只能維持 guardrail，不可把這條 lane 視為已可部署。`
-- support blocker summary: **exact support 20/50 (gap 30) 未達 current-live exact support；broader/proxy rows 僅可作治理參考。 建議 patch `core_plus_macro_plus_all_4h` 目前 status=`reference_only_non_current_live_scope`、reference_scope=`bull|CAUTION`、source=`live_scope_spillover`；只能作治理參考，不是目前即時可部署修補。**
-- support next action: 保持 no-deploy；先累積或回放同一 current-live structure bucket 的 exact lane 樣本，不可用 broader/proxy support 放行。 保留 recommended_patch 可見但 reference-only；適用範圍 / 來源對齊且 exact support 達標前不可放行。
-- q15 exact-supported patch: **inactive** | support_route `exact_bucket_present_but_below_minimum` | floor_cross `floor_crossed_but_support_not_ready`
-- runtime closure summary: **當前即時分桶 CAUTION|structure_quality_caution|q15 的精準樣本仍未就緒（20/50，路徑=精準樣本未達最小門檻 / 治理=exact_live_bucket_present_but_below_minimum）；較寬範圍 / 近似樣本 與建議修補方案 目前都只屬僅供治理參考，不可視為部署閉環。 建議修補方案=core_plus_macro_plus_all_4h (僅供治理參考_non_current_live_範圍). 阻塞點=當前即時結構分桶 已有 exact 筆，但仍低於 部署-grade minimum support；在 support 補滿前，執行期 只能維持 guardrail，不可把這條 lane 視為已可部署。。 精準路徑與外溢對照：同 gate 寬 範圍 出現 牛市|警戒 外溢，576 筆 / 勝率 41.9% / 品質 0.103，明顯劣於 精準即時路徑 勝率 65.0% / 品質 0.350。**
-- q35 scaling audit: overall=`None` / redesign=`None` / runtime_gap=`None` / mode=`None` / next_patch=`None`
-- q35 audit action: None
+- deployment_blocker: `under_minimum_exact_live_structure_bucket` | reason: `當前即時結構分桶 已有精準筆數，但仍低於 部署級最小精準樣本門檻；在 精準樣本補滿前，執行期只能維持 保護欄，不可把這條路徑視為已可部署。`
+- support blocker summary: **精準樣本 28/50（缺口 22） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 建議修補方案 core_plus_macro_plus_all_4h 目前為僅供治理參考，適用範圍 bull|CAUTION、來源 bull_4h_pocket_ablation.bull_collapse_q35；只能作治理參考，不是目前即時可部署修補。**
+- support next action: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 保留建議修補方案可見但標示為僅參考；適用範圍與來源對齊、且精準樣本達標前不可放行。
+- q15 精準樣本修補: **未啟用** | 支持路徑 `exact_bucket_present_but_below_minimum` | 跨越門檻 `None`
+- runtime closure summary: **當前即時分桶 CAUTION|base_caution_regime_or_bias|q35 的精準樣本仍未就緒（28/50，路徑=精準樣本未達最小門檻 / 治理=目前即時分桶精準樣本未達最小門檻）；較寬範圍 / 近似樣本 與建議修補方案 目前都只屬僅供治理參考，不可視為部署閉環。 建議修補方案=core_plus_macro_plus_all_4h (非目前即時範圍，僅供治理參考). 阻塞點=當前即時結構分桶 已有精準筆數，但仍低於 部署級最小精準樣本門檻；在 精準樣本補滿前，執行期只能維持 保護欄，不可把這條路徑視為已可部署。 精準路徑與外溢對照：同品質寬範圍 出現 牛市|阻塞 外溢，414 筆 / 勝率 20.2% / 品質 -0.058，明顯劣於 精準即時路徑 勝率 57.7% / 品質 0.209。**
+- q35 scaling audit: overall=`bias50_formula_may_be_too_harsh` / redesign=`base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked` / runtime_gap=`0.028` / mode=`exact_lane_formula_review` / next_patch=`feat_4h_bias50_formula`
+- q35 audit action: discriminative base-stack redesign 只能讓 進場品質 跨過 評分門檻，執行期 gate/樣本支持 仍讓 allowed_layers=0；下一輪必須把它治理成 僅限評分 / 執行仍阻塞，不得把 跨越門檻 當成 部署閉環。
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=`None`
-- recommended_patch: **core_plus_macro_plus_all_4h** / status `reference_only_non_current_live_scope` / support_route `exact_bucket_present_but_below_minimum` / gap `30` / reference_scope `bull|CAUTION` / source `live_scope_spillover`
-- recommended_patch_features: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
-- recommended_patch_reason: 參考 patch 來自 bull|CAUTION（source: live_scope_spillover），但 current live scope 是 bear|CAUTION；這代表 patch 描述的是 spillover / broader lane，而不是目前 current-live row 的 deploy patch。 current live exact support 目前仍是 20/50，因此這條 patch 同時不具備 same-scope 與 exact-support 放行條件。 即使 exact support 已達 minimum rows，也只能作治理 / 訓練參考，不可直接放行 runtime。
-- recommended_patch_action: 維持 reference-only patch 可見性；目前 current live 是 bear|CAUTION，但 patch 來自 bull|CAUTION spillover。 在 scope 對齊前，只可作治理 / 訓練參考，不可把它升級成 current-live deploy patch。
+- 建議修補方案: **core_plus_macro_plus_all_4h** — 狀態：僅供治理參考；精準樣本缺口 `22`；適用範圍 `bull|CAUTION`；來源 `bull_4h_pocket_ablation.bull_collapse_q35`
+- 建議修補特徵: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
+- 建議修補說明: 精準樣本 28/50（缺口 22） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 建議修補方案 core_plus_macro_plus_all_4h 目前為僅供治理參考，適用範圍 bull|CAUTION、來源 bull_4h_pocket_ablation.bull_collapse_q35；只能作治理參考，不是目前即時可部署修補。
+- 下一步: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 保留建議修補方案可見但標示為僅參考；適用範圍與來源對齊、且精準樣本達標前不可放行。
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5596** / trade_floor **0.55** / gap **0.0096**
-- base_quality: **0.6366** × weight **0.75**
-- structure_quality: **0.3283** × weight **0.25**
-- base components: feat_4h_bias50=0.6749 (w=0.4, contrib=0.27), feat_nose=0.5083 (w=0.18, contrib=0.0915), feat_pulse=0.4866 (w=0.27, contrib=0.1314), feat_ear=0.9587 (w=0.15, contrib=0.1438)
-- structure components: feat_4h_bb_pct_b=0.658 (w=0.34, contrib=0.2237), feat_4h_dist_bb_lower=0.1809 (w=0.33, contrib=0.0597), feat_4h_dist_swing_low=0.1359 (w=0.33, contrib=0.0449)
+- final entry_quality: **0.522** / trade_floor **0.55** / gap **-0.028**
+- base_quality: **0.5144** × weight **0.75**
+- structure_quality: **0.5446** × weight **0.25**
+- base components: feat_4h_bias50=0.3868 (w=0.4, contrib=0.1547), feat_nose=0.2121 (w=0.18, contrib=0.0382), feat_pulse=0.676 (w=0.27, contrib=0.1825), feat_ear=0.9269 (w=0.15, contrib=0.139)
+- structure components: feat_4h_bb_pct_b=1.0 (w=0.34, contrib=0.34), feat_4h_dist_bb_lower=0.3397 (w=0.33, contrib=0.1121), feat_4h_dist_swing_low=0.2802 (w=0.33, contrib=0.0925)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.2725** | structure_group_max_entry_gain: **0.168**
-- best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
-- single-component floor crossers: None
-- bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
+- remaining_gap_to_floor: **0.028**
+- base_group_max_entry_gain: **0.3642** | structure_group_max_entry_gain: **0.1139**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.0933, max_gain≈0.184）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.0933), feat_pulse (Δscore≈0.1383), feat_nose (Δscore≈0.2074), feat_4h_dist_bb_lower (Δscore≈0.3394)
+- bias50 fully relaxed: entry≈**0.7059** / layers≈**2** / required_bias50_cap≈**-0.0005**
 - unavailable_reason: `None`
 
 ## Scope comparison
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_gate+entry_quality_label` | 104 | 0.6827 | 0.3352 | 0.1356 | 0.3741 | 20 | False |
-| exact `regime_label+regime_gate+entry_quality_label` | 20 | 0.65 | 0.3499 | 0.1753 | 0.4031 | 20 | False |
-| narrow `regime_label+entry_quality_label` | 42 | 0.8333 | 0.4508 | 0.1375 | 0.3268 | 20 | False |
-| broad `regime_gate+entry_quality_label` | 104 | 0.6827 | 0.3352 | 0.1356 | 0.3741 | 20 | False |
+| chosen `regime_label+regime_gate+entry_quality_label` | 437 | 0.5767 | 0.2092 | 0.1499 | 0.4769 | 28 | False |
+| exact `regime_label+regime_gate+entry_quality_label` | 437 | 0.5767 | 0.2092 | 0.1499 | 0.4769 | 28 | False |
+| narrow `regime_label+entry_quality_label` | 437 | 0.5767 | 0.2092 | 0.1499 | 0.4769 | 28 | False |
+| broad `regime_gate+entry_quality_label` | 490 | 0.5633 | 0.2007 | 0.1534 | 0.4808 | 28 | False |
 
 ## Shared shifts
 
@@ -55,9 +55,9 @@
 
 ## Interpretation
 
-- if `runtime_blocker.type=circuit_breaker`, the current live row is blocked before the decision-quality contract is evaluated; treat q35/q15 diagnostics as background research, not deployable live routing.
-- if `deployment_blocker.type=bull_q35_no_deploy_governance`, the current bull q35 lane is exact-supported but still not deployable because only non-discriminative unsafe reweight can cross the floor; do not describe it as simple support shortage or generic floor gap.
-- if `q15_exact_supported_component_patch_applied=true` while `signal=HOLD`, describe the state as 'capacity opened but signal still HOLD' — not as patch missing, and not as automatic BUY readiness.
-- exact live lane and chosen scope are separated on purpose: if exact lane is tiny or lacks current structure-bucket support, runtime must not trust it blindly.
-- broader same-gate scope is still useful only as a structure-bucket fallback, not as the primary semantic representative of the live bull path.
-- if the shared shift set remains dominated by `feat_4h_dist_swing_low / feat_4h_dist_bb_lower / feat_4h_bb_pct_b`, the next fix should stay on 4H structure collapse rather than generic calibration tuning.
+- 若 `runtime_blocker.type=circuit_breaker`，代表目前即時列在決策品質合約評估前已被熔斷；q35/q15 診斷只能作背景研究，不可當成即時部署路由。
+- 若 `deployment_blocker.type=bull_q35_no_deploy_governance`，代表目前 bull q35 路徑雖有精準樣本，但只有非判別式高風險重配能跨過門檻；不得描述成單純樣本不足或一般門檻缺口。
+- 若 `q15_exact_supported_component_patch_applied=true` 且 `signal=HOLD`，應描述為容量已開但訊號仍觀望；不是修補缺失，也不是自動買入就緒。
+- 精準即時路徑與選用範圍刻意分離：若精準路徑樣本太少或缺少目前結構分桶支持，執行期不可盲目信任它。
+- 較寬同 gate 範圍只可作結構分桶備援，不是目前即時牛市路徑的主要語義代表。
+- 若共享位移仍由 `feat_4h_dist_swing_low / feat_4h_dist_bb_lower / feat_4h_bb_pct_b` 主導，下一步應持續聚焦 4H 結構塌陷，而不是泛化校準調參。
