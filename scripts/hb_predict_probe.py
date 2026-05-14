@@ -503,10 +503,23 @@ def _build_probe_payload(
             support_progress = fallback_progress
     if support_progress:
         deployment_blocker_details["support_progress"] = support_progress
-        deployment_blocker_details["minimum_support_rows"] = support_progress.get("minimum_support_rows")
-        deployment_blocker_details["current_live_structure_bucket_gap_to_minimum"] = support_progress.get("gap_to_minimum")
-        if support_progress.get("current_rows") is not None:
-            deployment_blocker_details.setdefault("current_live_structure_bucket_rows", support_progress.get("current_rows"))
+        progress_rows = support_progress.get("current_rows")
+        progress_minimum_rows = support_progress.get("minimum_support_rows")
+        progress_gap = support_progress.get("gap_to_minimum")
+        if progress_minimum_rows is not None:
+            deployment_blocker_details["minimum_support_rows"] = progress_minimum_rows
+        if progress_gap is not None:
+            deployment_blocker_details["current_live_structure_bucket_gap_to_minimum"] = progress_gap
+        if progress_rows is not None:
+            # A refreshed q15 support audit may carry the canonical current-bucket
+            # support truth even when the predictor result still says
+            # ``exact_bucket_supported`` from an older scope.  Do not leave
+            # operator/API surfaces with impossible rows/gap combinations like
+            # rows=50, minimum=50, gap=22: the progress artifact is the
+            # under-minimum source of truth for this probe output.
+            deployment_blocker_details["current_live_structure_bucket_rows"] = progress_rows
+            deployment_blocker_details["exact_live_structure_bucket_rows"] = progress_rows
+            current_live_structure_bucket_rows = progress_rows
     if support_identity:
         deployment_blocker_details["support_identity"] = support_identity
     if artifact_context_freshness:
@@ -548,6 +561,48 @@ def _build_probe_payload(
             support_route["support_governance_route"] = support_governance_route
         deployment_blocker_details["support_governance_route"] = support_governance_route
         runtime_result["support_governance_route"] = support_governance_route
+
+    try:
+        progress_rows_value = int(support_progress.get("current_rows")) if support_progress.get("current_rows") is not None else None
+    except (TypeError, ValueError):
+        progress_rows_value = None
+    try:
+        progress_minimum_value = int(support_progress.get("minimum_support_rows")) if support_progress.get("minimum_support_rows") is not None else None
+    except (TypeError, ValueError):
+        progress_minimum_value = None
+    if (
+        progress_rows_value is not None
+        and progress_minimum_value is not None
+        and progress_rows_value < progress_minimum_value
+        and result.get("deployment_blocker") in {
+            "decision_quality_below_trade_floor",
+            "under_minimum_exact_live_structure_bucket",
+            "unsupported_exact_live_structure_bucket",
+        }
+    ):
+        progress_gap_value = support_progress.get("gap_to_minimum")
+        if progress_gap_value is None:
+            progress_gap_value = progress_minimum_value - progress_rows_value
+        decision_quality_label = result.get("decision_quality_label") or result.get("entry_quality_label")
+        decision_quality_score = result.get("decision_quality_score")
+        decision_quality_copy = ""
+        if decision_quality_label:
+            decision_quality_copy = f"；決策品質仍為 {decision_quality_label}"
+            if decision_quality_score is not None:
+                try:
+                    decision_quality_copy += f" / score={float(decision_quality_score):.4f}"
+                except (TypeError, ValueError):
+                    pass
+        support_truth_reason = (
+            f"當前即時結構分桶 `{current_live_structure_bucket}` 的精準支持樣本仍停在 "
+            f"{progress_rows_value}/{progress_minimum_value}（缺 {progress_gap_value}），"
+            f"support_route={support_route.get('verdict') or 'unknown'}，不可把舊 scope 的支持閉環誤讀成部署閉環"
+            f"{decision_quality_copy}；目前維持不可部署治理。"
+        )
+        deployment_blocker_details["reason"] = support_truth_reason
+        deployment_blocker_details["support_mode"] = "exact_bucket_present_but_below_minimum"
+        runtime_result["deployment_blocker_reason"] = support_truth_reason
+        runtime_result["deployment_blocker_details"] = deployment_blocker_details
     q35_scaling_audit = _load_q35_scaling_audit_summary(current_live_structure_bucket)
     recommended_patch_summary = (
         scope_pathology_summary.get("recommended_patch")
@@ -636,9 +691,9 @@ def _build_probe_payload(
         "allowed_layers_reason": result.get("allowed_layers_reason"),
         "execution_guardrail_applied": result.get("execution_guardrail_applied"),
         "execution_guardrail_reason": result.get("execution_guardrail_reason"),
-        "deployment_blocker": result.get("deployment_blocker"),
-        "deployment_blocker_reason": result.get("deployment_blocker_reason"),
-        "deployment_blocker_source": result.get("deployment_blocker_source"),
+        "deployment_blocker": runtime_result.get("deployment_blocker"),
+        "deployment_blocker_reason": runtime_result.get("deployment_blocker_reason"),
+        "deployment_blocker_source": runtime_result.get("deployment_blocker_source"),
         "deployment_blocker_details": deployment_blocker_details,
         "support_route_verdict": support_route.get("verdict"),
         "support_route_deployable": support_route.get("deployable"),

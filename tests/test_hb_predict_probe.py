@@ -352,24 +352,25 @@ def test_hb_predict_probe_preserves_q15_audit_support_progress_for_q35_current_b
             "execution_guardrail_applied": True,
             "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
             "deployment_blocker": "under_minimum_exact_live_structure_bucket",
-            "deployment_blocker_reason": "support not enough",
+            "deployment_blocker_reason": "當前即時結構分桶 `CAUTION|base_caution_regime_or_bias|q35` 已完成精準樣本閉環（50/50）；但最終執行的決策品質仍停在 D。",
             "deployment_blocker_source": "decision_quality_contract",
             "deployment_blocker_details": {
                 "structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
                 "support_mode": "exact_bucket_supported",
-                "current_live_structure_bucket_rows": 28,
+                "current_live_structure_bucket_rows": 50,
+                "exact_live_structure_bucket_rows": 50,
                 "minimum_support_rows": 50,
-                "current_live_structure_bucket_gap_to_minimum": 22,
+                "current_live_structure_bucket_gap_to_minimum": 0,
                 "support_progress": {
                     "status": "accumulating",
-                    "current_rows": 28,
+                    "current_rows": 50,
                     "minimum_support_rows": 50,
-                    "gap_to_minimum": 22,
+                    "gap_to_minimum": 0,
                 },
             },
             "decision_quality_horizon_minutes": 1440,
             "decision_quality_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-            "decision_quality_exact_live_structure_bucket_support_rows": 28,
+            "decision_quality_exact_live_structure_bucket_support_rows": 50,
         },
     )
 
@@ -377,6 +378,13 @@ def test_hb_predict_probe_preserves_q15_audit_support_progress_for_q35_current_b
     payload = json.loads(capsys.readouterr().out)
 
     assert payload["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q35"
+    assert payload["current_live_structure_bucket_rows"] == 28
+    assert payload["current_live_structure_bucket_gap_to_minimum"] == 22
+    assert payload["deployment_blocker_details"]["current_live_structure_bucket_rows"] == 28
+    assert payload["deployment_blocker_details"]["exact_live_structure_bucket_rows"] == 28
+    assert payload["deployment_blocker_details"]["current_live_structure_bucket_gap_to_minimum"] == 22
+    assert "28/50" in payload["deployment_blocker_reason"]
+    assert "50/50" not in payload["deployment_blocker_reason"]
     assert payload["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
     assert payload["support_governance_route"] == "exact_live_bucket_present_but_below_minimum"
     assert payload["support_progress"]["status"] == "stalled_under_minimum"

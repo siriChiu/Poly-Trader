@@ -1,14 +1,14 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-14 22:01:33.894477**
+- generated_at: **2026-05-14 23:21:13.636814**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
 - signal: **HOLD**
-- regime / gate / label: **chop / CAUTION / D**
+- regime / gate / label: **chop / CAUTION / C**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q35**
-- current_live_structure_bucket_rows: **28**
+- current_live_structure_bucket_rows: **2**
 - allowed_layers: **0** (under_minimum_exact_live_structure_bucket)
 - execution_guardrail_reason: **under_minimum_exact_live_structure_bucket**
 
@@ -24,43 +24,43 @@
 - verdict: **exact_bucket_present_but_below_minimum**
 - deployable: **False**
 - governance_reference_only: **True**
-- preferred_support_cohort: **bull_exact_live_lane_proxy**
-- current bucket gap to minimum: **22**
+- preferred_support_cohort: **exact_live_bucket**
+- current bucket gap to minimum: **48**
 - exact-bucket proxy rows: **0**
-- exact-lane proxy rows: **838**
+- exact-lane proxy rows: **860**
 - supported neighbor rows: **0**
 - reason: current live exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
-- support_progress.status: **stalled_under_minimum**
+- support_progress.status: **regressed_under_minimum**
 - support_progress.regression_basis: **same_identity_same_semantic_signature**
-- support_progress.current_rows / minimum: **28 / 50**
-- support_progress.previous_rows: **28**
+- support_progress.current_rows / minimum: **2 / 50**
+- support_progress.previous_rows: **2**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **5**
+- support_progress.stagnant_run_count: **2**
 - support_progress.escalate_to_blocker: **True**
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q35', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q35', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `None`
-- support_progress.reason: current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。
+- support_progress.reason: current live exact support 最近曾達 minimum support（最近一次 2/50，heartbeat 1235），但目前仍停在 2/50；這不是一般停滯，而是 support regression。
 
 ## Floor-cross legality
-- verdict: **math_cross_possible_but_illegal_without_exact_support**
+- verdict: **floor_crossed_but_support_not_ready**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0322**
-- best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.1073**
-- best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.1073），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- remaining_gap_to_floor: **0.0**
+- best_single_component: **None**
+- best_single_component_required_score_delta: **None**
+- best_single_component_can_cross_floor: **False**
+- reason: 即使 entry floor 已跨過，exact q15 support 仍未達標，不能把 proxy/neighbor 當 deployment 放行證據。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_current_live_not_q15_and_support_not_ready**
-- feature: **feat_4h_bias50**
+- feature: **None**
 - mode: **reference_only_non_current_live_scope**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5178**
+- current_entry_quality: **0.5859**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.0322**
-- current_entry_quality_ge_trade_floor: **False**
+- current_trade_floor_gap: **0.0359**
+- current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_applicable_current_live_not_q15_lane)
 - reason: current live row 目前停在 CAUTION|base_caution_regime_or_bias|q35，不在 q15 target lane CAUTION|structure_quality_caution|q15；本 artifact 只能描述非 current-live 的 q15/reference route，不得當成 current-live deployment closure。
@@ -73,8 +73,8 @@
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **HOLD / 0 / under_minimum_exact_live_structure_bucket**
-- support rows / minimum / gap: **28 / 50 / 22**
-- stagnant_run_count: **5**
+- support rows / minimum / gap: **2 / 50 / 48**
+- stagnant_run_count: **2**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh']`
 - legacy_semantic_evidence.verdict: **None**
 - legacy_semantic_evidence.supports_current_identity: **None**
