@@ -740,6 +740,17 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
                 "runtime_closure_state": "patch_inactive_or_blocked",
                 "allowed_layers": 0,
                 "signal": "HOLD",
+                "deployment_blocker_details": {
+                    "release_condition": {
+                        "release_ready": False,
+                        "current_streak": 3,
+                        "recent_window": 50,
+                        "current_recent_window_win_rate": 0.28,
+                        "current_recent_window_wins": 14,
+                        "required_recent_window_wins": 15,
+                        "additional_recent_window_wins_needed": 1,
+                    }
+                },
                 "support_progress": {
                     "current_rows": 0,
                     "minimum_support_rows": 50,
@@ -761,6 +772,13 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
     assert support_context["current_live_structure_bucket_gap_to_minimum"] == 50
     assert support_context["allowed_layers"] == 0
     assert support_context["signal"] == "HOLD"
+    assert support_context["release_ready"] is False
+    assert support_context["current_streak"] == 3
+    assert support_context["recent_window"] == 50
+    assert support_context["current_recent_window_win_rate"] == 0.28
+    assert support_context["current_recent_window_wins"] == 14
+    assert support_context["required_recent_window_wins"] == 15
+    assert support_context["additional_recent_window_wins_needed"] == 1
     assert support_context["live_truth_overlay_applied"] is True
     assert support_context["live_truth_source_artifact"] == str(live_probe)
     nearest = summary["nearest_deployable_rows"][0]
@@ -774,6 +792,95 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
     assert nearest["current_live_structure_bucket_rows"] == 0
     assert nearest["minimum_support_rows"] == 50
     assert nearest["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert nearest["release_ready"] is False
+    assert nearest["current_recent_window_wins"] == 14
+    assert nearest["required_recent_window_wins"] == 15
+    assert nearest["additional_recent_window_wins_needed"] == 1
+
+
+
+def test_high_conviction_topk_embedded_live_probe_release_math_survives_matrix_refresh(monkeypatch, tmp_path: Path):
+    artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
+    live_probe = tmp_path / "live_predict_probe.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T19:04:00Z",
+                "target_col": "simulated_pyramid_win",
+                "samples": 1234,
+                "support_context": {
+                    "source_live_probe_generated_at": "2026-04-29T19:03:45Z",
+                    "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                    "deployment_blocker": "circuit_breaker_active",
+                    "current_live_structure_bucket_rows": 22,
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 28,
+                },
+                "rows": [
+                    {
+                        "model": "logistic_regression",
+                        "feature_profile": "core_only",
+                        "regime": "bear",
+                        "top_k": "top_2pct",
+                        "oos_roi": 0.18,
+                        "win_rate": 0.78,
+                        "profit_factor": 7.9,
+                        "max_drawdown": 0.069,
+                        "worst_fold": 0.09,
+                        "trade_count": 146,
+                        "deployable_verdict": "not_deployable",
+                        "gate_failures": ["support_route_not_deployable", "deployment_blocker_active"],
+                        "model_gate_failures": [],
+                        "live_gate_failures": ["support_route_not_deployable", "deployment_blocker_active"],
+                        "oos_gate_passed": True,
+                        "blocked_only_by_live_guardrails": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    live_probe.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T19:03:45Z",
+                "deployment_blocker": "circuit_breaker_active",
+                "runtime_closure_state": "circuit_breaker_active",
+                "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                "support_route_deployable": False,
+                "allowed_layers": 0,
+                "signal": "CIRCUIT_BREAKER",
+                "deployment_blocker_details": {
+                    "release_condition": {
+                        "release_ready": False,
+                        "current_streak": 3,
+                        "recent_window": 50,
+                        "current_recent_window_win_rate": 0.28,
+                        "current_recent_window_wins": 14,
+                        "required_recent_window_wins": 15,
+                        "additional_recent_window_wins_needed": 1,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_LIVE_PREDICT_PROBE_PATH", live_probe, raising=False)
+
+    summary = api_module._load_high_conviction_topk_summary(artifact)
+
+    support_context = summary["support_context"]
+    assert support_context["live_truth_overlay_applied"] is True
+    assert support_context["live_truth_generated_at"] == "2026-04-29T19:03:45Z"
+    assert support_context["release_ready"] is False
+    assert support_context["current_recent_window_wins"] == 14
+    assert support_context["required_recent_window_wins"] == 15
+    assert support_context["additional_recent_window_wins_needed"] == 1
+    nearest = summary["nearest_deployable_rows"][0]
+    assert nearest["release_ready"] is False
+    assert nearest["current_recent_window_wins"] == 14
+    assert nearest["required_recent_window_wins"] == 15
+    assert nearest["additional_recent_window_wins_needed"] == 1
 
 
 

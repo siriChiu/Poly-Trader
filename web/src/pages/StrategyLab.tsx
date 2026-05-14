@@ -767,6 +767,15 @@ interface HighConvictionTopKRow {
   allowed_layers?: number | null;
   signal?: string | null;
   execution_guardrail_reason?: string | null;
+  release_ready?: boolean | null;
+  current_streak?: number | null;
+  recent_window?: number | null;
+  current_recent_window_win_rate?: number | null;
+  current_recent_window_wins?: number | null;
+  required_recent_window_wins?: number | null;
+  additional_recent_window_wins_needed?: number | null;
+  source_live_probe_generated_at?: string | null;
+  live_truth_source_artifact?: string | null;
   deployable_verdict?: string | null;
   deployment_candidate_tier?: string | null;
   gate_failures?: string[];
@@ -1903,6 +1912,31 @@ export default function StrategyLab() {
   const highConvictionAllowedLayersValue = highConvictionSupportContext?.allowed_layers ?? highConvictionPrimaryRuntimeRow?.allowed_layers;
   const highConvictionAllowedLayersLabel = isFiniteNumber(highConvictionAllowedLayersValue) ? formatDecimal(highConvictionAllowedLayersValue, 0) : "—";
   const highConvictionRuntimeBlockerSummary = `即時阻塞 ${highConvictionDeploymentBlockerLabel} · 閉環 ${highConvictionRuntimeClosureLabel} · 訊號 ${highConvictionRuntimeSignalLabel} · 可用層 ${highConvictionAllowedLayersLabel}`;
+  const highConvictionReleaseCondition = (highConvictionSupportContext?.release_condition && typeof highConvictionSupportContext.release_condition === "object")
+    ? (highConvictionSupportContext.release_condition as Record<string, unknown>)
+    : null;
+  const highConvictionReleaseValue = (key: string) => {
+    const releaseValue = highConvictionReleaseCondition?.[key];
+    if (releaseValue !== null && typeof releaseValue !== "undefined") return releaseValue;
+    return highConvictionSupportContext?.[key];
+  };
+  const highConvictionCircuitBreakerReleaseLabel = (() => {
+    const releaseReadyRaw = highConvictionReleaseValue("release_ready");
+    const releaseReady = typeof releaseReadyRaw === "boolean" ? releaseReadyRaw : null;
+    const windowSize = highConvictionReleaseValue("recent_window");
+    const wins = highConvictionReleaseValue("current_recent_window_wins");
+    const requiredWins = highConvictionReleaseValue("required_recent_window_wins");
+    const additionalWins = highConvictionReleaseValue("additional_recent_window_wins_needed");
+    const winRate = highConvictionReleaseValue("current_recent_window_win_rate");
+    const currentStreak = highConvictionReleaseValue("current_streak");
+    if (!isFiniteNumber(windowSize) || !isFiniteNumber(wins) || !isFiniteNumber(requiredWins)) {
+      return "熔斷解除條件 —";
+    }
+    const additionalText = isFiniteNumber(additionalWins) && additionalWins > 0 ? `，還差 ${formatDecimal(additionalWins, 0)} 勝` : "";
+    const winRateText = isFiniteNumber(winRate) ? ` · 目前勝率 ${formatPct(winRate)}` : "";
+    const streakText = isFiniteNumber(currentStreak) ? ` · 連續虧損 ${formatDecimal(currentStreak, 0)}` : "";
+    return `熔斷解除${releaseReady === true ? "已滿足" : "未滿足"}：最近 ${formatDecimal(windowSize, 0)} 筆 ${formatDecimal(wins, 0)} 勝 / 需 ${formatDecimal(requiredWins, 0)} 勝${additionalText}${winRateText}${streakText}`;
+  })();
   const highConvictionSupportBucketLabel = highConvictionSupportContext?.current_live_structure_bucket ? humanizeStructureBucketLabel(highConvictionSupportContext.current_live_structure_bucket) : "—";
   const highConvictionSupportRows = highConvictionSupportContext?.current_live_structure_bucket_rows;
   const highConvictionMinimumRows = highConvictionSupportContext?.minimum_support_rows;
@@ -3672,13 +3706,14 @@ export default function StrategyLab() {
                       {highConvictionRuntimeBlocked && (
                         <div className="rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-[11px] leading-5 text-rose-50">
                           <div className="font-semibold text-rose-100">OOS 候選已過門檻，但即時部署仍阻塞</div>
-                          <div className="mt-1">離線驗證 / 風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} 筆；可部署 {formatDecimal(highConvictionTopK.deployable_count, 0)} 筆。{highConvictionRuntimeBlockerSummary} · 支持樣本 {highConvictionSupportRowsLabel}。請先解除熔斷 / 執行保護，再把候選視為灰度部署對象。</div>
+                          <div className="mt-1">離線驗證 / 風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} 筆；可部署 {formatDecimal(highConvictionTopK.deployable_count, 0)} 筆。{highConvictionRuntimeBlockerSummary} · 支持樣本 {highConvictionSupportRowsLabel} · {highConvictionCircuitBreakerReleaseLabel}。請先解除熔斷 / 執行保護，再把候選視為灰度部署對象。</div>
                         </div>
                       )}
                       <div className="rounded-lg border border-violet-300/20 bg-slate-950/20 px-3 py-2 text-[11px] text-violet-50">
                         <div className="font-semibold text-violet-100">即時支持脈絡</div>
                         <div className="mt-1">支持狀態 {highConvictionSupportRouteLabel} · 治理 {highConvictionSupportGovernanceLabel} · 部署阻塞 {highConvictionDeploymentBlockerLabel}</div>
                         <div className="mt-1 text-violet-100/75">即時分桶 {highConvictionSupportBucketLabel} · 樣本 {highConvictionSupportRowsLabel} · 閉環 {highConvictionRuntimeClosureLabel}</div>
+                        <div className="mt-1 text-violet-100/75">{highConvictionCircuitBreakerReleaseLabel}</div>
                       </div>
                       <div className="grid gap-2 xl:grid-cols-4">
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">

@@ -3813,6 +3813,13 @@ def _apply_high_conviction_support_overlay_to_row(
         ("allowed_layers", "allowed_layers"),
         ("signal", "signal"),
         ("execution_guardrail_reason", "execution_guardrail_reason"),
+        ("release_ready", "release_ready"),
+        ("current_streak", "current_streak"),
+        ("recent_window", "recent_window"),
+        ("current_recent_window_win_rate", "current_recent_window_win_rate"),
+        ("current_recent_window_wins", "current_recent_window_wins"),
+        ("required_recent_window_wins", "required_recent_window_wins"),
+        ("additional_recent_window_wins_needed", "additional_recent_window_wins_needed"),
         ("source_live_probe_generated_at", "source_live_probe_generated_at"),
         ("live_truth_source_artifact", "live_truth_source_artifact"),
     ):
@@ -3932,6 +3939,13 @@ def _compact_high_conviction_topk_row(
         "allowed_layers": _support_value("allowed_layers"),
         "signal": _support_value("signal"),
         "execution_guardrail_reason": _support_value("execution_guardrail_reason"),
+        "release_ready": _support_value("release_ready"),
+        "current_streak": _support_value("current_streak"),
+        "recent_window": _support_value("recent_window"),
+        "current_recent_window_win_rate": _support_value("current_recent_window_win_rate"),
+        "current_recent_window_wins": _support_value("current_recent_window_wins"),
+        "required_recent_window_wins": _support_value("required_recent_window_wins"),
+        "additional_recent_window_wins_needed": _support_value("additional_recent_window_wins_needed"),
         "source_live_probe_generated_at": _support_value("source_live_probe_generated_at", "live_truth_generated_at"),
         "live_truth_source_artifact": _support_value("live_truth_source_artifact"),
         "deployable_verdict": row.get("deployable_verdict") or "not_deployable",
@@ -4006,6 +4020,54 @@ def _load_high_conviction_live_support_overlay(path: Optional[Path] = None) -> O
     if support_route_deployable is None:
         support_route_deployable = blocker_details.get("support_route_deployable")
 
+    release_condition = blocker_details.get("release_condition")
+    if not isinstance(release_condition, dict):
+        release_condition = payload.get("release_condition") if isinstance(payload.get("release_condition"), dict) else {}
+    recent_window = blocker_details.get("recent_window")
+    if not isinstance(recent_window, dict):
+        recent_window = payload.get("recent_window") if isinstance(payload.get("recent_window"), dict) else {}
+
+    def _first_present(*values: Any) -> Any:
+        for value in values:
+            if value is not None:
+                return value
+        return None
+
+    release_ready = release_condition.get("release_ready") if release_condition else None
+    current_streak = _first_present(
+        release_condition.get("current_streak") if release_condition else None,
+        blocker_details.get("streak"),
+        payload.get("streak"),
+    )
+    release_window = _first_present(
+        release_condition.get("recent_window") if release_condition else None,
+        recent_window.get("window_size"),
+        blocker_details.get("window_size"),
+        payload.get("window_size"),
+    )
+    current_recent_window_win_rate = _first_present(
+        release_condition.get("current_recent_window_win_rate") if release_condition else None,
+        recent_window.get("win_rate"),
+        blocker_details.get("recent_window_win_rate"),
+        payload.get("recent_window_win_rate"),
+    )
+    current_recent_window_wins = _first_present(
+        release_condition.get("current_recent_window_wins") if release_condition else None,
+        recent_window.get("wins"),
+        blocker_details.get("recent_window_wins"),
+        payload.get("recent_window_wins"),
+    )
+    required_recent_window_wins = _first_present(
+        release_condition.get("required_recent_window_wins") if release_condition else None,
+        blocker_details.get("required_recent_window_wins"),
+        payload.get("required_recent_window_wins"),
+    )
+    additional_recent_window_wins_needed = _first_present(
+        release_condition.get("additional_recent_window_wins_needed") if release_condition else None,
+        blocker_details.get("additional_recent_window_wins_needed"),
+        payload.get("additional_recent_window_wins_needed"),
+    )
+
     return {
         "generated_at": payload.get("generated_at") or payload.get("feature_timestamp"),
         "source_artifact": str(artifact_path),
@@ -4025,6 +4087,14 @@ def _load_high_conviction_live_support_overlay(path: Optional[Path] = None) -> O
         "regime_gate": payload.get("regime_gate"),
         "entry_quality_label": payload.get("entry_quality_label"),
         "execution_guardrail_reason": payload.get("execution_guardrail_reason") or payload.get("allowed_layers_reason"),
+        "release_condition": release_condition or None,
+        "release_ready": release_ready,
+        "current_streak": current_streak,
+        "recent_window": release_window,
+        "current_recent_window_win_rate": current_recent_window_win_rate,
+        "current_recent_window_wins": current_recent_window_wins,
+        "required_recent_window_wins": required_recent_window_wins,
+        "additional_recent_window_wins_needed": additional_recent_window_wins_needed,
     }
 
 
@@ -4041,7 +4111,9 @@ def _overlay_high_conviction_support_context(
     live_dt = _parse_utc_datetime(live_truth.get("generated_at"))
     if live_dt is None:
         return context
-    if topk_dt is not None and live_dt < topk_dt:
+    context_live_dt = _parse_utc_datetime(context.get("live_truth_generated_at") or context.get("source_live_probe_generated_at"))
+    live_truth_matches_embedded_context = context_live_dt is not None and live_dt == context_live_dt
+    if topk_dt is not None and live_dt < topk_dt and not live_truth_matches_embedded_context:
         return context
 
     merged = dict(context)
@@ -4062,6 +4134,14 @@ def _overlay_high_conviction_support_context(
         "regime_gate",
         "entry_quality_label",
         "execution_guardrail_reason",
+        "release_condition",
+        "release_ready",
+        "current_streak",
+        "recent_window",
+        "current_recent_window_win_rate",
+        "current_recent_window_wins",
+        "required_recent_window_wins",
+        "additional_recent_window_wins_needed",
     ):
         value = live_truth.get(key)
         if value is not None:
