@@ -127,7 +127,7 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 2. strategy detail 必須經過 decoration，保留 decision contract、trade log 與 canonical DQ 摘要。
 3. system-generated auto leaderboard rows immutable；人工 rerun 應另存 editable copy。
 4. stale leaderboard cache 必須明確顯示 stale 狀態，而不是偽裝成 fresh production truth。
-5. high-conviction Top-K OOS gate 的 `/api/models/leaderboard.high_conviction_topk.support_context` 必須以較新的 `data/live_predict_probe.json` current-live support truth 覆蓋 stale matrix snapshot；離線 / 風控已過但 live support 未過的 rows 只能標 `runtime_blocked_oos_pass`，不得升級為 deployable；compact rows 必須保留 row-level `signal / allowed_layers / execution_guardrail_reason / live truth source`，讓 Strategy Lab 同時顯示 OOS 成績與即時不可部署原因。
+5. high-conviction Top-K OOS gate 的 `/api/models/leaderboard.high_conviction_topk.support_context` 必須以較新的 `data/live_predict_probe.json` current-live support truth 覆蓋 stale matrix snapshot；離線 / 風控已過但 live support 未過的 rows 只能標 `runtime_blocked_oos_pass`，不得升級為 deployable；compact rows 必須保留 row-level `signal / allowed_layers / execution_guardrail_reason / live truth source / support_progress_status / stalled_support_accumulation / stagnant_run_count / support_delta_vs_previous / support_rows_needed`，讓 Strategy Lab 同時顯示 OOS 成績、即時不可部署原因與 same-bucket 支持累積是否停滯。
 
 ---
 
@@ -154,7 +154,7 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 | `POST /api/strategies/run_async` | 建立 Strategy Lab 背景回測 |
 | `GET /api/strategies/jobs/{job_id}` | 查詢回測 job |
 | `GET /api/strategies/leaderboard` | 策略排行榜 |
-| `GET /api/models/leaderboard` | 模型排行榜；high_conviction_topk.support_context 必須覆蓋較新的 live probe support truth |
+| `GET /api/models/leaderboard` | 模型排行榜；high_conviction_topk.support_context 必須覆蓋較新的 live probe support truth，並保留 support-progress 停滯欄位供 Strategy Lab 顯示 |
 | `POST /api/trade` | manual trade/derisk entry；buy/add exposure 必須讀 current-live blocker |
 | `GET /api/execution/overview` | Execution Console operator summary |
 | `GET /api/execution/status` | execution diagnostics / readiness detail |
