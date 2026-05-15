@@ -91,6 +91,7 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
   const runtimeShortcutBlocked = runtimeShortcutPending
     || Boolean(runtimeDeploymentBlocker)
     || ((runtimeDecision?.allowed_layers ?? 0) <= 0);
+  const runtimeBuyShortcutBlocked = runtimeShortcutBlocked;
   const runtimeShortcutBlockerLabel = runtimeShortcutPending
     ? "正在同步即時執行狀態"
     : runtimeDeploymentBlocker
@@ -104,7 +105,7 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
     : null;
 
   const showShortcutBlockedMessage = () => {
-    setStatusMsg(`⛔ 快捷下單已暫停：${runtimeShortcutBlockerLabel}。請先到執行狀態頁確認完整阻塞點。`);
+    setStatusMsg(`⛔ 買入 / 加倉已暫停：${runtimeShortcutBlockerLabel}。減倉 / 賣出風險降低路徑仍允許；請到執行狀態頁確認完整阻塞點。`);
     setTimeout(() => setStatusMsg(null), 5000);
   };
 
@@ -132,7 +133,7 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
   }, []);
 
   const handleTrade = async (side: string) => {
-    if (runtimeShortcutBlocked) {
+    if (side.toUpperCase() === "BUY" && runtimeBuyShortcutBlocked) {
       showShortcutBlockedMessage();
       setConfirmBuy(false);
       setConfirmSell(false);
@@ -233,7 +234,7 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
                     ? "目前精準樣本已就緒且修補方案已套用；即使訊號仍是 HOLD，也只代表執行期已開出 1 層可部署容量，不等於自動買入。"
                     : "目前支援修補方案已經作用在當前即時資料列，但執行期仍被阻塞點 / 保護欄壓回 0 層；這代表修補方案已套用，但執行仍被阻擋。")
                 : runtimeShortcutBlocked
-                  ? `快捷下單已暫停：${runtimeShortcutBlockerLabel}；請改看執行狀態頁確認完整即時真相。`
+                  ? `買入 / 加倉已暫停：${runtimeShortcutBlockerLabel}；減倉 / 賣出風險降低路徑仍允許，請改看執行狀態頁確認完整即時真相。`
                   : "目前未偵測到阻塞點；仍以執行狀態頁的完整治理與委託回放為準。"}
           </div>
         </div>
@@ -242,32 +243,31 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
       {/* Trade buttons */}
       <div className="flex gap-2 mb-4">
         <button
-          onClick={() => runtimeShortcutBlocked ? showShortcutBlockedMessage() : setConfirmBuy(true)}
-          disabled={runtimeShortcutBlocked}
+          onClick={() => runtimeBuyShortcutBlocked ? showShortcutBlockedMessage() : setConfirmBuy(true)}
+          disabled={runtimeBuyShortcutBlocked}
           className={`flex-1 px-3 py-2 rounded-lg font-medium transition-colors ${
-            runtimeShortcutBlocked
+            runtimeBuyShortcutBlocked
               ? "cursor-not-allowed border border-amber-500/30 bg-amber-950/30 text-amber-100/60"
               : "bg-green-600 hover:bg-green-500 text-white"
           }`}
         >
-          {runtimeShortcutBlocked ? "買入暫停" : "買入"}
+          {runtimeBuyShortcutBlocked ? "買入暫停" : "買入"}
         </button>
         <button
-          onClick={() => runtimeShortcutBlocked ? showShortcutBlockedMessage() : setConfirmSell(true)}
-          disabled={runtimeShortcutBlocked}
+          onClick={() => setConfirmSell(true)}
           className={`flex-1 px-3 py-2 rounded-lg font-medium transition-colors ${
             runtimeShortcutBlocked
-              ? "cursor-not-allowed border border-amber-500/30 bg-amber-950/30 text-amber-100/60"
+              ? "border border-red-500/40 bg-red-900/40 text-red-100 hover:bg-red-800/50"
               : "bg-red-600 hover:bg-red-500 text-white"
           }`}
         >
-          {runtimeShortcutBlocked ? "賣出暫停" : "賣出"}
+          {runtimeShortcutBlocked ? "減倉 / 賣出仍允許" : "賣出"}
         </button>
       </div>
 
       {runtimeShortcutBlocked && (
         <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
-          快捷下單暫停：{runtimeShortcutBlockerLabel}。此面板只能查看狀態；請到執行狀態頁確認完整阻塞點、樣本支持與委託回放。
+          買入 / 加倉暫停：{runtimeShortcutBlockerLabel}。減倉 / 賣出風險降低路徑仍允許；請到執行狀態頁確認完整阻塞點、樣本支持與委託回放。
         </div>
       )}
 

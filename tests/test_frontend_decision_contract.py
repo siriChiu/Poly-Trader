@@ -1179,10 +1179,12 @@ def test_signal_banner_declares_dashboard_as_canonical_execution_route_until_upg
         '最終原因 {runtimeAllowedLayersReasonLabel}',
         '部署容量已開但訊號仍維持 HOLD',
         '這代表修補方案已套用，但執行仍被阻擋。',
-        'disabled={runtimeShortcutBlocked}',
-        '快捷下單暫停：{runtimeShortcutBlockerLabel}',
+        'const runtimeBuyShortcutBlocked = runtimeShortcutBlocked;',
+        'disabled={runtimeBuyShortcutBlocked}',
+        '買入 / 加倉已暫停：${runtimeShortcutBlockerLabel}；減倉 / 賣出風險降低路徑仍允許',
+        '買入 / 加倉暫停：{runtimeShortcutBlockerLabel}。減倉 / 賣出風險降低路徑仍允許',
         '買入暫停',
-        '賣出暫停',
+        '減倉 / 賣出仍允許',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -1505,6 +1507,48 @@ def test_strategy_lab_surfaces_high_conviction_topk_gate_contract():
     for snippet in forbidden_snippets:
         assert snippet not in source
 
+
+
+def test_high_conviction_gate_failure_tokens_have_operator_copy():
+    runtime_copy = _read("utils/runtimeCopy.ts")
+    required_gate_copy = [
+        '["min_trades_not_met", "最低交易數未達標"]',
+        '["min_win_rate_not_met", "最低勝率未達標"]',
+        '["max_drawdown_too_high", "最大回撤超過門檻"]',
+        '["profit_factor_too_low", "最低盈虧比未達標"]',
+        '["worst_fold_missing", "缺少最差分折"]',
+        '["worst_fold_negative", "最差分折為負"]',
+        '["support_route_not_deployable", "支持路徑尚不可部署"]',
+        '["deployment_blocker_active", "部署阻塞點仍啟動"]',
+        '["breaker_release_not_ready", "熔斷解除條件未滿足"]',
+        '["runtime_blocked_oos_pass", "離線門檻已過，執行期仍阻塞"]',
+    ]
+
+    for snippet in required_gate_copy:
+        assert snippet in runtime_copy
+
+
+def test_signal_banner_keeps_reduce_path_available_when_add_exposure_blocked():
+    source = _read("components/SignalBanner.tsx")
+    required_snippets = [
+        'const runtimeBuyShortcutBlocked = runtimeShortcutBlocked;',
+        'if (side.toUpperCase() === "BUY" && runtimeBuyShortcutBlocked) {',
+        'onClick={() => runtimeBuyShortcutBlocked ? showShortcutBlockedMessage() : setConfirmBuy(true)}',
+        'disabled={runtimeBuyShortcutBlocked}',
+        'onClick={() => setConfirmSell(true)}',
+        '減倉 / 賣出仍允許',
+        '買入 / 加倉暫停：{runtimeShortcutBlockerLabel}。減倉 / 賣出風險降低路徑仍允許',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+    forbidden_snippets = [
+        'onClick={() => runtimeShortcutBlocked ? showShortcutBlockedMessage() : setConfirmSell(true)}',
+        'disabled={runtimeShortcutBlocked}',
+        '賣出暫停',
+    ]
+    for snippet in forbidden_snippets:
+        assert snippet not in source
 
 
 def test_strategy_lab_live_sync_card_keeps_blocked_status_ahead_of_reconciliation_health():

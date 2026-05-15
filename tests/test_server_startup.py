@@ -798,7 +798,7 @@ def test_api_trade_rejects_buy_when_current_live_blocker_active(monkeypatch):
         assert exc.detail["blocked_side"] == "buy"
         assert exc.detail["reason"] == "manual_buy_blocked_by_current_live_blocker"
         assert exc.detail["runtime_blocker"] == "circuit_breaker_active"
-        assert exc.detail["allowed_actions"] == ["reduce", "diagnostics", "mode_toggle"]
+        assert exc.detail["allowed_actions"] == ["reduce", "sell", "diagnostics", "mode_toggle"]
         assert exc.detail["code"] == "current_live_deployment_blocker"
         assert "目前即時部署阻塞" in exc.detail["message"]
         assert "Current live" not in exc.detail["message"]
@@ -838,7 +838,7 @@ def test_api_trade_rejects_buy_with_chinese_copy_when_current_live_guardrail_una
         assert exc.detail["blocked_side"] == "buy"
         assert exc.detail["reason"] == "manual_buy_blocked_by_current_live_guardrail_unavailable"
         assert exc.detail["runtime_blocker"] == "current_live_guardrail_unavailable"
-        assert exc.detail["allowed_actions"] == ["reduce", "diagnostics", "mode_toggle"]
+        assert exc.detail["allowed_actions"] == ["reduce", "sell", "diagnostics", "mode_toggle"]
         assert exc.detail["code"] == "current_live_guardrail_unavailable"
         assert "目前即時風控無法取得" in exc.detail["message"]
         assert "Current live" not in exc.detail["message"]
@@ -864,7 +864,7 @@ def test_current_live_trade_blocker_is_add_exposure_only():
 
     assert buy_blocker["trade_blocked"] is True
     assert buy_blocker["reason"] == "manual_buy_blocked_by_current_live_blocker"
-    assert buy_blocker["allowed_actions"] == ["reduce", "diagnostics", "mode_toggle"]
+    assert buy_blocker["allowed_actions"] == ["reduce", "sell", "diagnostics", "mode_toggle"]
     assert api_module._current_live_trade_blocker(live_runtime_truth, "reduce") is None
     assert api_module._current_live_trade_blocker(live_runtime_truth, "sell") is None
 

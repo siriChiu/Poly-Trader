@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-15 00:01:25.132473**
+- generated_at: **2026-05-15 01:01:11.337346**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -34,9 +34,9 @@
 - support_progress.status: **exact_supported**
 - support_progress.regression_basis: **current_identity**
 - support_progress.current_rows / minimum: **50 / 50**
-- support_progress.previous_rows: **28**
-- support_progress.delta_vs_previous: **22**
-- support_progress.stagnant_run_count: **0**
+- support_progress.previous_rows: **50**
+- support_progress.delta_vs_previous: **0**
+- support_progress.stagnant_run_count: **2**
 - support_progress.escalate_to_blocker: **False**
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q35', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `None`
@@ -45,9 +45,9 @@
 ## Floor-cross legality
 - verdict: **legal_component_experiment_after_support_ready**
 - legal_to_relax_runtime_gate: **True**
-- remaining_gap_to_floor: **0.038**
+- remaining_gap_to_floor: **0.0662**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.1267**
+- best_single_component_required_score_delta: **0.2207**
 - best_single_component_can_cross_floor: **True**
 - reason: 若 exact q15 support 已達標，則 feat_4h_bias50 可作為下一輪優先 component experiment；但仍需通過 runtime guardrail 與回歸驗證。
 
@@ -57,9 +57,9 @@
 - mode: **standby_q15_route**
 - support_ready: **True**
 - entry_quality_ge_0_55: **True**
-- current_entry_quality: **0.512**
+- current_entry_quality: **0.4838**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.038**
+- current_trade_floor_gap: **-0.0662**
 - current_entry_quality_ge_trade_floor: **False**
 - allowed_layers_gt_0: **True**
 - preserves_positive_discrimination: **None** (not_applicable_current_live_not_q15_lane)
@@ -74,7 +74,7 @@
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **HOLD / 0 / decision_quality_below_trade_floor**
 - support rows / minimum / gap: **50 / 50 / 0**
-- stagnant_run_count: **0**
+- stagnant_run_count: **2**
 - actions: `['verify_floor_and_execution_guardrail']`
 - legacy_semantic_evidence.verdict: **None**
 - legacy_semantic_evidence.supports_current_identity: **None**

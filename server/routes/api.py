@@ -7210,7 +7210,7 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
         "blocked_side": "buy",
         "reason": "manual_buy_blocked_by_current_live_blocker",
         "runtime_blocker": deployment_blocker or runtime_closure_state or execution_guardrail_reason or allowed_layers_reason,
-        "allowed_actions": ["reduce", "diagnostics", "mode_toggle"],
+        "allowed_actions": ["reduce", "sell", "diagnostics", "mode_toggle"],
         "code": "current_live_deployment_blocker",
         "message": "目前即時部署阻塞啟用：買入 / 加倉已暫停；減倉 / 賣出風險降低路徑仍允許。",
         "context": {
@@ -7256,7 +7256,7 @@ async def _load_current_live_buy_reject_payload() -> Optional[Dict[str, Any]]:
             "blocked_side": "buy",
             "reason": "manual_buy_blocked_by_current_live_guardrail_unavailable",
             "runtime_blocker": "current_live_guardrail_unavailable",
-            "allowed_actions": ["reduce", "diagnostics", "mode_toggle"],
+            "allowed_actions": ["reduce", "sell", "diagnostics", "mode_toggle"],
             "code": "current_live_guardrail_unavailable",
             "message": "目前即時風控無法取得：買入 / 加倉以失敗關閉暫停；減倉 / 賣出風險降低路徑仍允許。",
             "context": {
