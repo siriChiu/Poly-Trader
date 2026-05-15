@@ -402,6 +402,101 @@ def _q15_audit_current_live_matches_probe(payload: dict | None, probe: dict | No
     return True
 
 
+SUPPORT_IDENTITY_FIELDS = (
+    "target_col",
+    "horizon_minutes",
+    "current_live_structure_bucket",
+    "regime_label",
+    "regime_gate",
+    "entry_quality_label",
+    "calibration_window",
+)
+
+
+def _extract_support_identity(payload: dict | None) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    support_route = payload.get("support_route") if isinstance(payload.get("support_route"), dict) else {}
+    support_progress = support_route.get("support_progress") if isinstance(support_route.get("support_progress"), dict) else {}
+    for candidate in (
+        payload.get("support_identity"),
+        support_route.get("support_identity"),
+        support_progress.get("support_identity"),
+    ):
+        if isinstance(candidate, dict) and candidate:
+            return candidate
+    return {}
+
+
+def _current_support_identity(
+    *,
+    result: dict,
+    target_col,
+    current_live_structure_bucket,
+    audit_identity: dict | None = None,
+) -> dict:
+    identity = {
+        "target_col": target_col or result.get("target_col"),
+        "horizon_minutes": result.get("decision_quality_horizon_minutes") or result.get("horizon_minutes"),
+        "current_live_structure_bucket": current_live_structure_bucket or result.get("structure_bucket"),
+        "regime_label": result.get("regime_label"),
+        "regime_gate": result.get("regime_gate"),
+        "entry_quality_label": result.get("entry_quality_label") or result.get("decision_quality_label"),
+        "calibration_window": result.get("decision_quality_calibration_window"),
+    }
+    if isinstance(audit_identity, dict) and audit_identity.get("bucket_semantic_signature"):
+        identity["bucket_semantic_signature"] = audit_identity.get("bucket_semantic_signature")
+    return {key: value for key, value in identity.items() if value is not None}
+
+
+def _q15_support_identity_mismatch(
+    *,
+    q15_support_audit: dict | None,
+    result: dict,
+    target_col,
+    current_live_structure_bucket,
+) -> dict | None:
+    """Return mismatch details when a cached q15 audit describes another live lane.
+
+    The q15 audit may contribute support-progress truth for the current live
+    lane, including non-q15 buckets, but only when its explicit support identity
+    still matches the freshly computed predictor identity. A stale C-lane audit
+    must not overwrite a fresh D-lane runtime result.
+    """
+    audit_identity = _extract_support_identity(q15_support_audit)
+    if not audit_identity:
+        return None
+    current_identity = _current_support_identity(
+        result=result,
+        target_col=target_col,
+        current_live_structure_bucket=current_live_structure_bucket,
+        audit_identity=audit_identity,
+    )
+    mismatches = []
+    for field in SUPPORT_IDENTITY_FIELDS:
+        audit_value = audit_identity.get(field)
+        current_value = current_identity.get(field)
+        if audit_value is None or current_value is None:
+            continue
+        if str(audit_value) != str(current_value):
+            mismatches.append(
+                {
+                    "field": field,
+                    "audit_value": audit_value,
+                    "current_value": current_value,
+                }
+            )
+    if not mismatches:
+        return None
+    return {
+        "status": "support_identity_mismatch_current_live",
+        "reason": "q15_support_audit support_identity no longer matches the freshly computed current-live predictor identity; ignoring audit support_route/support_progress overlays for this probe.",
+        "audit_support_identity": audit_identity,
+        "current_support_identity": current_identity,
+        "mismatched_fields": mismatches,
+    }
+
+
 def _runtime_patch_name(result: dict) -> str | None:
     return shared_runtime_patch_name(result)
 
@@ -506,8 +601,15 @@ def _build_probe_payload(
             "deployable": result.get("support_route_deployable"),
         }
     support_progress = result.get("support_progress") if isinstance(result.get("support_progress"), dict) else {}
-    floor_cross = q15_support_audit.get("floor_cross_legality") if isinstance((q15_support_audit or {}).get("floor_cross_legality"), dict) else {}
-    component_experiment = q15_support_audit.get("component_experiment") if isinstance((q15_support_audit or {}).get("component_experiment"), dict) else {}
+    q15_support_identity_mismatch = _q15_support_identity_mismatch(
+        q15_support_audit=q15_support_audit,
+        result=result,
+        target_col=target_col,
+        current_live_structure_bucket=current_live_structure_bucket,
+    )
+    q15_support_overlay = {} if q15_support_identity_mismatch else (q15_support_audit or {})
+    floor_cross = q15_support_overlay.get("floor_cross_legality") if isinstance(q15_support_overlay.get("floor_cross_legality"), dict) else {}
+    component_experiment = q15_support_overlay.get("component_experiment") if isinstance(q15_support_overlay.get("component_experiment"), dict) else {}
     component_machine_answer = component_experiment.get("machine_read_answer") if isinstance(component_experiment.get("machine_read_answer"), dict) else {}
     positive_discrimination_evidence = component_experiment.get("positive_discrimination_evidence") if isinstance(component_experiment.get("positive_discrimination_evidence"), dict) else {}
     component_positive_status = (
@@ -521,8 +623,10 @@ def _build_probe_payload(
         and component_machine_answer.get("allowed_layers_gt_0") is True
         and component_machine_answer.get("preserves_positive_discrimination") is True
     )
-    active_repair_plan = q15_support_audit.get("active_repair_plan") if isinstance((q15_support_audit or {}).get("active_repair_plan"), dict) else {}
+    active_repair_plan = q15_support_overlay.get("active_repair_plan") if isinstance(q15_support_overlay.get("active_repair_plan"), dict) else {}
     deployment_blocker_details = dict(result.get("deployment_blocker_details")) if isinstance(result.get("deployment_blocker_details"), dict) else {}
+    if q15_support_identity_mismatch:
+        deployment_blocker_details["q15_support_audit_identity_mismatch"] = q15_support_identity_mismatch
     if active_repair_plan:
         deployment_blocker_details["active_repair_plan"] = active_repair_plan
     if component_experiment:
@@ -535,19 +639,24 @@ def _build_probe_payload(
             deployment_blocker_details["component_experiment_preserves_positive_discrimination"] = component_machine_answer.get("preserves_positive_discrimination")
         if component_experiment.get("verify_next"):
             deployment_blocker_details["component_experiment_verify_next"] = component_experiment.get("verify_next")
-    if isinstance((q15_support_audit or {}).get("support_route"), dict):
-        support_route = q15_support_audit.get("support_route")
+    if isinstance(q15_support_overlay.get("support_route"), dict):
+        support_route = q15_support_overlay.get("support_route")
         if isinstance(support_route.get("support_progress"), dict):
             support_progress = support_route.get("support_progress")
     support_identity = None
     artifact_context_freshness = None
-    if isinstance(q15_support_audit, dict):
-        artifact_context_freshness = q15_support_audit.get("artifact_context_freshness")
+    if isinstance(q15_support_overlay, dict) and q15_support_overlay:
+        artifact_context_freshness = q15_support_overlay.get("artifact_context_freshness")
         support_identity = (
-            q15_support_audit.get("support_identity")
+            q15_support_overlay.get("support_identity")
             or (support_route.get("support_identity") if isinstance(support_route, dict) else None)
             or (support_progress.get("support_identity") if isinstance(support_progress, dict) else None)
         )
+    elif q15_support_identity_mismatch:
+        support_identity = q15_support_identity_mismatch.get("current_support_identity")
+        if support_progress and not support_progress.get("support_identity"):
+            support_progress = dict(support_progress)
+            support_progress["support_identity"] = support_identity
     if not support_route:
         generic_support_mode = (
             str(result.get("decision_quality_structure_bucket_support_mode") or "")
@@ -818,6 +927,7 @@ def _build_probe_payload(
         "runtime_closure_summary": runtime_closure_summary,
         **api_trade_guardrail,
         "q15_support_audit": q15_support_audit,
+        "q15_support_audit_identity_mismatch": q15_support_identity_mismatch,
         "q35_scaling_audit": q35_scaling_audit,
         "q35_overall_verdict": q35_scaling_audit.get("overall_verdict") if isinstance(q35_scaling_audit, dict) else None,
         "q35_redesign_verdict": q35_scaling_audit.get("redesign_verdict") if isinstance(q35_scaling_audit, dict) else None,
