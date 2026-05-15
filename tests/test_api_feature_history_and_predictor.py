@@ -680,6 +680,57 @@ def test_infer_deployment_blocker_flags_exact_supported_q35_patch_active_executi
     assert guarded["execution_guardrail_reason"] == "decision_quality_below_trade_floor"
 
 
+def test_infer_deployment_blocker_rebases_closed_q35_support_to_trade_floor_blocker():
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "chop",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "entry_quality": 0.5405,
+            "entry_quality_label": "D",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "entry_quality_below_trade_floor",
+            "entry_quality_components": {"trade_floor": 0.55},
+        },
+        {
+            "decision_quality_structure_bucket_guardrail_applied": True,
+            "decision_quality_structure_bucket_support_rows": 50,
+            "decision_quality_exact_live_structure_bucket_support_rows": 50,
+            # Stale artifact state: the exact rows have reached 50/50, but support_mode
+            # was not reclassified yet. Runtime must not keep surfacing unsupported support.
+            "decision_quality_structure_bucket_support_mode": "exact_bucket_unsupported_block",
+            "decision_quality_label": "D",
+            "decision_quality_score": 0.084,
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                    "current_live_structure_bucket_rows": 50,
+                },
+            },
+        },
+    )
+    guarded = predictor_module._apply_deployment_blocker_to_execution_profile(
+        {
+            "allowed_layers": 0,
+            "allowed_layers_raw": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+        },
+        blocker,
+    )
+
+    assert blocker is not None
+    assert blocker["type"] == "decision_quality_below_trade_floor"
+    assert blocker["support_mode"] == "exact_bucket_supported"
+    assert blocker["support_route_verdict"] == "exact_bucket_supported"
+    assert blocker["current_live_structure_bucket_rows"] == 50
+    assert blocker["current_live_structure_bucket_gap_to_minimum"] == 0
+    assert "缺少 exact live lane" not in blocker["reason"]
+    assert guarded["deployment_blocker"] == "decision_quality_below_trade_floor"
+    assert guarded["allowed_layers_reason"] == "decision_quality_below_trade_floor"
+
+
 def test_infer_deployment_blocker_flags_generic_unsupported_exact_bucket_for_allow_q65():
     blocker = predictor_module._infer_deployment_blocker(
         {

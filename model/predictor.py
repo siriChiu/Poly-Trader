@@ -1542,6 +1542,15 @@ def _infer_deployment_blocker(
         current_live_structure_bucket_rows,
         minimum_rows=minimum_support_rows,
     )
+    if support_progress.get("status") == "exact_supported":
+        # If a stale DQ guardrail still says `exact_bucket_unsupported_block` while the
+        # current exact-live rows already meet the minimum, the operator-facing blocker
+        # must move on to the real remaining gate (trade floor / execution quality).
+        # Otherwise Dashboard/API/docs keep showing a closed support gap as the live
+        # deployment blocker (for example 50/50 rows but `unsupported_exact_live_structure_bucket`).
+        support_mode = "exact_bucket_supported"
+        support_rows = max(support_rows, current_live_structure_bucket_rows)
+        exact_support_rows = max(exact_support_rows, current_live_structure_bucket_rows)
 
     # q15 audit is the canonical same-identity support source once it is active for the
     # current live row.  The broader DQ scope diagnostics can still report a tiny recent
