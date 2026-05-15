@@ -323,7 +323,12 @@ def _refresh_q15_support_audit(
     *,
     force: bool = False,
 ) -> dict | None:
-    if not current_live_structure_bucket or "q15" not in str(current_live_structure_bucket):
+    # Despite the historical name, hb_q15_support_audit.py is now the
+    # canonical support-progress audit for the *current live bucket* as well as
+    # the q15 component lane.  Refresh it for q00/q35 too; otherwise a heartbeat
+    # can write live_predict_probe.json with a stale embedded audit while the
+    # standalone q15_support_audit.json is refreshed later in the run.
+    if not current_live_structure_bucket:
         return None
     current_payload = _load_q15_support_audit(current_live_structure_bucket)
     if (not force) and _q15_audit_matches_probe(
@@ -334,6 +339,20 @@ def _refresh_q15_support_audit(
         return current_payload
 
     script_path = PROJECT_ROOT / "scripts" / "hb_q15_support_audit.py"
+    try:
+        audit_path = Q15_SUPPORT_AUDIT_PATH.resolve()
+        project_root = PROJECT_ROOT.resolve()
+        audit_path_is_project_artifact = audit_path == project_root / "data" / "q15_support_audit.json" or project_root in audit_path.parents
+    except OSError:
+        audit_path_is_project_artifact = False
+    if not audit_path_is_project_artifact:
+        # Unit tests often monkeypatch Q15_SUPPORT_AUDIT_PATH to a tmp file while
+        # leaving PROJECT_ROOT pointed at the real repository. Do not import and
+        # execute the real audit script into a test tmp artifact in that mixed
+        # context; callers still receive the current payload. Production paths
+        # (and explicit tests that monkeypatch PROJECT_ROOT together with the
+        # audit path) continue through the refresh branch.
+        return current_payload
     if not script_path.exists():
         return current_payload
 

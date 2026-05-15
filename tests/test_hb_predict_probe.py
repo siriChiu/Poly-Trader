@@ -1276,6 +1276,57 @@ def test_hb_predict_probe_refreshes_q15_audit_before_emitting(monkeypatch, capsy
     assert json.loads(out_path.read_text()) == payload
 
 
+def test_refresh_q15_support_audit_refreshes_current_live_non_q15_bucket(monkeypatch, tmp_path):
+    project_root = tmp_path / "project"
+    scripts_dir = project_root / "scripts"
+    data_dir = project_root / "data"
+    scripts_dir.mkdir(parents=True)
+    data_dir.mkdir(parents=True)
+    q15_audit_path = data_dir / "q15_support_audit.json"
+    refreshed_payload = {
+        "generated_at": "2026-05-16T01:05:00+00:00",
+        "scope_applicability": {
+            "active_for_current_live_row": True,
+            "current_structure_bucket": "BLOCK|structure_quality_block|q00",
+        },
+        "current_live": {
+            "feature_timestamp": "2026-05-16T01:02:21+00:00",
+            "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+            "current_live_structure_bucket_rows": 2,
+        },
+        "support_route": {
+            "verdict": "exact_bucket_present_but_below_minimum",
+            "deployable": False,
+            "support_progress": {
+                "status": "accumulating",
+                "current_rows": 2,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 48,
+            },
+        },
+    }
+    (scripts_dir / "hb_q15_support_audit.py").write_text(
+        "import json\n"
+        "from pathlib import Path\n\n"
+        "def main():\n"
+        f"    Path({str(q15_audit_path)!r}).write_text(json.dumps({refreshed_payload!r}), encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(hb_predict_probe, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(hb_predict_probe, "Q15_SUPPORT_AUDIT_PATH", q15_audit_path)
+
+    payload = hb_predict_probe._refresh_q15_support_audit(
+        "BLOCK|structure_quality_block|q00",
+        "2026-05-16T01:02:21+00:00",
+    )
+
+    assert payload["current_live"]["current_live_structure_bucket"] == "BLOCK|structure_quality_block|q00"
+    assert payload["support_route"]["support_progress"]["current_rows"] == 2
+    assert payload["support_route"]["support_progress"]["gap_to_minimum"] == 48
+    assert json.loads(q15_audit_path.read_text(encoding="utf-8")) == refreshed_payload
+
+
 def test_q15_audit_matches_probe_rejects_incomplete_exact_supported_component_ready_payload():
     payload = {
         "generated_at": "2026-04-17T00:54:21.709888+00:00",
