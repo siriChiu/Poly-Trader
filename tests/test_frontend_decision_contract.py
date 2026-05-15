@@ -247,7 +247,12 @@ def test_operator_surfaces_do_not_render_raw_blocker_copy():
     confidence_source = _read("components/ConfidenceIndicator.tsx")
     strategy_lab_source = _read("pages/StrategyLab.tsx")
 
-    assert '阻塞原因: ${meta.backfill_blocker}' in feature_chart_source
+    assert '阻塞原因：${humanizeFeatureCoverageToken(meta.backfill_blocker)}' in feature_chart_source
+    assert '快照歸檔 ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10}' in feature_chart_source
+    assert '最新 ${meta.raw_snapshot_latest_age_min.toFixed(1)} 分鐘 · 跨度 ${meta.raw_snapshot_span_hours ?? 0} 小時' in feature_chart_source
+    assert '最近歸檔窗 ${meta.archive_window_coverage_pct?.toFixed(1) ?? "0.0"}%' in feature_chart_source
+    assert '覆蓋 ${meta.coverage_pct.toFixed(1)}% · 唯一值 ${meta.distinct}' in feature_chart_source
+    assert '來源回填污染' in feature_chart_source
     assert '先等金字塔 24h 最近 50 筆恢復' in confidence_source
     assert '目前沒有額外場館阻塞摘要' in strategy_lab_source
     assert '部署設定：{deploymentProfileDisplayName(model)}' in strategy_lab_source
@@ -255,6 +260,15 @@ def test_operator_surfaces_do_not_render_raw_blocker_copy():
 
     for leaked_copy in [
         'blocker: ${meta.backfill_blocker}',
+        '阻塞原因: ${meta.backfill_blocker}',
+        '` · archive ${meta.raw_snapshot_events}',
+        '` · last ${meta.raw_snapshot_latest_age_min',
+        '` · archive-window ${meta.archive_window_coverage_pct',
+        '` · latest ${meta.raw_snapshot_latest_status}',
+        'coverage ${meta.coverage_pct.toFixed(1)}%',
+        'distinct ${meta.distinct}',
+        'coverage不足',
+        '來源 fallback 污染',
         '先等 canonical 1440m 最近 50 筆恢復',
         '目前沒有額外 venue blocker 摘要',
         'deployment: {deploymentProfileDisplayName(model)}',

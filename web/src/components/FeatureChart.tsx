@@ -95,29 +95,61 @@ interface FeatureCoverageMeta {
   archive_window_coverage_pct?: number | null;
 }
 
+const FEATURE_COVERAGE_TOKEN_LABELS: Record<string, string> = {
+  ok: "正常",
+  usable: "可用",
+  blocked: "阻塞",
+  building: "累積中",
+  stale: "過舊",
+  missing: "缺資料",
+  unavailable: "不可用",
+  chart_hidden: "圖表已隱藏",
+  low_coverage: "覆蓋不足",
+  low_distinct: "唯一值不足",
+  source_auth_blocked: "來源授權缺失",
+  source_fetch_error: "來源抓取失敗",
+  source_history_gap: "來源歷史不足",
+  source_fallback_zero: "來源回填污染",
+  sparse_source_archive_building: "稀疏來源歸檔累積中",
+  archive_window_under_minimum: "最近歸檔窗未達門檻",
+};
+
+function humanizeFeatureCoverageToken(value?: string | null): string {
+  if (!value) return "未提供";
+  const normalized = value.trim();
+  if (!normalized) return "未提供";
+  const direct = FEATURE_COVERAGE_TOKEN_LABELS[normalized];
+  if (direct) return direct;
+  return normalized
+    .split(/[,_-]+/)
+    .filter(Boolean)
+    .map((part) => FEATURE_COVERAGE_TOKEN_LABELS[part] || part)
+    .join(" ");
+}
+
 function formatCoverageReason(meta?: FeatureCoverageMeta | null): string {
   if (!meta) return "";
   const qualityText = meta.quality_label && meta.quality_label !== "ok"
-    ? meta.quality_label
-    : (meta.reasons?.join(", ") || "chart hidden");
+    ? humanizeFeatureCoverageToken(meta.quality_label)
+    : (meta.reasons?.map(humanizeFeatureCoverageToken).join("、") || "圖表已隱藏");
   const archiveText = meta.raw_snapshot_events
-    ? ` · archive ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10} ${meta.forward_archive_status ?? "building"}`
+    ? ` · 快照歸檔 ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10}（${humanizeFeatureCoverageToken(meta.forward_archive_status ?? "building")}）`
     : "";
   const freshnessText = meta.raw_snapshot_events && meta.raw_snapshot_latest_age_min !== undefined && meta.raw_snapshot_latest_age_min !== null
-    ? ` · last ${meta.raw_snapshot_latest_age_min.toFixed(1)}m · span ${meta.raw_snapshot_span_hours ?? 0}h`
+    ? ` · 最新 ${meta.raw_snapshot_latest_age_min.toFixed(1)} 分鐘 · 跨度 ${meta.raw_snapshot_span_hours ?? 0} 小時`
     : "";
   const archiveWindowText = meta.archive_window_started
-    ? ` · archive-window ${meta.archive_window_coverage_pct?.toFixed(1) ?? "0.0"}% (${meta.archive_window_non_null ?? 0}/${meta.archive_window_rows ?? 0})`
+    ? ` · 最近歸檔窗 ${meta.archive_window_coverage_pct?.toFixed(1) ?? "0.0"}%（${meta.archive_window_non_null ?? 0}/${meta.archive_window_rows ?? 0}）`
     : "";
   const statusText = meta.raw_snapshot_latest_status && meta.raw_snapshot_latest_status !== "ok"
-    ? ` · latest ${meta.raw_snapshot_latest_status}${meta.raw_snapshot_latest_message ? ` (${meta.raw_snapshot_latest_message})` : ""}`
+    ? ` · 最新狀態 ${humanizeFeatureCoverageToken(meta.raw_snapshot_latest_status)}${meta.raw_snapshot_latest_message ? `（${humanizeFeatureCoverageToken(meta.raw_snapshot_latest_message)}）` : ""}`
     : "";
-  const blockerText = meta.backfill_blocker ? ` · 阻塞原因: ${meta.backfill_blocker}` : "";
-  return `${qualityText} · coverage ${meta.coverage_pct.toFixed(1)}% · distinct ${meta.distinct}${archiveText}${freshnessText}${archiveWindowText}${statusText}${blockerText}`;
+  const blockerText = meta.backfill_blocker ? ` · 阻塞原因：${humanizeFeatureCoverageToken(meta.backfill_blocker)}` : "";
+  return `${qualityText} · 覆蓋 ${meta.coverage_pct.toFixed(1)}% · 唯一值 ${meta.distinct}${archiveText}${freshnessText}${archiveWindowText}${statusText}${blockerText}`;
 }
 
 function summarizeCoverageChip(meta?: FeatureCoverageMeta | null): string {
-  if (!meta) return "coverage不足";
+  if (!meta) return "覆蓋不足";
   if (meta.quality_flag === "source_auth_blocked") {
     return "來源授權缺失";
   }
@@ -134,9 +166,9 @@ function summarizeCoverageChip(meta?: FeatureCoverageMeta | null): string {
     return `來源歷史不足 · ${meta.coverage_pct.toFixed(0)}%`;
   }
   if (meta.quality_flag === "source_fallback_zero") {
-    return "來源 fallback 污染";
+    return "來源回填污染";
   }
-  return `${meta.coverage_pct.toFixed(0)}% / d${meta.distinct}`;
+  return `${meta.coverage_pct.toFixed(0)}% / 唯一值 ${meta.distinct}`;
 }
 
 function maturityBadge(meta?: FeatureCoverageMeta | null) {
@@ -516,7 +548,7 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
   const [days, setDays] = useState(initialDays);
   const [loading, setLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
-  const [loadingDetail, setLoadingDetail] = useState("準備同步特徵、coverage 與 BTC/USDT 價格資料");
+  const [loadingDetail, setLoadingDetail] = useState("準備同步特徵、覆蓋率與 BTC/USDT 價格資料");
   const [error, setError] = useState<string | null>(null);
   const [merged, setMerged] = useState<MergedPoint[]>([]);
   const [visibility, setVisibility] = useState<Record<string, boolean>>(
@@ -617,7 +649,7 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
 
         if (cachedKlines && klines.candles.length > 0) {
           const lastCached = klines.candles[klines.candles.length - 1];
-          setLoadingDetail("特徵與 coverage 已就緒，正在補抓 FeatureChart 缺少的最新 K 線");
+          setLoadingDetail("特徵與覆蓋率已就緒，正在補抓 FeatureChart 缺少的最新 K 線");
           const delta = await fetchApi<KlineResponse>(
             `/api/chart/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}&append_after=${lastCached.time * 1000}`
           );
@@ -836,24 +868,16 @@ export default function FeatureChart({ selectedFeature, onClear, days: initialDa
       {hiddenCoverageItems.length > 0 && (
         <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-slate-300 space-y-1">
           <div className="text-amber-300 font-medium">
-            已自動隱藏 {hiddenCoverageItems.length} 個 coverage / 資料品質不足特徵，避免圖上出現失真雜訊線。
+            已自動隱藏 {hiddenCoverageItems.length} 個覆蓋率 / 資料品質不足特徵，避免圖上出現失真雜訊線。
           </div>
           <div className="text-slate-400">
             {hiddenCoverageItems
               .slice(0, 5)
               .map(([key, meta]) => {
                 const label = FEATURE_CONFIG[key]?.label ?? key;
-                const reason = meta.quality_label && meta.quality_label !== "ok"
-                  ? meta.quality_label
-                  : `coverage ${meta.coverage_pct.toFixed(1)}%`;
-                const policy = meta.history_class ? ` / ${meta.history_class}` : "";
-                const archive = meta.raw_snapshot_events
-                  ? ` / archive ${meta.raw_snapshot_events}/${meta.forward_archive_ready_min_events ?? 10} ${meta.forward_archive_status ?? "building"}${meta.raw_snapshot_latest_age_min != null ? ` / last ${meta.raw_snapshot_latest_age_min.toFixed(1)}m` : ""}`
-                  : "";
-                const latestStatus = meta.raw_snapshot_latest_status && meta.raw_snapshot_latest_status !== "ok"
-                  ? ` / status ${meta.raw_snapshot_latest_status}${meta.raw_snapshot_latest_message ? `: ${meta.raw_snapshot_latest_message}` : ""}`
-                  : "";
-                return `${label}(${reason}${policy}${archive}${latestStatus})`;
+                const reason = formatCoverageReason(meta);
+                const policy = meta.history_class ? ` · 政策 ${humanizeFeatureCoverageToken(meta.history_class)}` : "";
+                return `${label}（${reason}${policy}）`;
               })
               .join(" · ")}
             {hiddenCoverageItems.length > 5 ? " …" : ""}

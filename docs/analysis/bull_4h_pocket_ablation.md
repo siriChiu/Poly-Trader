@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-14 23:02:34 UTC**
+- generated_at: **2026-05-15 00:02:00 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -54,31 +54,31 @@
 
 ## Support / pathology summary
 
-- blocker_state: **exact_live_bucket_supported**
-- preferred_support_cohort: **exact_live_bucket**
-- current bucket gap to minimum: **0**
+- blocker_state: **exact_lane_proxy_fallback_only**
+- preferred_support_cohort: **bull_exact_live_lane_proxy**
+- current bucket gap to minimum: **48**
 - exact-bucket proxy gap to minimum: **50**
 - exact-lane proxy gap to minimum: **0**
 - dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q00` rows=196
-- bucket gap vs dominant neighbor: **146**
-- exact bucket root cause: **exact_bucket_supported**
-- broader q65 rows / dominant regime: **50 / chop (0.9000)**
-- root cause interpretation: exact bucket 已獲支持，可直接驗證 exact lane。
-- bucket comparison takeaway: **exact_bucket_supported**
-- proxy boundary verdict: **exact_bucket_supported_proxy_not_required**
-- proxy boundary reason: current live structure bucket 已達 minimum support；後續治理與驗證應直接以 exact bucket 為主，proxy 只保留輔助比較，不再作 blocker 判讀。
+- bucket gap vs dominant neighbor: **194**
+- exact bucket root cause: **exact_bucket_present_but_below_minimum**
+- broader q65 rows / dominant regime: **50 / chop (0.8980)**
+- root cause interpretation: bull exact lane 已出現當前 bucket 樣本，但距離 minimum support 仍有缺口；需持續累積 exact rows，不能當成已解 blocker。
+- bucket comparison takeaway: **support_gap_unresolved**
+- proxy boundary verdict: **insufficient_recent_exact_bucket_rows**
+- proxy boundary reason: current live structure bucket 沒有 recent exact rows，無法判斷 proxy cohort 邊界。
 - decision-quality scope / label: **regime_label+regime_gate+entry_quality_label / D**
 - narrowed pathology scope: **None**
 - worst pathology scope: **None**
 - shared pathology shift features: []
 - broader-bucket pathology shifts: []
-- recommended_action: 可回到 exact live bucket 直接治理與驗證。
+- recommended_action: 維持部署 blocker；exact bucket 已出現但仍低於 minimum support，proxy 只可作治理參考。
 
 ## Bucket evidence comparison
 
 | cohort | bucket | rows | win_rate | quality / cv | note |
 |---|---|---:|---:|---:|---|
-| exact live lane | CAUTION|base_caution_regime_or_bias|q35 | 450 | 0.5911 | 0.224 | current bucket rows=50 |
+| exact live lane | CAUTION|base_caution_regime_or_bias|q35 | 450 | 0.5911 | 0.224 | current bucket rows=2 |
 | exact bucket proxy | CAUTION|base_caution_regime_or_bias|q35 | 0 | 0.0 | None | proxy-vs-broader win Δ=-0.78 |
 | broader same bucket | CAUTION|base_caution_regime_or_bias|q35 | 50 | 0.78 | 0.4796 | dominant_regime=chop |
 
@@ -104,7 +104,7 @@
 
 - collapse features under inspection: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
 - thresholds (bull q35): {"feat_4h_dist_swing_low": 4.82, "feat_4h_dist_bb_lower": 4.057, "feat_4h_bb_pct_b": 0.6996}
-- exact live structure bucket: `CAUTION|base_caution_regime_or_bias|q35` rows=50
+- exact live structure bucket: `CAUTION|base_caution_regime_or_bias|q35` rows=2
 - supported neighbor buckets from exact scope: ["CAUTION|base_caution_regime_or_bias|q00", "CAUTION|base_caution_regime_or_bias|q15", "CAUTION|base_caution_regime_or_bias|missing"]
 - best bull-all profile: **current_full_minus_4h_structure_shift**
 - best bull-collapse profile: **core_plus_macro_plus_all_4h**
