@@ -1,4 +1,5 @@
 import asyncio
+from copy import deepcopy
 from types import SimpleNamespace
 
 from backtesting import strategy_lab
@@ -93,6 +94,73 @@ def _status_payload():
             },
         },
     }
+
+
+
+def _blocked_high_conviction_status_payload():
+    payload = deepcopy(_status_payload())
+    live_truth = payload["execution"]["live_runtime_truth"]
+    live_truth.update(
+        {
+            "confidence": 0.73,
+            "regime_label": "block",
+            "regime_gate": "BLOCK",
+            "structure_bucket": "BLOCK|structure_quality_block|q00",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "current_live_deployment_blocker",
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket_blocks_trade",
+            "runtime_closure_state": "current_live_deployment_blocked",
+            "runtime_closure_summary": "current-live 精準分桶樣本不足；只允許影子觀察，不允許買入/加倉。",
+        }
+    )
+    live_truth["sleeve_routing"] = {
+        "current_regime": "block",
+        "current_regime_gate": "BLOCK",
+        "current_structure_bucket": "BLOCK|structure_quality_block|q00",
+        "active_sleeves": [],
+        "inactive_sleeves": [
+            {"key": "trend", "label": "趨勢承接", "summary": "trend", "why": "current-live 精準樣本不足"},
+            {"key": "pullback", "label": "回調承接", "summary": "pullback", "why": "current-live 精準樣本不足"},
+            {"key": "rebound", "label": "深跌回補", "summary": "rebound", "why": "current-live 精準樣本不足"},
+            {"key": "selective", "label": "高信念精選", "summary": "selective", "why": "OOS 通過但 runtime 仍阻塞"},
+        ],
+    }
+    high_conviction_topk = {
+        "deployment_readiness_status": "paper_shadow_only",
+        "deployable_count": 0,
+        "risk_qualified_count": 6,
+        "runtime_blocked_candidate_count": 6,
+        "operator_message": "離線驗證 / 風控已過 6 筆；可部署 0 筆。即時阻塞 精準樣本未達最小門檻。",
+        "support_context": {
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+            "current_live_structure_bucket_rows": 2,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 48,
+            "support_progress_status": "stalled_under_minimum",
+            "stalled_support_accumulation": True,
+            "stagnant_run_count": 5,
+            "support_delta_vs_previous": 0,
+            "support_rows_needed": 48,
+            "signal": "HOLD",
+            "allowed_layers": 0,
+        },
+        "nearest_deployable_rows": [
+            {
+                "model_name": "logistic_regression",
+                "threshold_name": "top_2pct",
+                "deployment_candidate_tier": "runtime_blocked_oos_pass",
+                "blocked_only_by_live_guardrails": True,
+                "deployable": False,
+                "signal": "HOLD",
+                "allowed_layers": 0,
+            }
+        ],
+    }
+    payload["execution_surface_contract"]["high_conviction_topk"] = high_conviction_topk
+    payload["execution"]["high_conviction_topk"] = high_conviction_topk
+    return payload
 
 
 
@@ -203,6 +271,51 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert runs_payload["summary"]["paused_runs"] == 0
     assert runs_payload["summary"]["stopped_runs"] == 1
     assert runs_payload["runs"][0]["run_id"] == run_id
+
+
+
+def test_selective_high_conviction_shadow_run_can_start_under_current_live_blocker(monkeypatch, tmp_path):
+    async def _fake_status():
+        return _blocked_high_conviction_status_payload()
+
+    session = init_db(f"sqlite:///{tmp_path / 'execution_runs_shadow.db'}")
+    monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"max_position_ratio": 0.10}})
+    monkeypatch.setattr(api_module, "get_db", lambda: session)
+    monkeypatch.setattr(api_module, "api_status", _fake_status)
+
+    overview_payload = asyncio.run(api_module.api_execution_overview())
+    selective_card = next(card for card in overview_payload["profile_cards"] if card["key"] == "selective")
+    assert selective_card["lifecycle_status"] == "shadow_monitoring"
+    assert selective_card["control_contract"]["start_status"] == "shadow_start_available"
+    assert selective_card["control_contract"]["shadow_only"] is True
+    assert selective_card["control_contract"]["risk_on_order_enabled"] is False
+    assert selective_card["control_contract"]["high_conviction_topk"]["risk_qualified_count"] == 6
+    assert selective_card["control_contract"]["high_conviction_topk"]["support_context"]["support_rows_needed"] == 48
+    assert "不送單" in selective_card["control_contract"]["start_reason"]
+    assert "影子觀察" in selective_card["next_operator_action"]
+
+    start_payload = asyncio.run(api_module.api_execution_start_run("selective", request=_local_request()))
+    run = start_payload["run"]
+    assert start_payload["action_result"] == "shadow_started"
+    assert start_payload["operator_message"] == "高信念精選影子觀察已啟動；不送單、不加倉。"
+    assert run["profile_id"] == "selective"
+    assert run["mode"] == "paper_shadow"
+    assert run["state"] == "running"
+    assert run["runtime_binding_status"] == "paper_shadow_runtime_blocked"
+    assert run["action_contract"]["shadow_only"] is True
+    assert run["action_contract"]["risk_on_order_enabled"] is False
+    assert run["runtime_binding_contract"]["shadow_only"] is True
+    assert run["runtime_binding_contract"]["high_conviction_topk"]["support_context"]["current_live_structure_bucket_rows"] == 2
+    assert run["runtime_binding_snapshot"]["mode"] == "paper_shadow"
+    assert "不送單" in run["last_event_message"]
+    assert run["last_event_type"] == "shadow_started"
+    assert run["latest_event"]["event_type"] == "shadow_started"
+    assert run["latest_event"]["payload"]["risk_on_order_enabled"] is False
+
+    runs_payload = asyncio.run(api_module.api_execution_runs())
+    selective_run = next(record for record in runs_payload["runs"] if record["profile_id"] == "selective")
+    assert selective_run["mode"] == "paper_shadow"
+    assert selective_run["runtime_binding_status"] == "paper_shadow_runtime_blocked"
 
 
 

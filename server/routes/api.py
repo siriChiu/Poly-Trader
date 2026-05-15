@@ -3056,14 +3056,17 @@ async def api_status() -> Dict[str, Any]:
     confidence_payload = await maybe_confidence_payload if hasattr(maybe_confidence_payload, "__await__") else maybe_confidence_payload
     live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload)
     recent_canonical_drift = _load_recent_canonical_drift_summary()
+    high_conviction_topk = _load_high_conviction_topk_summary(limit=3)
     execution_summary["live_runtime_truth"] = live_runtime_truth
     execution_summary["recent_canonical_drift"] = recent_canonical_drift
+    execution_summary["high_conviction_topk"] = high_conviction_topk
 
     execution_reconciliation = _build_execution_reconciliation_summary(db, symbol, account_snapshot, execution_summary)
     metadata_smoke = _ensure_execution_metadata_smoke_governance(cfg, symbol)
     execution_surface_contract = _build_execution_surface_contract()
     execution_surface_contract["live_runtime_truth"] = live_runtime_truth
     execution_surface_contract["recent_canonical_drift"] = recent_canonical_drift
+    execution_surface_contract["high_conviction_topk"] = high_conviction_topk
     operator_message = execution_surface_contract.get("operator_message") or ""
     if live_runtime_truth.get("runtime_closure_state") == "capacity_opened_signal_hold":
         operator_message = f"{operator_message} 目前 runtime 已開出 1 層 deployment capacity，但 signal 仍是 HOLD。".strip()
@@ -3081,6 +3084,7 @@ async def api_status() -> Dict[str, Any]:
         "execution_reconciliation": execution_reconciliation,
         "execution_metadata_smoke": metadata_smoke,
         "execution_surface_contract": execution_surface_contract,
+        "high_conviction_topk": high_conviction_topk,
         "recent_canonical_drift": recent_canonical_drift,
     }
 

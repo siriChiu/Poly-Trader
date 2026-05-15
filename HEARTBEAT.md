@@ -114,6 +114,7 @@ Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 
 
 - buy/add exposure：fail-closed。
 - automation enable：fail-closed。
+- high-conviction Top-K 候選若已通過離線 / 風控 gate、但 current-live support / venue proof 尚未解除，只能進入 `paper_shadow` 影子觀察；control plane payload 必須保留 `risk_on_order_enabled=false` 與 `runtime_binding_status=paper_shadow_runtime_blocked`，不得送單或加倉。
 - reduce/de-risk、manual mode、diagnostics、refresh：保持可用。
 - `/api/trade` 必須用 structured 409 告訴前端 blocked side/reason。
 
@@ -129,6 +130,7 @@ python scripts/heartbeat_harness_check.py --format text
 python -m pytest tests/test_heartbeat_harness_contract.py -q
 python -m pytest tests/test_repo_hygiene.py -q
 python -m pytest tests/test_server_startup.py -k 'api_trade or current_live_trade_blocker' -q
+python -m pytest tests/test_execution_run_control.py -q
 python -m pytest tests/test_frontend_decision_contract.py -q
 cd web && npm run build
 ```

@@ -3870,6 +3870,10 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert "recent_window_wins=9/50" in issues_md
     assert "required_recent_window_wins=25" in issues_md
     assert "additional_recent_window_wins_needed=16" in issues_md
+    assert "Execution Console 高信心 Top-K 影子觀察入口已產品化" in issues_md
+    assert "paper_shadow=true" in issues_md
+    assert "risk_on_order_enabled=false" in issues_md
+    assert "不送單、不加倉" in issues_md
     assert "CAUTION|structure_quality_caution|q35" not in issues_md
     roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
     assert "freshness=stale" in roadmap_md
@@ -3879,10 +3883,16 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert "矩陣新鮮度" in roadmap_md
     assert "release_ready=False" in roadmap_md
     assert "additional_recent_window_wins_needed=16" in roadmap_md
+    assert "Execution Console 高信心 Top-K 影子觀察入口已產品化" in roadmap_md
+    assert "paper_shadow=true" in roadmap_md
+    assert "risk_on_order_enabled=false" in roadmap_md
     orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
     assert "freshness=stale" in orid_md
     assert "release_ready=False" in orid_md
     assert "additional_recent_window_wins_needed=16" in orid_md
+    assert "high-conviction paper shadow" in orid_md
+    assert "risk_on_order_enabled=false" in orid_md
+    assert "runtime mirror / event log / reconciliation context" in orid_md
     assert "矩陣過期或即時分桶" in orid_md
 
 

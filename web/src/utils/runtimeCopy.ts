@@ -134,6 +134,7 @@ type SupportProgressLike = {
 };
 
 const EXECUTION_MODE_LABEL_MAPPINGS: Array<[string, string]> = [
+  ["paper_shadow", "影子觀察"],
   ["paper", "模擬倉"],
   ["dry_run", "模擬委託"],
   ["live_canary", "實盤 Canary"],
@@ -530,6 +531,8 @@ const Q15_BUCKET_ROOT_CAUSE_ACTION_MAPPINGS: Array<[string, string]> = [
 
 const EXECUTION_OPERATOR_LABEL_MAPPINGS: Record<string, Array<[string, string]>> = {
   status: [
+    ["shadow_monitoring", "影子觀察"],
+    ["shadow_candidate", "影子候選"],
     ["blocked_preview", "阻塞中"],
     ["inactive_preview", "待條件恢復"],
     ["ready_control_plane", "可建立運行"],
@@ -540,6 +543,7 @@ const EXECUTION_OPERATOR_LABEL_MAPPINGS: Record<string, Array<[string, string]>>
     ["stopped", "已停止"],
   ],
   start_status: [
+    ["shadow_start_available", "可啟動影子觀察"],
     ["blocked_preview", "目前阻塞"],
     ["inactive_preview", "待條件恢復"],
     ["ready_control_plane", "可建立運行"],
@@ -549,6 +553,7 @@ const EXECUTION_OPERATOR_LABEL_MAPPINGS: Record<string, Array<[string, string]>>
   event: [
     ["no event", "尚無事件"],
     ["waiting", "等待首筆事件"],
+    ["shadow_started", "影子已啟動"],
     ["started", "已啟動"],
     ["resumed", "已恢復"],
     ["paused", "已暫停"],

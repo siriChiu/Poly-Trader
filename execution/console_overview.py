@@ -41,6 +41,95 @@ def _to_float(value: Any) -> Optional[float]:
 
 
 
+def _to_int(value: Any) -> Optional[int]:
+    number = _to_float(value)
+    if number is None:
+        return None
+    return int(number)
+
+
+
+def _load_high_conviction_topk(status_payload: Dict[str, Any]) -> Dict[str, Any]:
+    execution_surface_contract = _as_dict(status_payload.get("execution_surface_contract"))
+    execution = _as_dict(status_payload.get("execution"))
+    return _as_dict(
+        execution_surface_contract.get("high_conviction_topk")
+        or execution.get("high_conviction_topk")
+        or status_payload.get("high_conviction_topk")
+    )
+
+
+
+def _build_high_conviction_shadow_contract(status_payload: Dict[str, Any]) -> Dict[str, Any]:
+    topk = _load_high_conviction_topk(status_payload)
+    if not topk:
+        return {"shadow_available": False}
+
+    risk_qualified_count = _to_int(topk.get("risk_qualified_count")) or 0
+    runtime_blocked_candidate_count = _to_int(topk.get("runtime_blocked_candidate_count")) or 0
+    deployable_count = _to_int(topk.get("deployable_count")) or 0
+    readiness_status = str(topk.get("deployment_readiness_status") or "").strip()
+    support_context = _as_dict(topk.get("support_context"))
+    nearest_rows = [row for row in _as_list(topk.get("nearest_deployable_rows")) if isinstance(row, dict)]
+    nearest = nearest_rows[0] if nearest_rows else {}
+
+    shadow_available = bool(
+        risk_qualified_count > 0
+        and runtime_blocked_candidate_count > 0
+        and deployable_count == 0
+        and readiness_status in {"paper_shadow_only", "stale_artifact_shadow_only", "freshness_unknown_shadow_only"}
+    )
+    support_rows = _to_int(support_context.get("current_live_structure_bucket_rows"))
+    minimum_rows = _to_int(support_context.get("minimum_support_rows"))
+    gap_rows = _to_int(
+        support_context.get("support_rows_needed")
+        or support_context.get("current_live_structure_bucket_gap_to_minimum")
+    )
+    stalled_runs = _to_int(support_context.get("stagnant_run_count"))
+    start_reason = (
+        f"高信心 OOS 已通過離線 / 風控門檻 {risk_qualified_count} 筆，但可部署仍為 0；"
+        f"目前精準支持 {support_rows if support_rows is not None else '—'} / {minimum_rows if minimum_rows is not None else '—'}"
+        f"（缺 {gap_rows if gap_rows is not None else '—'}），可先啟動影子觀察運行，只記錄決策與共享帳戶預覽，不送單、不加倉。"
+    )
+    next_action = (
+        "啟動高信念精選的影子觀察運行：只納入即時監控、事件紀錄與同商品共享預覽，"
+        "等精準樣本與場館證據鏈通過後再升級小流量。"
+    )
+    support_summary_parts = []
+    if support_rows is not None and minimum_rows is not None:
+        support_summary_parts.append(f"支持 {support_rows}/{minimum_rows}")
+    if gap_rows is not None:
+        support_summary_parts.append(f"缺 {gap_rows}")
+    if stalled_runs is not None and support_context.get("stalled_support_accumulation") is True:
+        support_summary_parts.append(f"連續停滯 {stalled_runs} 輪")
+
+    return {
+        "shadow_available": shadow_available,
+        "shadow_only": True,
+        "risk_on_order_enabled": False,
+        "shadow_mode": "paper_shadow",
+        "readiness_status": readiness_status,
+        "risk_qualified_count": risk_qualified_count,
+        "runtime_blocked_candidate_count": runtime_blocked_candidate_count,
+        "deployable_count": deployable_count,
+        "operator_message": topk.get("operator_message") or start_reason,
+        "start_reason": start_reason,
+        "next_operator_action": next_action,
+        "support_summary": " · ".join(support_summary_parts) if support_summary_parts else None,
+        "support_context": support_context,
+        "nearest_candidate": {
+            "model_name": nearest.get("model_name"),
+            "threshold_name": nearest.get("threshold_name"),
+            "deployment_candidate_tier": nearest.get("deployment_candidate_tier"),
+            "blocked_only_by_live_guardrails": nearest.get("blocked_only_by_live_guardrails"),
+            "deployable": nearest.get("deployable"),
+            "signal": nearest.get("signal"),
+            "allowed_layers": nearest.get("allowed_layers"),
+        } if nearest else None,
+    }
+
+
+
 def _record_text(record: Any, keys: Iterable[str]) -> Optional[str]:
     if not isinstance(record, dict):
         return None
@@ -133,6 +222,7 @@ def build_execution_overview(
     runs_by_profile = _as_dict(control_plane.get("runs_by_profile"))
     strategy_source_snapshot = build_execution_strategy_source_snapshot()
     strategy_bindings = _as_dict(strategy_source_snapshot.get("sleeve_bindings"))
+    high_conviction_shadow_contract = _build_high_conviction_shadow_contract(payload)
 
     positions = [item for item in _as_list(account.get("positions")) if isinstance(item, dict)]
     open_orders = [item for item in _as_list(account.get("open_orders")) if isinstance(item, dict)]
@@ -190,6 +280,11 @@ def build_execution_overview(
         summary = str(routing_item.get("summary") or fallback.get("summary") or "")
         active = active_item is not None
         routing_reason = str(routing_item.get("why") or "尚未取得 routing reason。")
+        shadow_candidate = bool(
+            key == "selective"
+            and global_blocker
+            and high_conviction_shadow_contract.get("shadow_available")
+        )
 
         if active and (symbol_positions or symbol_open_orders):
             lifecycle_status = "monitoring_shared_symbol"
@@ -198,6 +293,10 @@ def build_execution_overview(
         elif active:
             lifecycle_status = "ready_preview"
             next_action = "目前 routing 允許此 sleeve；可用這張卡做 preview-level bot/profile 規劃，但 start/pause/stop mutation API 尚未落地。"
+        elif shadow_candidate:
+            lifecycle_status = "shadow_monitoring"
+            next_action = str(high_conviction_shadow_contract.get("next_operator_action") or "啟動影子觀察運行；只記錄決策，不送單、不加倉。")
+            monitoring_count += 1
         elif global_blocker:
             lifecycle_status = "blocked_preview"
             next_action = f"先解除全域 blocker：{global_blocker}。解除前不要把這個 sleeve 包裝成可啟動 bot。"
@@ -230,6 +329,11 @@ def build_execution_overview(
             pause_status = "already_paused"
             stop_status = "available"
             next_action = "此 sleeve 目前在 paused；若要繼續，請 resume 並對齊 per-bot runtime binding。"
+        elif shadow_candidate:
+            start_status = "shadow_start_available"
+            start_reason = str(high_conviction_shadow_contract.get("start_reason") or "可啟動影子觀察運行；只記錄決策，不送單、不加倉。")
+            pause_status = "available_when_running"
+            stop_status = "available_when_running"
         elif active and not global_blocker:
             start_status = "ready_control_plane"
             start_reason = "routing active，且目前沒有全域 execution blocker；可建立 stateful run control beta。"
@@ -247,6 +351,30 @@ def build_execution_overview(
             stop_status = "blocked_until_started"
 
         strategy_binding = _as_dict(_as_dict(strategy_bindings.get(key)).get("recommended")) or None
+        control_contract = {
+            "mode": control_plane.get("controls_mode") or CONTROL_MODE,
+            "start_status": start_status,
+            "start_reason": start_reason,
+            "pause_status": pause_status,
+            "stop_status": stop_status,
+            "latest_event_type": current_run.get("last_event_type"),
+            "latest_event_message": current_run.get("last_event_message") or current_run_event.get("message"),
+            "upgrade_required": True,
+            "upgrade_prerequisite": CONTROL_PLANE_UPGRADE_PREREQUISITE,
+        }
+        if shadow_candidate:
+            control_contract.update(
+                {
+                    "shadow_only": True,
+                    "risk_on_order_enabled": False,
+                    "shadow_mode": high_conviction_shadow_contract.get("shadow_mode") or "paper_shadow",
+                    "high_conviction_topk": high_conviction_shadow_contract,
+                    "upgrade_prerequisite": (
+                        "先以影子觀察運行收集即時決策與事件紀錄；只有當即時精準樣本、"
+                        "場館憑證 / 委託 / 成交證據鏈與單一 Bot 帳本都通過後，才能升級小流量。"
+                    ),
+                }
+            )
 
         cards.append(
             {
@@ -254,7 +382,7 @@ def build_execution_overview(
                 "profile_id": key,
                 "label": label,
                 "summary": summary,
-                "activation_status": "active" if active else "inactive",
+                "activation_status": "active" if active else ("shadow_candidate" if shadow_candidate else "inactive"),
                 "lifecycle_status": lifecycle_status,
                 "routing_reason": routing_reason,
                 "current_regime": sleeve_routing.get("current_regime") or live_runtime_truth.get("regime_label"),
@@ -268,17 +396,7 @@ def build_execution_overview(
                 "controls_mode": control_plane.get("controls_mode") or CONTROL_MODE,
                 "current_run": current_run or None,
                 "current_run_state": current_run_state or None,
-                "control_contract": {
-                    "mode": control_plane.get("controls_mode") or CONTROL_MODE,
-                    "start_status": start_status,
-                    "start_reason": start_reason,
-                    "pause_status": pause_status,
-                    "stop_status": stop_status,
-                    "latest_event_type": current_run.get("last_event_type"),
-                    "latest_event_message": current_run.get("last_event_message") or current_run_event.get("message"),
-                    "upgrade_required": True,
-                    "upgrade_prerequisite": CONTROL_PLANE_UPGRADE_PREREQUISITE,
-                },
+                "control_contract": control_contract,
                 "symbol_scoped_position_count": len(symbol_positions),
                 "symbol_scoped_open_order_count": len(symbol_open_orders),
                 "next_operator_action": next_action,

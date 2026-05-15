@@ -2911,6 +2911,47 @@ def overwrite_current_state_docs(
 
     high_conviction_matrix_release_fragment = _high_conviction_release_doc_fragment(high_conviction_latest_matrix)
     high_conviction_best_release_fragment = _high_conviction_release_doc_fragment(high_conviction_best_row)
+    high_conviction_deployable_rows = _int_or_none(high_conviction_latest_matrix.get("deployable_rows")) or 0
+    high_conviction_risk_qualified_rows = _int_or_none(high_conviction_latest_matrix.get("risk_qualified_rows")) or 0
+    high_conviction_runtime_blocked_rows = _int_or_none(
+        high_conviction_latest_matrix.get("runtime_blocked_candidate_rows")
+    ) or 0
+    high_conviction_shadow_available = bool(
+        high_conviction_issue
+        and high_conviction_risk_qualified_rows > 0
+        and high_conviction_runtime_blocked_rows > 0
+        and high_conviction_deployable_rows == 0
+    )
+    high_conviction_shadow_fact_lines: list[str] = []
+    high_conviction_shadow_roadmap_lines: list[str] = []
+    high_conviction_shadow_orid_lines: list[str] = []
+    if high_conviction_shadow_available:
+        shadow_support_rows = high_conviction_latest_matrix.get("current_live_structure_bucket_rows", "—")
+        shadow_minimum_rows = high_conviction_latest_matrix.get("minimum_support_rows", "—")
+        shadow_gap_rows = high_conviction_latest_matrix.get("current_live_structure_bucket_gap_to_minimum", "—")
+        shadow_contract_line = (
+            f"`risk_qualified_rows={high_conviction_risk_qualified_rows}` / "
+            f"`runtime_blocked_candidates={high_conviction_runtime_blocked_rows}` / "
+            f"`deployable_rows={high_conviction_deployable_rows}` / "
+            f"`paper_shadow=true` / `risk_on_order_enabled=false` / "
+            f"`support={shadow_support_rows}/{shadow_minimum_rows}` / `gap={shadow_gap_rows}`"
+        )
+        shadow_operator_copy = (
+            "高信心 Top-K OOS 候選已可在 Execution Console selective sleeve 啟動影子觀察："
+            "只鏡像即時決策、事件紀錄、帳戶與對帳摘要，不送單、不加倉；"
+            "等即時支持、場館證據鏈與單一 Bot 帳本全部通過後才能升級小流量。"
+        )
+        high_conviction_shadow_fact_lines = [
+            "- **Execution Console 高信心 Top-K 影子觀察入口已產品化**",
+            f"  - {shadow_contract_line}；{shadow_operator_copy}",
+        ]
+        high_conviction_shadow_roadmap_lines = [
+            "- **Execution Console 高信心 Top-K 影子觀察入口已產品化**",
+            f"  - {shadow_contract_line}；selective sleeve 在可部署仍為 0 時只允許 `paper_shadow`，不會送單或加倉。",
+        ]
+        high_conviction_shadow_orid_lines = [
+            f"- high-conviction paper shadow：{shadow_contract_line}；Execution Console selective sleeve 可啟動影子觀察，但 `risk_on_order_enabled=false`，只收集 runtime mirror / event log / reconciliation context。"
+        ]
     current_support_bucket = _current_support_bucket(live_predictor_diagnostics, q15_support_audit)
     support_scope_label = _support_scope_label(current_support_bucket)
     support_scope_operator_label = _support_scope_operator_label(current_support_bucket)
@@ -3338,6 +3379,7 @@ def overwrite_current_state_docs(
         live_dq_operator_copy_line,
         "- **Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe**",
         "  - `formatHighConvictionRuntimeSignalLabel()` 統一把即時訊號 enum 轉成繁中操作語；最接近部署候選列不再把內部訊號 token 直接丟給 operator，避免 OOS-pass / runtime-blocked 候選被誤讀為可部署動作。",
+        *high_conviction_shadow_fact_lines,
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
@@ -3449,6 +3491,7 @@ def overwrite_current_state_docs(
         live_dq_operator_copy_line,
         "- **Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe**",
         "  - 列級 `signal` 透過 `formatHighConvictionRuntimeSignalLabel()` 轉成繁中操作語；即時分桶 / 支持 / release gate 未解除前，候選列維持模擬觀察 / 影子驗證 / 僅觀察，不用內部 enum 暗示可部署。",
+        *high_conviction_shadow_roadmap_lines,
         "- **本輪 current-state docs 已同步到最新 artifacts**",
         "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json` 的 current-state truth 已對齊",
         *parallel_failure_roadmap_lines,
@@ -3575,6 +3618,7 @@ def overwrite_current_state_docs(
         *([f"- current blocking pathological pocket：{blocking_pathology_line}。"] if blocking_pathology_line else []),
         f"- leaderboard / governance：{leaderboard_line}。",
         f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；top source blockers={top_source_blockers_line}；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle；metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next。",
+        *high_conviction_shadow_orid_lines,
         *parallel_failure_orid_lines,
         *([f"- {q35_scaling_doc_line}。"] if q35_scaling_doc_line else []),
         *high_conviction_orid_fact_lines,

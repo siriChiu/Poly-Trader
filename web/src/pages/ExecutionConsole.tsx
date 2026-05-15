@@ -20,6 +20,7 @@ import {
 
 const EXECUTION_MODE_LABELS: Record<string, string> = {
   paper: "模擬倉",
+  paper_shadow: "影子觀察",
   dry_run: "模擬委託",
   live: "實盤",
 };
@@ -303,6 +304,17 @@ type ExecutionOverviewProfileCard = {
     stop_status?: string;
     latest_event_type?: string | null;
     latest_event_message?: string | null;
+    shadow_only?: boolean | null;
+    risk_on_order_enabled?: boolean | null;
+    shadow_mode?: string | null;
+    high_conviction_topk?: {
+      support_summary?: string | null;
+      risk_qualified_count?: number | null;
+      runtime_blocked_candidate_count?: number | null;
+      deployable_count?: number | null;
+      operator_message?: string | null;
+      support_context?: Record<string, unknown> | null;
+    } | null;
     upgrade_prerequisite?: string;
   } | null;
 };
@@ -1268,6 +1280,12 @@ export default function ExecutionConsole() {
                 );
                 const profileRoutingReasonLabel = humanizeRuntimeDetailText(card.routing_reason || null);
                 const profileStartReasonLabel = humanizeRuntimeDetailText(card.control_contract?.start_reason || null);
+                const profileShadowContract = card.control_contract?.shadow_only ? card.control_contract.high_conviction_topk ?? null : null;
+                const profileShadowSummaryLabel = humanizeRuntimeDetailText(
+                  profileShadowContract?.support_summary
+                    || profileShadowContract?.operator_message
+                    || (card.control_contract?.shadow_only ? "影子觀察已可啟動；只記錄決策，不送單、不加倉。" : null),
+                );
                 const profileLatestEventMessageLabel = humanizeRuntimeDetailText(
                   linkedRun?.latest_event?.message || linkedRun?.last_event_message || card.control_contract?.latest_event_message || null,
                 );
@@ -1288,7 +1306,13 @@ export default function ExecutionConsole() {
                 const strategyBindingBadgeTone = strategyBindingStatus === "missing_saved_strategy"
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
                   : "border-emerald-500/25 bg-emerald-500/10 text-emerald-100";
-                const canStart = Boolean(profileId) && ["ready_control_plane", "resume_available"].includes(card.control_contract?.start_status || "");
+                const isShadowStart = card.control_contract?.start_status === "shadow_start_available";
+                const canStart = Boolean(profileId) && ["ready_control_plane", "resume_available", "shadow_start_available"].includes(card.control_contract?.start_status || "");
+                const startButtonLabel = isShadowStart ? "啟動影子觀察" : "啟動 / 恢復";
+                const startPendingLabel = isShadowStart ? "啟動影子觀察中…" : "建立運行中…";
+                const startDoneLabel = card.control_contract?.start_status === "resume_available"
+                  ? "已恢復運行。"
+                  : (isShadowStart ? "已啟動影子觀察。" : "已建立運行。");
                 const canPause = Boolean(linkedRun?.action_contract?.can_pause && linkedRun?.run_id);
                 const canStop = Boolean(linkedRun?.action_contract?.can_stop && linkedRun?.run_id);
                 return (
@@ -1313,6 +1337,11 @@ export default function ExecutionConsole() {
                           {ledgerPreview && (
                             <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-cyan-100">
                               共享預覽
+                            </span>
+                          )}
+                          {card.control_contract?.shadow_only && (
+                            <span className="rounded-full border border-purple-500/30 bg-purple-500/12 px-2.5 py-1 text-purple-100">
+                              影子觀察 · 不送單
                             </span>
                           )}
                         </div>
@@ -1365,6 +1394,7 @@ export default function ExecutionConsole() {
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-slate-400">
                       <span>路由 {profileRoutingReasonLabel || "—"}</span>
                       <span>啟動條件 {profileStartReasonLabel || "—"}</span>
+                      {profileShadowSummaryLabel && <span>實戰影子 {profileShadowSummaryLabel}</span>}
                       <span>預覽 {profilePreviewStatusLabel}</span>
                       <span>最新事件 {profileLatestEventMessageLabel || "尚未建立 Bot 事件"}</span>
                     </div>
@@ -1373,10 +1403,10 @@ export default function ExecutionConsole() {
                       <button
                         type="button"
                         disabled={!canStart || runActionState.tone === "pending"}
-                        onClick={() => handleRunAction(`/api/execution/runs/${profileId}/start`, "建立運行中…", card.control_contract?.start_status === "resume_available" ? "已恢復運行。" : "已建立運行。")}
+                        onClick={() => handleRunAction(`/api/execution/runs/${profileId}/start`, startPendingLabel, startDoneLabel)}
                         className="rounded-xl border border-emerald-500/30 bg-emerald-500/12 px-3 py-2 font-medium text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        啟動 / 恢復
+                        {startButtonLabel}
                       </button>
                       <button
                         type="button"

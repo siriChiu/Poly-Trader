@@ -11,6 +11,7 @@ from sqlalchemy import text
 
 CONTROL_MODE = "stateful_run_control_beta"
 RUNTIME_BINDING_STATUS = "control_plane_only"
+SHADOW_RUNTIME_BINDING_STATUS = "paper_shadow_runtime_blocked"
 CONTROL_PLANE_OPERATOR_MESSAGE = (
     "Bot 營運現在已具備可持久化的運行控制；"
     "啟動 / 暫停 / 停止都會保留事件紀錄，且每條運行已可鏡像同商品的執行期 / 對帳摘要，"
@@ -375,6 +376,18 @@ def _as_list(value: Any) -> List[Any]:
 
 
 
+def _high_conviction_topk_from_status(status_payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    payload = _as_dict(status_payload)
+    execution_surface_contract = _as_dict(payload.get("execution_surface_contract"))
+    execution = _as_dict(payload.get("execution"))
+    return _as_dict(
+        execution_surface_contract.get("high_conviction_topk")
+        or execution.get("high_conviction_topk")
+        or payload.get("high_conviction_topk")
+    )
+
+
+
 def _normalize_symbol_key(value: Optional[str]) -> Optional[str]:
     if value is None:
         return None
@@ -662,6 +675,11 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
         or _as_dict(status_payload.get("execution_surface_contract")).get("live_runtime_truth")
     )
     guardrails = _as_dict(execution.get("guardrails"))
+    high_conviction_topk = _high_conviction_topk_from_status(status_payload)
+    shadow_only = bool(
+        str(row.get("mode") or "") == "paper_shadow"
+        or str(row.get("runtime_binding_status") or "") == SHADOW_RUNTIME_BINDING_STATUS
+    )
 
     run_symbol = row.get("symbol")
     run_venue = str(row.get("venue") or "").lower()
@@ -733,7 +751,15 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
     contract = {
         "status": "symbol_scope_runtime_mirror" if matched_runtime else "control_plane_only",
         "scope": "symbol_scoped_runtime_preview" if matched_runtime else "control_plane_event_log_only",
-        "summary": summary,
+        "summary": (
+            "此運行是高信念精選影子觀察：只鏡像即時決策、帳戶與對帳摘要，不送單、不加倉；"
+            "等即時支持、場館證據鏈與單一 Bot 帳本全部通過後才能升級小流量。"
+            if shadow_only and matched_runtime
+            else summary
+        ),
+        "shadow_only": shadow_only,
+        "risk_on_order_enabled": False if shadow_only else None,
+        "high_conviction_topk": high_conviction_topk if shadow_only else None,
         "mirrored_components": mirrored_components,
         "missing_components": [
             "per_bot_capital_ledger",
@@ -754,10 +780,11 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
             "venue_match": venue_match,
         },
     }
+    snapshot_mode = row.get("mode") if shadow_only else (execution.get("mode") or row.get("mode"))
     snapshot = {
         "symbol": run_symbol,
         "venue": row.get("venue"),
-        "mode": execution.get("mode") or row.get("mode"),
+        "mode": snapshot_mode,
         "live_runtime_truth": {
             "runtime_closure_state": live_runtime_truth.get("runtime_closure_state"),
             "runtime_closure_summary": live_runtime_truth.get("runtime_closure_summary"),
@@ -848,6 +875,7 @@ def _serialize_run(
     recent_events = events or []
     latest_event = recent_events[0] if recent_events else None
     runtime_binding_contract, runtime_binding_snapshot = _runtime_binding_artifacts(row, status_payload)
+    shadow_only = bool(runtime_binding_contract.get("shadow_only"))
     strategy_binding = _json_loads(row.get("strategy_snapshot_json"))
     if not isinstance(strategy_binding, dict):
         strategy_binding = None
@@ -881,7 +909,13 @@ def _serialize_run(
             "can_pause": current_state == "running",
             "can_resume": current_state == "paused",
             "can_stop": current_state in {"running", "paused"},
-            "upgrade_prerequisite": CONTROL_PLANE_UPGRADE_PREREQUISITE,
+            "shadow_only": shadow_only,
+            "risk_on_order_enabled": False if shadow_only else None,
+            "upgrade_prerequisite": (
+                "影子觀察運行只能收集即時決策與事件紀錄，不會送單；需等即時支持、場館證據鏈與單一 Bot 帳本通過後再升級。"
+                if shadow_only
+                else CONTROL_PLANE_UPGRADE_PREREQUISITE
+            ),
         },
         "latest_event": latest_event,
         "recent_events": recent_events,
@@ -1211,6 +1245,9 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
     strategy_binding = profile_snapshot.get("strategy_binding") if isinstance(profile_snapshot, dict) else None
     strategy_binding = strategy_binding if isinstance(strategy_binding, dict) else None
     start_status = str(control_contract.get("start_status") or "")
+    shadow_only = bool(control_contract.get("shadow_only") and start_status == "shadow_start_available")
+    shadow_mode = str(control_contract.get("shadow_mode") or "paper_shadow")
+    high_conviction_topk = _as_dict(control_contract.get("high_conviction_topk"))
     if start_status.startswith("blocked") or start_status.startswith("inactive"):
         raise HTTPException(
             status_code=409,
@@ -1221,6 +1258,46 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
                     "profile_id": profile_id,
                     "start_status": start_status,
                     "start_reason": control_contract.get("start_reason") or profile_row.get("routing_reason"),
+                },
+            },
+        )
+
+    allowed_start_statuses = {
+        "ready_control_plane",
+        "resume_available",
+        "shadow_start_available",
+        "already_running",
+    }
+    if start_status not in allowed_start_statuses:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "profile_not_startable",
+                "message": "目前 control contract 不允許啟動這個 sleeve run。",
+                "context": {
+                    "profile_id": profile_id,
+                    "start_status": start_status,
+                    "allowed_start_statuses": sorted(allowed_start_statuses),
+                },
+            },
+        )
+
+    if shadow_only and (
+        profile_id != "selective"
+        or shadow_mode != "paper_shadow"
+        or control_contract.get("risk_on_order_enabled") is not False
+        or not high_conviction_topk
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "invalid_shadow_start_contract",
+                "message": "影子觀察只能用高信念精選 sleeve，且必須保持不送單、不加倉。",
+                "context": {
+                    "profile_id": profile_id,
+                    "start_status": start_status,
+                    "shadow_mode": shadow_mode,
+                    "risk_on_order_enabled": control_contract.get("risk_on_order_enabled"),
                 },
             },
         )
@@ -1314,7 +1391,16 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
         if isinstance(overview_payload, dict)
         else None
     ) or "USDT"
-    message = "Execution run 已建立；目前是 stateful control-plane beta，尚未綁定真實 per-bot capital / order ledger。"
+    run_mode = shadow_mode if shadow_only else profile_row.get("mode")
+    runtime_binding_status = SHADOW_RUNTIME_BINDING_STATUS if shadow_only else RUNTIME_BINDING_STATUS
+    message = (
+        "高信念精選影子觀察已建立；目前只收集即時決策、事件紀錄與同商品共享預覽，不送單、不加倉。"
+        if shadow_only
+        else "Execution run 已建立；目前是 stateful control-plane beta，尚未綁定真實 per-bot capital / order ledger。"
+    )
+    event_type = "shadow_started" if shadow_only else "started"
+    action_result = "shadow_started" if shadow_only else "started"
+    operator_message = "高信念精選影子觀察已啟動；不送單、不加倉。" if shadow_only else "已建立新的 execution run。"
     db.execute(
         text(
             """
@@ -1341,10 +1427,10 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
             "label": profile_row.get("label"),
             "symbol": profile_row.get("symbol"),
             "venue": profile_row.get("venue"),
-            "mode": profile_row.get("mode"),
+            "mode": run_mode,
             "state": "running",
             "control_mode": CONTROL_MODE,
-            "runtime_binding_status": RUNTIME_BINDING_STATUS,
+            "runtime_binding_status": runtime_binding_status,
             "budget_amount": profile_row.get("planned_budget_amount"),
             "budget_ratio": profile_row.get("planned_budget_ratio"),
             "capital_currency": currency,
@@ -1353,12 +1439,12 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
             "start_time": now,
             "stop_time": None,
             "stop_reason": None,
-            "operator_note": CONTROL_PLANE_UPGRADE_PREREQUISITE,
+            "operator_note": control_contract.get("upgrade_prerequisite") if shadow_only else CONTROL_PLANE_UPGRADE_PREREQUISITE,
             "strategy_name": strategy_binding.get("strategy_name") if strategy_binding else None,
             "strategy_source": strategy_binding.get("strategy_source") if strategy_binding else None,
             "strategy_hash": strategy_binding.get("strategy_hash") if strategy_binding else None,
             "strategy_snapshot_json": _json_dumps(strategy_binding) if strategy_binding else None,
-            "last_event_type": "started",
+            "last_event_type": event_type,
             "last_event_message": message,
             "last_event_at": now,
             "created_at": now,
@@ -1369,22 +1455,25 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
         db,
         run_id=run_id,
         profile_id=profile_id,
-        event_type="started",
+        event_type=event_type,
         level="info",
         message=message,
         payload={
             "state": "running",
-            "runtime_binding_status": RUNTIME_BINDING_STATUS,
+            "runtime_binding_status": runtime_binding_status,
             "budget_amount": profile_row.get("planned_budget_amount"),
             "budget_ratio": profile_row.get("planned_budget_ratio"),
+            "shadow_only": shadow_only,
+            "risk_on_order_enabled": False if shadow_only else None,
+            "high_conviction_topk": high_conviction_topk if shadow_only else None,
         },
         created_at=now,
     )
     db.commit()
     return {
         "action": "start",
-        "action_result": "started",
-        "operator_message": "已建立新的 execution run。",
+        "action_result": action_result,
+        "operator_message": operator_message,
         "snapshot": build_execution_control_plane_snapshot(db, status_payload, overview_payload),
         "run": get_execution_run_detail(db, run_id, status_payload=status_payload),
     }

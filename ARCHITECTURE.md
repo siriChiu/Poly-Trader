@@ -128,6 +128,7 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 3. system-generated auto leaderboard rows immutable；人工 rerun 應另存 editable copy。
 4. stale leaderboard cache 必須明確顯示 stale 狀態，而不是偽裝成 fresh production truth。
 5. high-conviction Top-K OOS gate 的 `/api/models/leaderboard.high_conviction_topk.support_context` 必須以較新的 `data/live_predict_probe.json` current-live support truth 覆蓋 stale matrix snapshot；離線 / 風控已過但 live support 未過的 rows 只能標 `runtime_blocked_oos_pass`，不得升級為 deployable；compact rows 必須保留 row-level `signal / allowed_layers / execution_guardrail_reason / live truth source / support_progress_status / stalled_support_accumulation / stagnant_run_count / support_delta_vs_previous / support_rows_needed`，讓 Strategy Lab 同時顯示 OOS 成績、即時不可部署原因與 same-bucket 支持累積是否停滯。
+6. 同一份 `high_conviction_topk` summary 必須同步進 `/api/status.execution.high_conviction_topk` 與 `/api/status.execution_surface_contract.high_conviction_topk`；`/api/execution/overview` 只能把 selective sleeve 標成影子觀察候選，啟動後必須是 `mode=paper_shadow`、`runtime_binding_status=paper_shadow_runtime_blocked`、`risk_on_order_enabled=false`，不得繞過買入 / 加倉 fail-closed。
 
 ---
 
@@ -137,6 +138,7 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 
 - **買入 / 加倉 / 啟用自動模式**：暫停，UI disabled，後端直接 API 也要 409。
 - **減碼 / 賣出風險降低 / 切手動 / diagnostics / refresh**：保持可用；這些是降風險或觀測路徑，不可被 buy blocker 一起鎖死。
+- **高信念精選影子觀察**：若 OOS / 風控已過但 current-live support 或場館 proof 尚未解除，Execution Console 可啟動只觀察的影子運行；它只能鏡像即時決策、事件紀錄與同商品共享預覽，payload 必須明示 `risk_on_order_enabled=false`，不可送單、不可加倉。
 - `/api/trade` blocked response 應提供前端可讀結構：`success=false`、`trade_blocked=true`、`blocked_side`、`reason`、`runtime_blocker`。
 - venue readiness 要分清楚 metadata OK 與 live/canary proof；缺 credential、order ack、fill lifecycle 時不可宣稱 live-ready。
 - `execution/metadata_smoke.py` 與 `/api/status.execution_metadata_smoke` 必須輸出 top-level `runtime_ready / runtime_ready_count / readiness_scope / readiness_state / runtime_ready_blockers`，且每個 venue row 保留 `proof_state / readiness_state / runtime_ready / blockers / operator_next_action / verify_next`；UI badge 只有在 `runtime_ready=true` 且無 blockers 時才能顯示可交易，`all_ok=true` 只能代表 metadata contract OK。
@@ -147,7 +149,7 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/status` | current live runtime truth、execution surface contract、metadata smoke |
+| `GET /api/status` | current live runtime truth、execution surface contract、metadata smoke；同時提供 high-conviction Top-K shadow-only support truth |
 | `GET /api/predict/confidence` | predictor decision profile |
 | `GET /api/features/coverage` | feature coverage、maturity、source blockers |
 | `GET /api/chart/klines` | K 線與增量補資料 |
@@ -156,7 +158,7 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 | `GET /api/strategies/leaderboard` | 策略排行榜 |
 | `GET /api/models/leaderboard` | 模型排行榜；high_conviction_topk.support_context 必須覆蓋較新的 live probe support truth，並保留 support-progress 停滯欄位供 Strategy Lab 顯示 |
 | `POST /api/trade` | manual trade/derisk entry；buy/add exposure 必須讀 current-live blocker |
-| `GET /api/execution/overview` | Execution Console operator summary |
+| `GET /api/execution/overview` | Execution Console operator summary；selective sleeve 在 Top-K OOS 已過但 live gate 未過時只能顯示影子觀察啟動 |
 | `GET /api/execution/status` | execution diagnostics / readiness detail |
 | `GET /ws/live` | 即時推送 |
 
