@@ -2131,6 +2131,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout" in issues_md
     assert "Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe" in issues_md
     assert "最接近部署候選列不再把內部訊號 token 直接丟給 operator" in issues_md
+    assert "Live DQ drilldown operator-facing markdown 已 enum-safe" in issues_md
+    assert "operator markdown 不再洩漏後端 bucket / route / source / reference raw token" in issues_md
     assert "把可用 payload 誤報成 `API timeout`" in issues_md
     assert "POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點" in issues_md
     assert "runtime/API guardrail：`POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點" in issues_md
@@ -2145,6 +2147,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）" in roadmap_md
     assert "Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe" in roadmap_md
     assert "候選列維持模擬觀察 / 影子驗證 / 僅觀察" in roadmap_md
+    assert "Live DQ drilldown operator-facing markdown 已 enum-safe" in roadmap_md
+    assert "operator markdown 不再洩漏後端 bucket / route / source / reference raw token" in roadmap_md
     assert "operator-workspace timeout" in roadmap_md
     assert "直接呼叫 `POST /api/trade` 的買入 / 加倉也必須依即時部署阻塞點以 409 暫停" in roadmap_md
     assert "`/api/trade` 直接 API 不能繞過即時部署阻塞點" in roadmap_md

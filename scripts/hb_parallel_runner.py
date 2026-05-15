@@ -3012,7 +3012,13 @@ def overwrite_current_state_docs(
     )
     runtime_copy_docs_clause = (
         "`runtime_closure_summary` 已由 `model/runtime_closure.py` 共用中文化，"
-        "避免後端英文枚舉與混合式治理文案泄漏到 Dashboard / Strategy Lab / Execution Status"
+        "避免後端 bucket / route / source / reference raw token 泄漏到 Dashboard / Strategy Lab / Execution Status / live DQ operator markdown"
+    )
+    live_dq_operator_copy_heading = "- **Live DQ drilldown operator-facing markdown 已 enum-safe**"
+    live_dq_operator_copy_line = (
+        "  - `docs/analysis/live_decision_quality_drilldown.md` 的 operator header、support summary、"
+        "精準支持路徑、跨門檻 verdict、recommended patch 來源 / 範圍改用繁中標籤；"
+        "machine JSON 保留 raw enum，operator markdown 不再洩漏後端 bucket / route / source / reference raw token。"
     )
     if has_release_math:
         execution_status_fact_heading = "- **Execution Status / Bot 營運 已顯示熔斷解除條件**"
@@ -3315,6 +3321,8 @@ def overwrite_current_state_docs(
         "  - 前端快捷：`manual_buy=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間只暫停買入 / 加倉與啟用自動模式，減碼 / 賣出風險降低、切到手動模式、查看阻塞原因與重新整理仍可用。`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`。後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑；`data/live_predict_probe.json` 同步輸出 `api_trade_guardrail_active / api_trade_buy_guardrail / api_trade_allowed_risk_off_sides` 作為 machine-readable proof",
         execution_status_fact_heading,
         execution_status_fact_line,
+        live_dq_operator_copy_heading,
+        live_dq_operator_copy_line,
         "- **Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe**",
         "  - `formatHighConvictionRuntimeSignalLabel()` 統一把即時訊號 enum 轉成繁中操作語；最接近部署候選列不再把內部訊號 token 直接丟給 operator，避免 OOS-pass / runtime-blocked 候選被誤讀為可部署動作。",
         "- **heartbeat current-state docs overwrite sync 已自動化**",
@@ -3424,6 +3432,8 @@ def overwrite_current_state_docs(
         "  - `/api/status` 初次同步前或部署阻塞存在時，買入 / 加倉與啟用自動模式快捷操作顯示暫停並保持 disabled；減碼 / 賣出風險降低、切到手動模式、查看阻塞原因與重新整理仍可用；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`；後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點，阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑；`data/live_predict_probe.json` 同步輸出 `api_trade_guardrail_active / api_trade_buy_guardrail / api_trade_allowed_risk_off_sides` 作為 machine-readable proof",
         execution_status_roadmap_heading,
         execution_status_roadmap_line,
+        live_dq_operator_copy_heading,
+        live_dq_operator_copy_line,
         "- **Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe**",
         "  - 列級 `signal` 透過 `formatHighConvictionRuntimeSignalLabel()` 轉成繁中操作語；即時分桶 / 支持 / release gate 未解除前，候選列維持模擬觀察 / 影子驗證 / 僅觀察，不用內部 enum 暗示可部署。",
         "- **本輪 current-state docs 已同步到最新 artifacts**",

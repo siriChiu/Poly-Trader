@@ -32,6 +32,11 @@ RAW_RUNTIME_COPY_SNIPPETS = [
     "寬 範圍",
     "寬範圍 出現",
     "guardrail",
+    "structure_quality",
+    "structure_品質",
+    "CAUTION|",
+    "bull|CAUTION",
+    "bull|BLOCK",
 ]
 
 
@@ -88,7 +93,7 @@ def test_runtime_closure_summary_humanizes_circuit_breaker_release_math_and_scop
     assert "至少還差 1 勝" in summary
     assert "精準路徑與外溢對照" in summary
     assert "同品質寬範圍" in summary
-    assert "牛市|阻塞" in summary
+    assert "牛市｜阻塞" in summary
     assert "443 筆" in summary
     assert "勝率 20.2%" in summary
     assert "精準即時路徑" in summary
@@ -119,8 +124,10 @@ def test_runtime_closure_summary_humanizes_reference_only_recommended_patch_scop
 
     assert summary is not None
     assert "精準樣本未達最小門檻" in summary
+    assert "觀察｜基線觀察（市場狀態 / 偏離）｜q35" in summary
     assert "非目前即時範圍，僅供治理參考" in summary
     assert "同品質寬範圍" in summary
+    assert "牛市｜觀察" in summary
     assert "精準即時路徑" in summary
     for leaked_copy in [*RAW_RUNTIME_COPY_SNIPPETS, "reference_only", "non_current_live_scope", "exact_live_bucket_present"]:
         assert leaked_copy not in summary

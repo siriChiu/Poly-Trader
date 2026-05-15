@@ -442,9 +442,11 @@ def _support_blocker_summary(
     if patch_reference_only and patch_profile:
         patch_scope = patch_projection.get("recommended_patch_reference_scope") or "unknown_scope"
         patch_source = patch_projection.get("recommended_patch_reference_source") or "unknown_source"
+        patch_scope_label = _humanize_runtime_text(patch_scope)
+        patch_source_label = _humanize_runtime_text(patch_source)
         operator_summary += (
             f" 建議修補方案 {patch_profile} 目前為{patch_status_label}，"
-            f"適用範圍 {patch_scope}、來源 {patch_source}；只能作治理參考，"
+            f"適用範圍 {patch_scope_label}、來源 {patch_source_label}；只能作治理參考，"
             "不是目前即時可部署修補。"
         )
         operator_next_action += " 保留建議修補方案可見但標示為僅參考；適用範圍與來源對齊、且精準樣本達標前不可放行。"
@@ -726,6 +728,10 @@ def main() -> None:
     recommended_patch_features = ", ".join(recommended_patch.get("collapse_features") or []) or "None"
     recommended_patch_status = recommended_patch.get("status") or "None"
     recommended_patch_profile = recommended_patch.get("recommended_profile") or "None"
+    recommended_patch_scope_text = _humanize_runtime_text(
+        recommended_patch.get("reference_patch_scope") or recommended_patch.get("spillover_regime_gate") or "None"
+    )
+    recommended_patch_source_text = _humanize_runtime_text(recommended_patch.get("reference_source") or "None")
     q35_audit = report.get("q35_scaling_audit") or {}
     q35_overall_verdict = q35_audit.get("overall_verdict") or "None"
     q35_redesign_verdict = q35_audit.get("redesign_verdict") or "None"
@@ -808,31 +814,44 @@ def main() -> None:
 
     runtime_blocker_reason_text = _humanize_runtime_text((runtime_blocker or {}).get("reason") or "None")
     deployment_blocker_reason_text = _humanize_runtime_text((deployment_blocker or {}).get("reason") or "None")
+    allowed_layers_raw_reason_text = _humanize_runtime_text(report.get("allowed_layers_raw_reason") or "None")
+    allowed_layers_reason_text = _humanize_runtime_text(report.get("allowed_layers_reason") or "None")
+    execution_guardrail_reason_text = _humanize_runtime_text(report.get("execution_guardrail_reason") or "None")
+    runtime_blocker_type_text = _humanize_runtime_text((runtime_blocker or {}).get("type") or "None")
+    deployment_blocker_type_text = _humanize_runtime_text((deployment_blocker or {}).get("type") or "None")
+    q35_overall_verdict_text = _humanize_runtime_text(q35_overall_verdict or "None")
+    q35_redesign_verdict_text = _humanize_runtime_text(q35_redesign_verdict or "None")
+    q35_recommended_mode_text = _humanize_runtime_text(q35_recommended_mode or "None")
+    q35_next_patch_target_text = _humanize_runtime_text(q35_next_patch_target or "None")
+    q35_runtime_blocker_text = _humanize_runtime_text(q35_runtime_blocker or "None")
+    q15_preserves_status_text = _humanize_runtime_text(q15_patch_machine_read.get("preserves_positive_discrimination_status") or "None")
     q35_audit_action_text = _humanize_runtime_text(q35_audit.get("recommended_action") or "None")
     q15_patch_state_text = "啟用" if report["q15_exact_supported_component_patch_applied"] else "未啟用"
+    support_route_verdict_text = _humanize_runtime_text(report.get("support_route_verdict") or "None")
+    floor_cross_verdict_text = _humanize_runtime_text(report.get("floor_cross_verdict") or "None")
 
     lines = [
         "# Live Decision-Quality Drilldown",
         "",
         f"- feature_timestamp: **{report['generated_at']}**",
         f"- target: `{report['target_col']}`",
-        f"- live path: **{report['regime_label']} / {report['regime_gate']} / {report['entry_quality_label']}**",
+        f"- live path: **{_humanize_runtime_text(report['regime_label'])} / {_humanize_runtime_text(report['regime_gate'])} / {report['entry_quality_label']}**",
         f"- signal: **{report['signal']}** @ confidence **{report['confidence']:.4f}**",
         f"- layers: **{report['allowed_layers_raw']} → {report['allowed_layers']}**",
-        f"- allowed_layers_raw_reason: `{report['allowed_layers_raw_reason']}`",
-        f"- allowed_layers_reason: `{report['allowed_layers_reason']}`",
-        f"- execution_guardrail_reason: `{report['execution_guardrail_reason']}`",
-        f"- runtime_blocker: `{(runtime_blocker or {}).get('type')}` | reason: `{runtime_blocker_reason_text}`",
-        f"- deployment_blocker: `{(deployment_blocker or {}).get('type')}` | reason: `{deployment_blocker_reason_text}`",
+        f"- allowed_layers_raw_reason: {allowed_layers_raw_reason_text}",
+        f"- allowed_layers_reason: {allowed_layers_reason_text}",
+        f"- execution_guardrail_reason: {execution_guardrail_reason_text}",
+        f"- runtime_blocker: {runtime_blocker_type_text} | reason: {runtime_blocker_reason_text}",
+        f"- deployment_blocker: {deployment_blocker_type_text} | reason: {deployment_blocker_reason_text}",
         f"- support blocker summary: **{support_operator_summary}**",
         f"- support next action: {support_operator_next_action}",
-        f"- q15 精準樣本修補: **{q15_patch_state_text}** | 支持路徑 `{report.get('support_route_verdict')}` | 跨越門檻 `{report.get('floor_cross_verdict')}`",
+        f"- 精準樣本修補: **{q15_patch_state_text}** | 支持路徑 **{support_route_verdict_text}** | 跨越門檻 **{floor_cross_verdict_text}**",
         f"- runtime closure summary: **{runtime_closure_summary}**",
-        f"- q35 scaling audit: overall=`{q35_overall_verdict}` / redesign=`{q35_redesign_verdict}` / runtime_gap=`{q35_runtime_gap}` / mode=`{q35_recommended_mode}` / next_patch=`{q35_next_patch_target}`",
-        f"- q35 runtime truth: redesign_entry_quality=`{q35_redesign_entry_quality}` / redesign_layers_after=`{q35_redesign_layers_after}` / runtime_layers=`{q35_runtime_layers}` / blocker=`{q35_runtime_blocker}` / exact_support=`{q35_support_rows}/{q35_support_minimum}` / support_gap=`{q35_support_gap}`",
+        f"- q35 scaling audit: overall={q35_overall_verdict_text} / redesign={q35_redesign_verdict_text} / runtime_gap={q35_runtime_gap} / mode={q35_recommended_mode_text} / next_patch={q35_next_patch_target_text}",
+        f"- q35 runtime truth: redesign_entry_quality={q35_redesign_entry_quality} / redesign_layers_after={q35_redesign_layers_after} / runtime_layers={q35_runtime_layers} / blocker={q35_runtime_blocker_text} / exact_support={q35_support_rows}/{q35_support_minimum} / support_gap={q35_support_gap}",
         f"- q35 audit action: {q35_audit_action_text}",
-        f"- q15 patch machine-read: support_ready={q15_patch_machine_read.get('support_ready')} / entry_quality_ge_0_55={q15_patch_machine_read.get('entry_quality_ge_0_55')} / allowed_layers_gt_0={q15_patch_machine_read.get('allowed_layers_gt_0')} / preserves_positive_discrimination_status=`{q15_patch_machine_read.get('preserves_positive_discrimination_status')}`",
-        f"- 建議修補方案: **{recommended_patch_profile}** — 狀態：{'僅供治理參考' if str(recommended_patch_status).startswith('reference_only') else recommended_patch_status}；精準樣本缺口 `{recommended_patch.get('gap_to_minimum')}`；適用範圍 `{recommended_patch.get('reference_patch_scope') or recommended_patch.get('spillover_regime_gate')}`；來源 `{recommended_patch.get('reference_source')}`",
+        f"- q15 patch machine-read: support_ready={q15_patch_machine_read.get('support_ready')} / entry_quality_ge_0_55={q15_patch_machine_read.get('entry_quality_ge_0_55')} / allowed_layers_gt_0={q15_patch_machine_read.get('allowed_layers_gt_0')} / preserves_positive_discrimination_status={q15_preserves_status_text}",
+        f"- 建議修補方案: **{recommended_patch_profile}** — 狀態：{_humanize_runtime_text(recommended_patch_status or 'None')}；精準樣本缺口 `{recommended_patch.get('gap_to_minimum')}`；適用範圍 {recommended_patch_scope_text}；來源 {recommended_patch_source_text}",
         f"- 建議修補特徵: {recommended_patch_features}",
         f"- 建議修補說明: {support_operator_summary}",
         f"- 下一步: {support_operator_next_action}",
@@ -840,8 +859,8 @@ def main() -> None:
         "## Entry-quality component breakdown",
         "",
         f"- final entry_quality: **{eq_components.get('entry_quality')}** / trade_floor **{eq_components.get('trade_floor')}** / gap **{eq_components.get('trade_floor_gap')}**",
-        f"- base_quality: **{eq_components.get('base_quality')}** × weight **{eq_components.get('base_quality_weight')}**",
-        f"- structure_quality: **{eq_components.get('structure_quality')}** × weight **{eq_components.get('structure_quality_weight')}**",
+        f"- 基礎品質: **{eq_components.get('base_quality')}** × 權重 **{eq_components.get('base_quality_weight')}**",
+        f"- 結構品質: **{eq_components.get('structure_quality')}** × 權重 **{eq_components.get('structure_quality_weight')}**",
         f"- base components: {base_component_text}",
         f"- structure components: {structure_component_text}",
         "",

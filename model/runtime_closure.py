@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Mapping
 
 
@@ -14,6 +15,15 @@ _EXACT_SUPPORT_PENDING_BLOCKERS = {
     "unsupported_exact_live_structure_bucket",
     "under_minimum_exact_live_structure_bucket",
 }
+
+_STRUCTURE_BUCKET_TOKEN_REPLACEMENTS = [
+    ("bull_q15_bias50_overextended_block", "牛市 q15 bias50 過熱阻塞"),
+    ("bull_high_bias200_overheat_block", "牛市高 bias200 過熱阻塞"),
+    ("structure_quality_caution", "結構品質觀察"),
+    ("structure_quality_block", "結構品質阻塞"),
+    ("base_caution_regime_or_bias", "基線觀察（市場狀態 / 偏離）"),
+    ("base_allow", "基線放行"),
+]
 
 
 def runtime_patch_name(result: Mapping[str, Any] | None) -> str | None:
@@ -70,7 +80,9 @@ def build_runtime_closure_summary(
         or result.get("execution_guardrail_reason")
         or result.get("allowed_layers_reason")
     )
-    bucket = str(result.get("current_live_structure_bucket") or result.get("structure_bucket") or "unknown_bucket")
+    bucket = _humanize_runtime_text(
+        result.get("current_live_structure_bucket") or result.get("structure_bucket") or "unknown_bucket"
+    )
     support_route_verdict = str(_support_route_verdict(result) or "")
     support_governance_route = _support_governance_route(result)
     current_rows, minimum_rows = _support_rows(result)
@@ -199,7 +211,7 @@ def _append_scope_summary(summary: str, scope_pathology_summary: Mapping[str, An
 
 
 def _humanize_runtime_text(value: Any) -> str:
-    text = str(value or "")
+    text = _humanize_structure_bucket_tokens(str(value or ""))
     replacements = [
         ("Consecutive loss streak:", "連續虧損筆數："),
         ("Consecutive loss streak", "連續虧損筆數"),
@@ -208,6 +220,12 @@ def _humanize_runtime_text(value: Any) -> str:
         ("recent 50", "最近 50 筆"),
         ("decision_quality_below_trade_floor", "決策品質低於交易門檻"),
         ("entry_quality_below_trade_floor", "進場品質低於交易門檻"),
+        ("unsupported_exact_live_structure_bucket_blocks_trade", "精準樣本尚未建立，阻止交易"),
+        ("floor_crossed_but_support_not_ready", "已跨越門檻但精準樣本未就緒"),
+        ("runtime_blocker_preempts_floor_analysis", "執行期阻塞優先於跨門檻分析"),
+        ("runtime_blocker_preempts_runtime_sizing", "執行期阻塞優先於層數配置"),
+        ("regime_gate_block", "市場閘門阻塞"),
+        ("circuit_breaker_active", "風控熔斷啟用中"),
         ("runtime gate/support", "執行期 gate/樣本支持"),
         ("scoring floor", "評分門檻"),
         ("score-only", "僅限評分"),
@@ -249,12 +267,16 @@ def _humanize_runtime_text(value: Any) -> str:
         ("exact_supported_component_experiment_ready", "精準樣本元件實驗就緒"),
         ("legal_component_experiment_after_support_ready", "精準樣本就緒後可做研究型元件實驗"),
         ("legal_to_relax_runtime_gate", "只允許研究型元件實驗，尚非執行放行"),
+        ("math_cross_possible_but_illegal_without_exact_support", "數學上可跨門檻，但精準樣本未達標前不可啟用"),
         ("failed_exact_lane_bucket_dominance", "同路徑鄰近分桶表現不劣於當前分桶"),
         ("preserves_positive_discrimination", "保留正向辨別力"),
         ("positive discrimination", "正向辨別力"),
         ("reference-only", "僅供治理參考"),
         ("reference_only", "僅供治理參考"),
         ("non_current_live_scope", "非目前即時範圍"),
+        ("bull_4h_pocket_ablation.bull_collapse_q35", "牛市 4H 口袋消融 / 牛市崩落 q35"),
+        ("bull_4h_pocket_ablation", "牛市 4H 口袋消融"),
+        ("bull_collapse_q35", "牛市崩落 q35"),
         ("exact_live_bucket_present_but_below_minimum", "目前即時分桶精準樣本未達最小門檻"),
         ("exact_live_bucket_supported", "目前即時分桶精準樣本已就緒"),
         ("unsupported_exact_live_structure_bucket", "精準樣本尚未建立"),
@@ -310,6 +332,34 @@ def _humanize_runtime_text(value: Any) -> str:
     for old, new in cleanup_pairs:
         text = text.replace(old, new)
     return text
+
+
+def _humanize_structure_bucket_tokens(text: str) -> str:
+    """Render live-structure bucket enums as operator-safe Chinese copy.
+
+    Runtime summaries are user-facing operator copy.  If we first replace the
+    generic word ``quality`` we create hybrid strings such as
+    ``structure_品質_caution``.  Replace the whole structure-bucket tokens first
+    and only then translate gate / regime atoms.
+    """
+
+    for token, label in _STRUCTURE_BUCKET_TOKEN_REPLACEMENTS:
+        text = text.replace(token, label)
+        spaced_token = token.replace("_", " ")
+        if spaced_token != token:
+            text = text.replace(spaced_token, label)
+    gate_replacements = [
+        (r"\bBLOCK\b", "阻塞"),
+        (r"\bCAUTION\b", "觀察"),
+        (r"\bALLOW\b", "放行"),
+        (r"\bbull\b", "牛市"),
+        (r"\bbear\b", "熊市"),
+        (r"\bchop\b", "盤整"),
+        (r"\bneutral\b", "中性"),
+    ]
+    for pattern, label in gate_replacements:
+        text = re.sub(pattern, label, text, flags=re.IGNORECASE)
+    return text.replace("|", "｜")
 
 
 

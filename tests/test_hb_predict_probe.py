@@ -124,7 +124,9 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
     assert payload["allowed_layers_raw_reason"] == "entry_quality_C_single_layer"
     assert payload["allowed_layers_reason"] == "under_minimum_exact_live_structure_bucket"
     assert payload["deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
-    assert "支持路徑=精準樣本未達最小門檻（exact_bucket_present_but_below_minimum）" in payload["deployment_blocker_reason"]
+    assert "支持路徑=精準樣本未達最小門檻" in payload["deployment_blocker_reason"]
+    assert "exact_bucket_present_but_below_minimum" not in payload["deployment_blocker_reason"]
+    assert "觀察｜結構品質觀察｜q15" in payload["deployment_blocker_reason"]
     assert "品質分數 0.3265" in payload["deployment_blocker_reason"]
     assert "support_route=" not in payload["deployment_blocker_reason"]
     assert "score=" not in payload["deployment_blocker_reason"]
@@ -1272,7 +1274,8 @@ def test_hb_predict_probe_replays_when_refreshed_q15_audit_invalidates_patch(mon
     assert payload["runtime_closure_state"] == "patch_inactive_or_blocked"
     assert payload["support_route_verdict"] == "exact_bucket_missing_proxy_reference_only"
     assert payload["component_experiment_verdict"] == "reference_only_until_exact_support_ready"
-    assert "當前即時分桶 CAUTION|structure_quality_caution|q15" in payload["runtime_closure_summary"]
+    assert "當前即時分桶 觀察｜結構品質觀察｜q15" in payload["runtime_closure_summary"]
+    assert "CAUTION|structure_quality_caution|q15" not in payload["runtime_closure_summary"]
     assert "精準樣本" in payload["runtime_closure_summary"]
     assert "僅供治理參考" in payload["runtime_closure_summary"]
     assert "q15 patch" not in payload["runtime_closure_summary"]

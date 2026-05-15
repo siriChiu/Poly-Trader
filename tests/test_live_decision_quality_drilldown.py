@@ -494,6 +494,8 @@ def test_support_blocker_summary_projects_reference_only_patch_for_operator_surf
     assert summary["recommended_patch_minimum_support_rows"] == 50
     assert summary["recommended_patch_reference_only"] is True
     assert "不是目前即時可部署修補" in summary["operator_summary"]
+    assert "適用範圍 牛市｜觀察" in summary["operator_summary"]
+    assert "適用範圍 bull|CAUTION" not in summary["operator_summary"]
     assert "適用範圍與來源對齊、且精準樣本達標前不可放行" in summary["operator_next_action"]
     assert "建議 patch" not in summary["operator_summary"]
     assert "status=" not in summary["operator_summary"]
@@ -703,9 +705,21 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
     assert payload["recommended_patch"]["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
     assert payload["recommended_patch"]["spillover_regime_gate"] == "bull|BLOCK"
     assert "建議修補方案: **core_plus_macro**" in markdown
-    assert "狀態：僅供治理參考" in markdown
-    assert "適用範圍 `bull|CAUTION`" in markdown
-    assert "來源 `bull_4h_pocket_ablation.bull_collapse_q35`" in markdown
+    assert "狀態：非目前即時範圍，僅供治理參考" in markdown
+    assert "適用範圍 牛市｜觀察" in markdown
+    assert "來源 牛市 4H 口袋消融 / 牛市崩落 q35" in markdown
+    assert "適用範圍 `bull|CAUTION`" not in markdown
+    operator_header = markdown.split("## Scope comparison", 1)[0]
+    assert "bull|CAUTION" not in operator_header
+    assert "bull|BLOCK" not in operator_header
+    assert "structure_quality" not in operator_header
+    assert "regime_gate_block" not in operator_header
+    assert "decision_quality_below_trade_floor" not in operator_header
+    assert "unsupported_exact_live_structure_bucket_blocks_trade" not in operator_header
+    assert "circuit_breaker_active" not in operator_header
+    assert "floor_crossed_but_support_not_ready" not in operator_header
+    assert "reference_only_non_current_live_scope" not in operator_header
+    assert "結構品質" in operator_header
     assert "建議修補特徵: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b" in markdown
     assert "recommended_patch:" not in markdown
     assert "reference_scope" not in markdown

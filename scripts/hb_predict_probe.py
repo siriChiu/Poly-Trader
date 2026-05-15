@@ -25,6 +25,7 @@ from model.runtime_closure import (
     runtime_patch_name as shared_runtime_patch_name,
     build_runtime_closure_state as shared_runtime_closure_state,
     build_runtime_closure_summary as shared_runtime_closure_summary,
+    _humanize_runtime_text as shared_humanize_runtime_text,
 )
 from server.live_pathology_summary import build_live_pathology_scope_surface
 
@@ -672,12 +673,11 @@ def _build_probe_payload(
         support_route_verdict = support_route.get("verdict")
         support_route_label = _support_route_operator_label(support_route_verdict)
         support_route_copy = support_route_label
-        if support_route_verdict:
-            support_route_copy = f"{support_route_label}（{support_route_verdict}）"
+        current_live_structure_bucket_copy = shared_humanize_runtime_text(current_live_structure_bucket)
         support_truth_reason = (
-            f"當前即時結構分桶 `{current_live_structure_bucket}` 的精準支持樣本仍停在 "
+            f"當前即時結構分桶 `{current_live_structure_bucket_copy}` 的精準支持樣本仍停在 "
             f"{progress_rows_value}/{progress_minimum_value}（缺 {progress_gap_value}），"
-            f"支持路徑={support_route_copy}，不可把舊 scope 的支持閉環誤讀成部署閉環"
+            f"支持路徑={support_route_copy}，不可把舊範圍的支持閉環誤讀成部署閉環"
             f"{decision_quality_copy}；目前維持不可部署治理。"
         )
         deployment_blocker_details["reason"] = support_truth_reason
