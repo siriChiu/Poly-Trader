@@ -218,6 +218,8 @@ def collect_current_state_docs_sync_status() -> Dict[str, Any]:
         ("data/live_predict_probe.json", root / "data" / "live_predict_probe.json"),
         ("data/live_decision_quality_drilldown.json", root / "data" / "live_decision_quality_drilldown.json"),
         ("data/execution_metadata_smoke.json", root / "data" / "execution_metadata_smoke.json"),
+        ("data/leaderboard_feature_profile_probe.json", root / "data" / "leaderboard_feature_profile_probe.json"),
+        ("data/high_conviction_topk_oos_matrix.json", root / "data" / "high_conviction_topk_oos_matrix.json"),
     ]
 
     reference_mtimes = {
@@ -3338,7 +3340,7 @@ def overwrite_current_state_docs(
         "  - `formatHighConvictionRuntimeSignalLabel()` 統一把即時訊號 enum 轉成繁中操作語；最接近部署候選列不再把內部訊號 token 直接丟給 operator，避免 OOS-pass / runtime-blocked 候選被誤讀為可部署動作。",
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
-        "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
+        "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
         "",
         "---",
         "",
@@ -3448,7 +3450,7 @@ def overwrite_current_state_docs(
         "- **Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe**",
         "  - 列級 `signal` 透過 `formatHighConvictionRuntimeSignalLabel()` 轉成繁中操作語；即時分桶 / 支持 / release gate 未解除前，候選列維持模擬觀察 / 影子驗證 / 僅觀察，不用內部 enum 暗示可部署。",
         "- **本輪 current-state docs 已同步到最新 artifacts**",
-        "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json` 的 current-state truth 已對齊",
+        "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json` 的 current-state truth 已對齊",
         *parallel_failure_roadmap_lines,
         "",
         "---",
@@ -3553,7 +3555,7 @@ def overwrite_current_state_docs(
     live_regime = live_predictor_diagnostics.get("regime_label") or "—"
     live_gate = live_predictor_diagnostics.get("regime_gate") or "—"
     live_bucket = live_predictor_diagnostics.get("current_live_structure_bucket") or "—"
-    docs_sync_line = f"current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，減碼保留；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留減倉 / 賣出風險降低路徑；{execution_status_docs_sync_clause}；{runtime_copy_docs_clause}；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口"
+    docs_sync_line = f"current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown / leaderboard_feature_profile_probe / high_conviction_topk` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，減碼保留；`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留減倉 / 賣出風險降低路徑；{execution_status_docs_sync_clause}；{runtime_copy_docs_clause}；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口"
 
     orid_lines = [
         "# ORID_DECISIONS.md — Current ORID Only",
@@ -3592,7 +3594,7 @@ def overwrite_current_state_docs(
         "- **Owner**：即時執行治理 lane",
         orid_action_line.rstrip("。") + "；`/execution` 操作入口在同步中 / 已阻塞時只對買入 / 加倉與啟用自動模式 fail-closed，減碼保留；直接 API 買入 / 加倉也必須 409 暫停，減倉 / 賣出保留風險降低路徑。",
         *high_conviction_orid_action_lines,
-        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/high_conviction_topk_oos_matrix.json`、`data/execution_metadata_smoke.json`。",
+        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/leaderboard_feature_profile_probe.json`、`data/high_conviction_topk_oos_matrix.json`、`data/execution_metadata_smoke.json`。",
         "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`。",
         orid_fail_line,
         "",

@@ -1875,6 +1875,8 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
     probe_json = data_dir / "live_predict_probe.json"
     drilldown_json = data_dir / "live_decision_quality_drilldown.json"
     smoke_json = data_dir / "execution_metadata_smoke.json"
+    leaderboard_json = data_dir / "leaderboard_feature_profile_probe.json"
+    topk_json = data_dir / "high_conviction_topk_oos_matrix.json"
 
     issues_md.write_text("old issues", encoding="utf-8")
     roadmap_md.write_text("old roadmap", encoding="utf-8")
@@ -1883,6 +1885,8 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
     probe_json.write_text("{}", encoding="utf-8")
     drilldown_json.write_text("{}", encoding="utf-8")
     smoke_json.write_text("{}", encoding="utf-8")
+    leaderboard_json.write_text("{}", encoding="utf-8")
+    topk_json.write_text("{}", encoding="utf-8")
 
     now = time.time()
     os.utime(issues_md, (now - 20, now - 20))
@@ -1892,6 +1896,8 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
     os.utime(probe_json, (now + 6, now + 6))
     os.utime(drilldown_json, (now + 7, now + 7))
     os.utime(smoke_json, (now + 8, now + 8))
+    os.utime(leaderboard_json, (now + 9, now + 9))
+    os.utime(topk_json, (now + 10, now + 10))
 
     status = hb_parallel_runner.collect_current_state_docs_sync_status()
 
@@ -1903,6 +1909,8 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
         "data/live_predict_probe.json",
         "data/live_decision_quality_drilldown.json",
         "data/execution_metadata_smoke.json",
+        "data/leaderboard_feature_profile_probe.json",
+        "data/high_conviction_topk_oos_matrix.json",
     ]
 
 
