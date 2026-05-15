@@ -6604,6 +6604,7 @@ def test_main_writes_final_progress_artifact(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_bucket_root_cause_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_q15_boundary_replay", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_boundary_replay_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_execution_metadata_smoke", lambda: _ok('{"runtime_ready": false}'))
     monkeypatch.setattr(hb_parallel_runner, "run_auto_propose", lambda run_label=None: _ok())
 
     hb_parallel_runner.main(["--fast", "--hb", "progress"])
