@@ -2250,7 +2250,21 @@ def test_overwrite_current_state_docs_marks_no_collect_verification_runs(tmp_pat
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     (tmp_path / "issues.json").write_text('{"issues": []}', encoding="utf-8")
-    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "entry_quality": 0.5116,
+                "entry_quality_components": {"trade_floor": 0.55, "trade_floor_gap": -0.0384},
+                "remaining_gap_to_floor": 0.0384,
+                "allowed_layers": 0,
+                "should_trade": False,
+                "component_experiment_deployment_ready": False,
+                "component_experiment_verdict": "exact_supported_component_experiment_blocked_by_discrimination",
+                "floor_cross_verdict": "legal_component_experiment_after_support_ready",
+            }
+        ),
+        encoding="utf-8",
+    )
     (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
 
     result = hb_parallel_runner.overwrite_current_state_docs(
@@ -2265,6 +2279,7 @@ def test_overwrite_current_state_docs_marks_no_collect_verification_runs(tmp_pat
         {},
         {
             "deployment_blocker": "decision_quality_below_trade_floor",
+            "runtime_closure_state": "support_closed_but_trade_floor_blocked",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
             "current_live_structure_bucket_rows": 123,
             "minimum_support_rows": 50,
@@ -2289,6 +2304,12 @@ def test_overwrite_current_state_docs_marks_no_collect_verification_runs(tmp_pat
     assert "full heartbeat #20260425_verify 已完成 diagnostics refresh（collect skipped）" in roadmap_md
     assert "diagnostics refresh 完成（collect skipped）" in orid_md
     assert "#20260425_verify 已完成 collect + diagnostics refresh" not in issues_md
+    assert "support 已閉環後，改以 decision-quality floor / execution release gate 作為下一輪主 gate" in roadmap_md
+    assert "entry_quality=0.5116" in roadmap_md
+    assert "trade_floor=0.5500" in roadmap_md
+    assert "gap_to_floor=0.0384" in roadmap_md
+    assert "下一輪 gate 已從樣本支持轉成 floor / execution release" in orid_md
+    assert "而不是再等 support rows" in orid_md
 
 
 

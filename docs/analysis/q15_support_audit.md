@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-15 11:35:32.487744**
+- generated_at: **2026-05-15 12:04:37.909407**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -45,9 +45,9 @@
 ## Floor-cross legality
 - verdict: **legal_component_experiment_after_support_ready**
 - legal_to_relax_runtime_gate: **True**
-- remaining_gap_to_floor: **0.0384**
+- remaining_gap_to_floor: **0.0776**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.128**
+- best_single_component_required_score_delta: **0.2587**
 - best_single_component_can_cross_floor: **True**
 - reason: 若 exact q15 support 已達標，則 feat_4h_bias50 可作為下一輪優先 component experiment；但仍需通過 runtime guardrail 與回歸驗證。
 
@@ -57,9 +57,9 @@
 - mode: **single_component_headroom**
 - support_ready: **True**
 - entry_quality_ge_0_55: **True**
-- current_entry_quality: **0.5116**
+- current_entry_quality: **0.4724**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.0384**
+- current_trade_floor_gap: **-0.0776**
 - current_entry_quality_ge_trade_floor: **False**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **False** (failed_exact_lane_bucket_dominance)

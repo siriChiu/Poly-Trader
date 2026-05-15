@@ -2918,6 +2918,39 @@ def overwrite_current_state_docs(
     support_route_verdict = support_context.get("support_route_verdict") or "—"
     support_progress_line = _support_progress_docs_line(support_context)
     support_progress_doc_lines = [support_progress_line] if support_progress_line else []
+    live_predictor_docs_context = live_predictor_diagnostics
+    persisted_live_probe_for_docs = _read_json_file(Path(PROJECT_ROOT) / "data" / "live_predict_probe.json")
+    if isinstance(persisted_live_probe_for_docs, dict) and persisted_live_probe_for_docs:
+        # Callers often pass a compact live summary into the docs writer.  Use
+        # the fresh probe artifact as a fallback for release-gate detail fields
+        # (entry_quality, trade_floor, component experiment status) while
+        # keeping explicit caller-provided blocker/support fields authoritative.
+        live_predictor_docs_context = {**persisted_live_probe_for_docs, **live_predictor_diagnostics}
+    entry_quality_components = live_predictor_docs_context.get("entry_quality_components")
+    if not isinstance(entry_quality_components, dict):
+        entry_quality_components = {}
+    trade_floor_value = live_predictor_docs_context.get("trade_floor")
+    if trade_floor_value is None:
+        trade_floor_value = entry_quality_components.get("trade_floor")
+    remaining_gap_to_floor = live_predictor_docs_context.get("remaining_gap_to_floor")
+    if remaining_gap_to_floor is None:
+        floor_gap = live_predictor_docs_context.get("trade_floor_gap")
+        if floor_gap is None:
+            floor_gap = entry_quality_components.get("trade_floor_gap")
+        try:
+            remaining_gap_to_floor = abs(float(floor_gap)) if floor_gap is not None else None
+        except (TypeError, ValueError):
+            remaining_gap_to_floor = floor_gap
+    entry_quality_doc = _format_number_for_docs(live_predictor_docs_context.get("entry_quality"))
+    trade_floor_doc = _format_number_for_docs(trade_floor_value)
+    remaining_gap_doc = _format_number_for_docs(remaining_gap_to_floor)
+    component_verdict_doc = live_predictor_docs_context.get("component_experiment_verdict") or "—"
+    component_ready_doc = live_predictor_docs_context.get("component_experiment_deployment_ready")
+    floor_cross_verdict_doc = live_predictor_docs_context.get("floor_cross_verdict") or "—"
+    decision_quality_floor_gate_active = (
+        deployment_blocker == "decision_quality_below_trade_floor"
+        and support_route_verdict == "exact_bucket_supported"
+    )
 
     counts_line = (
         f"`Raw={counts.get('raw_market_data', '—')} / "
@@ -3198,6 +3231,38 @@ def overwrite_current_state_docs(
         orid_action_line = f"- **Action**：維持 current-live exact-support truth，{orid_support_action_clause}；下一步沿 recent pathological slice 與 exact-support accumulation 繼續追根因。"
         orid_fail_line = (
             f"- **If fail**：只要 docs / UI 再次把 `{deployment_blocker}` 誤寫成 breaker-first、漏掉 {support_scope_label} rows，{orid_support_fail_clause}，就把 heartbeat 升級回 current-state governance blocker。"
+        )
+    elif decision_quality_floor_gate_active:
+        facts_blocker_heading = "- **canonical current-live blocker 已切到 support-closed 後的 decision-quality floor gate**"
+        current_priority_line1 = (
+            f"1. **support 已閉環後，集中處理 `{deployment_blocker}` / execution release gate，"
+            f"同時保留 {support_scope_label} support rows 可 machine-read**"
+        )
+        goal_a_title = "### 目標 A：support closed 後攻 entry-quality floor / execution release gate"
+        goal_a_success = (
+            f"- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 都把 `{deployment_blocker}` 視為支援閉環後的唯一 current-live deployment blocker；"
+            f"下一輪 release 必須同時證明 `entry_quality` 從目前 `{entry_quality_doc}` 提升到 `>= trade_floor={trade_floor_doc}`、`allowed_layers > 0`、`component_experiment_deployment_ready=true`，"
+            "且 `/api/trade` guardrail regression 通過；未同時滿足前買入 / 加倉與啟用自動模式仍 fail-closed，只保留減倉 / 賣出風險降低路徑。"
+        )
+        next_gate_line1 = "1. **support 已閉環後，改以 decision-quality floor / execution release gate 作為下一輪主 gate**"
+        next_gate_line1_blocker = (
+            f"   - 升級 blocker：若 {support_scope_label} `{support_current_rows}/{support_minimum_rows}` 被誤寫成可部署，或 `entry_quality={entry_quality_doc}` / `trade_floor={trade_floor_doc}` / `gap_to_floor={remaining_gap_doc}` / `component_ready={component_ready_doc}` / `allowed_layers` truth 未同步到 API / UI / docs"
+        )
+        success_primary_line = (
+            f"- current-live blocker 清楚且唯一：**{deployment_blocker}**（support closed；entry_quality={entry_quality_doc} / trade_floor={trade_floor_doc} / gap_to_floor={remaining_gap_doc}）"
+        )
+        orid_reflection_line = (
+            f"- 這輪最需要防止的誤讀，是把 `{support_current_rows}/{support_minimum_rows}` 的 support closure 或 `{floor_cross_verdict_doc}` 元件實驗合法性誤讀成部署閉環；真正主 gate 已轉成 `{deployment_blocker}` / execution release。"
+        )
+        orid_insight2 = (
+            f"2. **下一輪 gate 已從樣本支持轉成 floor / execution release**：{support_scope_label} 已達 `{support_current_rows}/{support_minimum_rows}`，現在要證明 entry-quality floor、component discrimination 與 allowed_layers / `/api/trade` guardrail 一致，而不是再等 support rows。"
+        )
+        orid_action_line = (
+            f"- **Action**：把下一輪 gate 改成 decision-quality floor / execution release；追 `entry_quality={entry_quality_doc}` → `trade_floor={trade_floor_doc}`、"
+            f"`component_experiment_verdict={component_verdict_doc}`、`component_ready={component_ready_doc}` 與 `/api/trade` guardrail。"
+        )
+        orid_fail_line = (
+            f"- **If fail**：只要 docs / UI 把 support closure、`{floor_cross_verdict_doc}` 或 high-conviction OOS row 誤升級成可部署，或漏掉 `allowed_layers=0` / `{deployment_blocker}`，就把 heartbeat 升級回 current-state governance blocker。"
         )
     else:
         facts_blocker_heading = "- **canonical current-live blocker 以 latest runtime truth 為主**"
