@@ -1457,14 +1457,65 @@ def _explicit_bool(value: Any) -> bool | None:
 
 
 def _release_condition_context_not_ready(support_context: Dict[str, Any]) -> bool:
-    release_ready = _explicit_bool(support_context.get("release_ready"))
+    """Fail closed when breaker/release math is present but not yet cleared.
+
+    Strategy Lab and docs share the same Top-K support overlay as the API.  Some
+    live probes expose release math as counters (for example
+    ``additional_recent_window_wins_needed``) without an explicit
+    ``release_ready=false`` flag.  Treat those counters as authoritative too;
+    otherwise an OOS-passing row could be promoted as deployable while the
+    release window still needs more wins.
+    """
+    release_condition = support_context.get("release_condition")
+    if not isinstance(release_condition, dict):
+        release_condition = {}
+
+    def _first_present(*values: Any) -> Any:
+        for value in values:
+            if value is not None:
+                return value
+        return None
+
+    def _float_or_none(value: Any) -> float | None:
+        try:
+            if value is None or value == "":
+                return None
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    release_ready = _explicit_bool(
+        _first_present(support_context.get("release_ready"), release_condition.get("release_ready"))
+    )
     if release_ready is False:
         return True
-    release_condition = support_context.get("release_condition")
-    if isinstance(release_condition, dict):
-        release_ready = _explicit_bool(release_condition.get("release_ready"))
-        if release_ready is False:
-            return True
+    if release_ready is True:
+        return False
+
+    additional_wins = _float_or_none(
+        _first_present(
+            support_context.get("additional_recent_window_wins_needed"),
+            release_condition.get("additional_recent_window_wins_needed"),
+        )
+    )
+    if additional_wins is not None and additional_wins > 0:
+        return True
+
+    current_wins = _float_or_none(
+        _first_present(
+            support_context.get("current_recent_window_wins"),
+            release_condition.get("current_recent_window_wins"),
+        )
+    )
+    required_wins = _float_or_none(
+        _first_present(
+            support_context.get("required_recent_window_wins"),
+            release_condition.get("required_recent_window_wins"),
+        )
+    )
+    if current_wins is not None and required_wins is not None and current_wins < required_wins:
+        return True
+
     return False
 
 

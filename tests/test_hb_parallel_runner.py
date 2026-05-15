@@ -78,6 +78,57 @@ def test_high_conviction_support_route_context_string_false_fails_closed():
     )
 
 
+def test_high_conviction_release_math_without_explicit_ready_still_blocks_deployable_rows():
+    support_context = {
+        "support_route_verdict": "exact_bucket_supported",
+        "support_route_deployable": True,
+        "deployment_blocker": "no_deployment_blocker",
+        "recent_window": 50,
+        "current_recent_window_wins": 13,
+        "required_recent_window_wins": 15,
+        "additional_recent_window_wins_needed": 2,
+    }
+
+    assert hb_parallel_runner._release_condition_context_not_ready(support_context) is True
+    assert (
+        hb_parallel_runner._release_condition_context_not_ready(
+            {
+                "support_route_deployable": True,
+                "deployment_blocker": "no_deployment_blocker",
+                "release_condition": {
+                    "recent_window": 50,
+                    "current_recent_window_wins": 14,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 1,
+                },
+            }
+        )
+        is True
+    )
+
+    row = {
+        "model": "logistic_regression",
+        "top_k": "top_2pct",
+        "trade_count": 58,
+        "win_rate": 0.8621,
+        "profit_factor": 19.8864,
+        "max_drawdown": 0.022,
+        "worst_fold": 0.2068,
+        "deployable_verdict": "deployable",
+        "gate_failures": [],
+    }
+
+    hb_parallel_runner._apply_live_support_context_to_high_conviction_row(row, support_context)
+
+    assert row["oos_gate_passed"] is True
+    assert row["blocked_only_by_live_guardrails"] is True
+    assert row["deployable_verdict"] == "not_deployable"
+    assert row["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+    assert row["model_gate_failures"] == []
+    assert row["live_gate_failures"] == ["breaker_release_not_ready"]
+    assert row["gate_failures"] == ["breaker_release_not_ready"]
+
+
 def test_high_conviction_topk_fast_refresh_requirement_uses_generated_at_freshness(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     now = hb_parallel_runner.datetime(2026, 5, 2, 6, 5, tzinfo=hb_parallel_runner.timezone.utc)
