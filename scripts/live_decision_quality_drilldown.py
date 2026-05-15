@@ -230,6 +230,100 @@ def _safe_int(value: Any) -> int | None:
         return None
 
 
+SUPPORT_IDENTITY_FIELD_LABELS = {
+    "target_col": "目標",
+    "horizon_minutes": "預測週期",
+    "current_live_structure_bucket": "目前即時結構分桶",
+    "regime_label": "市場狀態",
+    "regime_gate": "市場閘門",
+    "entry_quality_label": "進場品質",
+    "calibration_window": "校準視窗",
+    "bucket_semantic_signature": "支持語義版本",
+}
+
+
+def _support_identity_field_text(fields: Any) -> str:
+    if not isinstance(fields, list):
+        return "無"
+    labels = [SUPPORT_IDENTITY_FIELD_LABELS.get(str(field), str(field)) for field in fields]
+    return "、".join(labels) if labels else "無"
+
+
+def _semantic_rebaseline_projection(support_progress: dict[str, Any]) -> dict[str, Any]:
+    """Project legacy semantic-reference details into operator-safe copy.
+
+    A q15 bucket can have an older supported cohort with the same bucket name,
+    while the current support identity differs (for example calibration window
+    or regime).  Operator surfaces must show that as reference-only evidence,
+    not same-identity closure.
+    """
+    if not isinstance(support_progress, dict) or not support_progress:
+        return {}
+
+    status = support_progress.get("status")
+    legacy_reference = support_progress.get("legacy_supported_reference") or {}
+    if not isinstance(legacy_reference, dict):
+        legacy_reference = {}
+    semantic_evidence = legacy_reference.get("semantic_identity_evidence") or {}
+    if not isinstance(semantic_evidence, dict):
+        semantic_evidence = {}
+
+    should_surface = (
+        status == "semantic_rebaseline_under_minimum"
+        or bool(legacy_reference)
+        or support_progress.get("regression_basis") == "legacy_or_different_semantic_signature"
+    )
+    if not should_surface:
+        return {}
+
+    legacy_rows = _first_present(
+        legacy_reference.get("live_current_structure_bucket_rows"),
+        legacy_reference.get("current_rows"),
+    )
+    legacy_minimum = _first_present(
+        legacy_reference.get("minimum_support_rows"),
+        legacy_reference.get("minimum_rows"),
+    )
+    legacy_heartbeat = legacy_reference.get("heartbeat")
+    legacy_text = "舊版已就緒紀錄"
+    if legacy_heartbeat:
+        legacy_text = f"舊版 #{legacy_heartbeat}"
+    if legacy_rows is not None and legacy_minimum is not None:
+        legacy_text += f" {legacy_rows}/{legacy_minimum}"
+
+    mismatched_fields = semantic_evidence.get("mismatched_fields") or []
+    missing_fields = semantic_evidence.get("missing_fields") or []
+    mismatch_text = _support_identity_field_text(mismatched_fields)
+    missing_text = _support_identity_field_text(missing_fields)
+    mismatch_clause = f"，因{mismatch_text}不吻合目前支持語義" if mismatched_fields else ""
+    missing_clause = f"，且缺少{missing_text}" if missing_fields else ""
+    if not mismatched_fields and not missing_fields:
+        mismatch_clause = "，但語義證據仍未證明吻合目前支持語義"
+
+    operator_summary_suffix = (
+        f" 語義重訂後仍未達門檻；{legacy_text}僅能當歷史參考"
+        f"{mismatch_clause}{missing_clause}，不可宣稱同一語義已閉環。"
+    )
+    operator_next_action_suffix = (
+        " 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。"
+    )
+
+    return {
+        "support_progress_reason": support_progress.get("reason"),
+        "support_progress_regression_basis": support_progress.get("regression_basis"),
+        "legacy_supported_reference_heartbeat": legacy_heartbeat,
+        "legacy_supported_reference_rows": legacy_rows,
+        "legacy_supported_reference_minimum_rows": legacy_minimum,
+        "legacy_semantic_mismatched_fields": mismatched_fields,
+        "legacy_semantic_missing_fields": missing_fields,
+        "legacy_semantic_verdict": semantic_evidence.get("verdict"),
+        "legacy_supports_current_identity": semantic_evidence.get("supports_current_identity"),
+        "legacy_promotable_to_same_identity_history": semantic_evidence.get("promotable_to_same_identity_history"),
+        "operator_summary_suffix": operator_summary_suffix,
+        "operator_next_action_suffix": operator_next_action_suffix,
+    }
+
+
 def _support_blocker_summary(
     payload: dict[str, Any],
     deployment_blocker: dict[str, Any] | None,
@@ -333,6 +427,14 @@ def _support_blocker_summary(
             "不可用較寬範圍或近似樣本放行。"
         )
 
+    semantic_projection = _semantic_rebaseline_projection(support_progress)
+    semantic_summary_suffix = semantic_projection.pop("operator_summary_suffix", None)
+    semantic_next_suffix = semantic_projection.pop("operator_next_action_suffix", None)
+    if semantic_summary_suffix:
+        operator_summary += semantic_summary_suffix
+    if semantic_next_suffix:
+        operator_next_action += semantic_next_suffix
+
     patch_status = str(patch_projection.get("recommended_patch_status") or "")
     patch_reference_only = patch_status.startswith("reference_only")
     patch_status_label = "僅供治理參考" if patch_reference_only else (patch_status or "未標示")
@@ -357,6 +459,7 @@ def _support_blocker_summary(
         "minimum_support_rows": minimum_rows,
         "gap_to_minimum": gap_to_minimum,
         "support_progress_status": support_progress.get("status"),
+        **semantic_projection,
         "support_route_verdict": support_route_verdict,
         "support_governance_route": support_governance_route,
         "support_route_deployable": support_route_deployable,

@@ -399,6 +399,62 @@ def test_support_blocker_summary_compacts_exact_bucket_shortage_for_operator_sur
     assert "broader/proxy" not in summary["operator_next_action"]
 
 
+def test_support_blocker_summary_surfaces_semantic_rebaseline_legacy_reference():
+    payload = {
+        "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+        "deployment_blocker_reason": "舊 scope 不可部署",
+        "deployment_blocker_source": "decision_quality_contract",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+        "support_route_deployable": False,
+        "deployment_blocker_details": {
+            "current_live_structure_bucket_rows": 4,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 46,
+            "support_progress": {
+                "status": "semantic_rebaseline_under_minimum",
+                "regression_basis": "legacy_or_different_semantic_signature",
+                "current_rows": 4,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 46,
+                "legacy_supported_reference": {
+                    "heartbeat": "20260419b",
+                    "live_current_structure_bucket_rows": 53,
+                    "minimum_support_rows": 50,
+                    "semantic_identity_evidence": {
+                        "mismatched_fields": ["calibration_window", "regime_label"],
+                        "missing_fields": [],
+                        "supports_current_identity": False,
+                        "promotable_to_same_identity_history": False,
+                        "verdict": "reference_only_semantic_mismatch_or_missing_fields",
+                    },
+                },
+            },
+        },
+    }
+
+    blocker = live_drilldown._deployment_blocker_summary(payload)
+    summary = live_drilldown._support_blocker_summary(payload, blocker)
+
+    assert summary["support_progress_status"] == "semantic_rebaseline_under_minimum"
+    assert summary["support_progress_regression_basis"] == "legacy_or_different_semantic_signature"
+    assert summary["legacy_supported_reference_heartbeat"] == "20260419b"
+    assert summary["legacy_supported_reference_rows"] == 53
+    assert summary["legacy_supported_reference_minimum_rows"] == 50
+    assert summary["legacy_semantic_mismatched_fields"] == ["calibration_window", "regime_label"]
+    assert summary["legacy_semantic_verdict"] == "reference_only_semantic_mismatch_or_missing_fields"
+    assert summary["legacy_supports_current_identity"] is False
+    assert summary["legacy_promotable_to_same_identity_history"] is False
+    assert "語義重訂後仍未達門檻" in summary["operator_summary"]
+    assert "舊版 #20260419b 53/50僅能當歷史參考" in summary["operator_summary"]
+    assert "校準視窗、市場狀態不吻合目前支持語義" in summary["operator_summary"]
+    assert "不可宣稱同一語義已閉環" in summary["operator_summary"]
+    assert "目前支持語義" in summary["operator_next_action"]
+    assert "calibration_window" not in summary["operator_summary"]
+    assert "regime_label" not in summary["operator_summary"]
+
+
 def test_support_blocker_summary_projects_reference_only_patch_for_operator_surfaces():
     payload = {
         "deployment_blocker": "unsupported_exact_live_structure_bucket",
