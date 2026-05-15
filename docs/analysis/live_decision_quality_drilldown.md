@@ -1,9 +1,9 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-15 20:01:49.407886**
+- feature_timestamp: **2026-05-15 21:01:21.235027**
 - target: `simulated_pyramid_win`
 - live path: **熊市 / 阻塞 / D**
-- signal: **HOLD** @ confidence **0.3533**
+- signal: **HOLD** @ confidence **0.3534**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: 市場閘門阻塞
 - allowed_layers_reason: 精準樣本未達最小門檻
@@ -25,18 +25,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5106** / trade_floor **0.55** / gap **-0.0394**
-- 基礎品質: **0.6565** × 權重 **0.75**
-- 結構品質: **0.0729** × 權重 **0.25**
-- base components: feat_4h_bias50=0.8049 (w=0.4, contrib=0.3219), feat_nose=0.4926 (w=0.18, contrib=0.0887), feat_pulse=0.401 (w=0.27, contrib=0.1083), feat_ear=0.9175 (w=0.15, contrib=0.1376)
-- structure components: feat_4h_bb_pct_b=0.1226 (w=0.34, contrib=0.0417), feat_4h_dist_bb_lower=0.0393 (w=0.33, contrib=0.013), feat_4h_dist_swing_low=0.0552 (w=0.33, contrib=0.0182)
+- final entry_quality: **0.5259** / trade_floor **0.55** / gap **-0.0241**
+- 基礎品質: **0.6817** × 權重 **0.75**
+- 結構品質: **0.0583** × 權重 **0.25**
+- base components: feat_4h_bias50=0.8213 (w=0.4, contrib=0.3285), feat_nose=0.5322 (w=0.18, contrib=0.0958), feat_pulse=0.435 (w=0.27, contrib=0.1175), feat_ear=0.9329 (w=0.15, contrib=0.1399)
+- structure components: feat_4h_bb_pct_b=0.0961 (w=0.34, contrib=0.0327), feat_4h_dist_bb_lower=0.0309 (w=0.33, contrib=0.0102), feat_4h_dist_swing_low=0.0467 (w=0.33, contrib=0.0154)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0394**
-- base_group_max_entry_gain: **0.2576** | structure_group_max_entry_gain: **0.2318**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.1313, max_gain≈0.0585）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.1313), feat_pulse (Δscore≈0.1946), feat_nose (Δscore≈0.2919), feat_4h_bb_pct_b (Δscore≈0.4635)
+- remaining_gap_to_floor: **0.0241**
+- base_group_max_entry_gain: **0.2387** | structure_group_max_entry_gain: **0.2354**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.0803, max_gain≈0.0536）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.0803), feat_pulse (Δscore≈0.119), feat_nose (Δscore≈0.1785), feat_4h_bb_pct_b (Δscore≈0.2835)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -47,7 +47,7 @@
 | chosen `regime_label+entry_quality_label` | 36 | 0.6944 | 0.3669 | 0.1826 | 0.3813 | 2 | False |
 | exact `regime_label+regime_gate+entry_quality_label` | 2 | 1.0 | 0.6698 | 0.1074 | 0.2144 | 2 | False |
 | narrow `regime_label+entry_quality_label` | 36 | 0.6944 | 0.3669 | 0.1826 | 0.3813 | 2 | False |
-| broad `regime_gate+entry_quality_label` | 45 | 0.3111 | -0.0078 | 0.276 | 0.6396 | 2 | False |
+| broad `regime_gate+entry_quality_label` | 42 | 0.3333 | -0.0006 | 0.2874 | 0.6517 | 2 | False |
 
 ## Shared shifts
 

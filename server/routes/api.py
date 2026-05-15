@@ -3917,6 +3917,10 @@ def _high_conviction_support_context_has_live_gate(support_context: Dict[str, An
             "current_recent_window_wins",
             "required_recent_window_wins",
             "additional_recent_window_wins_needed",
+            "support_progress",
+            "support_progress_status",
+            "stagnant_run_count",
+            "stalled_support_accumulation",
         )
     )
 
@@ -3968,6 +3972,12 @@ def _apply_high_conviction_support_overlay_to_row(
         ("current_recent_window_wins", "current_recent_window_wins"),
         ("required_recent_window_wins", "required_recent_window_wins"),
         ("additional_recent_window_wins_needed", "additional_recent_window_wins_needed"),
+        ("support_progress_status", "support_progress_status"),
+        ("stagnant_run_count", "stagnant_run_count"),
+        ("stalled_support_accumulation", "stalled_support_accumulation"),
+        ("support_delta_vs_previous", "support_delta_vs_previous"),
+        ("support_previous_rows", "support_previous_rows"),
+        ("support_rows_needed", "support_rows_needed"),
         ("source_live_probe_generated_at", "source_live_probe_generated_at"),
         ("live_truth_source_artifact", "live_truth_source_artifact"),
     ):
@@ -4094,6 +4104,12 @@ def _compact_high_conviction_topk_row(
         "current_recent_window_wins": _support_value("current_recent_window_wins"),
         "required_recent_window_wins": _support_value("required_recent_window_wins"),
         "additional_recent_window_wins_needed": _support_value("additional_recent_window_wins_needed"),
+        "support_progress_status": _support_value("support_progress_status"),
+        "stagnant_run_count": _support_value("stagnant_run_count"),
+        "stalled_support_accumulation": _support_value("stalled_support_accumulation"),
+        "support_delta_vs_previous": _support_value("support_delta_vs_previous"),
+        "support_previous_rows": _support_value("support_previous_rows"),
+        "support_rows_needed": _support_value("support_rows_needed"),
         "source_live_probe_generated_at": _support_value("source_live_probe_generated_at", "live_truth_generated_at"),
         "live_truth_source_artifact": _support_value("live_truth_source_artifact"),
         "deployable_verdict": row.get("deployable_verdict") or "not_deployable",
@@ -4215,6 +4231,16 @@ def _load_high_conviction_live_support_overlay(path: Optional[Path] = None) -> O
         blocker_details.get("additional_recent_window_wins_needed"),
         payload.get("additional_recent_window_wins_needed"),
     )
+    support_progress_status = support_progress.get("status")
+    stagnant_run_count = support_progress.get("stagnant_run_count")
+    stalled_support_accumulation = support_progress.get("stalled_support_accumulation")
+    if stalled_support_accumulation is None and support_progress_status == "stalled_under_minimum":
+        stalled_support_accumulation = True
+    support_delta_vs_previous = support_progress.get("delta_vs_previous")
+    support_previous_rows = support_progress.get("previous_rows")
+    support_rows_needed = support_progress.get("gap_to_minimum")
+    if support_rows_needed is None:
+        support_rows_needed = gap_to_minimum
 
     return {
         "generated_at": payload.get("generated_at") or payload.get("feature_timestamp"),
@@ -4243,6 +4269,12 @@ def _load_high_conviction_live_support_overlay(path: Optional[Path] = None) -> O
         "current_recent_window_wins": current_recent_window_wins,
         "required_recent_window_wins": required_recent_window_wins,
         "additional_recent_window_wins_needed": additional_recent_window_wins_needed,
+        "support_progress_status": support_progress_status,
+        "stagnant_run_count": stagnant_run_count,
+        "stalled_support_accumulation": stalled_support_accumulation,
+        "support_delta_vs_previous": support_delta_vs_previous,
+        "support_previous_rows": support_previous_rows,
+        "support_rows_needed": support_rows_needed,
     }
 
 
@@ -4290,6 +4322,12 @@ def _overlay_high_conviction_support_context(
         "current_recent_window_wins",
         "required_recent_window_wins",
         "additional_recent_window_wins_needed",
+        "support_progress_status",
+        "stagnant_run_count",
+        "stalled_support_accumulation",
+        "support_delta_vs_previous",
+        "support_previous_rows",
+        "support_rows_needed",
     ):
         value = live_truth.get(key)
         if value is not None:

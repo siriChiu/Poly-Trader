@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-15 20:01:49.407886**
+- generated_at: **2026-05-15 21:01:21.235027**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -45,11 +45,11 @@
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0394**
+- remaining_gap_to_floor: **0.0241**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.1313**
+- best_single_component_required_score_delta: **0.0803**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.1313），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.0803），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_current_live_not_q15_and_support_not_ready**
@@ -57,9 +57,9 @@
 - mode: **reference_only_non_current_live_scope**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5106**
+- current_entry_quality: **0.5259**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.0394**
+- current_trade_floor_gap: **-0.0241**
 - current_entry_quality_ge_trade_floor: **False**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_applicable_current_live_not_q15_lane)

@@ -752,9 +752,14 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
                     }
                 },
                 "support_progress": {
+                    "status": "stalled_under_minimum",
                     "current_rows": 0,
                     "minimum_support_rows": 50,
                     "gap_to_minimum": 50,
+                    "delta_vs_previous": 0,
+                    "previous_rows": 0,
+                    "stagnant_run_count": 5,
+                    "stalled_support_accumulation": True,
                 },
             }
         ),
@@ -779,6 +784,12 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
     assert support_context["current_recent_window_wins"] == 14
     assert support_context["required_recent_window_wins"] == 15
     assert support_context["additional_recent_window_wins_needed"] == 1
+    assert support_context["support_progress_status"] == "stalled_under_minimum"
+    assert support_context["stalled_support_accumulation"] is True
+    assert support_context["stagnant_run_count"] == 5
+    assert support_context["support_delta_vs_previous"] == 0
+    assert support_context["support_previous_rows"] == 0
+    assert support_context["support_rows_needed"] == 50
     assert support_context["live_truth_overlay_applied"] is True
     assert support_context["live_truth_source_artifact"] == str(live_probe)
     nearest = summary["nearest_deployable_rows"][0]
@@ -796,6 +807,12 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
     assert nearest["current_recent_window_wins"] == 14
     assert nearest["required_recent_window_wins"] == 15
     assert nearest["additional_recent_window_wins_needed"] == 1
+    assert nearest["support_progress_status"] == "stalled_under_minimum"
+    assert nearest["stalled_support_accumulation"] is True
+    assert nearest["stagnant_run_count"] == 5
+    assert nearest["support_delta_vs_previous"] == 0
+    assert nearest["support_previous_rows"] == 0
+    assert nearest["support_rows_needed"] == 50
 
 
 

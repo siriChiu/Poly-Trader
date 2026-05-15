@@ -1,6 +1,6 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-15 20:01:49.407886**
+- generated_at: **2026-05-15 21:01:21.235027**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q00 bucket**
 - verdict: **current_exact_support_under_minimum**
@@ -12,8 +12,8 @@
 ## Current live
 - live path: **bear / BLOCK / D**
 - structure_bucket: `BLOCK|structure_quality_block|q00`
-- structure_quality: **0.0729**
-- gap_to_q35_boundary: **0.2771**
+- structure_quality: **0.0583**
+- gap_to_q35_boundary: **0.2917**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `under_minimum_exact_live_structure_bucket`
 - support rows/minimum/gap: **2 / 50 / 48**
@@ -22,7 +22,7 @@
 - rows: **2**
 - bucket_counts: `{'BLOCK|structure_quality_block|q00': 2}`
 - dominant_neighbor_bucket: **None** (0 rows)
-- near_boundary_window: `{'lower': 0.0729, 'upper': 0.35}`
+- near_boundary_window: `{'lower': 0.0583, 'upper': 0.35}`
 - near_boundary_rows: **2**
 
 ## Decision
@@ -31,9 +31,9 @@
 - verify_next: 維持 minimum_support_rows=50 與 current-live guardrail，累積同 support_identity 的 exact rows；若只有 legacy / different semantic signature 支撐，文案必須標成 semantic rebaseline reference。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.1226 / norm=0.1226 / Δto_cross_q35=0.815 / target_p25=None / target_median=None
-- `feat_4h_dist_bb_lower`: current=0.3146 / norm=0.0393 / Δto_cross_q35=6.7176 / target_p25=None / target_median=None
-- `feat_4h_dist_swing_low`: current=0.5524 / norm=0.0552 / Δto_cross_q35=8.397 / target_p25=None / target_median=None
+- `feat_4h_bb_pct_b`: current=0.0961 / norm=0.0961 / Δto_cross_q35=0.8579 / target_p25=None / target_median=None
+- `feat_4h_dist_bb_lower`: current=0.2473 / norm=0.0309 / Δto_cross_q35=7.0715 / target_p25=None / target_median=None
+- `feat_4h_dist_swing_low`: current=0.4675 / norm=0.0467 / Δto_cross_q35=8.8394 / target_p25=None / target_median=None
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
