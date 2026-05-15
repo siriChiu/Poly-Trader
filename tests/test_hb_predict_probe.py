@@ -166,11 +166,38 @@ def test_hb_predict_probe_falls_back_to_generic_support_progress_for_q35_blocker
             "runtime_contract_status": "piecewise_runtime_not_required",
         },
         "deployment_grade_component_experiment": {
-            "runtime_remaining_gap_to_floor": 0.1252,
+            "runtime_allowed_layers_raw": 1,
+            "runtime_allowed_layers_raw_reason": "entry_quality_C_single_layer",
+            "runtime_allowed_layers": 0,
+            "runtime_allowed_layers_reason": "unsupported_exact_live_structure_bucket",
+            "runtime_deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "runtime_closure_state": "patch_inactive_or_blocked",
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_route_deployable": False,
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "runtime_remaining_gap_to_floor": -0.009,
             "next_patch_target": "feat_4h_bias50_formula",
         },
         "base_stack_redesign_experiment": {
-            "verdict": "base_stack_redesign_candidate_grid_empty",
+            "verdict": "base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked",
+            "runtime_execution_blocked": True,
+            "runtime_execution_blocker": "unsupported_exact_live_structure_bucket",
+            "best_discriminative_candidate": {
+                "current_entry_quality_after": 0.8463,
+                "raw_allowed_layers_after": 2,
+                "allowed_layers_after": 0,
+                "positive_discriminative_gap": True,
+                "execution_blocked_by_runtime_guardrail": True,
+                "runtime_execution_blocker": "unsupported_exact_live_structure_bucket",
+            },
+            "machine_read_answer": {
+                "entry_quality_ge_0_55": True,
+                "allowed_layers_gt_0": False,
+                "positive_discriminative_gap": True,
+                "execution_blocked_after_floor_cross": True,
+            },
         },
         "overall_verdict": "bias50_formula_may_be_too_harsh",
         "verdict_reason": "legacy bias50 formula still compresses the q35 lane too hard.",
@@ -248,8 +275,25 @@ def test_hb_predict_probe_falls_back_to_generic_support_progress_for_q35_blocker
     assert payload["floor_cross_verdict"] is None
     assert payload["component_experiment_verdict"] is None
     assert payload["q35_overall_verdict"] == "bias50_formula_may_be_too_harsh"
-    assert payload["q35_redesign_verdict"] == "base_stack_redesign_candidate_grid_empty"
-    assert payload["q35_runtime_remaining_gap_to_floor"] == 0.1252
+    assert payload["q35_redesign_verdict"] == "base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked"
+    assert payload["q35_redesign_entry_quality"] == 0.8463
+    assert payload["q35_redesign_raw_allowed_layers_after"] == 2
+    assert payload["q35_redesign_allowed_layers_after"] == 0
+    assert payload["q35_redesign_positive_discriminative_gap"] is True
+    assert payload["q35_redesign_execution_blocked_after_floor_cross"] is True
+    assert payload["q35_runtime_execution_blocked"] is True
+    assert payload["q35_runtime_execution_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert payload["q35_runtime_allowed_layers_raw"] == 1
+    assert payload["q35_runtime_allowed_layers"] == 0
+    assert payload["q35_runtime_allowed_layers_reason"] == "unsupported_exact_live_structure_bucket"
+    assert payload["q35_runtime_deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert payload["q35_support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
+    assert payload["q35_current_live_structure_bucket_rows"] == 0
+    assert payload["q35_minimum_support_rows"] == 50
+    assert payload["q35_current_live_structure_bucket_gap_to_minimum"] == 50
+    assert payload["q35_runtime_remaining_gap_to_floor"] == -0.009
+    assert payload["q35_scaling_audit"]["redesign_execution_blocked_after_floor_cross"] is True
+    assert payload["q35_scaling_audit"]["runtime_allowed_layers"] == 0
     assert payload["q35_recommended_mode"] == "exact_lane_formula_review"
     assert payload["q35_next_patch_target"] == "feat_4h_bias50_formula"
 

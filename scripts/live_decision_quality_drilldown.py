@@ -129,21 +129,50 @@ def _load_q35_audit_summary(current_live_structure_bucket: str | None) -> dict[s
     segmented_calibration = payload.get("segmented_calibration") if isinstance(payload.get("segmented_calibration"), dict) else {}
     deployment_grade = payload.get("deployment_grade_component_experiment") if isinstance(payload.get("deployment_grade_component_experiment"), dict) else {}
     redesign = payload.get("base_stack_redesign_experiment") if isinstance(payload.get("base_stack_redesign_experiment"), dict) else {}
+    recommended_mode = segmented_calibration.get("recommended_mode")
+    next_patch_target = deployment_grade.get("next_patch_target")
+    root_cause_action = recommended_mode or ("base_stack_redesign" if redesign.get("verdict") else None)
+    redesign_machine = redesign.get("machine_read_answer") if isinstance(redesign.get("machine_read_answer"), dict) else {}
+    redesign_best = redesign.get("best_discriminative_candidate") if isinstance(redesign.get("best_discriminative_candidate"), dict) else {}
     return {
         "generated_at": payload.get("generated_at"),
         "current_live_structure_bucket": audit_bucket or current_live_structure_bucket,
         "target_structure_bucket": applicability.get("target_structure_bucket"),
         "scope_applicability_status": applicability.get("status"),
         "overall_verdict": payload.get("overall_verdict"),
+        "verdict": payload.get("overall_verdict"),
         "verdict_reason": payload.get("verdict_reason"),
+        "reason": payload.get("recommended_action") or payload.get("verdict_reason"),
         "recommended_action": payload.get("recommended_action"),
         "segmented_calibration_status": segmented_calibration.get("status"),
-        "recommended_mode": segmented_calibration.get("recommended_mode"),
+        "recommended_mode": recommended_mode,
+        "candidate_patch_type": root_cause_action,
+        "candidate_patch_feature": next_patch_target,
         "runtime_contract_status": segmented_calibration.get("runtime_contract_status"),
         "redesign_verdict": redesign.get("verdict"),
+        "redesign_entry_quality": redesign_best.get("current_entry_quality_after"),
+        "redesign_raw_allowed_layers_after": redesign_best.get("raw_allowed_layers_after"),
+        "redesign_allowed_layers_after": redesign_best.get("allowed_layers_after"),
+        "redesign_positive_discriminative_gap": redesign_machine.get("positive_discriminative_gap"),
+        "redesign_execution_blocked_after_floor_cross": redesign_machine.get("execution_blocked_after_floor_cross"),
+        "runtime_execution_blocked": redesign.get("runtime_execution_blocked"),
+        "runtime_execution_blocker": redesign.get("runtime_execution_blocker"),
+        "runtime_allowed_layers": deployment_grade.get("runtime_allowed_layers"),
+        "runtime_allowed_layers_raw": deployment_grade.get("runtime_allowed_layers_raw"),
+        "runtime_allowed_layers_raw_reason": deployment_grade.get("runtime_allowed_layers_raw_reason"),
+        "runtime_allowed_layers_reason": deployment_grade.get("runtime_allowed_layers_reason"),
+        "runtime_deployment_blocker": deployment_grade.get("runtime_deployment_blocker"),
+        "runtime_closure_state": deployment_grade.get("runtime_closure_state"),
+        "support_route_verdict": deployment_grade.get("support_route_verdict"),
+        "support_route_deployable": deployment_grade.get("support_route_deployable"),
+        "current_live_structure_bucket_rows": deployment_grade.get("current_live_structure_bucket_rows"),
+        "minimum_support_rows": deployment_grade.get("minimum_support_rows"),
+        "current_live_structure_bucket_gap_to_minimum": deployment_grade.get("current_live_structure_bucket_gap_to_minimum"),
         "runtime_remaining_gap_to_floor": deployment_grade.get("runtime_remaining_gap_to_floor"),
-        "next_patch_target": deployment_grade.get("next_patch_target"),
+        "remaining_gap_to_floor": deployment_grade.get("runtime_remaining_gap_to_floor"),
+        "next_patch_target": next_patch_target,
         "verify_next": payload.get("verify_next") or deployment_grade.get("verify_next") or redesign.get("verify_next"),
+        "q35_discriminative_redesign_applied": deployment_grade.get("q35_discriminative_redesign_applied"),
     }
 
 
@@ -597,7 +626,14 @@ def main() -> None:
     q35_audit = report.get("q35_scaling_audit") or {}
     q35_overall_verdict = q35_audit.get("overall_verdict") or "None"
     q35_redesign_verdict = q35_audit.get("redesign_verdict") or "None"
+    q35_redesign_entry_quality = q35_audit.get("redesign_entry_quality")
+    q35_redesign_layers_after = q35_audit.get("redesign_allowed_layers_after")
+    q35_runtime_layers = q35_audit.get("runtime_allowed_layers")
+    q35_runtime_blocker = q35_audit.get("runtime_execution_blocker") or q35_audit.get("runtime_deployment_blocker") or "None"
     q35_runtime_gap = q35_audit.get("runtime_remaining_gap_to_floor")
+    q35_support_rows = q35_audit.get("current_live_structure_bucket_rows")
+    q35_support_minimum = q35_audit.get("minimum_support_rows")
+    q35_support_gap = q35_audit.get("current_live_structure_bucket_gap_to_minimum")
     q35_recommended_mode = q35_audit.get("recommended_mode") or "None"
     q35_next_patch_target = q35_audit.get("next_patch_target") or "None"
     support_blocker_summary = report.get("support_blocker_summary") or {}
@@ -690,6 +726,7 @@ def main() -> None:
         f"- q15 精準樣本修補: **{q15_patch_state_text}** | 支持路徑 `{report.get('support_route_verdict')}` | 跨越門檻 `{report.get('floor_cross_verdict')}`",
         f"- runtime closure summary: **{runtime_closure_summary}**",
         f"- q35 scaling audit: overall=`{q35_overall_verdict}` / redesign=`{q35_redesign_verdict}` / runtime_gap=`{q35_runtime_gap}` / mode=`{q35_recommended_mode}` / next_patch=`{q35_next_patch_target}`",
+        f"- q35 runtime truth: redesign_entry_quality=`{q35_redesign_entry_quality}` / redesign_layers_after=`{q35_redesign_layers_after}` / runtime_layers=`{q35_runtime_layers}` / blocker=`{q35_runtime_blocker}` / exact_support=`{q35_support_rows}/{q35_support_minimum}` / support_gap=`{q35_support_gap}`",
         f"- q35 audit action: {q35_audit_action_text}",
         f"- q15 patch machine-read: support_ready={q15_patch_machine_read.get('support_ready')} / entry_quality_ge_0_55={q15_patch_machine_read.get('entry_quality_ge_0_55')} / allowed_layers_gt_0={q15_patch_machine_read.get('allowed_layers_gt_0')} / preserves_positive_discrimination_status=`{q15_patch_machine_read.get('preserves_positive_discrimination_status')}`",
         f"- 建議修補方案: **{recommended_patch_profile}** — 狀態：{'僅供治理參考' if str(recommended_patch_status).startswith('reference_only') else recommended_patch_status}；精準樣本缺口 `{recommended_patch.get('gap_to_minimum')}`；適用範圍 `{recommended_patch.get('reference_patch_scope') or recommended_patch.get('spillover_regime_gate')}`；來源 `{recommended_patch.get('reference_source')}`",
@@ -770,6 +807,21 @@ def main() -> None:
         "best_single_component_required_score_delta": (best_component.get("required_score_delta_to_cross_floor") if best_component else None),
         "q35_overall_verdict": q35_audit.get("overall_verdict"),
         "q35_redesign_verdict": q35_audit.get("redesign_verdict"),
+        "q35_redesign_entry_quality": q35_audit.get("redesign_entry_quality"),
+        "q35_redesign_raw_allowed_layers_after": q35_audit.get("redesign_raw_allowed_layers_after"),
+        "q35_redesign_allowed_layers_after": q35_audit.get("redesign_allowed_layers_after"),
+        "q35_redesign_positive_discriminative_gap": q35_audit.get("redesign_positive_discriminative_gap"),
+        "q35_redesign_execution_blocked_after_floor_cross": q35_audit.get("redesign_execution_blocked_after_floor_cross"),
+        "q35_runtime_execution_blocked": q35_audit.get("runtime_execution_blocked"),
+        "q35_runtime_execution_blocker": q35_audit.get("runtime_execution_blocker"),
+        "q35_runtime_allowed_layers": q35_audit.get("runtime_allowed_layers"),
+        "q35_runtime_allowed_layers_raw": q35_audit.get("runtime_allowed_layers_raw"),
+        "q35_runtime_allowed_layers_reason": q35_audit.get("runtime_allowed_layers_reason"),
+        "q35_runtime_deployment_blocker": q35_audit.get("runtime_deployment_blocker"),
+        "q35_support_route_verdict": q35_audit.get("support_route_verdict"),
+        "q35_current_live_structure_bucket_rows": q35_audit.get("current_live_structure_bucket_rows"),
+        "q35_minimum_support_rows": q35_audit.get("minimum_support_rows"),
+        "q35_current_live_structure_bucket_gap_to_minimum": q35_audit.get("current_live_structure_bucket_gap_to_minimum"),
         "q35_runtime_remaining_gap_to_floor": q35_audit.get("runtime_remaining_gap_to_floor"),
         "q35_recommended_mode": q35_audit.get("recommended_mode"),
         "q35_next_patch_target": q35_audit.get("next_patch_target"),

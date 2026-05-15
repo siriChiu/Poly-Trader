@@ -35,6 +35,83 @@ def test_recommended_patch_projection_promotes_reference_only_support_contract()
     }
 
 
+def test_q35_audit_summary_preserves_runtime_floor_cross_blocker_truth(tmp_path, monkeypatch):
+    q35_path = tmp_path / "q35_scaling_audit.json"
+    q35_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-15 03:02:10.622621",
+                "scope_applicability": {
+                    "active_for_current_live_row": True,
+                    "status": "current_live_q35_lane_active",
+                    "current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                    "target_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                },
+                "segmented_calibration": {
+                    "status": "formula_review_required",
+                    "recommended_mode": "exact_lane_formula_review",
+                    "runtime_contract_status": "piecewise_runtime_not_required",
+                },
+                "deployment_grade_component_experiment": {
+                    "runtime_allowed_layers_raw": 1,
+                    "runtime_allowed_layers_raw_reason": "entry_quality_C_single_layer",
+                    "runtime_allowed_layers": 0,
+                    "runtime_allowed_layers_reason": "unsupported_exact_live_structure_bucket",
+                    "runtime_deployment_blocker": "unsupported_exact_live_structure_bucket",
+                    "runtime_closure_state": "patch_inactive_or_blocked",
+                    "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+                    "support_route_deployable": False,
+                    "current_live_structure_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 50,
+                    "runtime_remaining_gap_to_floor": -0.009,
+                    "next_patch_target": "feat_4h_bias50_formula",
+                },
+                "base_stack_redesign_experiment": {
+                    "verdict": "base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked",
+                    "runtime_execution_blocked": True,
+                    "runtime_execution_blocker": "unsupported_exact_live_structure_bucket",
+                    "best_discriminative_candidate": {
+                        "current_entry_quality_after": 0.8463,
+                        "raw_allowed_layers_after": 2,
+                        "allowed_layers_after": 0,
+                    },
+                    "machine_read_answer": {
+                        "positive_discriminative_gap": True,
+                        "execution_blocked_after_floor_cross": True,
+                    },
+                },
+                "overall_verdict": "bias50_formula_may_be_too_harsh",
+                "recommended_action": "keep blocker-first q35 runtime truth visible",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(live_drilldown, "Q35_AUDIT_PATH", q35_path)
+
+    summary = live_drilldown._load_q35_audit_summary("CAUTION|base_caution_regime_or_bias|q35")
+
+    assert summary["redesign_entry_quality"] == 0.8463
+    assert summary["redesign_raw_allowed_layers_after"] == 2
+    assert summary["redesign_allowed_layers_after"] == 0
+    assert summary["redesign_positive_discriminative_gap"] is True
+    assert summary["redesign_execution_blocked_after_floor_cross"] is True
+    assert summary["runtime_execution_blocked"] is True
+    assert summary["runtime_execution_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert summary["runtime_allowed_layers_raw"] == 1
+    assert summary["runtime_allowed_layers"] == 0
+    assert summary["runtime_allowed_layers_reason"] == "unsupported_exact_live_structure_bucket"
+    assert summary["runtime_deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert summary["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
+    assert summary["support_route_deployable"] is False
+    assert summary["current_live_structure_bucket_rows"] == 0
+    assert summary["minimum_support_rows"] == 50
+    assert summary["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert summary["runtime_remaining_gap_to_floor"] == -0.009
+    assert summary["candidate_patch_type"] == "exact_lane_formula_review"
+    assert summary["candidate_patch_feature"] == "feat_4h_bias50_formula"
+
+
 def test_component_gap_attribution_identifies_best_single_component_and_bias50_counterfactual():
     eq_components = {
         "entry_quality": 0.499,

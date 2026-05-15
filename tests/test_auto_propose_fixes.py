@@ -3641,5 +3641,7 @@ def test_q35_scaling_no_deploy_action_keeps_recommended_action_out_of_operator_a
 
     q35_issue = next(issue for issue in tracker.issues if issue["id"] == "P1_q35_scaling_no_deploy")
     assert q35_issue["action"].count("下一輪必須") <= 1
+    assert "已同步到 docs/probe/issues" in q35_issue["action"]
+    assert "下一步只追 exact-support 與 score-only 治理" in q35_issue["action"]
     assert recommended_action not in q35_issue["action"]
     assert q35_issue["summary"]["audit_recommended_action"] == recommended_action

@@ -677,12 +677,12 @@ def sync_current_state_governance_issues(
         q35_title = "q35 lane still needs formula review / base-stack redesign before deploy"
         if q35_redesign_machine.get("execution_blocked_after_floor_cross"):
             q35_action = (
-                "把 q35 scaling audit 的 runtime gap / redesign entry_quality / allowed_layers 同步到 docs/probe/issues；"
-                "本輪 discriminative redesign 只跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0，禁止把 score-only floor-cross 當成 deployment closure。"
+                "維持 q35 scaling audit 的 runtime gap / redesign entry_quality / allowed_layers 已同步到 docs/probe/issues；"
+                "本輪 discriminative redesign 只跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0，下一步只追 exact-support 與 score-only 治理，不得把 floor-cross 當成 deployment closure。"
             )
         else:
             q35_action = (
-                "把 q35 scaling audit 的 overall_verdict / redesign verdict / gap-to-floor 同步到 docs/probe/issues；"
+                "維持 q35 scaling audit 的 overall_verdict / redesign verdict / gap-to-floor 已同步到 docs/probe/issues；"
                 "在 exact support 未就緒、且 redesign 未形成可執行 closure 前，禁止把 bias50 單點 uplift 或結構 uplift 當成 closure。"
             )
         recommended_action = q35_scaling_audit.get("recommended_action")
