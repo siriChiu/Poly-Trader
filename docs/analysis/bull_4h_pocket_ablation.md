@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-15 02:02:16 UTC**
+- generated_at: **2026-05-15 04:02:38 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -54,38 +54,38 @@
 
 ## Support / pathology summary
 
-- blocker_state: **exact_live_bucket_supported**
-- preferred_support_cohort: **exact_live_bucket**
-- current bucket gap to minimum: **0**
+- blocker_state: **exact_lane_proxy_fallback_only**
+- preferred_support_cohort: **bull_exact_live_lane_proxy**
+- current bucket gap to minimum: **50**
 - exact-bucket proxy gap to minimum: **50**
 - exact-lane proxy gap to minimum: **0**
-- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q00` rows=58
-- bucket gap vs dominant neighbor: **8**
-- exact bucket root cause: **exact_bucket_supported**
-- broader q65 rows / dominant regime: **0 / chop (0.9247)**
-- root cause interpretation: exact bucket 已獲支持，可直接驗證 exact lane。
-- bucket comparison takeaway: **exact_bucket_supported**
-- proxy boundary verdict: **exact_bucket_supported_proxy_not_required**
-- proxy boundary reason: current live structure bucket 已達 minimum support；後續治理與驗證應直接以 exact bucket 為主，proxy 只保留輔助比較，不再作 blocker 判讀。
+- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q00` rows=52
+- bucket gap vs dominant neighbor: **52**
+- exact bucket root cause: **same_lane_shifted_to_neighbor_bucket**
+- broader q65 rows / dominant regime: **0 / chop (0.9655)**
+- root cause interpretation: bull exact lane 仍有同 lane 樣本，但當前結構已偏到鄰近 bucket，需先查 q65↔q85 分桶與 same-lane pathology。
+- bucket comparison takeaway: **support_gap_unresolved**
+- proxy boundary verdict: **insufficient_recent_exact_bucket_rows**
+- proxy boundary reason: current live structure bucket 沒有 recent exact rows，無法判斷 proxy cohort 邊界。
 - decision-quality scope / label: **regime_label+regime_gate+entry_quality_label / D**
 - narrowed pathology scope: **None**
 - worst pathology scope: **None**
 - shared pathology shift features: []
 - broader-bucket pathology shifts: []
-- recommended_action: 可回到 exact live bucket 直接治理與驗證。
+- recommended_action: 維持 0 layers；優先查 exact bucket 缺口與 same-bucket pathology，而不是再重訓。
 
 ## Bucket evidence comparison
 
 | cohort | bucket | rows | win_rate | quality / cv | note |
 |---|---|---:|---:|---:|---|
-| exact live lane | CAUTION|base_caution_regime_or_bias|q35 | 62 | 0.4032 | 0.084 | current bucket rows=50 |
+| exact live lane | CAUTION|base_caution_regime_or_bias|q00 | 56 | 0.4107 | 0.0856 | current bucket rows=0 |
 | exact bucket proxy | CAUTION|base_caution_regime_or_bias|q35 | 0 | 0.0 | None | proxy-vs-broader win Δ=None |
 | broader same bucket | CAUTION|base_caution_regime_or_bias|q35 | 0 | None | None | dominant_regime=chop |
 
 ## Proxy boundary diagnostics
 
 - recent exact current bucket rows / win_rate: **0 / None**
-- recent exact live lane rows / win_rate: **62 / 0.629**
+- recent exact live lane rows / win_rate: **56 / 0.6964**
 - historical exact-bucket proxy rows / win_rate: **0 / None**
 - recent broader same-bucket rows / dominant regime: **0 / None**
 - proxy vs current bucket win Δ / row ratio: **None / None**
@@ -104,7 +104,7 @@
 
 - collapse features under inspection: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
 - thresholds (bull q35): {"feat_4h_dist_swing_low": 4.8178, "feat_4h_dist_bb_lower": 4.0563, "feat_4h_bb_pct_b": 0.6995}
-- exact live structure bucket: `CAUTION|base_caution_regime_or_bias|q35` rows=50
+- exact live structure bucket: `CAUTION|base_caution_regime_or_bias|q35` rows=0
 - supported neighbor buckets from exact scope: ["CAUTION|base_caution_regime_or_bias|q00", "CAUTION|base_caution_regime_or_bias|q15"]
 - best bull-all profile: **current_full_minus_4h_structure_shift**
 - best bull-collapse profile: **core_plus_macro_plus_all_4h**

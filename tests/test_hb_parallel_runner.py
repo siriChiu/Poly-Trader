@@ -2124,6 +2124,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "心跳 #20260420z ORID" in orid_md
     assert "support truth ≠ deployment closure" in orid_md
     assert "support=0/50" in orid_md
+    assert "current-state 產品化護欄" in orid_md
+    assert "本輪產品化前進" not in orid_md
     assert "recommended_patch=core_plus_macro_plus_all_4h" in orid_md
     assert "heartbeat runner 現在會在 `auto_propose_fixes.py` 後自動 overwrite sync" not in orid_md
 

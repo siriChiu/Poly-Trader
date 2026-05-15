@@ -3439,7 +3439,7 @@ def overwrite_current_state_docs(
         *parallel_failure_orid_lines,
         *([f"- {q35_scaling_doc_line}。"] if q35_scaling_doc_line else []),
         *high_conviction_orid_fact_lines,
-        f"- 本輪產品化前進：{docs_sync_line}；`recommended_patch={patch_profile}` / `status={patch_status}` / `reference_scope={patch_reference_scope}`。",
+        f"- current-state 產品化護欄：{docs_sync_line}；`recommended_patch={patch_profile}` / `status={patch_status}` / `reference_scope={patch_reference_scope}`。",
         "",
         "### R｜感受直覺",
         orid_reflection_line,

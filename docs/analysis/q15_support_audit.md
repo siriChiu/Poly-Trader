@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-15 03:31:03.502906**
+- generated_at: **2026-05-15 04:02:03.008595**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -24,7 +24,7 @@
 - verdict: **exact_bucket_missing_exact_lane_proxy_only**
 - deployable: **False**
 - governance_reference_only: **True**
-- preferred_support_cohort: **exact_live_bucket**
+- preferred_support_cohort: **bull_exact_live_lane_proxy**
 - current bucket gap to minimum: **50**
 - exact-bucket proxy rows: **0**
 - exact-lane proxy rows: **860**
@@ -36,7 +36,7 @@
 - support_progress.current_rows / minimum: **0 / 50**
 - support_progress.previous_rows: **0**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **3**
+- support_progress.stagnant_run_count: **4**
 - support_progress.escalate_to_blocker: **True**
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q35', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `{'heartbeat': '1237', 'timestamp': '2026-05-15T01:02:23.720332+00:00', 'live_current_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q35', 'live_current_structure_bucket_rows': 50, 'minimum_support_rows': 50, 'support_route_verdict': 'exact_bucket_supported', 'support_governance_route': 'exact_live_bucket_supported', 'support_identity': {'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q35', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}, 'support_identity_backfilled': False, 'semantic_identity_evidence': {'source': 'explicit_support_identity', 'explicit_support_identity_present': True, 'explicit_bucket_semantic_signature_present': True, 'backfilled_bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2', 'backfilled_support_identity': {'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q35', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}, 'candidate_support_identity': {'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q35', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 1000, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}, 'source_fields_complete': True, 'matched_fields': ['target_col', 'horizon_minutes', 'current_live_structure_bucket', 'regime_label', 'regime_gate', 'entry_quality_label', 'bucket_semantic_signature'], 'mismatched_fields': ['calibration_window'], 'missing_fields': [], 'supports_current_identity': False, 'promotable_to_same_identity_history': False, 'verdict': 'reference_only_semantic_mismatch_or_missing_fields'}, 'reference_only_reason': 'semantic_evidence_mismatch_or_missing_fields'}`
@@ -45,11 +45,11 @@
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.005**
+- remaining_gap_to_floor: **0.0744**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.0167**
+- best_single_component_required_score_delta: **0.248**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.0167），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.248），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_current_live_not_q15_and_support_not_ready**
@@ -57,9 +57,9 @@
 - mode: **reference_only_non_current_live_scope**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.545**
+- current_entry_quality: **0.4756**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.005**
+- current_trade_floor_gap: **-0.0744**
 - current_entry_quality_ge_trade_floor: **False**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_applicable_current_live_not_q15_lane)
@@ -74,7 +74,7 @@
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **HOLD / 0 / unsupported_exact_live_structure_bucket**
 - support rows / minimum / gap: **0 / 50 / 50**
-- stagnant_run_count: **3**
+- stagnant_run_count: **4**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**

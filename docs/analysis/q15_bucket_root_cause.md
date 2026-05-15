@@ -1,6 +1,6 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-15 03:31:03.502906**
+- generated_at: **2026-05-15 04:02:03.008595**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q35 bucket**
 - verdict: **current_row_already_above_q35_boundary**
@@ -12,7 +12,7 @@
 ## Current live
 - live path: **chop / CAUTION / D**
 - structure_bucket: `CAUTION|base_caution_regime_or_bias|q35`
-- structure_quality: **0.4523**
+- structure_quality: **0.3715**
 - gap_to_q35_boundary: **0.0**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `unsupported_exact_live_structure_bucket`
@@ -22,18 +22,18 @@
 - rows: **1976**
 - bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q65': 569, 'CAUTION|base_caution_regime_or_bias|q15': 520, 'CAUTION|base_caution_regime_or_bias|q00': 370, 'CAUTION|base_caution_regime_or_bias|q85': 318, 'CAUTION|base_caution_regime_or_bias|q35': 199}`
 - dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** (569 rows)
-- near_boundary_window: `{'lower': 0.4523, 'upper': 0.35}`
+- near_boundary_window: `{'lower': 0.3715, 'upper': 0.35}`
 - near_boundary_rows: **0**
 
 ## Decision
 - reason: 目前 live row 已高於 q35 boundary，問題改成 exact support 累積，不是 bucket repair。
-- candidate_patch: `{'type': 'support_accumulation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.8075, 'current_normalized': 0.8075, 'needed_raw_delta_to_cross_q35': 0.0, 'target_bucket_p25': 0.7095, 'target_bucket_median': 0.7512, 'needed_raw_delta_to_target_p25': -0.098, 'needed_raw_delta_to_target_median': -0.0563}`
+- candidate_patch: `{'type': 'support_accumulation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.6414, 'current_normalized': 0.6414, 'needed_raw_delta_to_cross_q35': 0.0, 'target_bucket_p25': 0.7095, 'target_bucket_median': 0.7512, 'needed_raw_delta_to_target_p25': 0.0681, 'needed_raw_delta_to_target_median': 0.1098}`
 - verify_next: 確認 current_live_structure_bucket_rows 是否增加到 minimum_support_rows。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.8075 / norm=0.8075 / Δto_cross_q35=0.0 / target_p25=0.7095 / target_median=0.7512
-- `feat_4h_dist_bb_lower`: current=1.9052 / norm=0.2382 / Δto_cross_q35=0.0 / target_p25=4.184 / target_median=5.7431
-- `feat_4h_dist_swing_low`: current=3.0068 / norm=0.3007 / Δto_cross_q35=0.0 / target_p25=8.0728 / target_median=9.1024
+- `feat_4h_bb_pct_b`: current=0.6414 / norm=0.6414 / Δto_cross_q35=0.0 / target_p25=0.7095 / target_median=0.7512
+- `feat_4h_dist_bb_lower`: current=1.5011 / norm=0.1876 / Δto_cross_q35=0.0 / target_p25=4.184 / target_median=5.7431
+- `feat_4h_dist_swing_low`: current=2.774 / norm=0.2774 / Δto_cross_q35=0.0 / target_p25=8.0728 / target_median=9.1024
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。

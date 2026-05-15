@@ -7,7 +7,7 @@
       "action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "status": "open",
       "created_at": "2026-05-15T02:02:55.010605",
-      "updated_at": "2026-05-15T03:31:32.748163",
+      "updated_at": "2026-05-15T04:03:27.240254",
       "hb_detected": null,
       "next_action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "summary": {
@@ -19,7 +19,7 @@
         "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
         "support_governance_route": "exact_live_lane_proxy_available",
         "runtime_closure_state": "patch_inactive_or_blocked",
-        "deployment_blocker_reason": "當前即時結構分桶 `CAUTION|base_caution_regime_or_bias|q35` 的精準支持樣本仍停在 0/50（缺 50），support_route=exact_bucket_missing_exact_lane_proxy_only，不可把舊 scope 的支持閉環誤讀成部署閉環；決策品質仍為 D / score=0.0839；目前維持不可部署治理。",
+        "deployment_blocker_reason": "當前即時結構分桶 `CAUTION|base_caution_regime_or_bias|q35` 的精準支持樣本仍停在 0/50（缺 50），support_route=exact_bucket_missing_exact_lane_proxy_only，不可把舊 scope 的支持閉環誤讀成部署閉環；決策品質仍為 D / score=0.0879；目前維持不可部署治理。",
         "deployment_blocker_source": "decision_quality_contract",
         "signal": "HOLD",
         "support_route_deployable": false,
@@ -115,9 +115,9 @@
             },
             "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields"
           },
-          "comparable_history_count": 23,
+          "comparable_history_count": 22,
           "legacy_reference_history_count": 27,
-          "stagnant_run_count": 4,
+          "stagnant_run_count": 3,
           "stalled_support_accumulation": false,
           "escalate_to_blocker": true
         },
@@ -139,7 +139,7 @@
           "current_rows": 0,
           "minimum_support_rows": 50,
           "gap_to_minimum": 50,
-          "stagnant_run_count": 4,
+          "stagnant_run_count": 3,
           "legacy_reference_only": true,
           "legacy_semantic_evidence": {
             "source": "explicit_support_identity",
@@ -257,7 +257,7 @@
       "action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "status": "open",
       "created_at": "2026-04-29T18:00:00+08:00",
-      "updated_at": "2026-05-15T03:31:32.760974",
+      "updated_at": "2026-05-15T04:03:27.250846",
       "hb_detected": null,
       "next_action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "summary": {
@@ -305,14 +305,14 @@
         "strategy_lab_contract": "Strategy Lab 必須優先顯示 nearest_deployable_rows，並把離線驗證 / 模型門檻失敗與即時分桶 / 支持阻塞分開呈現；此研究 gate 不暴露 live automation 按鈕。",
         "execution_contract": "current-live blocker / unsupported support route keeps buy/add exposure fail-closed; reduce/sell diagnostics remain available",
         "latest_matrix": {
-          "generated_at": "2026-05-15T03:02:59.085489+00:00",
+          "generated_at": "2026-05-15T04:03:17.418616+00:00",
           "artifact_freshness_status": "fresh",
           "artifact_freshness_reason": "artifact_within_policy",
-          "artifact_age_minutes": 28.561255666666668,
+          "artifact_age_minutes": 0.16386818333333333,
           "artifact_stale_after_minutes": 60.0,
           "artifact_deployment_blocking": false,
           "artifact": "data/high_conviction_topk_oos_matrix.json",
-          "samples": 24327,
+          "samples": 24329,
           "rows": 24,
           "evaluated_models": [
             "logistic_regression",
@@ -592,30 +592,19 @@
       ]
     },
     {
-      "id": "#H_AUTO_GAP",
-      "priority": "P1",
-      "title": "Train-CV gap = 19.1pp (66.5% vs 47.4%)",
-      "action": "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數",
-      "status": "open",
-      "created_at": "2026-05-15T02:02:55.010663",
-      "updated_at": "2026-05-15T03:31:31.792857",
-      "hb_detected": null,
-      "next_action": "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數"
-    },
-    {
       "id": "#H_AUTO_MODEL_STABILITY",
       "priority": "P1",
-      "title": "model stability still needs work (cv=0.4739, cv_std=0.0627, cv_worst=0.4112)",
+      "title": "model stability still needs work (cv=0.6628, cv_std=0.0878, cv_worst=0.5750)",
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-05-15T03:31:31.792824",
+      "updated_at": "2026-05-15T04:03:26.277782",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
-        "cv_accuracy": 0.473889802631579,
-        "cv_std": 0.06270559210526319,
-        "cv_worst": 0.41118421052631576
+        "cv_accuracy": 0.6627620221948212,
+        "cv_std": 0.0877517468146321,
+        "cv_worst": 0.5750102753801891
       }
     },
     {
@@ -625,7 +614,7 @@
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-05-14T18:03:09.218848",
-      "updated_at": "2026-05-15T03:31:31.792851",
+      "updated_at": "2026-05-15T04:03:26.277811",
       "hb_detected": null,
       "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "summary": {
@@ -682,7 +671,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 4063,
+        "forward_archive_rows": 4064,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -690,7 +679,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-05-15T03:31:32.748047",
+      "updated_at": "2026-05-15T04:03:27.240216",
       "action": "Configure COINGLASS_API_KEY, then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -703,15 +692,15 @@
         "comparable_count": 6,
         "placeholder_count": 0,
         "top_model": "rule_baseline",
-        "top_profile": "core_plus_macro_plus_all_4h",
+        "top_profile": "core_only",
         "top_deployment_profile": "scan_backed_best",
-        "governance_contract": "single_role_governance_ok",
-        "current_closure": "single_profile_alignment",
+        "governance_contract": "dual_role_governance_active",
+        "current_closure": "global_ranking_vs_support_aware_production_split",
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": false,
-        "leaderboard_payload_cache_age_sec": 282,
-        "leaderboard_payload_updated_at": "2026-05-15T03:26:44.755085Z",
-        "dual_profile_state": "aligned"
+        "leaderboard_payload_cache_age_sec": 6,
+        "leaderboard_payload_updated_at": "2026-05-15T04:03:15.377591Z",
+        "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
       "verify": [
@@ -719,7 +708,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-05-15T03:31:31.792819",
+      "updated_at": "2026-05-15T04:03:26.277776",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -754,7 +743,7 @@
       "action": "維持 q35 scaling audit 的 runtime gap / redesign entry_quality / allowed_layers 已同步到 docs/probe/issues；本輪 discriminative redesign 只跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0，下一步只追 exact-support 與 score-only 治理，不得把 floor-cross 當成 deployment closure。",
       "status": "open",
       "created_at": "2026-05-14T15:03:09.443242",
-      "updated_at": "2026-05-15T03:31:31.792792",
+      "updated_at": "2026-05-15T04:03:26.277747",
       "hb_detected": null,
       "next_action": "維持 q35 scaling audit 的 runtime gap / redesign entry_quality / allowed_layers 已同步到 docs/probe/issues；本輪 discriminative redesign 只跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0，下一步只追 exact-support 與 score-only 治理，不得把 floor-cross 當成 deployment closure。",
       "summary": {
@@ -765,9 +754,9 @@
         "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
         "overall_verdict": "bias50_formula_may_be_too_harsh",
         "redesign_verdict": "base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked",
-        "runtime_remaining_gap_to_floor": 0.005,
-        "remaining_gap_to_floor": 0.005,
-        "entry_quality": 0.545,
+        "runtime_remaining_gap_to_floor": 0.0744,
+        "remaining_gap_to_floor": 0.0744,
+        "entry_quality": 0.4756,
         "redesign_entry_quality": 0.5535,
         "redesign_allowed_layers_after": 0,
         "redesign_positive_discriminative_gap": true,
