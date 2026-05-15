@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-15 17:12:35.506483**
+- generated_at: **2026-05-15 18:02:01.442804**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -38,18 +38,18 @@
 - support_progress.delta_vs_previous: **0**
 - support_progress.stagnant_run_count: **2**
 - support_progress.escalate_to_blocker: **False**
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'BLOCK|structure_quality_block|q00', 'regime_label': 'bear', 'regime_gate': 'BLOCK', 'entry_quality_label': 'D', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'BLOCK|structure_quality_block|q00', 'regime_label': 'bear', 'regime_gate': 'BLOCK', 'entry_quality_label': 'D', 'calibration_window': 600, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `None`
 - support_progress.reason: current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。
 
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0167**
+- remaining_gap_to_floor: **0.0157**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.0557**
+- best_single_component_required_score_delta: **0.0523**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.0557），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.0523），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_current_live_not_q15_and_support_not_ready**
@@ -57,9 +57,9 @@
 - mode: **reference_only_non_current_live_scope**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5333**
+- current_entry_quality: **0.5343**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.0167**
+- current_trade_floor_gap: **-0.0157**
 - current_entry_quality_ge_trade_floor: **False**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_applicable_current_live_not_q15_lane)

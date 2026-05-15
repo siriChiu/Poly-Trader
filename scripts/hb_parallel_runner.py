@@ -56,6 +56,7 @@ FAST_SERIAL_TIMEOUTS = {
     "hb_q15_support_audit": 20,
     "hb_q15_bucket_root_cause": 20,
     "hb_q15_boundary_replay": 20,
+    "execution_metadata_smoke": 30,
 }
 FULL_SERIAL_TIMEOUTS = {
     # Candidate-evaluation lanes can become silent for many minutes when the
@@ -66,6 +67,7 @@ FULL_SERIAL_TIMEOUTS = {
     "bull_4h_pocket_ablation": 45,
     "hb_leaderboard_candidate_probe": 90,
     "topk_walkforward_precision": 120,
+    "execution_metadata_smoke": 30,
 }
 FAST_PARALLEL_TASK_TIMEOUTS = {
     "full_ic": 90,
@@ -126,6 +128,14 @@ BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
 BULL_4H_POCKET_ABLATION_REFRESH_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py", "--refresh-live-context"]
 LEADERBOARD_CANDIDATE_PROBE_CMD = [PYTHON, "scripts/hb_leaderboard_candidate_probe.py"]
 TOPK_WALKFORWARD_PRECISION_CMD = [PYTHON, "scripts/topk_walkforward_precision.py"]
+EXECUTION_METADATA_SMOKE_CMD = [
+    PYTHON,
+    "scripts/execution_metadata_smoke.py",
+    "--symbol",
+    "BTCUSDT",
+    "--venues",
+    "okx",
+]
 
 
 def _safe_parse_datetime(value: Any) -> datetime | None:
@@ -207,6 +217,7 @@ def collect_current_state_docs_sync_status() -> Dict[str, Any]:
         ("issues.json", root / "issues.json"),
         ("data/live_predict_probe.json", root / "data" / "live_predict_probe.json"),
         ("data/live_decision_quality_drilldown.json", root / "data" / "live_decision_quality_drilldown.json"),
+        ("data/execution_metadata_smoke.json", root / "data" / "execution_metadata_smoke.json"),
     ]
 
     reference_mtimes = {
@@ -3327,7 +3338,7 @@ def overwrite_current_state_docs(
         "  - `formatHighConvictionRuntimeSignalLabel()` 統一把即時訊號 enum 轉成繁中操作語；最接近部署候選列不再把內部訊號 token 直接丟給 operator，避免 OOS-pass / runtime-blocked 候選被誤讀為可部署動作。",
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
-        "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
+        "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
         "",
         "---",
         "",
@@ -3437,7 +3448,7 @@ def overwrite_current_state_docs(
         "- **Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe**",
         "  - 列級 `signal` 透過 `formatHighConvictionRuntimeSignalLabel()` 轉成繁中操作語；即時分桶 / 支持 / release gate 未解除前，候選列維持模擬觀察 / 影子驗證 / 僅觀察，不用內部 enum 暗示可部署。",
         "- **本輪 current-state docs 已同步到最新 artifacts**",
-        "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json` 的 current-state truth 已對齊",
+        "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json` 的 current-state truth 已對齊",
         *parallel_failure_roadmap_lines,
         "",
         "---",
@@ -3581,8 +3592,8 @@ def overwrite_current_state_docs(
         "- **Owner**：即時執行治理 lane",
         orid_action_line.rstrip("。") + "；`/execution` 操作入口在同步中 / 已阻塞時只對買入 / 加倉與啟用自動模式 fail-closed，減碼保留；直接 API 買入 / 加倉也必須 409 暫停，減倉 / 賣出保留風險降低路徑。",
         *high_conviction_orid_action_lines,
-        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/high_conviction_topk_oos_matrix.json`。",
-        "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`。",
+        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/high_conviction_topk_oos_matrix.json`、`data/execution_metadata_smoke.json`。",
+        "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`。",
         orid_fail_line,
         "",
     ]
@@ -4816,6 +4827,17 @@ def run_high_conviction_topk_refresh() -> Dict[str, Any]:
     --fast-refresh-candidates and full heartbeats produce a self-contained fresh gate.
     """
     return _run_serial_command(TOPK_WALKFORWARD_PRECISION_CMD)
+
+
+def run_execution_metadata_smoke() -> Dict[str, Any]:
+    """Refresh the canonical venue lifecycle proof artifact for operator gates.
+
+    Runtime deployability depends on `data/execution_metadata_smoke.json` having
+    fresh per-venue proof rows. The heartbeat regenerates this smoke artifact so
+    Dashboard / Strategy Lab / Execution Console do not inherit a stale no-venue
+    or no-proof runtime-readiness snapshot from a previous manual run.
+    """
+    return _run_serial_command(EXECUTION_METADATA_SMOKE_CMD)
 
 
 def run_auto_propose(run_label: str | None = None) -> Dict[str, Any]:
@@ -7325,6 +7347,21 @@ def main(argv=None):
             f"layers_after={counterfactual.get('allowed_layers_after')}"
         )
 
+    write_progress(run_label, "execution_metadata_smoke")
+    execution_metadata_smoke_result = run_execution_metadata_smoke()
+    print(
+        f"🏦 Execution metadata smoke：{'通過' if execution_metadata_smoke_result['success'] else '失敗'} "
+        f"(rc={execution_metadata_smoke_result['returncode']})"
+    )
+    if execution_metadata_smoke_result.get("stdout"):
+        lines = execution_metadata_smoke_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- execution_metadata_smoke ---\n{preview}")
+    if execution_metadata_smoke_result.get("stderr"):
+        print(f"\n--- execution_metadata_smoke stderr ---\n{execution_metadata_smoke_result['stderr']}")
+
     write_progress(run_label, "auto_propose")
     auto_propose_result = run_auto_propose(run_label)
     print(
@@ -7399,6 +7436,10 @@ def main(argv=None):
             "result": q15_boundary_replay_result,
             "diagnostics": q15_boundary_replay_summary,
             "artifact_path": Path(PROJECT_ROOT) / "data" / "q15_boundary_replay.json",
+        },
+        "execution_metadata_smoke": {
+            "result": execution_metadata_smoke_result,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "execution_metadata_smoke.json",
         },
         "auto_propose_fixes": {
             "result": auto_propose_result,
@@ -7497,6 +7538,7 @@ def main(argv=None):
         q15_support_result,
         q15_bucket_root_cause_result,
         q15_boundary_replay_result,
+        execution_metadata_smoke_result,
         auto_propose_result,
     ]
     if not collect_result.get("success", True):

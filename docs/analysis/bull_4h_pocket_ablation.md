@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-15 17:01:42 UTC**
+- generated_at: **2026-05-15 18:02:29 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -62,12 +62,12 @@
 - dominant neighbor bucket: `None` rows=0
 - bucket gap vs dominant neighbor: **0**
 - exact bucket root cause: **exact_bucket_present_but_below_minimum**
-- broader q65 rows / dominant regime: **2 / bear (1.0000)**
+- broader q65 rows / dominant regime: **2 / bull (0.9600)**
 - root cause interpretation: bull exact lane 已出現當前 bucket 樣本，但距離 minimum support 仍有缺口；需持續累積 exact rows，不能當成已解 blocker。
 - bucket comparison takeaway: **support_gap_unresolved**
 - proxy boundary verdict: **proxy_too_wide_vs_exact_bucket**
 - proxy boundary reason: historical same-bucket proxy 與 recent exact bucket 的 win-rate 差距過大，應優先縮窄 proxy cohort，而不是把 proxy 直接當成 exact bucket 替身。
-- decision-quality scope / label: **entry_quality_label / D**
+- decision-quality scope / label: **regime_label+entry_quality_label / D**
 - narrowed pathology scope: **None**
 - worst pathology scope: **None**
 - shared pathology shift features: []
@@ -80,7 +80,7 @@
 |---|---|---:|---:|---:|---|
 | exact live lane | BLOCK|structure_quality_block|q00 | 2 | 1.0 | 0.6698 | current bucket rows=2 |
 | exact bucket proxy | BLOCK|structure_quality_block|q00 | 34 | 0.17647058823529413 | None | proxy-vs-broader win Δ=-0.8235 |
-| broader same bucket | BLOCK|structure_quality_block|q00 | 2 | 1.0 | 0.6698 | dominant_regime=bear |
+| broader same bucket | BLOCK|structure_quality_block|q00 | 2 | 1.0 | 0.6698 | dominant_regime=bull |
 
 ## Proxy boundary diagnostics
 

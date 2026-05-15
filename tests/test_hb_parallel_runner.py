@@ -48,6 +48,22 @@ def test_parse_args_allows_fast_without_hb():
     assert hb_parallel_runner.resolve_run_label(args) == "fast"
 
 
+def test_execution_metadata_smoke_lane_uses_explicit_okx_venue(monkeypatch):
+    calls = []
+
+    def fake_run_serial_command(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "{}", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run_serial_command)
+
+    result = hb_parallel_runner.run_execution_metadata_smoke()
+
+    assert result["success"] is True
+    assert calls == [hb_parallel_runner.EXECUTION_METADATA_SMOKE_CMD]
+    assert calls[0][-4:] == ["--symbol", "BTCUSDT", "--venues", "okx"]
+
+
 def test_high_conviction_support_route_context_string_false_fails_closed():
     assert (
         hb_parallel_runner._support_route_context_is_deployable(
@@ -1858,6 +1874,7 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
     issues_json = tmp_path / "issues.json"
     probe_json = data_dir / "live_predict_probe.json"
     drilldown_json = data_dir / "live_decision_quality_drilldown.json"
+    smoke_json = data_dir / "execution_metadata_smoke.json"
 
     issues_md.write_text("old issues", encoding="utf-8")
     roadmap_md.write_text("old roadmap", encoding="utf-8")
@@ -1865,6 +1882,7 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
     issues_json.write_text("{}", encoding="utf-8")
     probe_json.write_text("{}", encoding="utf-8")
     drilldown_json.write_text("{}", encoding="utf-8")
+    smoke_json.write_text("{}", encoding="utf-8")
 
     now = time.time()
     os.utime(issues_md, (now - 20, now - 20))
@@ -1873,6 +1891,7 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
     os.utime(issues_json, (now + 5, now + 5))
     os.utime(probe_json, (now + 6, now + 6))
     os.utime(drilldown_json, (now + 7, now + 7))
+    os.utime(smoke_json, (now + 8, now + 8))
 
     status = hb_parallel_runner.collect_current_state_docs_sync_status()
 
@@ -1883,6 +1902,7 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
         "issues.json",
         "data/live_predict_probe.json",
         "data/live_decision_quality_drilldown.json",
+        "data/execution_metadata_smoke.json",
     ]
 
 
