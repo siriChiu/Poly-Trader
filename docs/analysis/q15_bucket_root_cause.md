@@ -1,39 +1,39 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-15 04:02:03.008595**
+- generated_at: **2026-05-15 05:01:40.405666**
 - target_col: **simulated_pyramid_win**
-- bucket_scope: **current-live q35 bucket**
-- verdict: **current_row_already_above_q35_boundary**
-- candidate_patch_type: **support_accumulation**
-- candidate_patch_feature: **feat_4h_bb_pct_b**
+- bucket_scope: **current-live q15 bucket**
+- verdict: **current_exact_support_under_minimum**
+- candidate_patch_type: **support_accumulation_or_semantic_rebaseline**
+- candidate_patch_feature: **None**
 - artifact_context_freshness: **current_context** (`[]`)
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q35', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q15', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 
 ## Current live
 - live path: **chop / CAUTION / D**
-- structure_bucket: `CAUTION|base_caution_regime_or_bias|q35`
-- structure_quality: **0.3715**
-- gap_to_q35_boundary: **0.0**
+- structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
+- structure_quality: **0.3151**
+- gap_to_q35_boundary: **0.0349**
 - non_null_4h_feature_count: **10**
-- execution_guardrail_reason: `unsupported_exact_live_structure_bucket`
-- support rows/minimum/gap: **0 / 50 / 50**
+- execution_guardrail_reason: `under_minimum_exact_live_structure_bucket`
+- support rows/minimum/gap: **4 / 50 / 46**
 
 ## Exact live lane
 - rows: **1976**
 - bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q65': 569, 'CAUTION|base_caution_regime_or_bias|q15': 520, 'CAUTION|base_caution_regime_or_bias|q00': 370, 'CAUTION|base_caution_regime_or_bias|q85': 318, 'CAUTION|base_caution_regime_or_bias|q35': 199}`
 - dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** (569 rows)
-- near_boundary_window: `{'lower': 0.3715, 'upper': 0.35}`
-- near_boundary_rows: **0**
+- near_boundary_window: `{'lower': 0.3151, 'upper': 0.35}`
+- near_boundary_rows: **60**
 
 ## Decision
-- reason: 目前 live row 已高於 q35 boundary，問題改成 exact support 累積，不是 bucket repair。
-- candidate_patch: `{'type': 'support_accumulation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.6414, 'current_normalized': 0.6414, 'needed_raw_delta_to_cross_q35': 0.0, 'target_bucket_p25': 0.7095, 'target_bucket_median': 0.7512, 'needed_raw_delta_to_target_p25': 0.0681, 'needed_raw_delta_to_target_median': 0.1098}`
-- verify_next: 確認 current_live_structure_bucket_rows 是否增加到 minimum_support_rows。
+- reason: current-live q15 bucket exact support 目前為 4/50，低於 minimum；這是 current exact support under minimum，不是 boundary candidate。
+- candidate_patch: `{}`
+- verify_next: 維持 minimum_support_rows=50 與 current-live guardrail，累積同 support_identity 的 exact rows；若只有 legacy / different semantic signature 支撐，文案必須標成 semantic rebaseline reference。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.6414 / norm=0.6414 / Δto_cross_q35=0.0 / target_p25=0.7095 / target_median=0.7512
-- `feat_4h_dist_bb_lower`: current=1.5011 / norm=0.1876 / Δto_cross_q35=0.0 / target_p25=4.184 / target_median=5.7431
-- `feat_4h_dist_swing_low`: current=2.774 / norm=0.2774 / Δto_cross_q35=0.0 / target_p25=8.0728 / target_median=9.1024
+- `feat_4h_bb_pct_b`: current=0.5333 / norm=0.5333 / Δto_cross_q35=0.1026 / target_p25=0.7095 / target_median=0.7512
+- `feat_4h_dist_bb_lower`: current=1.2642 / norm=0.158 / Δto_cross_q35=0.8461 / target_p25=4.184 / target_median=5.7431
+- `feat_4h_dist_swing_low`: current=2.4735 / norm=0.2474 / Δto_cross_q35=1.0576 / target_p25=8.0728 / target_median=9.1024
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。

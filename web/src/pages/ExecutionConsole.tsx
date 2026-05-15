@@ -1632,21 +1632,29 @@ export default function ExecutionConsole() {
               <div>
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">啟用倉位腿</div>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {liveActiveSleeves.length > 0 ? liveActiveSleeves.map((item) => (
-                    <span key={item.key || item.label} title={item.why || undefined} className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-100">
-                      {item.label || item.key}
-                    </span>
-                  )) : <span className="text-sm text-slate-400">目前沒有啟用倉位腿</span>}
+                  {liveActiveSleeves.length > 0 ? liveActiveSleeves.map((item) => {
+                    const sleeveLabel = humanizeRuntimeDetailText(item.label || item.key || null);
+                    const sleeveReason = item.why ? humanizeRuntimeDetailText(item.why) : undefined;
+                    return (
+                      <span key={item.key || item.label} title={sleeveReason} className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-100">
+                        {sleeveLabel}
+                      </span>
+                    );
+                  }) : <span className="text-sm text-slate-400">目前沒有啟用倉位腿</span>}
                 </div>
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">待命倉位腿</div>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {liveInactiveSleeves.length > 0 ? liveInactiveSleeves.map((item) => (
-                    <span key={item.key || item.label} title={item.why || undefined} className="rounded-full border border-rose-500/25 bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-100">
-                      {item.label || item.key}
-                    </span>
-                  )) : <span className="text-sm text-slate-400">目前沒有待命倉位腿</span>}
+                  {liveInactiveSleeves.length > 0 ? liveInactiveSleeves.map((item) => {
+                    const sleeveLabel = humanizeRuntimeDetailText(item.label || item.key || null);
+                    const sleeveReason = item.why ? humanizeRuntimeDetailText(item.why) : undefined;
+                    return (
+                      <span key={item.key || item.label} title={sleeveReason} className="rounded-full border border-rose-500/25 bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-100">
+                        {sleeveLabel}
+                      </span>
+                    );
+                  }) : <span className="text-sm text-slate-400">目前沒有待命倉位腿</span>}
                 </div>
               </div>
             </div>

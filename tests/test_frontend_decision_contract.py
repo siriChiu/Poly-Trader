@@ -456,6 +456,23 @@ def test_execution_console_humanizes_sleeve_terms_and_run_action_copy():
     assert '"run 進行中"' not in runtime_copy_source
 
 
+def test_execution_surfaces_humanize_live_sleeve_routing_chips_and_tooltips():
+    console_source = _read("pages/ExecutionConsole.tsx")
+    status_source = _read("pages/ExecutionStatus.tsx")
+
+    required_snippets = [
+        'const sleeveLabel = humanizeRuntimeDetailText(item.label || item.key || null);',
+        'const sleeveReason = item.why ? humanizeRuntimeDetailText(item.why) : undefined;',
+        'title={sleeveReason}',
+        '{sleeveLabel}',
+    ]
+    for source in (console_source, status_source):
+        for snippet in required_snippets:
+            assert snippet in source
+        assert 'title={item.why || undefined}' not in source
+        assert '{item.label || item.key}' not in source
+
+
 def test_strategy_lab_humanizes_sleeve_filter_copy():
     strategy_lab_source = _read("pages/StrategyLab.tsx")
 
