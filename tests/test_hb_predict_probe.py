@@ -151,6 +151,83 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
     assert json.loads(out_path.read_text()) == payload
 
 
+def test_build_probe_payload_marks_q15_component_discrimination_as_not_deployment_ready():
+    q15_support_audit = {
+        "support_route": {
+            "verdict": "exact_bucket_supported",
+            "deployable": True,
+            "support_governance_route": "exact_live_bucket_supported",
+            "support_progress": {
+                "status": "exact_supported",
+                "current_rows": 173,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 0,
+            },
+        },
+        "floor_cross_legality": {
+            "verdict": "legal_component_experiment_after_support_ready",
+            "legal_to_relax_runtime_gate": True,
+            "best_single_component": "feat_4h_bias50",
+            "remaining_gap_to_floor": 0.0589,
+        },
+        "component_experiment": {
+            "verdict": "exact_supported_component_experiment_blocked_by_discrimination",
+            "reason": "exact support 已達標，但 sibling buckets 未保留正向 discrimination。",
+            "machine_read_answer": {
+                "support_ready": True,
+                "entry_quality_ge_0_55": True,
+                "allowed_layers_gt_0": False,
+                "preserves_positive_discrimination": False,
+                "preserves_positive_discrimination_status": "failed_exact_lane_bucket_dominance",
+            },
+            "verify_next": "先重設 / 重訓 q15 component，再談 allowed_layers / execution guardrail 放行。",
+        },
+    }
+    payload = hb_predict_probe._build_probe_payload(
+        latest={"timestamp": "2026-05-15T11:02:28+00:00", "regime_label": "chop"},
+        result={
+            "target_col": "simulated_pyramid_win",
+            "used_model": "regime_chop_ensemble",
+            "model_type": "RegimeAwarePredictor",
+            "signal": "HOLD",
+            "confidence": 0.49,
+            "regime_label": "chop",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "entry_quality": 0.4911,
+            "entry_quality_label": "D",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "allowed_layers_raw": 0,
+            "allowed_layers_raw_reason": "entry_quality_below_trade_floor",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "deployment_blocker_reason": "support 已 closure，但 live baseline 仍低於 trade floor",
+            "deployment_blocker_source": "decision_quality_contract+q15_support_audit",
+            "deployment_blocker_details": {},
+        },
+        target_col="simulated_pyramid_win",
+        used_model="regime_chop_ensemble",
+        current_live_structure_bucket="CAUTION|base_caution_regime_or_bias|q15",
+        current_live_structure_bucket_rows=173,
+        q15_support_audit=q15_support_audit,
+        four_h_non_null={},
+        lag_non_null={},
+    )
+
+    assert payload["legal_to_relax_runtime_gate"] is True
+    assert payload["component_experiment_verdict"] == "exact_supported_component_experiment_blocked_by_discrimination"
+    assert payload["component_experiment_deployment_ready"] is False
+    assert payload["component_experiment_preserves_positive_discrimination"] is False
+    assert payload["component_experiment_positive_discrimination_status"] == "failed_exact_lane_bucket_dominance"
+    assert payload["deployment_blocker_details"]["component_experiment_deployment_ready"] is False
+    assert payload["deployment_blocker_details"]["component_experiment_positive_discrimination_status"] == "failed_exact_lane_bucket_dominance"
+    assert payload["runtime_closure_state"] == "support_closed_but_trade_floor_blocked"
+    assert "只代表可做研究型元件實驗，不是執行放行" in payload["runtime_closure_summary"]
+
+
 def test_hb_predict_probe_falls_back_to_generic_support_progress_for_q35_blocker(monkeypatch, capsys, tmp_path):
     session = DummySession()
     out_path = tmp_path / "live_predict_probe.json"

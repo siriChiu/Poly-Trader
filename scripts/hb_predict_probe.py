@@ -507,10 +507,33 @@ def _build_probe_payload(
     support_progress = result.get("support_progress") if isinstance(result.get("support_progress"), dict) else {}
     floor_cross = q15_support_audit.get("floor_cross_legality") if isinstance((q15_support_audit or {}).get("floor_cross_legality"), dict) else {}
     component_experiment = q15_support_audit.get("component_experiment") if isinstance((q15_support_audit or {}).get("component_experiment"), dict) else {}
+    component_machine_answer = component_experiment.get("machine_read_answer") if isinstance(component_experiment.get("machine_read_answer"), dict) else {}
+    positive_discrimination_evidence = component_experiment.get("positive_discrimination_evidence") if isinstance(component_experiment.get("positive_discrimination_evidence"), dict) else {}
+    component_positive_status = (
+        component_machine_answer.get("preserves_positive_discrimination_status")
+        or positive_discrimination_evidence.get("status")
+    )
+    component_deployment_ready = bool(
+        component_experiment.get("verdict") == "exact_supported_component_experiment_ready"
+        and component_machine_answer.get("support_ready") is True
+        and component_machine_answer.get("entry_quality_ge_0_55") is True
+        and component_machine_answer.get("allowed_layers_gt_0") is True
+        and component_machine_answer.get("preserves_positive_discrimination") is True
+    )
     active_repair_plan = q15_support_audit.get("active_repair_plan") if isinstance((q15_support_audit or {}).get("active_repair_plan"), dict) else {}
     deployment_blocker_details = dict(result.get("deployment_blocker_details")) if isinstance(result.get("deployment_blocker_details"), dict) else {}
     if active_repair_plan:
         deployment_blocker_details["active_repair_plan"] = active_repair_plan
+    if component_experiment:
+        deployment_blocker_details["component_experiment"] = component_experiment
+        deployment_blocker_details["component_experiment_verdict"] = component_experiment.get("verdict")
+        deployment_blocker_details["component_experiment_deployment_ready"] = component_deployment_ready
+        if component_positive_status is not None:
+            deployment_blocker_details["component_experiment_positive_discrimination_status"] = component_positive_status
+        if component_machine_answer.get("preserves_positive_discrimination") is not None:
+            deployment_blocker_details["component_experiment_preserves_positive_discrimination"] = component_machine_answer.get("preserves_positive_discrimination")
+        if component_experiment.get("verify_next"):
+            deployment_blocker_details["component_experiment_verify_next"] = component_experiment.get("verify_next")
     if isinstance((q15_support_audit or {}).get("support_route"), dict):
         support_route = q15_support_audit.get("support_route")
         if isinstance(support_route.get("support_progress"), dict):
@@ -580,6 +603,13 @@ def _build_probe_payload(
         runtime_result["support_route_deployable"] = support_route.get("deployable")
     if support_progress:
         runtime_result["support_progress"] = support_progress
+    if component_experiment:
+        runtime_result["component_experiment"] = component_experiment
+        runtime_result["component_experiment_verdict"] = component_experiment.get("verdict")
+        runtime_result["component_experiment_deployment_ready"] = component_deployment_ready
+        runtime_result["component_experiment_positive_discrimination_status"] = component_positive_status
+        runtime_result["component_experiment_preserves_positive_discrimination"] = component_machine_answer.get("preserves_positive_discrimination")
+        runtime_result["component_experiment_verify_next"] = component_experiment.get("verify_next")
     runtime_result["current_live_structure_bucket"] = current_live_structure_bucket
     runtime_result["current_live_structure_bucket_rows"] = current_live_structure_bucket_rows
     scope_pathology_summary = build_live_pathology_scope_surface(
@@ -778,6 +808,11 @@ def _build_probe_payload(
         "best_single_component": floor_cross.get("best_single_component"),
         "best_single_component_required_score_delta": floor_cross.get("best_single_component_required_score_delta"),
         "component_experiment_verdict": component_experiment.get("verdict"),
+        "component_experiment_deployment_ready": component_deployment_ready,
+        "component_experiment_positive_discrimination_status": component_positive_status,
+        "component_experiment_preserves_positive_discrimination": component_machine_answer.get("preserves_positive_discrimination"),
+        "component_experiment_verify_next": component_experiment.get("verify_next"),
+        "component_experiment_reason": component_experiment.get("reason"),
         "active_repair_plan": active_repair_plan or None,
         "runtime_closure_state": runtime_closure_state,
         "runtime_closure_summary": runtime_closure_summary,

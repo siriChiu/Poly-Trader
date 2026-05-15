@@ -928,6 +928,19 @@ def _enrich_confidence_with_q15_support_audit(result: Dict[str, Any]) -> Dict[st
     support_progress = audit_summary.get("support_progress") if isinstance(audit_summary.get("support_progress"), dict) else {}
     floor_cross = audit_summary.get("floor_cross_legality") if isinstance(audit_summary.get("floor_cross_legality"), dict) else {}
     component_experiment = audit_summary.get("component_experiment") if isinstance(audit_summary.get("component_experiment"), dict) else {}
+    component_machine_answer = component_experiment.get("machine_read_answer") if isinstance(component_experiment.get("machine_read_answer"), dict) else {}
+    positive_discrimination_evidence = component_experiment.get("positive_discrimination_evidence") if isinstance(component_experiment.get("positive_discrimination_evidence"), dict) else {}
+    component_positive_status = (
+        component_machine_answer.get("preserves_positive_discrimination_status")
+        or positive_discrimination_evidence.get("status")
+    )
+    component_deployment_ready = bool(
+        component_experiment.get("verdict") == "exact_supported_component_experiment_ready"
+        and component_machine_answer.get("support_ready") is True
+        and component_machine_answer.get("entry_quality_ge_0_55") is True
+        and component_machine_answer.get("allowed_layers_gt_0") is True
+        and component_machine_answer.get("preserves_positive_discrimination") is True
+    )
 
     details = dict(blocker_details)
     if support_progress:
@@ -949,6 +962,14 @@ def _enrich_confidence_with_q15_support_audit(result: Dict[str, Any]) -> Dict[st
         details["floor_cross_legality"] = floor_cross
     if component_experiment:
         details["component_experiment"] = component_experiment
+        details["component_experiment_verdict"] = component_experiment.get("verdict")
+        details["component_experiment_deployment_ready"] = component_deployment_ready
+        if component_positive_status is not None:
+            details["component_experiment_positive_discrimination_status"] = component_positive_status
+        if component_machine_answer.get("preserves_positive_discrimination") is not None:
+            details["component_experiment_preserves_positive_discrimination"] = component_machine_answer.get("preserves_positive_discrimination")
+        if component_experiment.get("verify_next"):
+            details["component_experiment_verify_next"] = component_experiment.get("verify_next")
 
     enriched["deployment_blocker_details"] = details
     enriched["q15_support_audit"] = audit_summary
@@ -966,6 +987,11 @@ def _enrich_confidence_with_q15_support_audit(result: Dict[str, Any]) -> Dict[st
     enriched["best_single_component"] = floor_cross.get("best_single_component")
     enriched["best_single_component_required_score_delta"] = floor_cross.get("best_single_component_required_score_delta")
     enriched["component_experiment_verdict"] = component_experiment.get("verdict")
+    enriched["component_experiment_deployment_ready"] = component_deployment_ready
+    enriched["component_experiment_positive_discrimination_status"] = component_positive_status
+    enriched["component_experiment_preserves_positive_discrimination"] = component_machine_answer.get("preserves_positive_discrimination")
+    enriched["component_experiment_verify_next"] = component_experiment.get("verify_next")
+    enriched["component_experiment_reason"] = component_experiment.get("reason")
     return enriched
 
 
@@ -1589,6 +1615,17 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "q35_discriminative_redesign_applied": payload.get("q35_discriminative_redesign_applied"),
         "q35_discriminative_redesign": payload.get("q35_discriminative_redesign"),
         "q15_exact_supported_component_patch_applied": patch_active,
+        "floor_cross_verdict": payload.get("floor_cross_verdict"),
+        "legal_to_relax_runtime_gate": payload.get("legal_to_relax_runtime_gate"),
+        "remaining_gap_to_floor": payload.get("remaining_gap_to_floor"),
+        "best_single_component": payload.get("best_single_component"),
+        "best_single_component_required_score_delta": payload.get("best_single_component_required_score_delta"),
+        "component_experiment_verdict": payload.get("component_experiment_verdict"),
+        "component_experiment_deployment_ready": payload.get("component_experiment_deployment_ready"),
+        "component_experiment_positive_discrimination_status": payload.get("component_experiment_positive_discrimination_status"),
+        "component_experiment_preserves_positive_discrimination": payload.get("component_experiment_preserves_positive_discrimination"),
+        "component_experiment_verify_next": payload.get("component_experiment_verify_next"),
+        "component_experiment_reason": payload.get("component_experiment_reason"),
         "support_route_verdict": payload.get("support_route_verdict"),
         "support_route_deployable": support_route_deployable,
         "support_governance_route": support_governance_route,

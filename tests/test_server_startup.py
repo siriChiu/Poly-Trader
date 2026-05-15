@@ -1054,6 +1054,79 @@ def test_load_q15_support_audit_summary_preserves_q35_current_support_progress(t
     assert summary["current_live_structure_bucket_gap_to_minimum"] == 22
 
 
+def test_enrich_confidence_with_q15_support_audit_exposes_discrimination_blocker(tmp_path, monkeypatch):
+    audit_path = tmp_path / "q15_support_audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-15 11:02:49.641870",
+                "scope_applicability": {
+                    "status": "current_live_q15_lane_active",
+                    "active_for_current_live_row": True,
+                    "current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                },
+                "current_live": {
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                    "entry_quality": 0.4911,
+                    "allowed_layers": 0,
+                },
+                "support_route": {
+                    "support_governance_route": "exact_live_bucket_supported",
+                    "verdict": "exact_bucket_supported",
+                    "deployable": True,
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 0,
+                    "support_progress": {
+                        "status": "exact_supported",
+                        "current_rows": 173,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 0,
+                    },
+                },
+                "floor_cross_legality": {
+                    "verdict": "legal_component_experiment_after_support_ready",
+                    "legal_to_relax_runtime_gate": True,
+                    "best_single_component": "feat_4h_bias50",
+                    "remaining_gap_to_floor": 0.0589,
+                },
+                "component_experiment": {
+                    "verdict": "exact_supported_component_experiment_blocked_by_discrimination",
+                    "reason": "exact support 已達標，但 current q15 bucket 對 sibling buckets 未保留正向 discrimination。",
+                    "machine_read_answer": {
+                        "support_ready": True,
+                        "entry_quality_ge_0_55": True,
+                        "allowed_layers_gt_0": False,
+                        "preserves_positive_discrimination": False,
+                        "preserves_positive_discrimination_status": "failed_exact_lane_bucket_dominance",
+                    },
+                    "verify_next": "先重設 / 重訓 q15 component。",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_Q15_SUPPORT_AUDIT_PATH", audit_path)
+
+    enriched = api_module._enrich_confidence_with_q15_support_audit(
+        {
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "deployment_blocker_details": {},
+        }
+    )
+
+    assert enriched["floor_cross_verdict"] == "legal_component_experiment_after_support_ready"
+    assert enriched["legal_to_relax_runtime_gate"] is True
+    assert enriched["component_experiment_verdict"] == "exact_supported_component_experiment_blocked_by_discrimination"
+    assert enriched["component_experiment_deployment_ready"] is False
+    assert enriched["component_experiment_positive_discrimination_status"] == "failed_exact_lane_bucket_dominance"
+    assert enriched["component_experiment_preserves_positive_discrimination"] is False
+    assert enriched["component_experiment_verify_next"] == "先重設 / 重訓 q15 component。"
+    assert enriched["deployment_blocker_details"]["component_experiment_deployment_ready"] is False
+    assert enriched["deployment_blocker_details"]["component_experiment_positive_discrimination_status"] == "failed_exact_lane_bucket_dominance"
+
+
 def test_enrich_confidence_with_q15_bucket_root_cause_surfaces_boundary_candidate(tmp_path, monkeypatch):
     report_path = tmp_path / "q15_bucket_root_cause.json"
     report_path.write_text(json.dumps({
@@ -1489,6 +1562,60 @@ def test_build_live_runtime_closure_surface_marks_exact_supported_q15_trade_floo
     assert payload["support_rows_text"] == "96 / 50"
     assert "已完成精準樣本閉環" in payload["runtime_closure_summary"]
     assert "不可把支持樣本閉環誤讀成部署閉環" in payload["runtime_closure_summary"]
+
+
+def test_build_live_runtime_closure_surface_marks_q15_component_discrimination_blocker_as_no_deploy():
+    payload = api_module._build_live_runtime_closure_surface(
+        {
+            "signal": "HOLD",
+            "regime_label": "chop",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "entry_quality": 0.4911,
+            "entry_quality_label": "D",
+            "entry_quality_components": {"trade_floor": 0.55},
+            "allowed_layers": 0,
+            "allowed_layers_raw": 0,
+            "allowed_layers_raw_reason": "entry_quality_below_trade_floor",
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+            "deployment_blocker": "decision_quality_below_trade_floor",
+            "deployment_blocker_reason": "support 已 closure，但 live baseline 仍低於 trade floor",
+            "deployment_blocker_source": "decision_quality_contract+q15_support_audit",
+            "deployment_blocker_details": {
+                "current_live_structure_bucket_rows": 173,
+                "minimum_support_rows": 50,
+                "component_experiment_positive_discrimination_status": "failed_exact_lane_bucket_dominance",
+                "component_experiment_deployment_ready": False,
+                "component_experiment_verify_next": "先重設 / 重訓 q15 component，使 current bucket 相對 sibling buckets 保留正向 discrimination，再談 allowed_layers / execution guardrail 放行。",
+            },
+            "support_route_verdict": "exact_bucket_supported",
+            "support_progress": {
+                "status": "exact_supported",
+                "current_rows": 173,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 0,
+            },
+            "floor_cross_verdict": "legal_component_experiment_after_support_ready",
+            "legal_to_relax_runtime_gate": True,
+            "component_experiment_verdict": "exact_supported_component_experiment_blocked_by_discrimination",
+            "component_experiment_deployment_ready": False,
+            "component_experiment_positive_discrimination_status": "failed_exact_lane_bucket_dominance",
+            "component_experiment_preserves_positive_discrimination": False,
+            "component_experiment_verify_next": "先重設 / 重訓 q15 component，使 current bucket 相對 sibling buckets 保留正向 discrimination，再談 allowed_layers / execution guardrail 放行。",
+        }
+    )
+
+    assert payload["runtime_closure_state"] == "support_closed_but_trade_floor_blocked"
+    assert payload["allowed_layers"] == 0
+    assert payload["component_experiment_deployment_ready"] is False
+    assert payload["component_experiment_verdict"] == "exact_supported_component_experiment_blocked_by_discrimination"
+    assert payload["component_experiment_positive_discrimination_status"] == "failed_exact_lane_bucket_dominance"
+    assert "只代表可做研究型元件實驗，不是執行放行" in payload["runtime_closure_summary"]
+    assert "正向辨別力阻塞" in payload["runtime_closure_summary"]
+    assert "不可放寬 allowed_layers / execution guardrail" in payload["runtime_closure_summary"]
+    assert "同路徑鄰近分桶表現不劣於當前分桶" in payload["runtime_closure_summary"]
 
 
 def test_build_live_runtime_closure_surface_keeps_q15_patch_active_execution_blocked_state():

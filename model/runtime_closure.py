@@ -103,6 +103,14 @@ def build_runtime_closure_summary(
     if blocker == "decision_quality_below_trade_floor" and support_route_verdict == "exact_bucket_supported" and not patch_name:
         trade_floor = _trade_floor(result)
         component_verdict = result.get("component_experiment_verdict")
+        component = _component_experiment(result)
+        machine_answer = component.get("machine_read_answer") if isinstance(component.get("machine_read_answer"), Mapping) else {}
+        positive_status = (
+            result.get("component_experiment_positive_discrimination_status")
+            or machine_answer.get("preserves_positive_discrimination_status")
+            or component.get("positive_discrimination_status")
+        )
+        verify_next = result.get("component_experiment_verify_next") or component.get("verify_next")
         entry_quality = _float_or_zero(result.get("entry_quality"))
         entry_label = result.get("entry_quality_label") or "—"
         summary = (
@@ -111,9 +119,24 @@ def build_runtime_closure_summary(
             + f"，但頂層即時基準仍停在進場品質={entry_quality:.4f} ({entry_label})"
             + (f" < 交易門檻 {trade_floor:.2f}" if trade_floor is not None else "")
             + "；目前維持明確不可部署治理。"
-            + (f" q15 審核的 {_humanize_runtime_text(component_verdict)} 只代表研究型元件實驗就緒，" if component_verdict else " ")
-            + "不可把支持樣本閉環誤讀成部署閉環。"
         )
+        if component_verdict == "exact_supported_component_experiment_blocked_by_discrimination":
+            summary += (
+                " q15 跨門檻結果只代表可做研究型元件實驗，不是執行放行；"
+                "元件實驗目前被正向辨別力阻塞"
+                + (f"（{_humanize_runtime_text(positive_status)}）" if positive_status else "")
+                + "，不可放寬 allowed_layers / execution guardrail。"
+            )
+            if verify_next:
+                verify_text = _humanize_runtime_text(verify_next).rstrip("。")
+                summary += f" 下一步={verify_text}。"
+        elif component_verdict:
+            summary += (
+                f" q15 審核的 {_humanize_runtime_text(component_verdict)} 只代表研究型元件實驗就緒，"
+                "不可把支持樣本閉環誤讀成部署閉環。"
+            )
+        else:
+            summary += " 不可把支持樣本閉環誤讀成部署閉環。"
         return _append_scope_summary(summary, scope_pathology_summary)
 
     if patch_name and result.get("signal") == "HOLD" and (_int_or_zero(result.get("allowed_layers")) > 0):
@@ -222,10 +245,16 @@ def _humanize_runtime_text(value: Any) -> str:
         ("broader / proxy rows", "較寬範圍 / 近似樣本"),
         ("reference_only_non_current_live_scope", "非目前即時範圍，僅供治理參考"),
         ("reference_only_until_exact_support_ready", "精準樣本就緒前僅供治理參考"),
-        ("non_current_live_scope", "非目前即時範圍"),
+        ("exact_supported_component_experiment_blocked_by_discrimination", "精準樣本元件實驗被正向辨別力阻塞，不可部署"),
+        ("exact_supported_component_experiment_ready", "精準樣本元件實驗就緒"),
+        ("legal_component_experiment_after_support_ready", "精準樣本就緒後可做研究型元件實驗"),
+        ("legal_to_relax_runtime_gate", "只允許研究型元件實驗，尚非執行放行"),
+        ("failed_exact_lane_bucket_dominance", "同路徑鄰近分桶表現不劣於當前分桶"),
+        ("preserves_positive_discrimination", "保留正向辨別力"),
+        ("positive discrimination", "正向辨別力"),
         ("reference-only", "僅供治理參考"),
         ("reference_only", "僅供治理參考"),
-        ("exact_supported_component_experiment_ready", "精準樣本元件實驗就緒"),
+        ("non_current_live_scope", "非目前即時範圍"),
         ("exact_live_bucket_present_but_below_minimum", "目前即時分桶精準樣本未達最小門檻"),
         ("exact_live_bucket_supported", "目前即時分桶精準樣本已就緒"),
         ("unsupported_exact_live_structure_bucket", "精準樣本尚未建立"),
@@ -282,6 +311,15 @@ def _humanize_runtime_text(value: Any) -> str:
         text = text.replace(old, new)
     return text
 
+
+
+def _component_experiment(result: Mapping[str, Any]) -> Mapping[str, Any]:
+    direct = result.get("component_experiment")
+    if isinstance(direct, Mapping):
+        return direct
+    details = result.get("deployment_blocker_details") if isinstance(result.get("deployment_blocker_details"), Mapping) else {}
+    nested = details.get("component_experiment") if isinstance(details.get("component_experiment"), Mapping) else {}
+    return nested
 
 
 def _support_route_verdict(result: Mapping[str, Any]) -> Any:

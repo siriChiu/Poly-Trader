@@ -158,13 +158,16 @@ const TRADE_REASON_LABEL_MAPPINGS: Array<[string, string]> = [
 
 const Q15_FLOOR_CROSS_VERDICT_LABEL_MAPPINGS: Array<[string, string]> = [
   ["math_cross_possible_but_illegal_without_exact_support", "數學上可跨交易門檻，但精準樣本尚未就緒"],
-  ["legal_to_relax_runtime_gate", "可合法放寬執行閘門"],
+  ["legal_to_relax_runtime_gate", "只允許研究型元件實驗，尚非執行放行"],
+  ["legal_component_experiment_after_support_ready", "精準樣本就緒後可做研究型元件實驗"],
   ["reference_only", "僅供治理參考"],
 ];
 
 const Q15_COMPONENT_EXPERIMENT_VERDICT_LABEL_MAPPINGS: Array<[string, string]> = [
   ["reference_only_until_exact_support_ready", "精準樣本就緒前僅供參考"],
   ["exact_supported_component_experiment_ready", "可進入精準樣本元件驗證"],
+  ["exact_supported_component_experiment_blocked_by_discrimination", "元件實驗被正向辨別力阻塞，不可部署"],
+  ["failed_exact_lane_bucket_dominance", "同路徑鄰近分桶表現不劣於當前分桶"],
   ["runtime_patch_no_material_improvement", "執行期修補方案無明顯改善"],
   ["not_applicable", "目前不適用"],
 ];

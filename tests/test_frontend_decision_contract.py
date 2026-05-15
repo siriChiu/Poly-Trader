@@ -747,9 +747,12 @@ def test_runtime_copy_humanizes_patch_profiles_embedded_blockers_and_verify_inst
         '["base_stack_redesign_floor_cross_requires_non_discriminative_reweight", "基礎堆疊重設需犧牲辨別力才可跨過交易門檻"]',
         '["entry_quality >= 0.55 and allowed_layers > 0 without q35 applicability / support / guardrail regression", "進場品質 >= 0.55，且允許層數 > 0，同時不得出現 q35 適用性 / 樣本支持 / 保護欄回歸"]',
         '["math_cross_possible_but_illegal_without_exact_support", "數學上可跨交易門檻，但精準樣本尚未就緒"]',
-        '["legal_to_relax_runtime_gate", "可合法放寬執行閘門"]',
+        '["legal_to_relax_runtime_gate", "只允許研究型元件實驗，尚非執行放行"]',
+        '["legal_component_experiment_after_support_ready", "精準樣本就緒後可做研究型元件實驗"]',
         '["reference_only_until_exact_support_ready", "精準樣本就緒前僅供參考"]',
         '["exact_supported_component_experiment_ready", "可進入精準樣本元件驗證"]',
+        '["exact_supported_component_experiment_blocked_by_discrimination", "元件實驗被正向辨別力阻塞，不可部署"]',
+        '["failed_exact_lane_bucket_dominance", "同路徑鄰近分桶表現不劣於當前分桶"]',
         '["runtime_patch_no_material_improvement", "執行期修補方案無明顯改善"]',
         '["q15/q35 boundary", "q15/q35 邊界"]',
         '["hb_predict_probe.py", "即時推論探針"]',
@@ -776,6 +779,7 @@ def test_runtime_copy_humanizes_patch_profiles_embedded_blockers_and_verify_inst
     ]
     for snippet in required_runtime_copy_snippets:
         assert snippet in runtime_copy
+    assert '["legal_to_relax_runtime_gate", "可合法放寬執行閘門"]' not in runtime_copy
 
     required_lab_snippets = [
         'if (source === "feature_group_ablation.recommended_profile") return "全域收縮勝出配置";',

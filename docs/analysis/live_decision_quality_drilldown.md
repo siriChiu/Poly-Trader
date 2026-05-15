@@ -1,19 +1,19 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-15 10:24:25.300832**
+- feature_timestamp: **2026-05-15 11:35:32.487744**
 - target: `simulated_pyramid_win`
 - live path: **chop / CAUTION / D**
-- signal: **HOLD** @ confidence **0.3386**
+- signal: **HOLD** @ confidence **0.3633**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: `entry_quality_below_trade_floor`
 - allowed_layers_reason: `decision_quality_below_trade_floor`
 - execution_guardrail_reason: `decision_quality_below_trade_floor`
 - runtime_blocker: `None` | reason: `None`
-- deployment_blocker: `decision_quality_below_trade_floor` | reason: `當前即時結構分桶 `CAUTION|base_caution_regime_or_bias|q15` 已完成精準樣本閉環（173/50），但頂層即時基準仍停在進場品質=0.5138，低於交易門檻 0.55；目前只能維持明確不可部署治理，不可把支持樣本閉環或元件實驗就緒誤讀成部署閉環。`
+- deployment_blocker: `decision_quality_below_trade_floor` | reason: `當前即時結構分桶 `CAUTION|base_caution_regime_or_bias|q15` 已完成精準樣本閉環（173/50），但頂層即時基準仍停在進場品質=0.5116，低於交易門檻 0.55；目前只能維持明確不可部署治理，不可把支持樣本閉環或元件實驗就緒誤讀成部署閉環。`
 - support blocker summary: **精準樣本 173/50（缺口 0） 已達可部署樣本門檻；是否放行仍以即時部署阻塞與執行層數為準。 語義重訂後仍未達門檻；舊版 #1188 95/50僅能當歷史參考，因校準視窗不吻合目前支持語義，不可宣稱同一語義已閉環。**
 - support next action: 不要把樣本達標誤讀成部署已放行；繼續檢查執行層數、訊號與場館證據。 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。
 - q15 精準樣本修補: **未啟用** | 支持路徑 `exact_bucket_supported` | 跨越門檻 `legal_component_experiment_after_support_ready`
-- runtime closure summary: **當前即時分桶 CAUTION|base_caution_regime_or_bias|q15 已完成精準樣本閉環（173/50），但頂層即時基準仍停在進場品質=0.5138 (D) < 交易門檻 0.55；目前維持明確不可部署治理。 不可把支持樣本閉環誤讀成部署閉環。 精準路徑與外溢對照：同品質寬範圍出現 牛市|阻塞 外溢，380 筆 / 勝率 20.2% / 品質 -0.058，明顯劣於 精準即時路徑 勝率 59.1% / 品質 0.224。**
+- runtime closure summary: **當前即時分桶 CAUTION|base_caution_regime_or_bias|q15 已完成精準樣本閉環（173/50），但頂層即時基準仍停在進場品質=0.5116 (D) < 交易門檻 0.55；目前維持明確不可部署治理。 q15 跨門檻結果只代表可做研究型元件實驗，不是執行放行；元件實驗目前被正向辨別力阻塞（同路徑鄰近分桶表現不劣於當前分桶），不可放寬 allowed_layers / execution guardrail。 下一步=先重設 / 重訓 q15 component，使 current bucket 相對 sibling buckets 保留正向 discrimination，再談 allowed_layers / 執行 保護欄 放行。。 精準路徑與外溢對照：同品質寬範圍出現 牛市|阻塞 外溢，378 筆 / 勝率 20.2% / 品質 -0.058，明顯劣於 精準即時路徑 勝率 59.1% / 品質 0.224。**
 - q35 scaling audit: overall=`None` / redesign=`None` / runtime_gap=`None` / mode=`None` / next_patch=`None`
 - q35 runtime truth: redesign_entry_quality=`None` / redesign_layers_after=`None` / runtime_layers=`None` / blocker=`None` / exact_support=`None/None` / support_gap=`None`
 - q35 audit action: None
@@ -25,18 +25,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5138** / trade_floor **0.55** / gap **-0.0362**
-- base_quality: **0.6025** × weight **0.75**
-- structure_quality: **0.2479** × weight **0.25**
-- base components: feat_4h_bias50=0.4943 (w=0.4, contrib=0.1977), feat_nose=0.584 (w=0.18, contrib=0.1051), feat_pulse=0.5891 (w=0.27, contrib=0.1591), feat_ear=0.9371 (w=0.15, contrib=0.1406)
-- structure components: feat_4h_bb_pct_b=0.4 (w=0.34, contrib=0.136), feat_4h_dist_bb_lower=0.1177 (w=0.33, contrib=0.0389), feat_4h_dist_swing_low=0.2212 (w=0.33, contrib=0.073)
+- final entry_quality: **0.5116** / trade_floor **0.55** / gap **-0.0384**
+- base_quality: **0.5918** × weight **0.75**
+- structure_quality: **0.2709** × weight **0.25**
+- base components: feat_4h_bias50=0.4699 (w=0.4, contrib=0.188), feat_nose=0.3448 (w=0.18, contrib=0.0621), feat_pulse=0.7255 (w=0.27, contrib=0.1959), feat_ear=0.9724 (w=0.15, contrib=0.1459)
+- structure components: feat_4h_bb_pct_b=0.4435 (w=0.34, contrib=0.1508), feat_4h_dist_bb_lower=0.1307 (w=0.33, contrib=0.0431), feat_4h_dist_swing_low=0.2334 (w=0.33, contrib=0.077)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0362**
-- base_group_max_entry_gain: **0.2982** | structure_group_max_entry_gain: **0.1881**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.1207, max_gain≈0.1517）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.1207), feat_pulse (Δscore≈0.1788), feat_nose (Δscore≈0.2681), feat_4h_bb_pct_b (Δscore≈0.4259)
+- remaining_gap_to_floor: **0.0384**
+- base_group_max_entry_gain: **0.3062** | structure_group_max_entry_gain: **0.1822**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.128, max_gain≈0.159）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.128), feat_pulse (Δscore≈0.1896), feat_nose (Δscore≈0.2844), feat_4h_bb_pct_b (Δscore≈0.4518)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
