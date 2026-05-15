@@ -1749,7 +1749,8 @@ def test_build_live_runtime_closure_surface_describes_exact_support_blocker_with
     )
 
     assert payload["runtime_closure_state"] == "patch_inactive_or_blocked"
-    assert "當前即時分桶 CAUTION|base_caution_regime_or_bias|q35" in payload["runtime_closure_summary"]
+    assert "當前即時分桶 觀察｜基線觀察（市場狀態 / 偏離）｜q35" in payload["runtime_closure_summary"]
+    assert "CAUTION|base_caution_regime_or_bias|q35" not in payload["runtime_closure_summary"]
     assert "0/50" in payload["runtime_closure_summary"]
     assert "精準樣本" in payload["runtime_closure_summary"]
     assert "僅供治理參考" in payload["runtime_closure_summary"]
@@ -2576,7 +2577,8 @@ def test_build_live_runtime_closure_surface_exposes_exact_vs_spillover_summary(m
     assert scope_summary["exact_live_lane"]["rows"] == 104
     assert "bull|ALLOW" in scope_summary["summary"]
     assert "精準路徑與外溢對照" in result["runtime_closure_summary"]
-    assert "牛市|允許" in result["runtime_closure_summary"]
+    assert "牛市｜放行" in result["runtime_closure_summary"]
+    assert "bull|ALLOW" not in result["runtime_closure_summary"]
 
 
 def test_build_live_runtime_closure_surface_surfaces_bull_caution_patch_summary(monkeypatch, tmp_path):

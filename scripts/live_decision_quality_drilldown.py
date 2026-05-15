@@ -642,6 +642,10 @@ def main() -> None:
     runtime_blocker = _runtime_blocker_summary(payload)
     deployment_blocker = _deployment_blocker_summary(payload)
     support_blocker = _support_blocker_summary(payload, deployment_blocker)
+    blocker_details = payload.get("deployment_blocker_details") if isinstance(payload.get("deployment_blocker_details"), dict) else {}
+    support_progress = payload.get("support_progress") or blocker_details.get("support_progress")
+    if not isinstance(support_progress, dict):
+        support_progress = None
 
     chosen_scope = str(payload.get("decision_quality_calibration_scope") or "unknown")
     exact_scope_name = "regime_label+regime_gate+entry_quality_label"
@@ -677,6 +681,38 @@ def main() -> None:
         "runtime_blocker": runtime_blocker,
         "deployment_blocker": deployment_blocker,
         "support_blocker_summary": support_blocker,
+        # Promote the current-live exact-support contract to top-level fields so
+        # API probes, docs sync, and operator surfaces do not have to infer the
+        # deployment blocker by digging through nested summaries.
+        "current_live_structure_bucket": _first_present(
+            payload.get("current_live_structure_bucket"),
+            (support_blocker or {}).get("current_live_structure_bucket"),
+        ),
+        "current_live_structure_bucket_rows": _first_present(
+            payload.get("current_live_structure_bucket_rows"),
+            (support_blocker or {}).get("current_live_structure_bucket_rows"),
+        ),
+        "exact_live_structure_bucket_rows": _first_present(
+            payload.get("exact_live_structure_bucket_rows"),
+            (support_blocker or {}).get("exact_live_structure_bucket_rows"),
+        ),
+        "minimum_support_rows": _first_present(
+            payload.get("minimum_support_rows"),
+            (support_blocker or {}).get("minimum_support_rows"),
+        ),
+        "current_live_structure_bucket_gap_to_minimum": _first_present(
+            payload.get("current_live_structure_bucket_gap_to_minimum"),
+            (support_blocker or {}).get("gap_to_minimum"),
+        ),
+        "support_governance_route": _first_present(
+            payload.get("support_governance_route"),
+            (support_blocker or {}).get("support_governance_route"),
+        ),
+        "support_route_deployable": _first_present(
+            payload.get("support_route_deployable"),
+            (support_blocker or {}).get("support_route_deployable"),
+        ),
+        "support_progress": support_progress,
         "allowed_layers_raw": payload.get("allowed_layers_raw"),
         "allowed_layers_raw_reason": payload.get("allowed_layers_raw_reason"),
         "allowed_layers": payload.get("allowed_layers"),

@@ -568,6 +568,17 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
         "deployment_blocker_details": {
             "recent_window": {"window_size": 50, "wins": 0, "win_rate": 0.0, "floor": 0.3},
             "release_condition": {"required_recent_window_wins": 15, "additional_recent_window_wins_needed": 15},
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "support_route_deployable": False,
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
         },
         "allowed_layers_raw": 0,
         "allowed_layers_raw_reason": "regime_gate_block",
@@ -704,6 +715,14 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
     assert payload["recommended_patch"]["reference_patch_scope"] == "bull|CAUTION"
     assert payload["recommended_patch"]["reference_source"] == "bull_4h_pocket_ablation.bull_collapse_q35"
     assert payload["recommended_patch"]["spillover_regime_gate"] == "bull|BLOCK"
+    assert payload["current_live_structure_bucket"] == "BLOCK|bull_q15_bias50_overextended_block|q15"
+    assert payload["current_live_structure_bucket_rows"] == 0
+    assert payload["minimum_support_rows"] == 50
+    assert payload["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert payload["support_governance_route"] == "exact_live_lane_proxy_available"
+    assert payload["support_route_deployable"] is False
+    assert payload["support_progress"]["status"] == "stalled_under_minimum"
+    assert payload["support_progress"]["gap_to_minimum"] == 50
     assert "建議修補方案: **core_plus_macro**" in markdown
     assert "狀態：非目前即時範圍，僅供治理參考" in markdown
     assert "適用範圍 牛市｜觀察" in markdown
