@@ -25,6 +25,12 @@ RAW_RUNTIME_COPY_SNIPPETS = [
     "deployment-grade",
     "minimum support",
     "exact rows",
+    "support_route=",
+    "score=",
+    "舊 範圍",
+    "舊範圍 的",
+    "寬 範圍",
+    "寬範圍 出現",
     "guardrail",
 ]
 

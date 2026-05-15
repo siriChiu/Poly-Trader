@@ -81,6 +81,7 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
             "structure_bucket": "CAUTION|structure_quality_caution|q15",
             "entry_quality": 0.5621,
             "entry_quality_label": "C",
+            "decision_quality_score": 0.3265,
             "entry_quality_components": {
                 "trade_floor": 0.55,
                 "q35_discriminative_redesign": {
@@ -123,6 +124,10 @@ def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, ca
     assert payload["allowed_layers_raw_reason"] == "entry_quality_C_single_layer"
     assert payload["allowed_layers_reason"] == "under_minimum_exact_live_structure_bucket"
     assert payload["deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
+    assert "支持路徑=精準樣本未達最小門檻（exact_bucket_present_but_below_minimum）" in payload["deployment_blocker_reason"]
+    assert "品質分數 0.3265" in payload["deployment_blocker_reason"]
+    assert "support_route=" not in payload["deployment_blocker_reason"]
+    assert "score=" not in payload["deployment_blocker_reason"]
     assert payload["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
     assert payload["support_progress"]["status"] == "accumulating"
     assert payload["best_single_component"] == "feat_4h_bias50"

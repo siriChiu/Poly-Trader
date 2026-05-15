@@ -42,6 +42,18 @@ NO_DEPLOY_RUNTIME_CLOSURE_STATES = {
     "under_minimum_exact_live_structure_bucket",
 }
 API_TRADE_RISK_OFF_SIDES = ["reduce", "sell"]
+SUPPORT_ROUTE_OPERATOR_LABELS = {
+    "exact_bucket_supported": "精準樣本已就緒",
+    "exact_bucket_present_but_below_minimum": "精準樣本未達最小門檻",
+    "exact_bucket_unsupported_block": "精準樣本尚未建立",
+    "exact_bucket_missing_proxy_reference_only": "僅有近似樣本可作治理參考",
+    "exact_bucket_missing_exact_lane_proxy_only": "僅有精準路徑近似樣本可作治理參考",
+    "exact_live_bucket_supported": "目前即時分桶精準樣本已就緒",
+    "exact_live_bucket_present_but_below_minimum": "目前即時分桶精準樣本未達最小門檻",
+    "exact_live_bucket_proxy_available": "目前即時分桶僅有近似樣本可作治理參考",
+    "exact_live_lane_proxy_available": "目前即時路徑僅有近似樣本可作治理參考",
+    "no_support_proxy": "目前沒有可用近似樣本",
+}
 FOUR_H_COLS = [
     "feat_4h_bias50",
     "feat_4h_bias20",
@@ -67,6 +79,13 @@ def _parse_isoish_timestamp(value) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed
+
+
+
+def _support_route_operator_label(verdict: object) -> str:
+    if verdict is None:
+        return "精準支持路徑未知"
+    return SUPPORT_ROUTE_OPERATOR_LABELS.get(str(verdict), "精準支持路徑未知")
 
 
 
@@ -617,13 +636,18 @@ def _build_probe_payload(
             decision_quality_copy = f"；決策品質仍為 {decision_quality_label}"
             if decision_quality_score is not None:
                 try:
-                    decision_quality_copy += f" / score={float(decision_quality_score):.4f}"
+                    decision_quality_copy += f" / 品質分數 {float(decision_quality_score):.4f}"
                 except (TypeError, ValueError):
                     pass
+        support_route_verdict = support_route.get("verdict")
+        support_route_label = _support_route_operator_label(support_route_verdict)
+        support_route_copy = support_route_label
+        if support_route_verdict:
+            support_route_copy = f"{support_route_label}（{support_route_verdict}）"
         support_truth_reason = (
             f"當前即時結構分桶 `{current_live_structure_bucket}` 的精準支持樣本仍停在 "
             f"{progress_rows_value}/{progress_minimum_value}（缺 {progress_gap_value}），"
-            f"support_route={support_route.get('verdict') or 'unknown'}，不可把舊 scope 的支持閉環誤讀成部署閉環"
+            f"支持路徑={support_route_copy}，不可把舊 scope 的支持閉環誤讀成部署閉環"
             f"{decision_quality_copy}；目前維持不可部署治理。"
         )
         deployment_blocker_details["reason"] = support_truth_reason
