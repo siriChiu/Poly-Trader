@@ -1184,6 +1184,31 @@ def _component_experiment(
         "not_measured_requires_followup_verify",
     )
 
+    if preserves_positive_discrimination is False:
+        return {
+            "verdict": "exact_supported_component_experiment_blocked_by_discrimination",
+            "feature": feature,
+            "mode": experiment_mode,
+            "remaining_gap_to_floor": remaining_gap,
+            "required_score_delta_to_cross_floor": required_delta,
+            "bias50_floor_counterfactual": bias50_counterfactual if feature == "feat_4h_bias50" else None,
+            "reason": (
+                f"exact support 已達標，且 {feature} 在數學上可補足 floor gap；"
+                "但 current q15 bucket 對 sibling buckets 未保留正向 win/pnl/quality discrimination，"
+                "不得把 component experiment 標記為 deployment-ready。"
+            ),
+            "machine_read_answer": _component_experiment_answer(
+                support_ready=True,
+                entry_quality_ge_0_55=bool(entry_quality_ge_trade_floor),
+                allowed_layers_gt_0=False,
+                preserves_positive_discrimination=False,
+                preserves_positive_discrimination_status=preserves_positive_discrimination_status,
+                floor_context=floor_context,
+            ),
+            "positive_discrimination_evidence": positive_discrimination,
+            "verify_next": "先重設 / 重訓 q15 component，使 current bucket 相對 sibling buckets 保留正向 discrimination，再談 allowed_layers / execution guardrail 放行。",
+        }
+
     return {
         "verdict": "exact_supported_component_experiment_ready",
         "feature": feature,
@@ -1444,10 +1469,21 @@ def build_report(
         "在 support 未達標前，bias50 只能當 calibration research，不得解除 runtime blocker。"
     )
     if support_route.get("deployable") and floor_legality.get("legal_to_relax_runtime_gate"):
-        next_action = (
-            "exact support 已達標；下一輪可針對最佳 component 做保守 counterfactual 驗證，"
-            "並以 pytest + fast heartbeat 驗證 runtime guardrail 不回歸。"
-        )
+        experiment_answer = component_experiment.get("machine_read_answer") or {}
+        if (
+            component_experiment.get("verdict") == "exact_supported_component_experiment_blocked_by_discrimination"
+            or experiment_answer.get("preserves_positive_discrimination") is False
+        ):
+            next_action = (
+                "exact support 已達標，但最佳 component 目前未保留正向 discrimination；"
+                "先重設 / 重訓 q15 component 並重跑 q15 support audit / runtime guardrail，"
+                "再談 allowed_layers 或下單放行。"
+            )
+        else:
+            next_action = (
+                "exact support 已達標；下一輪可針對最佳 component 做保守 counterfactual 驗證，"
+                "並以 pytest + fast heartbeat 驗證 runtime guardrail 不回歸。"
+            )
     if not scope_applicability.get("active_for_current_live_row"):
         current_bucket = live_context.get("current_live_structure_bucket")
         target_bucket = scope_applicability.get("target_structure_bucket")

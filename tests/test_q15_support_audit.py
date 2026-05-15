@@ -998,6 +998,101 @@ def test_build_report_support_ready_exposes_component_experiment_machine_read_an
     assert report["active_repair_plan"]["live_exposure_allowed"] is False
 
 
+def test_build_report_blocks_supported_component_experiment_when_discrimination_fails():
+    probe = {
+        "feature_timestamp": "2026-05-15 10:01:33.614170",
+        "target_col": "simulated_pyramid_win",
+        "signal": "HOLD",
+        "regime_label": "chop",
+        "regime_gate": "CAUTION",
+        "entry_quality": 0.5422,
+        "entry_quality_label": "D",
+        "decision_quality_label": "D",
+        "decision_quality_calibration_window": 1000,
+        "allowed_layers": 0,
+        "allowed_layers_reason": "decision_quality_below_trade_floor",
+        "execution_guardrail_reason": "decision_quality_below_trade_floor",
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                "current_live_structure_bucket_rows": 173,
+                "current_live_structure_bucket_metrics": {
+                    "rows": 173,
+                    "win_rate": 0.6012,
+                    "avg_quality": 0.2097,
+                    "avg_pnl": 0.0018,
+                },
+                "exact_lane_bucket_diagnostics": {
+                    "buckets": {
+                        "CAUTION|base_caution_regime_or_bias|q15": {
+                            "rows": 173,
+                            "win_rate": 0.6012,
+                            "avg_quality": 0.2097,
+                            "avg_pnl": 0.0018,
+                        },
+                        "CAUTION|base_caution_regime_or_bias|q35": {
+                            "rows": 50,
+                            "win_rate": 0.78,
+                            "avg_quality": 0.4796,
+                            "avg_pnl": 0.0139,
+                        },
+                    }
+                },
+            }
+        },
+    }
+    drilldown = {
+        "component_gap_attribution": {
+            "trade_floor": 0.55,
+            "entry_quality": 0.5422,
+            "remaining_gap_to_floor": 0.0078,
+            "best_single_component": {
+                "feature": "feat_4h_bias50",
+                "required_score_delta_to_cross_floor": 0.026,
+                "can_single_component_cross_floor": True,
+            },
+            "bias50_floor_counterfactual": {
+                "entry_if_bias50_fully_relaxed": 0.5682,
+                "layers_if_bias50_fully_relaxed": 1,
+                "required_bias50_cap_for_floor": None,
+            },
+        }
+    }
+    bull_pocket = {
+        "target_col": "simulated_pyramid_win",
+        "support_pathology_summary": {
+            "minimum_support_rows": 50,
+            "exact_bucket_root_cause": "exact_bucket_supported",
+            "preferred_support_cohort": "exact_live_bucket",
+            "recommended_action": "support is closed; floor experiment still needs discrimination proof.",
+        },
+    }
+    leaderboard_probe = {
+        "alignment": {
+            "support_governance_route": "exact_live_bucket_supported",
+            "bull_exact_live_bucket_proxy_rows": 173,
+            "bull_exact_live_lane_proxy_rows": 860,
+            "bull_support_neighbor_rows": 0,
+        }
+    }
+
+    report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
+
+    assert report["support_route"]["verdict"] == "exact_bucket_supported"
+    assert report["floor_cross_legality"]["verdict"] == "legal_component_experiment_after_support_ready"
+    assert report["component_experiment"]["verdict"] == "exact_supported_component_experiment_blocked_by_discrimination"
+    machine_answer = report["component_experiment"]["machine_read_answer"]
+    assert machine_answer["support_ready"] is True
+    assert machine_answer["allowed_layers_gt_0"] is False
+    assert machine_answer["preserves_positive_discrimination"] is False
+    assert machine_answer["preserves_positive_discrimination_status"] == "failed_exact_lane_bucket_dominance"
+    assert report["component_experiment"]["positive_discrimination_evidence"]["comparisons"][0]["preserves_vs_bucket"] is False
+    assert report["active_repair_plan"]["component_verify_ready"] is False
+    assert "正向 discrimination" in report["next_action"]
+    assert "重設 / 重訓 q15 component" in report["next_action"]
+
+
+
 def test_build_report_separates_current_floor_cross_from_blocked_component_experiment():
     probe = {
         "feature_timestamp": "2026-04-29 15:01:29.844311",
