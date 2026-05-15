@@ -1219,15 +1219,15 @@ const featureProfileDisplayName = (model: ModelLeaderboardEntry) => humanizeRunt
 );
 const featureProfileSourceLabel = (model: ModelLeaderboardEntry) => {
   const source = model.selected_feature_profile_source || model.feature_profile_source || null;
-  if (source === "feature_group_ablation.recommended_profile") return "全域 shrinkage 勝出配置";
-  if (source === "bull_4h_pocket_ablation.exact_supported_profile") return "bull exact-supported 正式配置";
-  if (source === "bull_4h_pocket_ablation.support_aware_profile") return "support-aware 正式配置";
+  if (source === "feature_group_ablation.recommended_profile") return "全域收縮勝出配置";
+  if (source === "bull_4h_pocket_ablation.exact_supported_profile") return "牛市精準樣本正式配置";
+  if (source === "bull_4h_pocket_ablation.support_aware_profile") return "支援樣本感知正式配置";
   return humanizeRuntimeDetailText(source || "來源未提供");
 };
 const governanceRoleLabel = (role?: string | null) => {
-  if (role === "global_shrinkage_winner") return "全域 shrinkage 勝出配置";
-  if (role === "bull_exact_supported_production_profile") return "bull exact-supported 正式配置";
-  if (role === "support_aware_production_profile") return "support-aware 正式配置";
+  if (role === "global_shrinkage_winner") return "全域收縮勝出配置";
+  if (role === "bull_exact_supported_production_profile") return "牛市精準樣本正式配置";
+  if (role === "support_aware_production_profile") return "支援樣本感知正式配置";
   return humanizeRuntimeDetailText(role || "角色未提供");
 };
 const governanceSupportRows = (governance?: LeaderboardGovernanceSummary | null) => {

@@ -778,12 +778,12 @@ def test_runtime_copy_humanizes_patch_profiles_embedded_blockers_and_verify_inst
         assert snippet in runtime_copy
 
     required_lab_snippets = [
-        'if (source === "feature_group_ablation.recommended_profile") return "全域 shrinkage 勝出配置";',
-        'if (source === "bull_4h_pocket_ablation.exact_supported_profile") return "bull exact-supported 正式配置";',
-        'if (source === "bull_4h_pocket_ablation.support_aware_profile") return "support-aware 正式配置";',
-        'if (role === "global_shrinkage_winner") return "全域 shrinkage 勝出配置";',
-        'if (role === "bull_exact_supported_production_profile") return "bull exact-supported 正式配置";',
-        'if (role === "support_aware_production_profile") return "support-aware 正式配置";',
+        'if (source === "feature_group_ablation.recommended_profile") return "全域收縮勝出配置";',
+        'if (source === "bull_4h_pocket_ablation.exact_supported_profile") return "牛市精準樣本正式配置";',
+        'if (source === "bull_4h_pocket_ablation.support_aware_profile") return "支援樣本感知正式配置";',
+        'if (role === "global_shrinkage_winner") return "全域收縮勝出配置";',
+        'if (role === "bull_exact_supported_production_profile") return "牛市精準樣本正式配置";',
+        'if (role === "support_aware_production_profile") return "支援樣本感知正式配置";',
         '候選修補方案 {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}',
         'const currentBucketRootCauseDrilldownLabel = currentBucketRootCauseIsQ35',
         '交易門檻缺口 ${formatDecimal(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考',
@@ -1539,10 +1539,13 @@ def test_high_conviction_gate_failure_tokens_have_operator_copy():
         '["deployment_blocker_active", "部署阻塞點仍啟動"]',
         '["breaker_release_not_ready", "熔斷解除條件未滿足"]',
         '["runtime_blocked_oos_pass", "離線門檻已過，執行期仍阻塞"]',
+        '["not_deployable", "不可部署"]',
+        '["deployable", "可部署"]',
     ]
 
     for snippet in required_gate_copy:
         assert snippet in runtime_copy
+    assert runtime_copy.index('["not_deployable", "不可部署"]') < runtime_copy.index('["deployable", "可部署"]')
 
 
 def test_signal_banner_keeps_reduce_path_available_when_add_exposure_blocked():
@@ -2495,7 +2498,7 @@ def test_runtime_copy_humanizes_supported_routes_and_structure_buckets():
     required_snippets = [
         '["exact_live_bucket_supported", "精準樣本已就緒"]',
         '["exact_supported", "精準樣本已就緒"]',
-        '["top-level live baseline", "頂層 live 基準"]',
+        '["top-level live baseline", "頂層即時基準"]',
         '["entry_quality", "進場分數"]',
         '["bull_q15_bias50_overextended_block", "牛市 q15 bias50 過熱阻塞"]',
         '["base_caution_regime_or_bias", "基線觀察（市場狀態 / 偏離）"]',
