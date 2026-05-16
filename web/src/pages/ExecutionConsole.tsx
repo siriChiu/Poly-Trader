@@ -1000,9 +1000,9 @@ export default function ExecutionConsole() {
   const manualBuyBlocked = runtimeStatusPending || hasBlockedState;
   const automationEnableBlocked = runtimeStatusPending || (hasBlockedState && !automationEnabled);
   const manualBuyBlockedMessage = runtimeStatusPending
-    ? "正在同步 /api/status：買入與啟用自動模式暫停；減碼 / 查看阻塞原因仍可使用。"
+    ? "正在同步 /api/status：買入與啟用自動模式暫停；減碼 / 賣出風險降低路徑 / 查看阻塞原因仍可使用。"
     : manualBuyBlocked
-      ? "目前即時阻塞點啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。"
+      ? "目前即時阻塞點啟動中：買入指令暫停；減碼 / 賣出風險降低路徑 / 模式切換 / 查看阻塞原因仍可使用。"
       : null;
   const operatorShortcutBlockedMessage = manualBuyBlockedMessage;
   const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
@@ -1112,7 +1112,7 @@ export default function ExecutionConsole() {
     if (side === "buy" && manualBuyBlocked) {
       setOperatorActionState({
         tone: "error",
-        message: manualBuyBlockedMessage || "目前即時阻塞點啟動中：買入指令暫停；減碼 / 模式切換 / 查看阻塞原因仍可使用。",
+        message: manualBuyBlockedMessage || "目前即時阻塞點啟動中：買入指令暫停；減碼 / 賣出風險降低路徑 / 模式切換 / 查看阻塞原因仍可使用。",
       });
       return;
     }
