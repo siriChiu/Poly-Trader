@@ -106,6 +106,44 @@ def test_compact_circuit_breaker_projects_release_math_without_rows():
     assert "rows" not in compact["aligned_scope"]
 
 
+def test_compact_circuit_breaker_explains_canonical_active_release_gap():
+    audit = {
+        "heartbeat": "1275",
+        "target_col": "simulated_pyramid_win",
+        "trigger_thresholds": {"horizon_minutes": 1440},
+        "aligned_scope": {
+            "triggered": True,
+            "triggered_by": ["recent_win_rate"],
+            "release_ready": False,
+            "release_condition": {
+                "current_streak": 48,
+                "streak_must_be_below": 50,
+                "recent_window": 50,
+                "current_recent_window_win_rate": 0.04,
+                "current_recent_window_wins": 2,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 13,
+            },
+            "tail_pathology": {
+                "wins_in_recent_window": 2,
+                "losses_in_recent_window": 48,
+                "loss_share": 0.96,
+                "examples": [{"target": 0}] * 3,
+            },
+        },
+        "root_cause": {"verdict": "canonical_breaker_active"},
+    }
+
+    compact = hb_facts.compact_circuit_breaker_audit({}, audit)
+
+    assert compact["verdict"] == "canonical_breaker_active"
+    assert compact["aligned_scope"]["current_recent_window_wins"] == 2
+    assert compact["aligned_scope"]["additional_recent_window_wins_needed"] == 13
+    assert "最近 50 筆目前 2/15 勝，還差 13 勝" in compact["operator_guardrail_summary"]
+    assert "維持 fail-closed" in compact["operator_guardrail_summary"]
+    assert "examples" not in compact["aligned_scope"]
+
+
 def test_build_runtime_facts_uses_summary_counts_and_reference_only_patch():
     facts = hb_facts.build_runtime_facts(
         probe={

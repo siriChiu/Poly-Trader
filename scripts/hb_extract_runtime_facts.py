@@ -184,11 +184,24 @@ def _compact_circuit_scope(scope: dict[str, Any]) -> dict[str, Any]:
 
 
 def _circuit_operator_summary(verdict: Any, aligned_scope: dict[str, Any]) -> str | None:
+    needed = aligned_scope.get("additional_recent_window_wins_needed")
+    wins = aligned_scope.get("current_recent_window_wins")
+    required = aligned_scope.get("required_recent_window_wins")
+    window = aligned_scope.get("recent_window")
+    release_ready = aligned_scope.get("release_ready")
+    if verdict == "canonical_breaker_active":
+        if needed is not None and wins is not None and required is not None and window is not None:
+            return (
+                "熔斷審計：canonical 1440m 仍是即時部署阻塞；"
+                f"最近 {window} 筆目前 {wins}/{required} 勝，還差 {needed} 勝；維持 fail-closed。"
+            )
+        if release_ready is False:
+            return "熔斷審計：canonical 1440m 尚未達解除條件；維持 fail-closed。"
+        return None
     if verdict != "mixed_horizon_false_positive":
         return None
-    if aligned_scope.get("release_ready") is True:
+    if release_ready is True:
         return "熔斷審計：混合 horizon 訊號屬 false positive；canonical 1440m 解除條件已達標，但不可因此繞過目前即時精準支持阻塞。"
-    needed = aligned_scope.get("additional_recent_window_wins_needed")
     if needed is not None:
         return f"熔斷審計：canonical 1440m 尚未達解除條件，recent window 還差 {needed} 筆勝樣本；維持 fail-closed。"
     return "熔斷審計：canonical 1440m 尚未確認解除；維持 fail-closed。"
