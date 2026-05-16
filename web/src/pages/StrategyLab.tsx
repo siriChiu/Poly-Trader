@@ -1111,7 +1111,7 @@ const formatHighConvictionSupportProgressLabel = (
   const stagnantText = isFiniteNumber(stagnantRunCount) ? `（連續 ${formatDecimal(stagnantRunCount, 0)} 輪）` : "";
   const deltaText = isFiniteNumber(deltaVsPrevious) ? ` · 本輪新增 ${formatDecimal(deltaVsPrevious, 0)} 筆` : "";
   if (isStalled) return `支持累積停滯${stagnantText}${deltaText}`;
-  if (normalizedStatus) return `支持累積狀態 ${humanizeRuntimeDetailText(normalizedStatus)}${deltaText}`;
+  if (normalizedStatus) return `支持累積狀態 ${humanizeSupportProgressStatusLabel(normalizedStatus)}${deltaText}`;
   return deltaText ? `支持累積${deltaText}` : "支持累積等待最新同步";
 };
 const deltaTone = (value: number | null | undefined, preferLower = false) => {

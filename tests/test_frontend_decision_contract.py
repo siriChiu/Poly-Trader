@@ -1556,6 +1556,7 @@ def test_strategy_lab_surfaces_high_conviction_topk_gate_contract():
         'const formatHighConvictionRowSupportRowsLabel = (row: HighConvictionTopKRow) => {',
         'const formatHighConvictionSupportProgressLabel = (',
         '支持累積停滯',
+        '支持累積狀態 ${humanizeSupportProgressStatusLabel(normalizedStatus)}${deltaText}',
         'const formatHighConvictionRuntimeSignalLabel = (value?: string | null) => {',
         'HOLD: "先觀望",',
         'CIRCUIT_BREAKER: "風控熔斷中",',
