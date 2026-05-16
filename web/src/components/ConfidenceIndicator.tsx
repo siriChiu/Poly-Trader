@@ -228,8 +228,16 @@ export default function ConfidenceIndicator({
     : null;
   const supportStalledAccumulation = Boolean(supportProgress?.stalled_support_accumulation)
     || supportStatus === "stalled_under_minimum";
+  const supportRegressedUnderMinimum = supportStatus === "regressed_under_minimum"
+    || Boolean(supportProgress?.regressed_from_supported)
+    || (typeof supportProgress?.delta_vs_previous === "number"
+      && supportProgress.delta_vs_previous < 0
+      && typeof supportRows === "number"
+      && typeof supportMinimum === "number"
+      && supportRows < supportMinimum);
+  const supportProgressNeedsAttention = supportStalledAccumulation || supportRegressedUnderMinimum;
   const supportEscalatesToBlocker = Boolean(supportProgress?.escalate_to_blocker)
-    || Boolean(supportStalledAccumulation && deploymentBlocker);
+    || Boolean(supportProgressNeedsAttention && deploymentBlocker);
   const supportProgressReasonLabel = supportProgress?.reason
     ? humanizeRuntimeDetailText(supportProgress.reason)
     : null;
@@ -278,6 +286,16 @@ export default function ConfidenceIndicator({
   const supportStallOperatorAction = q35ScalingAuditApplicable
     ? "q35 分數重設 / 基礎堆疊重設仍是分數層治理參考；下一步必須先補齊當前 q35 分桶精準支持樣本，不能用僅分數改善結論替代部署條件。"
     : "下一步必須先補齊當前分桶精準支持樣本或修復資料累積路徑；不要把近似樣本、舊分桶或元件實驗誤當成部署閉環。";
+  const supportRegressionOperatorAction = "下一步必須確認當前分桶 / 支持產物是否切換或退化，並補回同一語義的精準支持樣本；不得把舊分桶或近似樣本當成部署閉環。";
+  const supportProgressAlertTitle = supportRegressedUnderMinimum
+    ? `精準樣本回落${supportEscalatesToBlocker ? "已升級為部署阻塞" : "需人工追蹤"}`
+    : `支持累積停滯${supportEscalatesToBlocker ? "已升級為部署阻塞" : "需人工追蹤"}`;
+  const supportProgressAlertBody = supportRegressedUnderMinimum
+    ? `當前精準樣本 ${supportRows ?? "—"} / ${supportMinimum ?? "—"}，缺口 ${supportGap ?? "—"}；${supportDeltaLabel}。${supportProgressReasonLabel ? ` ${supportProgressReasonLabel}` : ""}`
+    : `當前精準樣本 ${supportRows ?? "—"} / ${supportMinimum ?? "—"}，缺口 ${supportGap ?? "—"}；${supportStagnantRunCount !== null ? `連續停滯 ${supportStagnantRunCount} 輪。` : "樣本累積沒有明顯推進。"}${supportProgressReasonLabel ? ` ${supportProgressReasonLabel}` : ""}`;
+  const supportProgressOperatorAction = supportRegressedUnderMinimum
+    ? supportRegressionOperatorAction
+    : supportStallOperatorAction;
   const q15FloorCrossLabel = q15SupportAuditApplicable
     ? humanizeQ15FloorCrossVerdictLabel(floorCrossVerdict || "—")
     : "目前不適用";
@@ -434,7 +452,7 @@ export default function ConfidenceIndicator({
             </div>
           </div>
 
-          <div className={`mt-3 grid gap-3 text-xs ${circuitBreakerActive ? "md:grid-cols-2 xl:grid-cols-4" : nonCircuitBreakerGridClass}`}>
+          <div className={`mt-3 grid gap-3 text-xs ${circuitBreakerActive ? "md:grid-cols-2 xl:grid-cols-5" : nonCircuitBreakerGridClass}`}>
             {circuitBreakerActive ? (
               <>
                 <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
@@ -456,6 +474,11 @@ export default function ConfidenceIndicator({
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">操作員下一步</div>
                   <div className="mt-1 font-medium text-white">先等金字塔 24h 最近 50 筆恢復</div>
                   <div className="mt-1 text-slate-400">不要把支持樣本 / 元件修補方案當成熔斷解除替代品。</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
+                  <div className="text-[10px] tracking-wide text-slate-400">當前分桶支持</div>
+                  <div className="mt-1 font-medium text-white">{supportRows ?? "—"} / {supportMinimum ?? "—"} · 缺口 {supportGap ?? "—"}</div>
+                  <div className="mt-1 text-slate-400">狀態 {supportStatusLabel} · 樣本變化 {supportDeltaLabel}</div>
                 </div>
               </>
             ) : (
@@ -510,17 +533,15 @@ export default function ConfidenceIndicator({
             )}
           </div>
 
-          {supportStalledAccumulation && (
+          {supportProgressNeedsAttention && (
             <div className={`mt-3 rounded-lg border px-3 py-2 text-xs ${supportEscalatesToBlocker ? "border-rose-500/40 bg-rose-950/20 text-rose-100" : "border-amber-500/40 bg-amber-950/20 text-amber-100"}`}>
               <div className="font-semibold text-rose-100">
-                支持累積停滯{supportEscalatesToBlocker ? "已升級為部署阻塞" : "需人工追蹤"}
+                {supportProgressAlertTitle}
               </div>
               <div className="mt-1 leading-5 text-rose-100/80">
-                當前精準樣本 {supportRows ?? "—"} / {supportMinimum ?? "—"}，缺口 {supportGap ?? "—"}；
-                {supportStagnantRunCount !== null ? `連續停滯 ${supportStagnantRunCount} 輪。` : "樣本累積沒有明顯推進。"}
-                {supportProgressReasonLabel ? ` ${supportProgressReasonLabel}` : ""}
+                {supportProgressAlertBody}
               </div>
-              <div className="mt-1 leading-5 text-rose-100/80">{supportStallOperatorAction}</div>
+              <div className="mt-1 leading-5 text-rose-100/80">{supportProgressOperatorAction}</div>
             </div>
           )}
         </div>
