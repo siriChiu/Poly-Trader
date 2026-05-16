@@ -50,11 +50,19 @@ SUPPORT_ROUTE_OPERATOR_LABELS = {
     "exact_bucket_unsupported_block": "精準樣本尚未建立",
     "exact_bucket_missing_proxy_reference_only": "僅有近似樣本可作治理參考",
     "exact_bucket_missing_exact_lane_proxy_only": "僅有精準路徑近似樣本可作治理參考",
+    "insufficient_support_everywhere": "所有支持路徑仍不足",
     "exact_live_bucket_supported": "目前即時分桶精準樣本已就緒",
     "exact_live_bucket_present_but_below_minimum": "目前即時分桶精準樣本未達最小門檻",
     "exact_live_bucket_proxy_available": "目前即時分桶僅有近似樣本可作治理參考",
     "exact_live_lane_proxy_available": "目前即時路徑僅有近似樣本可作治理參考",
     "no_support_proxy": "目前沒有可用近似樣本",
+}
+GENERIC_ZERO_EXACT_SUPPORT_VERDICTS = {
+    "",
+    "insufficient_support_everywhere",
+    "exact_bucket_missing_proxy_reference_only",
+    "exact_bucket_missing_exact_lane_proxy_only",
+    "exact_bucket_present_but_below_minimum",
 }
 FOUR_H_COLS = [
     "feat_4h_bias50",
@@ -91,6 +99,78 @@ def _support_route_operator_label(verdict: object) -> str:
 
 
 
+def _nonnegative_int_or_none(value) -> int | None:
+    if value is None:
+        return None
+    try:
+        return max(int(value), 0)
+    except (TypeError, ValueError):
+        return None
+
+
+
+def _is_q15_current_bucket(current_live_structure_bucket: object) -> bool:
+    return "q15" in str(current_live_structure_bucket or "")
+
+
+
+def _normalize_generic_exact_support_route(
+    *,
+    support_route: dict,
+    support_progress: dict,
+    current_live_structure_bucket,
+    current_live_structure_bucket_rows,
+    minimum_support_rows,
+) -> tuple[dict, dict]:
+    """Canonicalize non-q15 exact-support truth for product surfaces.
+
+    q15 audits can describe a non-q15 live row as `insufficient_support_everywhere` or
+    proxy-reference-only.  For Dashboard/API/probe current-live truth, exact rows 0/50 must
+    still surface as the generic unsupported exact-bucket blocker; proxy availability belongs
+    in `support_governance_route`, not in the primary support-route verdict.
+    """
+    route = dict(support_route) if isinstance(support_route, dict) else {}
+    progress = dict(support_progress) if isinstance(support_progress, dict) else {}
+    progress_rows = _nonnegative_int_or_none(progress.get("current_rows"))
+    current_rows = progress_rows
+    if current_rows is None:
+        current_rows = _nonnegative_int_or_none(current_live_structure_bucket_rows)
+    minimum_rows = _nonnegative_int_or_none(progress.get("minimum_support_rows"))
+    if minimum_rows is None:
+        minimum_rows = _nonnegative_int_or_none(minimum_support_rows)
+
+    if (
+        current_rows == 0
+        and minimum_rows is not None
+        and minimum_rows > 0
+        and not _is_q15_current_bucket(current_live_structure_bucket)
+    ):
+        verdict = str(route.get("verdict") or "")
+        if verdict in GENERIC_ZERO_EXACT_SUPPORT_VERDICTS:
+            route["verdict"] = "exact_bucket_unsupported_block"
+            route["deployable"] = False
+        if route.get("support_governance_route") == "exact_live_bucket_present_but_below_minimum":
+            # 0 rows is unsupported/no-proxy unless later pathology context proves a proxy route.
+            route.pop("support_governance_route", None)
+        if not progress:
+            progress = {
+                "status": "stalled_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": minimum_rows,
+                "gap_to_minimum": minimum_rows,
+            }
+        else:
+            progress["current_rows"] = 0
+            progress["minimum_support_rows"] = minimum_rows
+            progress["gap_to_minimum"] = minimum_rows
+            if progress.get("status") in {None, "", "no_recent_comparable_history"}:
+                progress["status"] = "stalled_under_minimum"
+        route["support_progress"] = progress
+
+    return route, progress
+
+
+
 def _support_governance_route_from_patch(recommended_patch: dict | None) -> str | None:
     if not isinstance(recommended_patch, dict):
         return None
@@ -119,13 +199,6 @@ def _infer_support_governance_route(
     minimum_support_rows,
     scope_pathology_summary: dict | None,
 ) -> str | None:
-    existing = support_route.get("support_governance_route")
-    if existing is None:
-        existing = deployment_blocker_details.get("support_governance_route")
-    if existing is not None:
-        return existing
-
-    verdict = support_route.get("verdict") or deployment_blocker_details.get("support_route_verdict")
     try:
         current_rows = max(int(current_live_structure_bucket_rows or 0), 0)
     except (TypeError, ValueError):
@@ -135,12 +208,25 @@ def _infer_support_governance_route(
     except (TypeError, ValueError):
         minimum_rows = 0
 
+    existing = support_route.get("support_governance_route")
+    if existing is None:
+        existing = deployment_blocker_details.get("support_governance_route")
+    if existing is not None:
+        impossible_zero_row_routes = {
+            "exact_live_bucket_present_but_below_minimum",
+            "exact_live_bucket_supported",
+        }
+        if current_rows > 0 or str(existing) not in impossible_zero_row_routes:
+            return existing
+
+    verdict = support_route.get("verdict") or deployment_blocker_details.get("support_route_verdict")
+
     if current_rows > 0:
         if minimum_rows <= 0 or current_rows >= minimum_rows or verdict == "exact_bucket_supported":
             return "exact_live_bucket_supported"
         return "exact_live_bucket_present_but_below_minimum"
 
-    if verdict == "exact_bucket_unsupported_block":
+    if verdict in {"exact_bucket_unsupported_block", *GENERIC_ZERO_EXACT_SUPPORT_VERDICTS}:
         patch_route = _support_governance_route_from_patch(
             (scope_pathology_summary or {}).get("recommended_patch")
             if isinstance(scope_pathology_summary, dict)
@@ -700,6 +786,19 @@ def _build_probe_payload(
         fallback_progress = deployment_blocker_details.get("support_progress") if isinstance(deployment_blocker_details.get("support_progress"), dict) else {}
         if fallback_progress:
             support_progress = fallback_progress
+    support_route, support_progress = _normalize_generic_exact_support_route(
+        support_route=support_route,
+        support_progress=support_progress,
+        current_live_structure_bucket=current_live_structure_bucket,
+        current_live_structure_bucket_rows=current_live_structure_bucket_rows,
+        minimum_support_rows=(
+            support_progress.get("minimum_support_rows")
+            if isinstance(support_progress, dict) and support_progress.get("minimum_support_rows") is not None
+            else support_route.get("minimum_support_rows")
+            if isinstance(support_route, dict) and support_route.get("minimum_support_rows") is not None
+            else deployment_blocker_details.get("minimum_support_rows")
+        ),
+    )
     if support_progress:
         deployment_blocker_details["support_progress"] = support_progress
         progress_rows = support_progress.get("current_rows")

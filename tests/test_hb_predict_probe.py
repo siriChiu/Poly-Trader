@@ -171,6 +171,90 @@ def test_build_probe_payload_promotes_circuit_breaker_release_math_to_top_level(
 
 
 
+def test_build_probe_payload_canonicalizes_zero_row_non_q15_support_overlay(monkeypatch):
+    monkeypatch.setattr(hb_predict_probe, "build_live_pathology_scope_surface", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(hb_predict_probe, "_load_q35_scaling_audit_summary", lambda _bucket: {})
+
+    q15_overlay_for_current_q00 = {
+        "scope_applicability": {
+            "status": "current_live_not_q15_lane",
+            "active_for_current_live_row": False,
+            "current_structure_bucket": "BLOCK|structure_quality_block|q00",
+            "target_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        },
+        "support_route": {
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "verdict": "insufficient_support_everywhere",
+            "deployable": False,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_progress": {
+                "status": "no_recent_comparable_history",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+        },
+    }
+
+    payload = hb_predict_probe._build_probe_payload(
+        latest={"timestamp": "2026-05-16T10:01:46+00:00", "regime_label": "bear"},
+        result={
+            "target_col": "simulated_pyramid_win",
+            "used_model": "circuit_breaker",
+            "model_type": "circuit_breaker",
+            "signal": "CIRCUIT_BREAKER",
+            "reason": "Consecutive loss streak: 56 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+            "confidence": 0.0,
+            "regime_label": "bear",
+            "regime_gate": "BLOCK",
+            "structure_bucket": "BLOCK|structure_quality_block|q00",
+            "entry_quality": 0.7203,
+            "entry_quality_label": "B",
+            "decision_quality_label": "D",
+            "decision_quality_score": 0.1443,
+            "allowed_layers": 0,
+            "allowed_layers_raw": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+            "deployment_blocker": "circuit_breaker_active",
+            "deployment_blocker_source": "circuit_breaker",
+            "deployment_blocker_details": {
+                "support_mode": "exact_bucket_unsupported_block",
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 50,
+            },
+            "decision_quality_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+            "decision_quality_exact_live_structure_bucket_support_rows": 0,
+            "decision_quality_scope_diagnostics": {
+                "regime_label+regime_gate+entry_quality_label": {
+                    "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+                    "current_live_structure_bucket_rows": 0,
+                }
+            },
+        },
+        target_col="simulated_pyramid_win",
+        used_model="circuit_breaker",
+        current_live_structure_bucket="BLOCK|structure_quality_block|q00",
+        current_live_structure_bucket_rows=0,
+        q15_support_audit=q15_overlay_for_current_q00,
+        four_h_non_null={},
+        lag_non_null={},
+    )
+
+    assert payload["current_live_structure_bucket"] == "BLOCK|structure_quality_block|q00"
+    assert payload["current_live_structure_bucket_rows"] == 0
+    assert payload["support_route_verdict"] == "exact_bucket_unsupported_block"
+    assert payload["support_governance_route"] == "no_support_proxy"
+    assert payload["support_progress"]["status"] == "stalled_under_minimum"
+    assert payload["support_progress"]["current_rows"] == 0
+    assert payload["minimum_support_rows"] == 50
+    assert payload["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert payload["deployment_blocker_details"]["support_route_verdict"] == "exact_bucket_unsupported_block"
+    assert payload["deployment_blocker_details"]["support_governance_route"] == "no_support_proxy"
+
+
 def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, capsys, tmp_path):
     session = DummySession()
     out_path = tmp_path / "live_predict_probe.json"
