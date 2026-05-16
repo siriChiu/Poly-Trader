@@ -6248,8 +6248,18 @@ def collect_q15_boundary_replay_diagnostics() -> Dict[str, Any]:
     }
 
 
+def circuit_breaker_audit_artifact_path() -> Path:
+    """Canonical circuit-breaker audit artifact path used by the audit script.
+
+    Keep runner serial-result recency checks aligned with
+    scripts/hb_circuit_breaker_audit.py, which overwrites the stable current-state
+    artifact instead of writing heartbeat-numbered copies.
+    """
+    return Path(PROJECT_ROOT) / "data" / "circuit_breaker_audit.json"
+
+
 def collect_circuit_breaker_audit_diagnostics() -> Dict[str, Any]:
-    result_path = Path(PROJECT_ROOT) / "data" / "circuit_breaker_audit.json"
+    result_path = circuit_breaker_audit_artifact_path()
     if not result_path.exists():
         return {}
     try:
@@ -7763,7 +7773,7 @@ def main(argv=None):
         "hb_circuit_breaker_audit": {
             "result": circuit_breaker_audit_result,
             "diagnostics": circuit_breaker_audit_summary,
-            "artifact_path": Path(PROJECT_ROOT) / "data" / f"circuit_breaker_audit_{run_label}.json",
+            "artifact_path": circuit_breaker_audit_artifact_path(),
         },
         "feature_group_ablation": {
             "result": feature_ablation_result,

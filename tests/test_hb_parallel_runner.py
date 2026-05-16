@@ -4773,6 +4773,8 @@ def test_collect_circuit_breaker_audit_diagnostics_reads_mixed_horizon_false_pos
         )
     )
 
+    assert hb_parallel_runner.circuit_breaker_audit_artifact_path() == data_dir / "circuit_breaker_audit.json"
+
     diag = hb_parallel_runner.collect_circuit_breaker_audit_diagnostics()
 
     assert diag["root_cause"]["verdict"] == "mixed_horizon_false_positive"
