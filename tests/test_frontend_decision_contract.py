@@ -214,6 +214,28 @@ def test_execution_surfaces_show_structured_circuit_breaker_release_math_before_
         assert leaked_copy not in console_source
 
 
+def test_execution_console_surfaces_range_chop_playbook_without_unlocking_buy_add():
+    source = _read("pages/ExecutionConsole.tsx")
+    required_snippets = [
+        'range_chop_playbook?: RangeChopPlaybook | null;',
+        'const rangeChopPlaybook = executionOverview?.range_chop_playbook || executionSurfaceContract?.range_chop_playbook || runtimeStatus?.execution?.range_chop_playbook || null;',
+        'const rangeChopPlaybookVisible = Boolean(rangeChopPlaybook?.shadow_available || rangeChopPlaybook?.risk_reduction_allowed);',
+        '高低震盪實戰拆解',
+        '震盪不是停工',
+        '不是永遠不能實戰',
+        '影子觀察 / 減風險先行',
+        '買入 / 加倉仍等即時部署門檻',
+        'rangeChopPlaybook?.risk_reduction_allowed ? "減碼 / 取消掛單允許" : "等待減風險檢查"',
+        'rangeChopPlaybook?.buy_add_requires_current_live_gate ? "買入 / 加倉仍需即時部署門檻" : "買入門檻未回報"',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+    forbidden_snippets = ["current-live gate", "買入 gate 未回報", "仍需 gate", "runtime evidence"]
+    for snippet in forbidden_snippets:
+        assert snippet not in source
+
+
+
 def test_execution_console_blocks_only_add_exposure_while_syncing_or_blocked_and_keeps_derisk_actions_available():
     source = _read("pages/ExecutionConsole.tsx")
     required_snippets = [
@@ -418,6 +440,8 @@ def test_execution_console_humanizes_sleeve_terms_and_run_action_copy():
         '["sleeves", "倉位腿"]',
         '["sleeve", "倉位腿"]',
         '["gap", "缺口"]',
+        '["current-live gate", "即時部署門檻"]',
+        '["runtime evidence", "執行期證據"]',
         '["runtime_visible_preview", "執行期預覽中"]',
         '["ready_control_plane", "可建立運行"]',
         '["resume_available", "可恢復運行"]',

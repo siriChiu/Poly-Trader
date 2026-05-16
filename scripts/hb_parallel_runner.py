@@ -3032,6 +3032,54 @@ def overwrite_current_state_docs(
     support_route_verdict = support_context.get("support_route_verdict") or "—"
     support_progress_line = _support_progress_docs_line(support_context)
     support_progress_doc_lines = [support_progress_line] if support_progress_line else []
+    range_chop_context_text = " ".join(
+        str(value)
+        for value in [
+            live_predictor_diagnostics.get("regime_label"),
+            live_predictor_diagnostics.get("regime_gate"),
+            live_predictor_diagnostics.get("current_live_structure_bucket"),
+            live_predictor_diagnostics.get("runtime_closure_state"),
+            deployment_blocker,
+            primary_summary.get("dominant_regime") if isinstance(primary_summary, dict) else None,
+            primary_summary.get("interpretation") if isinstance(primary_summary, dict) else None,
+        ]
+        if value is not None
+    ).lower()
+    range_chop_market_detected = any(
+        token in range_chop_context_text
+        for token in ("chop", "range", "sideway", "neutral", "盤整", "震盪", "擁塞", "高低")
+    )
+    range_chop_support_gap = _int_or_none(support_gap) or 0
+    range_chop_playbook_available = bool(
+        deployment_blocker
+        and deployment_blocker != "—"
+        and (range_chop_market_detected or range_chop_support_gap > 0 or high_conviction_shadow_available)
+    )
+    range_chop_fact_lines: list[str] = []
+    range_chop_roadmap_lines: list[str] = []
+    range_chop_orid_lines: list[str] = []
+    if range_chop_playbook_available:
+        range_chop_contract_line = (
+            f"`support={support_current_rows}/{support_minimum_rows}` / `gap={support_gap}` / "
+            "`paper_shadow=true` / `risk_on_order_enabled=false` / "
+            "`order_submission_enabled=false` / `reduce_risk_allowed=true`"
+        )
+        range_chop_operator_copy = (
+            "震盪不是停工，也不是永遠不能實戰：Bot 營運與 `/api/status.range_chop_playbook` "
+            "會把高低震盪拆成區間影子觀察、減碼 / 取消掛單與證據收集；"
+            "進攻買入 / 加倉與啟用自動模式仍鎖住，必須等即時部署門檻與場館證據鏈通過。"
+        )
+        range_chop_fact_lines = [
+            "- **高低震盪 / 擁塞實戰拆解已產品化（fail-closed）**",
+            f"  - {range_chop_contract_line}；{range_chop_operator_copy}",
+        ]
+        range_chop_roadmap_lines = [
+            "- **高低震盪 / 擁塞不是停工：區間影子觀察 + 減風險劇本已產品化**",
+            f"  - {range_chop_contract_line}；只允許影子觀察、減碼 / 取消掛單與證據收集，進攻買入 / 加倉與啟用自動模式仍等即時部署門檻。",
+        ]
+        range_chop_orid_lines = [
+            f"- 高低震盪實戰拆解：{range_chop_contract_line}；區間影子觀察可累積執行期證據，減碼 / 取消掛單可用，但進攻買入 / 加倉仍鎖住。"
+        ]
     live_predictor_docs_context = live_predictor_diagnostics
     persisted_live_probe_for_docs = _read_json_file(Path(PROJECT_ROOT) / "data" / "live_predict_probe.json")
     if isinstance(persisted_live_probe_for_docs, dict) and persisted_live_probe_for_docs:
@@ -3440,6 +3488,7 @@ def overwrite_current_state_docs(
         "- **Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe**",
         "  - `formatHighConvictionRuntimeSignalLabel()` 統一把即時訊號 enum 轉成繁中操作語；最接近部署候選列不再把內部訊號 token 直接丟給 operator，避免 OOS-pass / runtime-blocked 候選被誤讀為可部署動作。",
         *high_conviction_shadow_fact_lines,
+        *range_chop_fact_lines,
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
@@ -3552,6 +3601,7 @@ def overwrite_current_state_docs(
         "- **Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe**",
         "  - 列級 `signal` 透過 `formatHighConvictionRuntimeSignalLabel()` 轉成繁中操作語；即時分桶 / 支持 / release gate 未解除前，候選列維持模擬觀察 / 影子驗證 / 僅觀察，不用內部 enum 暗示可部署。",
         *high_conviction_shadow_roadmap_lines,
+        *range_chop_roadmap_lines,
         "- **本輪 current-state docs 已同步到最新 artifacts**",
         "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json` 的 current-state truth 已對齊",
         *parallel_failure_roadmap_lines,
@@ -3679,6 +3729,7 @@ def overwrite_current_state_docs(
         f"- leaderboard / governance：{leaderboard_line}。",
         f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；top source blockers={top_source_blockers_line}；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle；metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next。",
         *high_conviction_shadow_orid_lines,
+        *range_chop_orid_lines,
         *parallel_failure_orid_lines,
         *([f"- {q35_scaling_doc_line}。"] if q35_scaling_doc_line else []),
         *high_conviction_orid_fact_lines,

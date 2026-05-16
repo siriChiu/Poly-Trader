@@ -204,6 +204,15 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["stale_artifact_shadow_only", "矩陣過期，僅影子觀察"],
   ["freshness_unknown_shadow_only", "矩陣新鮮度未知，僅影子觀察"],
   ["paper_shadow_only", "模擬 / 影子觀察"],
+  ["shadow_reduce_only", "影子觀察 / 減風險先行"],
+  ["range_chop_playbook", "高低震盪實戰拆解"],
+  ["range_shadow_observe", "高低震盪影子觀察"],
+  ["range_chop_rehearsal", "高低震盪預演"],
+  ["collect_support_evidence", "累積支持證據"],
+  ["cancel_stale_orders", "取消過期掛單"],
+  ["reduce_position", "減碼降風險"],
+  ["add_exposure", "加倉"],
+  ["enable_automation", "啟用自動模式"],
   // Keep the negative verdict before the positive token; otherwise
   // "not_deployable" becomes the mixed operator string "not_可部署".
   ["not_deployable", "不可部署"],
@@ -234,6 +243,10 @@ const RUNTIME_DETAIL_TOKEN_REPLACEMENTS: Array<[string, string]> = [
   ["sleeve", "倉位腿"],
   ["gap", "缺口"],
   ["bull / chop", "牛市 / 盤整"],
+  ["current-live gate", "即時部署門檻"],
+  ["current live gate", "即時部署門檻"],
+  ["live gate", "即時部署門檻"],
+  ["runtime evidence", "執行期證據"],
   ["top-level live baseline", "頂層即時基準"],
   ["decision quality below", "決策品質低於"],
   ["decision-quality trade floor", "決策品質交易門檻"],
@@ -531,6 +544,7 @@ const Q15_BUCKET_ROOT_CAUSE_ACTION_MAPPINGS: Array<[string, string]> = [
 
 const EXECUTION_OPERATOR_LABEL_MAPPINGS: Record<string, Array<[string, string]>> = {
   status: [
+    ["range_shadow_candidate", "高低震盪影子候選"],
     ["shadow_monitoring", "影子觀察"],
     ["shadow_candidate", "影子候選"],
     ["blocked_preview", "阻塞中"],

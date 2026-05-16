@@ -11,6 +11,7 @@ from execution.control_plane import (
     PRIMARY_SLEEVE_ORDER,
     build_execution_strategy_source_snapshot,
 )
+from execution.range_chop_playbook import build_range_chop_playbook
 from execution.risk_control import check_position_size
 
 
@@ -223,6 +224,9 @@ def build_execution_overview(
     strategy_source_snapshot = build_execution_strategy_source_snapshot()
     strategy_bindings = _as_dict(strategy_source_snapshot.get("sleeve_bindings"))
     high_conviction_shadow_contract = _build_high_conviction_shadow_contract(payload)
+    high_conviction_topk = _load_high_conviction_topk(payload)
+    range_chop_playbook = build_range_chop_playbook(live_runtime_truth, high_conviction_topk)
+    range_chop_shadow_available = bool(range_chop_playbook.get("shadow_available"))
 
     positions = [item for item in _as_list(account.get("positions")) if isinstance(item, dict)]
     open_orders = [item for item in _as_list(account.get("open_orders")) if isinstance(item, dict)]
@@ -297,6 +301,13 @@ def build_execution_overview(
             lifecycle_status = "shadow_monitoring"
             next_action = str(high_conviction_shadow_contract.get("next_operator_action") or "啟動影子觀察運行；只記錄決策，不送單、不加倉。")
             monitoring_count += 1
+        elif range_chop_shadow_available and key in {"pullback", "rebound", "selective"}:
+            lifecycle_status = "range_shadow_candidate"
+            next_action = str(
+                range_chop_playbook.get("next_operator_action")
+                or "高低震盪不是永遠不能實戰；先做影子觀察與減風險檢查，買入 / 加倉仍等即時部署門檻。"
+            )
+            monitoring_count += 1
         elif global_blocker:
             lifecycle_status = "blocked_preview"
             next_action = f"先解除全域 blocker：{global_blocker}。解除前不要把這個 sleeve 包裝成可啟動 bot。"
@@ -362,6 +373,16 @@ def build_execution_overview(
             "upgrade_required": True,
             "upgrade_prerequisite": CONTROL_PLANE_UPGRADE_PREREQUISITE,
         }
+        if range_chop_shadow_available:
+            control_contract.update(
+                {
+                    "range_chop_playbook": range_chop_playbook,
+                    "risk_reduction_allowed": True,
+                    "buy_add_requires_current_live_gate": True,
+                    "risk_on_order_enabled": False,
+                    "order_submission_enabled": False,
+                }
+            )
         if shadow_candidate:
             control_contract.update(
                 {
@@ -448,6 +469,7 @@ def build_execution_overview(
         "capital_plan": capital_plan,
         "strategy_source_summary": _as_dict(strategy_source_snapshot.get("summary")),
         "profile_cards": cards,
+        "range_chop_playbook": range_chop_playbook,
         "live_ready": bool(execution_surface_contract.get("live_ready", False)),
         "live_ready_blockers": _as_list(execution_surface_contract.get("live_ready_blockers")),
     }

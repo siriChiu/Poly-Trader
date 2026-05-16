@@ -57,6 +57,7 @@ from execution.control_plane import (
 )
 from execution.execution_service import ExecutionRejectError, ExecutionService
 from execution.metadata_smoke import run_metadata_smoke
+from execution.range_chop_playbook import build_range_chop_playbook
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -3071,9 +3072,11 @@ async def api_status() -> Dict[str, Any]:
     live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload)
     recent_canonical_drift = _load_recent_canonical_drift_summary()
     high_conviction_topk = _load_high_conviction_topk_summary(limit=3)
+    range_chop_playbook = build_range_chop_playbook(live_runtime_truth, high_conviction_topk)
     execution_summary["live_runtime_truth"] = live_runtime_truth
     execution_summary["recent_canonical_drift"] = recent_canonical_drift
     execution_summary["high_conviction_topk"] = high_conviction_topk
+    execution_summary["range_chop_playbook"] = range_chop_playbook
 
     execution_reconciliation = _build_execution_reconciliation_summary(db, symbol, account_snapshot, execution_summary)
     metadata_smoke = _ensure_execution_metadata_smoke_governance(cfg, symbol)
@@ -3081,6 +3084,7 @@ async def api_status() -> Dict[str, Any]:
     execution_surface_contract["live_runtime_truth"] = live_runtime_truth
     execution_surface_contract["recent_canonical_drift"] = recent_canonical_drift
     execution_surface_contract["high_conviction_topk"] = high_conviction_topk
+    execution_surface_contract["range_chop_playbook"] = range_chop_playbook
     operator_message = execution_surface_contract.get("operator_message") or ""
     if live_runtime_truth.get("runtime_closure_state") == "capacity_opened_signal_hold":
         operator_message = f"{operator_message} 目前 runtime 已開出 1 層 deployment capacity，但 signal 仍是 HOLD。".strip()
@@ -3099,6 +3103,7 @@ async def api_status() -> Dict[str, Any]:
         "execution_metadata_smoke": metadata_smoke,
         "execution_surface_contract": execution_surface_contract,
         "high_conviction_topk": high_conviction_topk,
+        "range_chop_playbook": range_chop_playbook,
         "recent_canonical_drift": recent_canonical_drift,
     }
 

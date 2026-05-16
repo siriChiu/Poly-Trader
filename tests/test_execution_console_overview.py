@@ -111,6 +111,68 @@ def test_build_execution_overview_exposes_stateful_run_control_beta_contract():
 
 
 
+def test_build_execution_overview_surfaces_range_chop_shadow_reduce_playbook():
+    status_payload = _status_payload()
+    live_truth = status_payload["execution"]["live_runtime_truth"]
+    live_truth.update(
+        {
+            "regime_label": "chop",
+            "regime_gate": "BLOCK",
+            "structure_bucket": "BLOCK|structure_quality_block|q00",
+            "runtime_closure_state": "current_live_deployment_blocked",
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "deployment_blocker_reason": "current-live 精準分桶樣本不足",
+            "allowed_layers": 0,
+        }
+    )
+    live_truth["sleeve_routing"] = {
+        "current_regime": "chop",
+        "current_regime_gate": "BLOCK",
+        "current_structure_bucket": "BLOCK|structure_quality_block|q00",
+        "active_sleeves": [],
+        "inactive_sleeves": [
+            {"key": "trend", "label": "趨勢承接", "summary": "trend", "why": "高低震盪，趨勢腿暫停"},
+            {"key": "pullback", "label": "回調承接", "summary": "pullback", "why": "盤整回調只允許影子觀察"},
+            {"key": "rebound", "label": "深跌回補", "summary": "rebound", "why": "盤整反彈只允許影子觀察"},
+            {"key": "selective", "label": "高信念精選", "summary": "selective", "why": "等待精準支持"},
+        ],
+    }
+    high_conviction_topk = {
+        "support_context": {
+            "current_live_structure_bucket_rows": 2,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 48,
+            "support_progress_status": "stalled_under_minimum",
+            "stalled_support_accumulation": True,
+            "stagnant_run_count": 5,
+        }
+    }
+    status_payload["execution_surface_contract"]["high_conviction_topk"] = high_conviction_topk
+    status_payload["execution"]["high_conviction_topk"] = high_conviction_topk
+
+    payload = build_execution_overview(status_payload, config={"trading": {"max_position_ratio": 0.10}})
+
+    playbook = payload["range_chop_playbook"]
+    assert playbook["status"] == "shadow_reduce_only"
+    assert playbook["shadow_available"] is True
+    assert playbook["risk_reduction_allowed"] is True
+    assert playbook["buy_add_requires_current_live_gate"] is True
+    assert playbook["risk_on_order_enabled"] is False
+    assert playbook["order_submission_enabled"] is False
+    assert "不是永遠不能實戰" in playbook["operator_message"]
+    assert "range_shadow_observe" in playbook["allowed_operator_actions"]
+    assert "reduce_position" in playbook["allowed_operator_actions"]
+
+    cards = {card["key"]: card for card in payload["profile_cards"]}
+    assert cards["pullback"]["control_contract"]["range_chop_playbook"]["status"] == "shadow_reduce_only"
+    assert cards["pullback"]["control_contract"]["risk_reduction_allowed"] is True
+    assert cards["pullback"]["control_contract"]["risk_on_order_enabled"] is False
+    assert cards["rebound"]["control_contract"]["range_chop_playbook"]["shadow_available"] is True
+    assert "影子觀察" in cards["pullback"]["next_operator_action"]
+    assert "減風險" in cards["pullback"]["next_operator_action"]
+
+
+
 def test_build_execution_overview_exposes_strategy_snapshot_summary(monkeypatch, tmp_path):
     _seed_execution_strategy_catalog(tmp_path, monkeypatch)
 

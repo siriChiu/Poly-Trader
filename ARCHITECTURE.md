@@ -139,6 +139,7 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 - **買入 / 加倉 / 啟用自動模式**：暫停，UI disabled，後端直接 API 也要 409。
 - **減碼 / 賣出風險降低 / 切手動 / diagnostics / refresh**：保持可用；這些是降風險或觀測路徑，不可被 buy blocker 一起鎖死。
 - **高信念精選影子觀察**：若 OOS / 風控已過但 current-live support 或場館 proof 尚未解除，Execution Console 可啟動只觀察的影子運行；它只能鏡像即時決策、事件紀錄與同商品共享預覽，payload 必須明示 `risk_on_order_enabled=false`，不可送單、不可加倉。
+- **高低震盪 / 擁塞 playbook**：震盪盤不是停工；`execution/range_chop_playbook.py` 會把 range/chop 阻塞拆成區間影子觀察、減碼 / 取消掛單與證據收集。這條路徑不是 deployment proof：`risk_on_order_enabled=false`、`order_submission_enabled=false`，買入 / 加倉仍等即時部署門檻與 venue proof。
 - `/api/trade` blocked response 應提供前端可讀結構：`success=false`、`trade_blocked=true`、`blocked_side`、`reason`、`runtime_blocker`。
 - venue readiness 要分清楚 metadata OK 與 live/canary proof；缺 credential、order ack、fill lifecycle 時不可宣稱 live-ready。
 - `execution/metadata_smoke.py` 與 `/api/status.execution_metadata_smoke` 必須輸出 top-level `runtime_ready / runtime_ready_count / readiness_scope / readiness_state / runtime_ready_blockers`，且每個 venue row 保留 `proof_state / readiness_state / runtime_ready / blockers / operator_next_action / verify_next`；UI badge 只有在 `runtime_ready=true` 且無 blockers 時才能顯示可交易，`all_ok=true` 只能代表 metadata contract OK。
@@ -149,7 +150,7 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/status` | current live runtime truth、execution surface contract、metadata smoke；同時提供 high-conviction Top-K shadow-only support truth |
+| `GET /api/status` | current live runtime truth、execution surface contract、metadata smoke；同時提供 high-conviction Top-K shadow-only support truth 與 `range_chop_playbook` |
 | `GET /api/predict/confidence` | predictor decision profile |
 | `GET /api/features/coverage` | feature coverage、maturity、source blockers |
 | `GET /api/chart/klines` | K 線與增量補資料 |
@@ -158,7 +159,7 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 | `GET /api/strategies/leaderboard` | 策略排行榜 |
 | `GET /api/models/leaderboard` | 模型排行榜；high_conviction_topk.support_context 必須覆蓋較新的 live probe support truth，並保留 support-progress 停滯欄位供 Strategy Lab 顯示 |
 | `POST /api/trade` | manual trade/derisk entry；buy/add exposure 必須讀 current-live blocker |
-| `GET /api/execution/overview` | Execution Console operator summary；selective sleeve 在 Top-K OOS 已過但 live gate 未過時只能顯示影子觀察啟動 |
+| `GET /api/execution/overview` | Execution Console operator summary；selective sleeve 在 Top-K OOS 已過但 live gate 未過時只能顯示影子觀察啟動；高低震盪 / 擁塞只顯示影子觀察 / 減風險劇本 |
 | `GET /api/execution/status` | execution diagnostics / readiness detail |
 | `GET /ws/live` | 即時推送 |
 

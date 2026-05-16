@@ -2175,6 +2175,17 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout" in issues_md
     assert "Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe" in issues_md
     assert "最接近部署候選列不再把內部訊號 token 直接丟給 operator" in issues_md
+    assert "高低震盪 / 擁塞實戰拆解已產品化（fail-closed）" in issues_md
+    assert "震盪不是停工，也不是永遠不能實戰" in issues_md
+    assert "區間影子觀察、減碼 / 取消掛單與證據收集" in issues_md
+    assert "進攻買入 / 加倉與啟用自動模式仍鎖住" in issues_md
+    assert "高低震盪 / 擁塞不是停工：區間影子觀察 + 減風險劇本已產品化" in roadmap_md
+    assert "高低震盪實戰拆解" in orid_md
+    assert "區間影子觀察可累積執行期證據" in orid_md
+    assert "runtime evidence" not in issues_md
+    assert "runtime evidence" not in roadmap_md
+    assert "runtime evidence" not in orid_md
+    assert "減碼 / 取消掛單可用，但進攻買入 / 加倉仍鎖住" in orid_md
     assert "Live DQ drilldown operator-facing markdown 已 enum-safe" in issues_md
     assert "operator markdown 不再洩漏後端 bucket / route / source / reference raw token" in issues_md
     assert "把可用 payload 誤報成 `API timeout`" in issues_md

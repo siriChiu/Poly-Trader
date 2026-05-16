@@ -56,6 +56,33 @@ type SleeveRoutingState = {
   inactive_sleeves?: SleeveRoutingItem[] | null;
 };
 
+type RangeChopPlaybook = {
+  key?: string | null;
+  status?: string | null;
+  summary?: string | null;
+  market_problem?: string | null;
+  shadow_available?: boolean | null;
+  shadow_mode?: string | null;
+  risk_reduction_allowed?: boolean | null;
+  buy_add_requires_current_live_gate?: boolean | null;
+  risk_on_order_enabled?: boolean | null;
+  order_submission_enabled?: boolean | null;
+  operator_message?: string | null;
+  next_operator_action?: string | null;
+  support_summary?: string | null;
+  support_context?: {
+    current_rows?: number | null;
+    minimum_rows?: number | null;
+    gap_to_minimum?: number | null;
+    support_progress_status?: string | null;
+    stagnant_run_count?: number | null;
+    stalled_support_accumulation?: boolean | null;
+  } | null;
+  allowed_operator_actions?: string[] | null;
+  blocked_operator_actions?: string[] | null;
+  release_prerequisites?: string[] | null;
+};
+
 type LiveRuntimeTruth = {
   runtime_closure_state?: string | null;
   runtime_closure_summary?: string | null;
@@ -128,6 +155,7 @@ type ExecutionConsoleRuntimeStatusResponse = {
     live_ready_blockers?: string[];
     operator_message?: string;
     live_runtime_truth?: LiveRuntimeTruth | null;
+    range_chop_playbook?: RangeChopPlaybook | null;
   } | null;
   execution?: {
     venue?: string;
@@ -140,6 +168,7 @@ type ExecutionConsoleRuntimeStatusResponse = {
       error?: string;
     } | null;
     live_runtime_truth?: LiveRuntimeTruth | null;
+    range_chop_playbook?: RangeChopPlaybook | null;
     guardrails?: {
       kill_switch?: boolean;
       daily_loss_halt?: boolean;
@@ -306,7 +335,11 @@ type ExecutionOverviewProfileCard = {
     latest_event_message?: string | null;
     shadow_only?: boolean | null;
     risk_on_order_enabled?: boolean | null;
+    order_submission_enabled?: boolean | null;
+    risk_reduction_allowed?: boolean | null;
+    buy_add_requires_current_live_gate?: boolean | null;
     shadow_mode?: string | null;
+    range_chop_playbook?: RangeChopPlaybook | null;
     high_conviction_topk?: {
       support_summary?: string | null;
       risk_qualified_count?: number | null;
@@ -352,6 +385,7 @@ type ExecutionOverviewResponse = {
     missing_sleeves?: string[] | null;
     operator_message?: string | null;
   } | null;
+  range_chop_playbook?: RangeChopPlaybook | null;
   profile_cards?: ExecutionOverviewProfileCard[] | null;
 };
 
@@ -661,6 +695,11 @@ export default function ExecutionConsole() {
   const operationsSurface = executionSurfaceContract?.operations_surface ?? null;
   const diagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;
   const liveRuntimeTruth = runtimeStatus?.execution?.live_runtime_truth ?? executionSurfaceContract?.live_runtime_truth ?? null;
+  const rangeChopPlaybook = executionOverview?.range_chop_playbook || executionSurfaceContract?.range_chop_playbook || runtimeStatus?.execution?.range_chop_playbook || null;
+  const rangeChopPlaybookVisible = Boolean(rangeChopPlaybook?.shadow_available || rangeChopPlaybook?.risk_reduction_allowed);
+  const rangeChopSupportSummaryLabel = humanizeRuntimeDetailText(rangeChopPlaybook?.support_summary || null) || "等待精準支持累積";
+  const rangeChopOperatorMessageLabel = humanizeRuntimeDetailText(rangeChopPlaybook?.operator_message || null) || "不是永遠不能實戰；先用影子觀察與減風險把高低震盪拆成可驗證流程。";
+  const rangeChopNextActionLabel = humanizeRuntimeDetailText(rangeChopPlaybook?.next_operator_action || null) || "先做影子觀察 / 減風險先行；買入 / 加倉仍等即時部署門檻。";
   const liveRouting = liveRuntimeTruth?.sleeve_routing ?? null;
   const liveActiveSleeves = Array.isArray(liveRouting?.active_sleeves) ? liveRouting.active_sleeves : [];
   const liveInactiveSleeves = Array.isArray(liveRouting?.inactive_sleeves) ? liveRouting.inactive_sleeves : [];
@@ -1178,6 +1217,29 @@ export default function ExecutionConsole() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+        {rangeChopPlaybookVisible && (
+          <div className="rounded-[24px] border border-cyan-400/25 bg-[linear-gradient(135deg,rgba(34,211,238,0.14),rgba(124,58,237,0.14))] p-4 shadow-[0_18px_40px_rgba(34,211,238,0.10)]">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="text-[11px] font-semibold tracking-[0.22em] text-cyan-200/80">高低震盪實戰拆解</div>
+                <div className="mt-2 text-lg font-semibold text-cyan-50">震盪不是停工，也不是永遠不能實戰</div>
+                <div className="mt-1 text-sm text-cyan-100/90">{rangeChopOperatorMessageLabel}</div>
+                <div className="mt-2 text-xs text-cyan-100/75">{rangeChopNextActionLabel}</div>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full border border-purple-400/30 bg-purple-400/10 px-3 py-1 text-purple-100">影子觀察 / 減風險先行</span>
+                <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-emerald-100">
+                  {rangeChopPlaybook?.risk_reduction_allowed ? "減碼 / 取消掛單允許" : "等待減風險檢查"}
+                </span>
+                <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-amber-100">
+                  {rangeChopPlaybook?.buy_add_requires_current_live_gate ? "買入 / 加倉仍需即時部署門檻" : "買入門檻未回報"}
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-slate-200">{rangeChopSupportSummaryLabel}</span>
+              </div>
+            </div>
+            <div className="mt-3 text-xs text-cyan-100/70">買入 / 加倉仍等即時部署門檻；影子觀察只收集執行期證據，不送單。</div>
           </div>
         )}
       </ExecutionHero>
