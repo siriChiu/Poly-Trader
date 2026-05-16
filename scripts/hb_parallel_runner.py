@@ -1558,6 +1558,65 @@ _HIGH_CONVICTION_TOPK_LIVE_FAILURES = {
     "breaker_release_not_ready",
 }
 
+_HIGH_CONVICTION_TOP_LEVEL_LIVE_GATE_KEYS = _HIGH_CONVICTION_LIVE_SUPPORT_KEYS + (
+    "source_live_probe_generated_at",
+    "support_context_current_as_of",
+    "live_truth_source_artifact",
+)
+
+_HIGH_CONVICTION_RELEASE_SCALAR_KEYS = {
+    "release_ready",
+    "current_streak",
+    "recent_window",
+    "current_recent_window_win_rate",
+    "current_recent_window_wins",
+    "required_recent_window_wins",
+    "additional_recent_window_wins_needed",
+}
+
+
+def _apply_high_conviction_top_level_live_gate_summary(
+    payload: Dict[str, Any],
+    support_context: Dict[str, Any],
+) -> None:
+    """Project fresh live gate truth to the Top-K artifact top level.
+
+    Rows and ``support_context`` carry the complete current-live blocker context,
+    but docs/API probes also read lightweight top-level fields.  Keep those
+    fields synchronized after every heartbeat overlay so stale release math cannot
+    coexist with a fresh nested support context.
+    """
+    release_condition = support_context.get("release_condition")
+    if not isinstance(release_condition, dict):
+        release_condition = {}
+
+    live_gate_summary: Dict[str, Any] = {}
+    for key in _HIGH_CONVICTION_TOP_LEVEL_LIVE_GATE_KEYS:
+        value = support_context.get(key)
+        if value is None and key in _HIGH_CONVICTION_RELEASE_SCALAR_KEYS:
+            value = release_condition.get(key)
+        if value is None and key == "current_recent_window_win_rate":
+            wins = support_context.get("current_recent_window_wins", release_condition.get("current_recent_window_wins"))
+            window = support_context.get("recent_window", release_condition.get("recent_window"))
+            try:
+                if wins is not None and window not in (None, 0, ""):
+                    value = round(float(wins) / float(window), 4)
+            except (TypeError, ValueError, ZeroDivisionError):
+                value = None
+        if value is None:
+            continue
+        payload[key] = value
+        live_gate_summary[key] = value
+
+    if release_condition:
+        payload["release_condition"] = release_condition
+        live_gate_summary["release_condition"] = release_condition
+
+    if live_gate_summary:
+        payload["live_gate_summary"] = live_gate_summary
+    else:
+        payload.pop("live_gate_summary", None)
+
 
 def _high_conviction_topk_model_gate_failures_from_metrics(
     row: Dict[str, Any],
@@ -1749,6 +1808,7 @@ def _sync_high_conviction_topk_matrix_live_context(
         payload["runtime_blocked_candidate_rows"] = sum(
             1 for row in rows if isinstance(row, dict) and row.get("blocked_only_by_live_guardrails")
         )
+        _apply_high_conviction_top_level_live_gate_summary(payload, support_context)
 
         updated = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
         if updated != original:

@@ -1,19 +1,19 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-16 01:11:37.715681**
+- feature_timestamp: **2026-05-16 02:25:30.503468**
 - target: `simulated_pyramid_win`
 - live path: **熊市 / 阻塞 / C**
-- signal: **HOLD** @ confidence **0.3523**
+- signal: **CIRCUIT_BREAKER** @ confidence **0.5000**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: 市場閘門阻塞
-- allowed_layers_reason: 精準樣本未達最小門檻
-- execution_guardrail_reason: 精準樣本未達最小門檻
-- runtime_blocker: None | reason: None
-- deployment_blocker: 精準樣本未達最小門檻 | reason: 當前即時結構分桶 `阻塞｜結構品質阻塞｜q00` 的精準支持樣本仍停在 10/50（缺 40），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 B / 品質分數 0.5837；目前維持不可部署治理。
+- allowed_layers_reason: 風控熔斷啟用中
+- execution_guardrail_reason: 風控熔斷啟用中
+- runtime_blocker: circuit_breaker | reason: 最近 50 筆勝率: 26.00% < 30%
+- deployment_blocker: 風控熔斷啟用中 | reason: 最近 50 筆勝率: 26.00% < 30%
 - support blocker summary: **精準樣本 10/50（缺口 40） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。**
 - support next action: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。
-- 精準樣本修補: **未啟用** | 支持路徑 **精準樣本未達最小門檻** | 跨越門檻 **已跨越門檻但精準樣本未就緒**
-- runtime closure summary: **當前即時分桶 阻塞｜結構品質阻塞｜q00 的精準樣本仍未就緒（10/50，路徑=精準樣本未達最小門檻 / 治理=目前即時分桶精準樣本未達最小門檻）；較寬範圍 / 近似樣本 目前都只屬僅供治理參考，不可視為部署閉環。 阻塞點=當前即時結構分桶 `阻塞｜結構品質阻塞｜q00` 的精準支持樣本仍停在 10/50（缺 40），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 B / 品質分數 0.5837；目前維持不可部署治理。 精準路徑與外溢對照：同品質寬範圍出現 盤整｜觀察 外溢，29 筆 / 勝率 75.0% / 品質 0.397，明顯劣於 精準即時路徑 勝率 100.0% / 品質 0.740。**
+- 精準樣本修補: **未啟用** | 支持路徑 **精準樣本未達最小門檻** | 跨越門檻 **執行期阻塞優先於跨門檻分析**
+- runtime closure summary: **風控熔斷啟用中：最近 50 筆勝率: 26.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 13/50，至少還差 2 勝。 精準路徑與外溢對照：同品質寬範圍出現 盤整｜觀察 外溢，28 筆 / 勝率 57.1% / 品質 0.279，明顯劣於 精準即時路徑 勝率 100.0% / 品質 0.740。**
 - q35 scaling audit: overall=None / redesign=None / runtime_gap=None / mode=None / next_patch=None
 - q35 runtime truth: redesign_entry_quality=None / redesign_layers_after=None / runtime_layers=None / blocker=None / exact_support=None/None / support_gap=None
 - q35 audit action: None
@@ -25,16 +25,16 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5666** / trade_floor **0.55** / gap **0.0166**
-- 基礎品質: **0.7217** × 權重 **0.75**
-- 結構品質: **0.1014** × 權重 **0.25**
-- base components: feat_4h_bias50=0.8223 (w=0.4, contrib=0.3289), feat_nose=0.5056 (w=0.18, contrib=0.091), feat_pulse=0.5651 (w=0.27, contrib=0.1526), feat_ear=0.9947 (w=0.15, contrib=0.1492)
-- structure components: feat_4h_bb_pct_b=0.1958 (w=0.34, contrib=0.0666), feat_4h_dist_bb_lower=0.062 (w=0.33, contrib=0.0205), feat_4h_dist_swing_low=0.0436 (w=0.33, contrib=0.0144)
+- final entry_quality: **0.5778** / trade_floor **0.55** / gap **0.0278**
+- 基礎品質: **0.7326** × 權重 **0.75**
+- 結構品質: **0.1136** × 權重 **0.25**
+- base components: feat_4h_bias50=0.8089 (w=0.4, contrib=0.3236), feat_nose=0.4507 (w=0.18, contrib=0.0811), feat_pulse=0.6623 (w=0.27, contrib=0.1788), feat_ear=0.9938 (w=0.15, contrib=0.1491)
+- structure components: feat_4h_bb_pct_b=0.2181 (w=0.34, contrib=0.0741), feat_4h_dist_bb_lower=0.069 (w=0.33, contrib=0.0228), feat_4h_dist_swing_low=0.0505 (w=0.33, contrib=0.0167)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
 - remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.2087** | structure_group_max_entry_gain: **0.2247**
+- base_group_max_entry_gain: **0.2006** | structure_group_max_entry_gain: **0.2216**
 - best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
 - single-component floor crossers: None
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**

@@ -185,6 +185,79 @@ def _load_support_context() -> dict:
     return context
 
 
+TOP_LEVEL_LIVE_GATE_SUMMARY_KEYS = (
+    "support_route_verdict",
+    "support_governance_route",
+    "support_route_deployable",
+    "deployment_blocker",
+    "runtime_closure_state",
+    "current_live_structure_bucket",
+    "current_live_structure_bucket_rows",
+    "minimum_support_rows",
+    "current_live_structure_bucket_gap_to_minimum",
+    "allowed_layers",
+    "signal",
+    "execution_guardrail_reason",
+    "release_condition",
+    "release_ready",
+    "current_streak",
+    "recent_window",
+    "current_recent_window_win_rate",
+    "current_recent_window_wins",
+    "required_recent_window_wins",
+    "additional_recent_window_wins_needed",
+    "support_progress_status",
+    "stagnant_run_count",
+    "stalled_support_accumulation",
+    "support_delta_vs_previous",
+    "support_previous_rows",
+    "support_rows_needed",
+    "source_live_probe_generated_at",
+    "live_truth_source_artifact",
+)
+
+
+RELEASE_CONDITION_SCALAR_KEYS = {
+    "release_ready",
+    "current_streak",
+    "recent_window",
+    "current_recent_window_win_rate",
+    "current_recent_window_wins",
+    "required_recent_window_wins",
+    "additional_recent_window_wins_needed",
+}
+
+
+def apply_top_level_live_gate_summary(result: dict, support_context: dict | None) -> dict:
+    """Expose live guardrail/release math at artifact top level for cron/doc consumers.
+
+    Rows already carry these fields and the full context stays nested under
+    ``support_context``.  The top-level projection prevents lightweight artifact
+    readers from reporting ``None`` for the canonical deployment blocker or
+    circuit-breaker release counters when they intentionally avoid parsing every
+    row.
+    """
+    context = dict(support_context or {})
+    result["support_context"] = context
+    release_condition = context.get("release_condition") if isinstance(context.get("release_condition"), dict) else {}
+    live_gate_summary: dict[str, Any] = {}
+    for key in TOP_LEVEL_LIVE_GATE_SUMMARY_KEYS:
+        value = context.get(key)
+        if value is None and key in RELEASE_CONDITION_SCALAR_KEYS:
+            value = release_condition.get(key)
+        if value is not None:
+            result[key] = value
+            live_gate_summary[key] = value
+    if release_condition:
+        result["release_condition"] = release_condition
+        live_gate_summary["release_condition"] = release_condition
+    if live_gate_summary:
+        result["live_gate_summary"] = live_gate_summary
+    else:
+        result.pop("live_gate_summary", None)
+    return result
+
+
 def _coalesce_regime_label(df: pd.DataFrame) -> pd.DataFrame:
     """Normalize merge/asof suffix variants into one lower-case regime_label column."""
     df = df.copy()
@@ -565,6 +638,7 @@ def main() -> None:
     result["runtime_blocked_candidate_rows"] = sum(
         1 for row in result["rows"] if row.get("blocked_only_by_live_guardrails")
     )
+    apply_top_level_live_gate_summary(result, support_context)
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     LEGACY_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)

@@ -358,3 +358,59 @@ def test_coalesce_regime_label_handles_merge_suffixes():
     assert list(coalesced["regime_label"]) == ["bull", "chop"]
     assert "regime_label_x" not in coalesced.columns
     assert "regime_label_y" not in coalesced.columns
+
+
+def test_apply_top_level_live_gate_summary_exposes_breaker_release_math():
+    result = {
+        "generated_at": "2026-05-16T02:03:09+00:00",
+        "support_context": {},
+        "rows": [],
+    }
+    support_context = {
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+        "deployment_blocker": "circuit_breaker_active",
+        "runtime_closure_state": "circuit_breaker_active",
+        "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+        "current_live_structure_bucket_rows": 10,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 40,
+        "release_condition": {
+            "release_ready": False,
+            "recent_window": 50,
+            "current_recent_window_wins": 14,
+            "required_recent_window_wins": 15,
+            "additional_recent_window_wins_needed": 1,
+            "current_recent_window_win_rate": 0.28,
+        },
+        "release_ready": False,
+        "current_streak": 36,
+        "recent_window": 50,
+        "current_recent_window_win_rate": 0.28,
+        "current_recent_window_wins": 14,
+        "required_recent_window_wins": 15,
+        "additional_recent_window_wins_needed": 1,
+        "source_live_probe_generated_at": "2026-05-16T02:02:18Z",
+        "live_truth_source_artifact": "data/live_predict_probe.json",
+    }
+
+    topk.apply_top_level_live_gate_summary(result, support_context)
+
+    assert result["deployment_blocker"] == "circuit_breaker_active"
+    assert result["runtime_closure_state"] == "circuit_breaker_active"
+    assert result["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
+    assert result["current_live_structure_bucket"] == "BLOCK|structure_quality_block|q00"
+    assert result["current_live_structure_bucket_rows"] == 10
+    assert result["minimum_support_rows"] == 50
+    assert result["current_live_structure_bucket_gap_to_minimum"] == 40
+    assert result["release_condition"]["release_ready"] is False
+    assert result["release_ready"] is False
+    assert result["current_streak"] == 36
+    assert result["recent_window"] == 50
+    assert result["current_recent_window_win_rate"] == pytest.approx(0.28)
+    assert result["current_recent_window_wins"] == 14
+    assert result["required_recent_window_wins"] == 15
+    assert result["additional_recent_window_wins_needed"] == 1
+    assert result["source_live_probe_generated_at"] == "2026-05-16T02:02:18Z"
+    assert result["live_truth_source_artifact"] == "data/live_predict_probe.json"
+    assert result["live_gate_summary"]["additional_recent_window_wins_needed"] == 1

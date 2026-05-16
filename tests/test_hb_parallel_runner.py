@@ -8025,6 +8025,11 @@ def test_sync_high_conviction_topk_matrix_fail_closes_release_not_ready_row(tmp_
     matrix_path.write_text(
         json.dumps(
             {
+                "release_ready": True,
+                "current_recent_window_wins": 15,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 0,
+                "current_recent_window_win_rate": 0.3,
                 "rows": [
                     {
                         "model": "random_forest",
@@ -8089,6 +8094,12 @@ def test_sync_high_conviction_topk_matrix_fail_closes_release_not_ready_row(tmp_
     assert row["deployable_verdict"] == "not_deployable"
     assert row["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
     assert row["release_ready"] is False
+    assert payload["release_ready"] is False
+    assert payload["current_recent_window_wins"] == 11
+    assert payload["required_recent_window_wins"] == 15
+    assert payload["additional_recent_window_wins_needed"] == 4
+    assert payload["current_recent_window_win_rate"] != 0.3
+    assert payload["live_gate_summary"]["additional_recent_window_wins_needed"] == 4
 
 
 def test_sync_high_conviction_topk_recomputes_model_gates_before_promotion(tmp_path, monkeypatch):
