@@ -1,6 +1,6 @@
 # ROADMAP.md — Current Plan Only
 
-_最後更新：2026-05-16 16:02:31 CST_
+_最後更新：2026-05-16 17:04:38 CST_
 
 只保留目前計畫；每輪 heartbeat 必須覆蓋更新，不保留歷史 roadmap 流水帳。
 
@@ -27,6 +27,10 @@ _最後更新：2026-05-16 16:02:31 CST_
   - `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `deployable_rows=0` / `paper_shadow=true` / `risk_on_order_enabled=false` / `support=10/50` / `gap=40`；selective sleeve 在可部署仍為 0 時只允許 `paper_shadow`，不會送單或加倉。
 - **高低震盪 / 擁塞不是停工：區間影子觀察 + 減風險劇本已產品化**
   - `support=10/50` / `gap=40` / `paper_shadow=true` / `risk_on_order_enabled=false` / `order_submission_enabled=false` / `reduce_risk_allowed=true`；只允許影子觀察、減碼 / 取消掛單與證據收集，進攻買入 / 加倉與啟用自動模式仍等即時部署門檻。
+- **M5 實戰準備度總卡已產品化：Shadow Trade Ledger + Venue dry-run proof + canary gap 答案**
+  - Shadow Trade Ledger 記錄訊號時間、candidate model、confidence、當時 regime、假想 entry、之後 24h 結果與是否符合 pyramid win；只做影子帳本，不送單。
+  - Venue dry-run proof 顯示 credential present、order preview、ack simulation、cancel simulation、reconciliation check；credential present 只顯示布林 / 狀態，不輸出 secret。
+  - UI 直接回答：目前距離 canary 還差什麼、今天可以演練什麼、哪一個 gate 卡住、如果 gate 全過，第一筆 canary 如何執行。
 - **本輪 current-state docs 已同步到最新 artifacts**
   - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json` 的 current-state truth 已對齊
 

@@ -236,6 +236,52 @@ def test_execution_console_surfaces_range_chop_playbook_without_unlocking_buy_ad
 
 
 
+def test_execution_console_surfaces_m5_readiness_shadow_ledger_venue_proof_and_canary_answers():
+    source = _read("pages/ExecutionConsole.tsx")
+    required_snippets = [
+        'execution_readiness?: ExecutionReadiness | null;',
+        'shadow_trade_ledger?: ShadowTradeLedger | null;',
+        'venue_dry_run_proof?: VenueDryRunProof | null;',
+        'canary_gap_answers?: CanaryGapAnswers | null;',
+        'const executionReadiness = executionOverview?.execution_readiness || null;',
+        'const shadowTradeLedger = executionOverview?.shadow_trade_ledger || null;',
+        'const venueDryRunProof = executionOverview?.venue_dry_run_proof || null;',
+        'const canaryGapAnswers = executionOverview?.canary_gap_answers || null;',
+        '實戰準備度',
+        'Shadow / Reduce-only',
+        '模型 gate',
+        '即時支持 gate',
+        '熔斷 gate',
+        '場館 gate',
+        '影子觀察 gate',
+        'Shadow Trade Ledger',
+        '24h 結果',
+        'Venue dry-run proof',
+        'credential present',
+        'order preview',
+        'ack simulation',
+        'cancel simulation',
+        'reconciliation check',
+        '目前距離 canary 還差什麼',
+        '今天可以演練什麼',
+        '哪一個 gate 卡住',
+        '如果 gate 全過，第一筆 canary 如何執行',
+        '買入 / 加倉仍鎖住',
+        '不送單',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+    forbidden_snippets = [
+        'credential_secret',
+        'api_key',
+        'password',
+        'order_submission_enabled ? "可送單"',
+        'canary_ready ? "可實盤"',
+    ]
+    for snippet in forbidden_snippets:
+        assert snippet not in source
+
+
 def test_execution_console_blocks_only_add_exposure_while_syncing_or_blocked_and_keeps_derisk_actions_available():
     source = _read("pages/ExecutionConsole.tsx")
     required_snippets = [

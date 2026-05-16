@@ -204,6 +204,373 @@ def _planned_budget(
 
 
 
+def _first_text(*values: Any) -> Optional[str]:
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
+
+def _first_int(*values: Any) -> Optional[int]:
+    for value in values:
+        number = _to_int(value)
+        if number is not None:
+            return number
+    return None
+
+
+
+def _first_float(*values: Any) -> Optional[float]:
+    for value in values:
+        number = _to_float(value)
+        if number is not None:
+            return number
+    return None
+
+
+
+def _nearest_high_conviction_candidate(topk: Dict[str, Any]) -> Dict[str, Any]:
+    nearest_rows = [row for row in _as_list(topk.get("nearest_deployable_rows")) if isinstance(row, dict)]
+    if nearest_rows:
+        return nearest_rows[0]
+    rows = [row for row in _as_list(topk.get("rows")) if isinstance(row, dict)]
+    return rows[0] if rows else {}
+
+
+
+def _venue_record_for_payload(status_payload: Dict[str, Any]) -> Dict[str, Any]:
+    execution = _as_dict(status_payload.get("execution"))
+    metadata_smoke = _as_dict(status_payload.get("execution_metadata_smoke"))
+    venues = [item for item in _as_list(metadata_smoke.get("venues")) if isinstance(item, dict)]
+    target_venue = str(execution.get("venue") or "").strip().lower()
+    if target_venue:
+        for venue in venues:
+            if str(venue.get("venue") or "").strip().lower() == target_venue:
+                return venue
+    return venues[0] if venues else {}
+
+
+
+def build_execution_readiness_bundle(
+    status_payload: Optional[Dict[str, Any]],
+    *,
+    range_chop_playbook: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Build M5 operator-safe execution readiness, shadow ledger, and venue proof payloads.
+
+    This is intentionally fail-closed: OOS/model quality can open only a shadow
+    observation lane.  Buy/add exposure and live order submission stay disabled
+    until exact support, breaker/release math, venue proof chain, and surface
+    contract all pass.
+    """
+
+    payload = _as_dict(status_payload)
+    execution_surface_contract = _as_dict(payload.get("execution_surface_contract"))
+    execution = _as_dict(payload.get("execution"))
+    live_runtime_truth = _as_dict(execution.get("live_runtime_truth") or execution_surface_contract.get("live_runtime_truth"))
+    account = _as_dict(payload.get("account"))
+    execution_reconciliation = _as_dict(payload.get("execution_reconciliation"))
+    topk = _load_high_conviction_topk(payload)
+    high_conviction_shadow = _build_high_conviction_shadow_contract(payload)
+    range_chop = _as_dict(range_chop_playbook or execution.get("range_chop_playbook") or execution_surface_contract.get("range_chop_playbook") or payload.get("range_chop_playbook"))
+    venue_record = _venue_record_for_payload(payload)
+
+    support_progress = _as_dict(live_runtime_truth.get("support_progress"))
+    topk_support_context = _as_dict(topk.get("support_context"))
+    blocker_details = _as_dict(live_runtime_truth.get("deployment_blocker_details"))
+    release_condition = _as_dict(blocker_details.get("release_condition"))
+    recent_window_details = _as_dict(blocker_details.get("recent_window"))
+
+    support_rows = _first_int(
+        support_progress.get("current_rows"),
+        live_runtime_truth.get("current_live_structure_bucket_rows"),
+        topk_support_context.get("current_live_structure_bucket_rows"),
+    )
+    support_minimum = _first_int(
+        support_progress.get("minimum_support_rows"),
+        live_runtime_truth.get("minimum_support_rows"),
+        topk_support_context.get("minimum_support_rows"),
+    )
+    support_gap = _first_int(
+        support_progress.get("gap_to_minimum"),
+        live_runtime_truth.get("current_live_structure_bucket_gap_to_minimum"),
+        topk_support_context.get("support_rows_needed"),
+        topk_support_context.get("current_live_structure_bucket_gap_to_minimum"),
+    )
+    if support_gap is None and support_rows is not None and support_minimum is not None:
+        support_gap = max(int(support_minimum) - int(support_rows), 0)
+    support_passed = bool(
+        support_rows is not None
+        and support_minimum is not None
+        and int(support_rows) >= int(support_minimum)
+        and str(live_runtime_truth.get("support_route_verdict") or "").strip() in {"exact_bucket_supported", "exact_live_bucket_supported"}
+    )
+
+    release_window = _first_int(release_condition.get("recent_window"), recent_window_details.get("window_size"), 50) or 50
+    release_wins = _first_int(release_condition.get("current_recent_window_wins"), recent_window_details.get("wins"))
+    release_required_wins = _first_int(release_condition.get("required_recent_window_wins"))
+    release_gap = _first_int(release_condition.get("additional_recent_window_wins_needed"))
+    release_ready = bool(release_condition.get("release_ready"))
+    if release_required_wins is None and release_window:
+        release_required_wins = 15 if int(release_window) == 50 else None
+    if release_gap is None and release_wins is not None and release_required_wins is not None:
+        release_gap = max(int(release_required_wins) - int(release_wins), 0)
+    if release_ready is False and release_gap == 0 and release_wins is not None and release_required_wins is not None:
+        release_ready = int(release_wins) >= int(release_required_wins)
+    release_known = bool(release_condition or recent_window_details or release_wins is not None)
+    release_passed = bool(release_ready or (release_known and release_gap == 0 and release_wins is not None))
+
+    live_ready = bool(execution_surface_contract.get("live_ready"))
+    risk_qualified_count = _to_int(topk.get("risk_qualified_count")) or _to_int(high_conviction_shadow.get("risk_qualified_count")) or 0
+    runtime_blocked_candidate_count = _to_int(topk.get("runtime_blocked_candidate_count")) or _to_int(high_conviction_shadow.get("runtime_blocked_candidate_count")) or 0
+    deployable_count = _to_int(topk.get("deployable_count")) or _to_int(high_conviction_shadow.get("deployable_count")) or 0
+    nearest_candidate = _nearest_high_conviction_candidate(topk)
+    candidate_model = _first_text(
+        nearest_candidate.get("model_name"),
+        nearest_candidate.get("model"),
+        _as_dict(high_conviction_shadow.get("nearest_candidate")).get("model_name"),
+        "no_model_candidate",
+    ) or "no_model_candidate"
+    candidate_threshold = _first_text(nearest_candidate.get("threshold_name"), nearest_candidate.get("top_k"), nearest_candidate.get("threshold"))
+    model_shadow_ready = bool(
+        (risk_qualified_count > 0 and runtime_blocked_candidate_count > 0 and deployable_count == 0)
+        or high_conviction_shadow.get("shadow_available")
+    )
+    model_gate_passed = bool(deployable_count > 0)
+    model_gate_status = "passed" if model_gate_passed else ("shadow_ready" if model_shadow_ready else "blocked")
+
+    credential_present = bool(
+        venue_record.get("credentials_configured")
+        or _as_dict(account.get("health")).get("credentials_configured")
+        or _as_dict(execution.get("health")).get("credentials_configured")
+    )
+    venue_blockers = [str(item) for item in _as_list(venue_record.get("blockers")) if str(item).strip()]
+    live_ready_blockers = [str(item) for item in _as_list(execution_surface_contract.get("live_ready_blockers")) if str(item).strip()]
+    proof_state = _first_text(venue_record.get("proof_state"), "missing_runtime_backed_order_lifecycle")
+    venue_passed = bool(credential_present and not venue_blockers and live_ready and proof_state in {"runtime_backed_proof_complete", "ready"})
+    venue_status = "passed" if venue_passed else "blocked"
+
+    shadow_ready = bool(model_shadow_ready or range_chop.get("shadow_available") or range_chop.get("risk_reduction_allowed"))
+    canary_ready = bool(live_ready and model_gate_passed and support_passed and release_passed and venue_passed)
+    risk_on_order_enabled = False
+    order_submission_enabled = False
+    readiness_status = "canary_ready" if canary_ready else ("shadow_reduce_only" if shadow_ready or range_chop.get("risk_reduction_allowed") else "blocked")
+
+    model_detail_parts = []
+    if risk_qualified_count:
+        model_detail_parts.append(f"離線 / 風控已過 {risk_qualified_count} 筆")
+    if runtime_blocked_candidate_count:
+        model_detail_parts.append(f"runtime blocked candidates {runtime_blocked_candidate_count} 筆")
+    model_detail_parts.append(f"deployable rows {deployable_count}")
+
+    support_summary = (
+        f"即時部署精準支持 {support_rows if support_rows is not None else '—'}/{support_minimum if support_minimum is not None else '—'}"
+        f"，還差 {support_gap if support_gap is not None else '—'}"
+    )
+    release_summary = (
+        f"最近 {release_window} 筆目前 {release_wins if release_wins is not None else '—'}/{release_window} 勝"
+        f"，解除門檻 {release_required_wins if release_required_wins is not None else '—'} 勝"
+        f"，還差 {release_gap if release_gap is not None else '—'} 勝"
+    )
+
+    gates = [
+        {
+            "key": "model_gate",
+            "label": "模型 gate",
+            "status": model_gate_status,
+            "passed": model_gate_passed,
+            "shadow_ready": model_shadow_ready,
+            "current": deployable_count,
+            "required": 1,
+            "gap": 0 if model_gate_passed else 1,
+            "summary": "；".join(model_detail_parts),
+            "next_action": "研究 winner 可進影子觀察；不可標成 deployable，直到即時 gate 與場館證據鏈通過。",
+        },
+        {
+            "key": "current_live_support_gate",
+            "label": "即時支持 gate",
+            "status": "passed" if support_passed else "blocked",
+            "passed": support_passed,
+            "current": support_rows,
+            "required": support_minimum,
+            "gap": support_gap,
+            "summary": support_summary,
+            "next_action": "等待 exact bucket 累積到最低支持樣本；broader / offline / reference support 不可替代。",
+        },
+        {
+            "key": "circuit_breaker_gate",
+            "label": "熔斷 gate",
+            "status": "passed" if release_passed else "blocked",
+            "passed": release_passed,
+            "current": release_wins,
+            "required": release_required_wins,
+            "gap": release_gap,
+            "summary": release_summary,
+            "next_action": "最近窗勝場未達門檻前，只做 shadow / reduce-only，不升級 canary。",
+        },
+        {
+            "key": "venue_gate",
+            "label": "場館 gate",
+            "status": venue_status,
+            "passed": venue_passed,
+            "current": 1 if credential_present else 0,
+            "required": 1,
+            "gap": 0 if credential_present else 1,
+            "summary": "credential present 已確認" if credential_present else "credential present 尚未有 runtime-backed proof",
+            "blockers": venue_blockers or live_ready_blockers,
+            "next_action": _first_text(venue_record.get("operator_next_action"), "補齊 credential presence、order ack、cancel、fill lifecycle 與 reconciliation proof。"),
+        },
+        {
+            "key": "shadow_observation_gate",
+            "label": "影子觀察 gate",
+            "status": "ready" if shadow_ready else "blocked",
+            "passed": shadow_ready,
+            "current": 1 if shadow_ready else 0,
+            "required": 1,
+            "gap": 0 if shadow_ready else 1,
+            "summary": "影子觀察可記錄訊號 / 假想 entry / 24h 結果；不送單。" if shadow_ready else "尚未形成可記錄的影子觀察候選。",
+            "next_action": "今天可啟動影子觀察、dry-run preview、ack / cancel simulation 與減風險演練。",
+        },
+    ]
+    blocking_gate = next((gate for gate in gates if not gate.get("passed") and gate["key"] != "model_gate"), None)
+    if blocking_gate is None and not model_gate_passed:
+        blocking_gate = gates[0]
+
+    what_can_do_now = [
+        "啟動影子觀察並寫入 Shadow Trade Ledger",
+        "做 venue dry-run proof：order preview、ack simulation、cancel simulation、reconciliation check",
+        "減碼 / 取消掛單 / 賣出風險降低路徑仍可用",
+        "持續收集即時部署精準支持與 24h pyramid outcome",
+    ]
+    what_cannot_do_now = [
+        "買入 / 加倉仍鎖住，直到即時支持 gate、熔斷 gate、場館 gate 全過",
+        "不能把 OOS winner、broader bucket 或 reference support 標成可部署",
+        "不能啟用 risk-on 自動下單或完整 live automation",
+    ]
+
+    execution_readiness = {
+        "status": readiness_status,
+        "stage_label": "Shadow / Reduce-only" if not canary_ready else "Canary-ready",
+        "canary_ready": canary_ready,
+        "live_ready": live_ready,
+        "risk_on_order_enabled": risk_on_order_enabled,
+        "order_submission_enabled": order_submission_enabled,
+        "blocking_gate_key": blocking_gate.get("key") if blocking_gate else None,
+        "blocking_gate_label": blocking_gate.get("label") if blocking_gate else None,
+        "operator_message": "實戰準備度目前停在 Shadow / Reduce-only：可以演練與記錄，不可買入 / 加倉。" if not canary_ready else "所有 gate 已通過；只能進入最小 canary，不是 full deploy。",
+        "gates": gates,
+        "what_can_do_now": what_can_do_now,
+        "what_cannot_do_now": what_cannot_do_now,
+        "next_release_condition": "exact support ≥ 50/50、recent 50 ≥ 15 勝、venue proof chain 完整，且 live_ready=true。",
+    }
+
+    symbol = str(payload.get("symbol") or "BTCUSDT")
+    timestamp = str(payload.get("timestamp") or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+    structure_bucket = _first_text(live_runtime_truth.get("structure_bucket"), live_runtime_truth.get("current_live_structure_bucket"), "—") or "—"
+    regime = f"{_first_text(live_runtime_truth.get('regime_label'), '—')} / {_first_text(live_runtime_truth.get('regime_gate'), '—')} / {structure_bucket}"
+    confidence = _first_float(live_runtime_truth.get("confidence"))
+    entry_id_timestamp = timestamp.replace(":", "").replace("-", "").replace(".", "")
+    shadow_entry = {
+        "id": f"shadow-{symbol}-{entry_id_timestamp}",
+        "signal_time": timestamp,
+        "candidate_model": candidate_model,
+        "candidate_threshold": candidate_threshold,
+        "confidence": confidence,
+        "regime": regime,
+        "hypothetical_entry": {
+            "symbol": symbol,
+            "side": "shadow_long_observation",
+            "entry_source": "next_runtime_signal_close_or_preview_price",
+            "order_submission_enabled": False,
+            "operator_copy": "假想 entry 只記錄，不送單、不加倉。",
+        },
+        "outcome_24h": {
+            "status": "pending_observation_window",
+            "window_hours": 24,
+            "pnl_pct": None,
+            "pyramid_win": None,
+        },
+        "pyramid_win": None,
+        "operator_note": "此列是影子訊號帳本 entry；用來回答 24h 後是否符合 pyramid win，不是委託紀錄。",
+    }
+    shadow_trade_ledger = {
+        "status": "recording_ready" if shadow_ready else "waiting_for_shadow_candidate",
+        "mode": "paper_shadow_no_order",
+        "order_submission_enabled": False,
+        "schema": ["signal_time", "candidate_model", "confidence", "regime", "hypothetical_entry", "outcome_24h", "pyramid_win"],
+        "entries": [shadow_entry] if shadow_ready else [],
+        "operator_message": "Shadow Trade Ledger 會記錄每個影子訊號、假想 entry 與 24h outcome；它不是下單帳本。",
+    }
+
+    venue_label = _first_text(venue_record.get("venue"), execution.get("venue"), "unknown") or "unknown"
+    venue_dry_run_proof = {
+        "status": "ready" if venue_passed else "blocked_missing_runtime_backed_proof",
+        "venue": venue_label,
+        "credential_present": credential_present,
+        "secrets_redacted": True,
+        "proof_state": proof_state,
+        "blockers": venue_blockers or live_ready_blockers or ["credential / order ack / fill lifecycle proof 尚未完成"],
+        "operator_next_action": _first_text(venue_record.get("operator_next_action"), "先跑 dry-run preview，再補 ack / cancel / reconciliation proof。"),
+        "verify_next": _first_text(venue_record.get("verify_next"), "python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx"),
+        "order_preview": {
+            "status": "preview_available",
+            "symbol": symbol,
+            "side": "buy_preview_only",
+            "qty": 0.001,
+            "order_submission_enabled": False,
+            "runtime_backed": False,
+        },
+        "ack_simulation": {
+            "status": "simulation_only_waiting_runtime_ack",
+            "runtime_backed": False,
+        },
+        "cancel_simulation": {
+            "status": "simulation_only_waiting_runtime_cancel_ack",
+            "runtime_backed": False,
+        },
+        "reconciliation_check": {
+            "status": _first_text(execution_reconciliation.get("status"), "limited_evidence_no_runtime_order"),
+            "runtime_backed": False,
+            "summary": _first_text(execution_reconciliation.get("summary"), "尚未有 runtime-backed order / fill lifecycle 可對帳。"),
+        },
+    }
+
+    distance_to_canary = [
+        f"即時支持 gate：{support_summary}",
+        f"熔斷 gate：{release_summary}",
+        "場館 gate：credential present、order preview、ack simulation、cancel simulation、reconciliation check 都必須 runtime-backed。",
+    ]
+    canary_gap_answers = {
+        "canary_ready": canary_ready,
+        "distance_to_canary": distance_to_canary,
+        "drills_available_today": what_can_do_now,
+        "blocked_gate_key": blocking_gate.get("key") if blocking_gate else None,
+        "blocking_gate": blocking_gate.get("label") if blocking_gate else "無",
+        "blocked_gate_summary": blocking_gate.get("summary") if blocking_gate else "所有 gate 已通過，只允許最小 canary。",
+        "first_canary_plan_if_all_gates_pass": {
+            "exposure_pct_max": 0.01,
+            "pyramid_layer": "20% first layer only",
+            "symbol": symbol,
+            "mode": "canary_only_after_all_gates_pass",
+            "order_type": "post-only/limit preview first, then tiny canary after operator review",
+            "add_exposure_enabled": False,
+            "stop_conditions": ["gate regression", "venue proof stale", "24h pyramid outcome fails", "unexpected reconciliation issue"],
+        },
+    }
+
+    return {
+        "execution_readiness": execution_readiness,
+        "shadow_trade_ledger": shadow_trade_ledger,
+        "venue_dry_run_proof": venue_dry_run_proof,
+        "canary_gap_answers": canary_gap_answers,
+    }
+
+
+
 def build_execution_overview(
     status_payload: Optional[Dict[str, Any]],
     config: Optional[Dict[str, Any]] = None,
@@ -458,6 +825,8 @@ def build_execution_overview(
         "operator_message": "可部署資金目前仍先依風險控管頭寸公式估算，再由啟用倉位腿均分；運行控制雖已可持久化，但每個 Bot 的資金帳本仍未落地。",
     }
 
+    readiness_bundle = build_execution_readiness_bundle(payload, range_chop_playbook=range_chop_playbook)
+
     return {
         "symbol": symbol,
         "timestamp": timestamp,
@@ -470,6 +839,7 @@ def build_execution_overview(
         "strategy_source_summary": _as_dict(strategy_source_snapshot.get("summary")),
         "profile_cards": cards,
         "range_chop_playbook": range_chop_playbook,
+        **readiness_bundle,
         "live_ready": bool(execution_surface_contract.get("live_ready", False)),
         "live_ready_blockers": _as_list(execution_surface_contract.get("live_ready_blockers")),
     }

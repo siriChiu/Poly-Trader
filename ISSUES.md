@@ -1,6 +1,6 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-05-16 16:02:31 CST_
+_最後更新：2026-05-16 17:04:38 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
@@ -36,6 +36,8 @@ _最後更新：2026-05-16 16:02:31 CST_
   - `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `deployable_rows=0` / `paper_shadow=true` / `risk_on_order_enabled=false` / `support=10/50` / `gap=40`；高信心 Top-K OOS 候選已可在 Execution Console selective sleeve 啟動影子觀察：只鏡像即時決策、事件紀錄、帳戶與對帳摘要，不送單、不加倉；等即時支持、場館證據鏈與單一 Bot 帳本全部通過後才能升級小流量。
 - **高低震盪 / 擁塞實戰拆解已產品化（fail-closed）**
   - `support=10/50` / `gap=40` / `paper_shadow=true` / `risk_on_order_enabled=false` / `order_submission_enabled=false` / `reduce_risk_allowed=true`；震盪不是停工，也不是永遠不能實戰：Bot 營運與 `/api/status.range_chop_playbook` 會把高低震盪拆成區間影子觀察、減碼 / 取消掛單與證據收集；進攻買入 / 加倉與啟用自動模式仍鎖住，必須等即時部署門檻與場館證據鏈通過。
+- **M5 實戰準備度總卡已產品化**
+  - `/api/execution/overview` 已輸出 `execution_readiness / shadow_trade_ledger / venue_dry_run_proof / canary_gap_answers`；模型 gate / 即時支持 gate / 熔斷 gate / 場館 gate / 影子觀察 gate 一次顯示。credential present 只顯示布林 / 狀態，不輸出 secret；影子觀察與減風險可前進，買入 / 加倉仍鎖住。
 - **heartbeat current-state docs overwrite sync 已自動化**
   - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`
   - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json`，讓 cron 心跳真正完成 docs overwrite 閉環

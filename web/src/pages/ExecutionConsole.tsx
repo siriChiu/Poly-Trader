@@ -83,6 +83,102 @@ type RangeChopPlaybook = {
   release_prerequisites?: string[] | null;
 };
 
+type ReadinessGate = {
+  key?: string | null;
+  label?: string | null;
+  status?: string | null;
+  passed?: boolean | null;
+  shadow_ready?: boolean | null;
+  current?: number | null;
+  required?: number | null;
+  gap?: number | null;
+  summary?: string | null;
+  next_action?: string | null;
+  blockers?: string[] | null;
+};
+
+type ExecutionReadiness = {
+  status?: string | null;
+  stage_label?: string | null;
+  canary_ready?: boolean | null;
+  live_ready?: boolean | null;
+  risk_on_order_enabled?: boolean | null;
+  order_submission_enabled?: boolean | null;
+  blocking_gate_key?: string | null;
+  blocking_gate_label?: string | null;
+  operator_message?: string | null;
+  gates?: ReadinessGate[] | null;
+  what_can_do_now?: string[] | null;
+  what_cannot_do_now?: string[] | null;
+  next_release_condition?: string | null;
+};
+
+type ShadowTradeLedgerEntry = {
+  id?: string | null;
+  signal_time?: string | null;
+  candidate_model?: string | null;
+  candidate_threshold?: string | null;
+  confidence?: number | null;
+  regime?: string | null;
+  hypothetical_entry?: {
+    symbol?: string | null;
+    side?: string | null;
+    entry_source?: string | null;
+    order_submission_enabled?: boolean | null;
+    operator_copy?: string | null;
+  } | null;
+  outcome_24h?: {
+    status?: string | null;
+    window_hours?: number | null;
+    pnl_pct?: number | null;
+    pyramid_win?: boolean | null;
+  } | null;
+  pyramid_win?: boolean | null;
+  operator_note?: string | null;
+};
+
+type ShadowTradeLedger = {
+  status?: string | null;
+  mode?: string | null;
+  order_submission_enabled?: boolean | null;
+  schema?: string[] | null;
+  entries?: ShadowTradeLedgerEntry[] | null;
+  operator_message?: string | null;
+};
+
+type VenueDryRunProof = {
+  status?: string | null;
+  venue?: string | null;
+  credential_present?: boolean | null;
+  secrets_redacted?: boolean | null;
+  proof_state?: string | null;
+  blockers?: string[] | null;
+  operator_next_action?: string | null;
+  verify_next?: string | null;
+  order_preview?: Record<string, unknown> | null;
+  ack_simulation?: Record<string, unknown> | null;
+  cancel_simulation?: Record<string, unknown> | null;
+  reconciliation_check?: Record<string, unknown> | null;
+};
+
+type CanaryGapAnswers = {
+  canary_ready?: boolean | null;
+  distance_to_canary?: string[] | null;
+  drills_available_today?: string[] | null;
+  blocked_gate_key?: string | null;
+  blocking_gate?: string | null;
+  blocked_gate_summary?: string | null;
+  first_canary_plan_if_all_gates_pass?: {
+    exposure_pct_max?: number | null;
+    pyramid_layer?: string | null;
+    symbol?: string | null;
+    mode?: string | null;
+    order_type?: string | null;
+    add_exposure_enabled?: boolean | null;
+    stop_conditions?: string[] | null;
+  } | null;
+};
+
 type LiveRuntimeTruth = {
   runtime_closure_state?: string | null;
   runtime_closure_summary?: string | null;
@@ -386,6 +482,10 @@ type ExecutionOverviewResponse = {
     operator_message?: string | null;
   } | null;
   range_chop_playbook?: RangeChopPlaybook | null;
+  execution_readiness?: ExecutionReadiness | null;
+  shadow_trade_ledger?: ShadowTradeLedger | null;
+  venue_dry_run_proof?: VenueDryRunProof | null;
+  canary_gap_answers?: CanaryGapAnswers | null;
   profile_cards?: ExecutionOverviewProfileCard[] | null;
 };
 
@@ -813,6 +913,29 @@ export default function ExecutionConsole() {
   const executionCapitalPlan = executionOverview?.capital_plan ?? null;
   const executionStrategySummary = executionOverview?.strategy_source_summary ?? null;
   const executionProfileCards = Array.isArray(executionOverview?.profile_cards) ? executionOverview.profile_cards : [];
+  const executionReadiness = executionOverview?.execution_readiness || null;
+  const shadowTradeLedger = executionOverview?.shadow_trade_ledger || null;
+  const venueDryRunProof = executionOverview?.venue_dry_run_proof || null;
+  const canaryGapAnswers = executionOverview?.canary_gap_answers || null;
+  const readinessGates = Array.isArray(executionReadiness?.gates) ? executionReadiness.gates : [];
+  const readinessGateByKey = new Map(readinessGates.map((gate) => [gate.key || gate.label || "", gate]));
+  const readinessStageLabel = executionReadiness?.stage_label || "Shadow / Reduce-only";
+  const readinessBlockingGateLabel = executionReadiness?.blocking_gate_label || canaryGapAnswers?.blocking_gate || "同步中";
+  const readinessCanDo = Array.isArray(executionReadiness?.what_can_do_now) ? executionReadiness.what_can_do_now : [];
+  const readinessCannotDo = Array.isArray(executionReadiness?.what_cannot_do_now) ? executionReadiness.what_cannot_do_now : [];
+  const canaryDistance = Array.isArray(canaryGapAnswers?.distance_to_canary) ? canaryGapAnswers.distance_to_canary : [];
+  const canaryDrills = Array.isArray(canaryGapAnswers?.drills_available_today) ? canaryGapAnswers.drills_available_today : [];
+  const shadowLedgerEntries = Array.isArray(shadowTradeLedger?.entries) ? shadowTradeLedger.entries : [];
+  const firstShadowLedgerEntry = shadowLedgerEntries[0] || null;
+  const canaryPlan = canaryGapAnswers?.first_canary_plan_if_all_gates_pass || null;
+  const venueProofChecks = [
+    { label: "credential present", value: venueDryRunProof?.credential_present ? "已確認" : "待 runtime proof" },
+    { label: "order preview", value: String(venueDryRunProof?.order_preview?.status || "待演練") },
+    { label: "ack simulation", value: String(venueDryRunProof?.ack_simulation?.status || "待演練") },
+    { label: "cancel simulation", value: String(venueDryRunProof?.cancel_simulation?.status || "待演練") },
+    { label: "reconciliation check", value: String(venueDryRunProof?.reconciliation_check?.status || "待演練") },
+  ];
+  const readinessStatusTone = executionReadiness?.canary_ready ? "ok" : (executionReadiness?.status === "shadow_reduce_only" ? "warning" : "blocked");
   const executionRunsSummary = executionRuns?.summary ?? null;
   const executionRunRecords = Array.isArray(executionRuns?.runs) ? executionRuns.runs : [];
   const runsByProfileId = new Map(executionRunRecords.map((run) => [run.profile_id || "", run]));
@@ -1243,6 +1366,114 @@ export default function ExecutionConsole() {
           </div>
         )}
       </ExecutionHero>
+
+      <ExecutionSectionCard
+        title="實戰準備度"
+        subtitle="Shadow / Reduce-only：買入 / 加倉仍鎖住；影子觀察、減風險與 venue proof 今天可以前進。"
+        aside={<ExecutionPill className={getStatusTone(readinessStatusTone)}>{readinessStageLabel}</ExecutionPill>}
+      >
+        <div className="grid gap-3 xl:grid-cols-[1.2fr_0.9fr_0.9fr]">
+          <div className="space-y-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-white">Gate stack</div>
+                <div className="mt-1 text-xs text-slate-400">哪一個 gate 卡住：{readinessBlockingGateLabel}</div>
+              </div>
+              <ExecutionPill className={getStatusTone(readinessStatusTone)}>
+                {executionReadiness?.canary_ready ? "Canary ready" : "買入 / 加倉仍鎖住"}
+              </ExecutionPill>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[
+                readinessGateByKey.get("model_gate") || { label: "模型 gate", summary: "同步中" },
+                readinessGateByKey.get("current_live_support_gate") || { label: "即時支持 gate", summary: "同步中" },
+                readinessGateByKey.get("circuit_breaker_gate") || { label: "熔斷 gate", summary: "同步中" },
+                readinessGateByKey.get("venue_gate") || { label: "場館 gate", summary: "同步中" },
+                readinessGateByKey.get("shadow_observation_gate") || { label: "影子觀察 gate", summary: "同步中" },
+              ].map((gate) => (
+                <div key={gate.label || gate.key} className="rounded-xl border border-white/8 bg-[#0d1324] p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs font-semibold text-slate-100">{gate.label}</div>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] ${getStatusTone(gate.passed ? "ok" : gate.status === "ready" || gate.status === "shadow_ready" ? "warning" : "blocked")}`}>
+                      {gate.status || (gate.passed ? "passed" : "blocked")}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-400">{humanizeRuntimeDetailText(gate.summary || gate.next_action || "同步中")}</div>
+                  {(typeof gate.current === "number" || typeof gate.required === "number" || typeof gate.gap === "number") && (
+                    <div className="mt-2 text-[11px] text-slate-500">{gate.current ?? "—"} / {gate.required ?? "—"} · 缺 {gate.gap ?? "—"}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/8 p-3 text-xs text-emerald-100">
+                <div className="font-semibold">現在可以做什麼</div>
+                <ul className="mt-2 list-disc space-y-1 pl-4">
+                  {(readinessCanDo.length ? readinessCanDo : ["影子觀察 / 減風險演練", "Venue dry-run proof 不送單"]).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+              <div className="rounded-xl border border-amber-400/20 bg-amber-400/8 p-3 text-xs text-amber-100">
+                <div className="font-semibold">現在不能做什麼</div>
+                <ul className="mt-2 list-disc space-y-1 pl-4">
+                  {(readinessCannotDo.length ? readinessCannotDo : ["買入 / 加倉仍鎖住", "不送單、不把候選標成可部署"]).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+            <div>
+              <div className="text-sm font-semibold text-white">Shadow Trade Ledger</div>
+              <div className="mt-1 text-xs text-slate-400">每個影子訊號記錄 signal time / model / confidence / regime / 假想 entry / 24h 結果 / pyramid win；不送單。</div>
+            </div>
+            <div className="rounded-xl border border-white/8 bg-[#0d1324] p-3 text-xs text-slate-300">
+              <div className="flex items-center justify-between gap-2">
+                <span>candidate model</span>
+                <span className="text-white">{firstShadowLedgerEntry?.candidate_model || "等待候選"}</span>
+              </div>
+              <div className="mt-2 grid gap-2 text-[11px] text-slate-400">
+                <div>訊號時間：{formatTime(firstShadowLedgerEntry?.signal_time)}</div>
+                <div>confidence：{formatPercent(firstShadowLedgerEntry?.confidence, 1)}</div>
+                <div>regime：{humanizeRuntimeDetailText(firstShadowLedgerEntry?.regime || "同步中")}</div>
+                <div>假想 entry：{firstShadowLedgerEntry?.hypothetical_entry?.operator_copy || "只記錄，不送單"}</div>
+                <div>24h 結果：{firstShadowLedgerEntry?.outcome_24h?.status || "pending"}</div>
+                <div>pyramid win：{typeof firstShadowLedgerEntry?.pyramid_win === "boolean" ? (firstShadowLedgerEntry.pyramid_win ? "符合" : "不符合") : "待 24h"}</div>
+              </div>
+            </div>
+            <div className="text-xs text-slate-500">{shadowTradeLedger?.operator_message || "Shadow ledger 是觀察帳本，不是委託帳本。"}</div>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+            <div>
+              <div className="text-sm font-semibold text-white">Venue dry-run proof</div>
+              <div className="mt-1 text-xs text-slate-400">credential present 只顯示布林 / 狀態；order preview、ack simulation、cancel simulation、reconciliation check 都不得輸出 secret。</div>
+            </div>
+            <div className="space-y-2">
+              {venueProofChecks.map((check) => (
+                <div key={check.label} className="flex items-center justify-between gap-2 rounded-xl border border-white/8 bg-[#0d1324] px-3 py-2 text-xs">
+                  <span className="text-slate-400">{check.label}</span>
+                  <span className="text-slate-100">{humanizeRuntimeDetailText(check.value)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl border border-purple-400/20 bg-purple-400/8 p-3 text-xs text-purple-100">
+              <div className="font-semibold">目前距離 canary 還差什麼</div>
+              <ul className="mt-2 list-disc space-y-1 pl-4">
+                {(canaryDistance.length ? canaryDistance : ["等待即時支持、熔斷與場館 gate 全過"]).map((item) => <li key={item}>{humanizeRuntimeDetailText(item)}</li>)}
+              </ul>
+            </div>
+            <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/8 p-3 text-xs text-cyan-100">
+              <div className="font-semibold">今天可以演練什麼</div>
+              <ul className="mt-2 list-disc space-y-1 pl-4">
+                {(canaryDrills.length ? canaryDrills : ["order preview / ack simulation / cancel simulation / reconciliation check"]).map((item) => <li key={item}>{humanizeRuntimeDetailText(item)}</li>)}
+              </ul>
+            </div>
+            <div className="text-xs text-slate-400">
+              如果 gate 全過，第一筆 canary 如何執行：{formatPercent(canaryPlan?.exposure_pct_max, 1)} 上限，{canaryPlan?.pyramid_layer || "20% first layer only"}，add exposure {canaryPlan?.add_exposure_enabled ? "允許" : "不允許"}。
+            </div>
+          </div>
+        </div>
+      </ExecutionSectionCard>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <ExecutionMetricCard

@@ -2215,6 +2215,18 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "runtime evidence" not in roadmap_md
     assert "runtime evidence" not in orid_md
     assert "減碼 / 取消掛單可用，但進攻買入 / 加倉仍鎖住" in orid_md
+    combined_docs = "\n".join([issues_md, roadmap_md, orid_md])
+    assert "M5 實戰準備度總卡已產品化" in issues_md
+    assert "模型 gate / 即時支持 gate / 熔斷 gate / 場館 gate / 影子觀察 gate" in issues_md
+    assert "Shadow Trade Ledger" in roadmap_md
+    assert "Venue dry-run proof" in roadmap_md
+    assert "目前距離 canary 還差什麼" in roadmap_md
+    assert "今天可以演練什麼" in roadmap_md
+    assert "哪一個 gate 卡住" in roadmap_md
+    assert "如果 gate 全過，第一筆 canary 如何執行" in roadmap_md
+    assert "credential present 只顯示布林 / 狀態，不輸出 secret" in combined_docs
+    assert "api_key" not in combined_docs
+    assert "password" not in combined_docs
     assert "Live DQ drilldown operator-facing markdown 已 enum-safe" in issues_md
     assert "operator markdown 不再洩漏後端 bucket / route / source / reference raw token" in issues_md
     assert "把可用 payload 誤報成 `API timeout`" in issues_md

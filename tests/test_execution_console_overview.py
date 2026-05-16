@@ -173,6 +173,135 @@ def test_build_execution_overview_surfaces_range_chop_shadow_reduce_playbook():
 
 
 
+def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_and_venue_proof():
+    status_payload = _status_payload()
+    live_truth = status_payload["execution"]["live_runtime_truth"]
+    live_truth.update(
+        {
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "deployment_blocker_reason": "即時部署精準支持樣本不足",
+            "runtime_closure_state": "current_live_deployment_blocked",
+            "allowed_layers": 0,
+            "confidence": 0.67,
+            "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+            "current_live_structure_bucket_rows": 2,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 48,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_progress": {
+                "status": "stalled_under_minimum",
+                "current_rows": 2,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 48,
+                "stagnant_run_count": 5,
+                "stalled_support_accumulation": True,
+            },
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "recent_window": 50,
+                    "current_recent_window_wins": 8,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 7,
+                    "release_ready": False,
+                }
+            },
+        }
+    )
+    high_conviction_topk = {
+        "deployment_readiness_status": "paper_shadow_only",
+        "risk_qualified_count": 6,
+        "runtime_blocked_candidate_count": 6,
+        "deployable_count": 0,
+        "support_context": {
+            "current_live_structure_bucket_rows": 2,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 48,
+            "support_progress_status": "stalled_under_minimum",
+            "stalled_support_accumulation": True,
+            "stagnant_run_count": 5,
+        },
+        "nearest_deployable_rows": [
+            {
+                "model_name": "random_forest",
+                "threshold_name": "top_5pct",
+                "deployment_candidate_tier": "research_winner_shadow_only",
+                "blocked_only_by_live_guardrails": True,
+                "deployable": False,
+                "signal": "paper_shadow_only",
+                "allowed_layers": 0,
+                "win_rate": 0.7808,
+                "oos_roi": 1.715,
+                "max_drawdown": 0.0698,
+                "profit_factor": 7.8873,
+                "worst_fold": 0.1442,
+                "trade_count": 146,
+            }
+        ],
+    }
+    status_payload["execution_surface_contract"]["high_conviction_topk"] = high_conviction_topk
+    status_payload["execution"]["high_conviction_topk"] = high_conviction_topk
+    status_payload["execution_metadata_smoke"] = {
+        "venues": [
+            {
+                "venue": "okx",
+                "credentials_configured": False,
+                "proof_state": "missing_runtime_backed_order_lifecycle",
+                "blockers": ["credential proof missing", "order ack missing", "fill lifecycle missing"],
+                "operator_next_action": "用 dry-run preview + ack / cancel simulation 補證據鏈",
+                "verify_next": "python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx",
+            }
+        ]
+    }
+
+    payload = build_execution_overview(status_payload, config={"trading": {"max_position_ratio": 0.10}})
+
+    readiness = payload["execution_readiness"]
+    gates = {gate["key"]: gate for gate in readiness["gates"]}
+    assert readiness["status"] == "shadow_reduce_only"
+    assert readiness["canary_ready"] is False
+    assert readiness["risk_on_order_enabled"] is False
+    assert readiness["blocking_gate_key"] == "current_live_support_gate"
+    assert gates["model_gate"]["status"] == "shadow_ready"
+    assert gates["current_live_support_gate"]["current"] == 2
+    assert gates["current_live_support_gate"]["required"] == 50
+    assert gates["current_live_support_gate"]["gap"] == 48
+    assert gates["circuit_breaker_gate"]["gap"] == 7
+    assert gates["venue_gate"]["status"] == "blocked"
+    assert gates["shadow_observation_gate"]["status"] == "ready"
+    assert "買入 / 加倉" in " ".join(readiness["what_cannot_do_now"])
+    assert "影子觀察" in " ".join(readiness["what_can_do_now"])
+
+    ledger = payload["shadow_trade_ledger"]
+    assert ledger["status"] == "recording_ready"
+    assert ledger["order_submission_enabled"] is False
+    assert ledger["entries"][0]["candidate_model"] == "random_forest"
+    assert ledger["entries"][0]["confidence"] == 0.67
+    assert ledger["entries"][0]["regime"] == "bull / ALLOW / ALLOW|trend|q65"
+    assert ledger["entries"][0]["hypothetical_entry"]["order_submission_enabled"] is False
+    assert ledger["entries"][0]["outcome_24h"]["status"] == "pending_observation_window"
+    assert ledger["entries"][0]["pyramid_win"] is None
+
+    venue_proof = payload["venue_dry_run_proof"]
+    assert venue_proof["status"] == "blocked_missing_runtime_backed_proof"
+    assert venue_proof["credential_present"] is False
+    assert venue_proof["secrets_redacted"] is True
+    assert "api_key" not in str(venue_proof).lower()
+    assert "password" not in str(venue_proof).lower()
+    assert "token" not in str(venue_proof).lower()
+    assert venue_proof["order_preview"]["order_submission_enabled"] is False
+    assert venue_proof["ack_simulation"]["runtime_backed"] is False
+    assert venue_proof["cancel_simulation"]["runtime_backed"] is False
+    assert venue_proof["reconciliation_check"]["runtime_backed"] is False
+
+    answers = payload["canary_gap_answers"]
+    assert answers["canary_ready"] is False
+    assert answers["blocking_gate"] == "即時支持 gate"
+    assert any("還差 48" in item for item in answers["distance_to_canary"])
+    assert any("還差 7" in item for item in answers["distance_to_canary"])
+    assert answers["first_canary_plan_if_all_gates_pass"]["exposure_pct_max"] == 0.01
+    assert answers["first_canary_plan_if_all_gates_pass"]["add_exposure_enabled"] is False
+
+
 def test_build_execution_overview_exposes_strategy_snapshot_summary(monkeypatch, tmp_path):
     _seed_execution_strategy_catalog(tmp_path, monkeypatch)
 

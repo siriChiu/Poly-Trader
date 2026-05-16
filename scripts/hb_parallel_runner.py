@@ -3237,6 +3237,19 @@ def overwrite_current_state_docs(
         range_chop_orid_lines = [
             f"- 高低震盪實戰拆解：{range_chop_contract_line}；區間影子觀察可累積執行期證據，減碼 / 取消掛單可用，但進攻買入 / 加倉仍鎖住。"
         ]
+    m5_readiness_fact_lines = [
+        "- **M5 實戰準備度總卡已產品化**",
+        "  - `/api/execution/overview` 已輸出 `execution_readiness / shadow_trade_ledger / venue_dry_run_proof / canary_gap_answers`；模型 gate / 即時支持 gate / 熔斷 gate / 場館 gate / 影子觀察 gate 一次顯示。credential present 只顯示布林 / 狀態，不輸出 secret；影子觀察與減風險可前進，買入 / 加倉仍鎖住。",
+    ]
+    m5_readiness_roadmap_lines = [
+        "- **M5 實戰準備度總卡已產品化：Shadow Trade Ledger + Venue dry-run proof + canary gap 答案**",
+        "  - Shadow Trade Ledger 記錄訊號時間、candidate model、confidence、當時 regime、假想 entry、之後 24h 結果與是否符合 pyramid win；只做影子帳本，不送單。",
+        "  - Venue dry-run proof 顯示 credential present、order preview、ack simulation、cancel simulation、reconciliation check；credential present 只顯示布林 / 狀態，不輸出 secret。",
+        "  - UI 直接回答：目前距離 canary 還差什麼、今天可以演練什麼、哪一個 gate 卡住、如果 gate 全過，第一筆 canary 如何執行。",
+    ]
+    m5_readiness_orid_lines = [
+        "- M5 實戰準備度：Execution Console 已把實戰準備度、Shadow Trade Ledger、Venue dry-run proof 與 canary gap 答案產品化；credential present 只顯示布林 / 狀態，不輸出 secret；影子觀察 / 減風險可做，買入 / 加倉仍鎖住。"
+    ]
     live_predictor_docs_context = live_predictor_diagnostics
     persisted_live_probe_for_docs = _read_json_file(Path(PROJECT_ROOT) / "data" / "live_predict_probe.json")
     if isinstance(persisted_live_probe_for_docs, dict) and persisted_live_probe_for_docs:
@@ -3646,6 +3659,7 @@ def overwrite_current_state_docs(
         "  - `formatHighConvictionRuntimeSignalLabel()` 統一把即時訊號 enum 轉成繁中操作語；最接近部署候選列不再把內部訊號 token 直接丟給 operator，避免 OOS-pass / runtime-blocked 候選被誤讀為可部署動作。",
         *high_conviction_shadow_fact_lines,
         *range_chop_fact_lines,
+        *m5_readiness_fact_lines,
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
         "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
@@ -3759,6 +3773,7 @@ def overwrite_current_state_docs(
         "  - 列級 `signal` 透過 `formatHighConvictionRuntimeSignalLabel()` 轉成繁中操作語；即時分桶 / 支持 / release gate 未解除前，候選列維持模擬觀察 / 影子驗證 / 僅觀察，不用內部 enum 暗示可部署。",
         *high_conviction_shadow_roadmap_lines,
         *range_chop_roadmap_lines,
+        *m5_readiness_roadmap_lines,
         "- **本輪 current-state docs 已同步到最新 artifacts**",
         "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json` 的 current-state truth 已對齊",
         *parallel_failure_roadmap_lines,
@@ -3887,6 +3902,7 @@ def overwrite_current_state_docs(
         f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；top source blockers={top_source_blockers_line}；fin_netflow={fin_line}；venue proof 仍缺 credential / order ack / fill lifecycle；metadata smoke venue rows 已帶 proof_state / blockers / operator_next_action / verify_next。",
         *high_conviction_shadow_orid_lines,
         *range_chop_orid_lines,
+        *m5_readiness_orid_lines,
         *parallel_failure_orid_lines,
         *([f"- {q35_scaling_doc_line}。"] if q35_scaling_doc_line else []),
         *high_conviction_orid_fact_lines,
