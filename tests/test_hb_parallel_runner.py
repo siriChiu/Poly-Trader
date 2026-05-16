@@ -898,6 +898,15 @@ def test_collect_live_predictor_diagnostics_preserves_circuit_breaker_reason():
         "horizon_minutes": 1440,
         "regime_label": "bull",
         "allowed_layers": 0,
+        "release_ready": False,
+        "release_condition": {
+            "release_ready": False,
+            "recent_window": 50,
+            "current_recent_window_wins": 0,
+            "required_recent_window_wins": 15,
+            "additional_recent_window_wins_needed": 15,
+            "current_recent_window_win_rate": 0.0,
+        },
     }
 
     result = hb_parallel_runner.collect_live_predictor_diagnostics({"stdout": json.dumps(payload)})
@@ -911,6 +920,13 @@ def test_collect_live_predictor_diagnostics_preserves_circuit_breaker_reason():
     assert result["triggered_by"] == ["streak", "recent_win_rate"]
     assert result["horizon_minutes"] == 1440
     assert result["allowed_layers"] == 0
+    assert result["release_condition"]["release_ready"] is False
+    assert result["release_ready"] is False
+    assert result["recent_window"] == 50
+    assert result["current_recent_window_wins"] == 0
+    assert result["required_recent_window_wins"] == 15
+    assert result["additional_recent_window_wins_needed"] == 15
+    assert result["current_recent_window_win_rate"] == 0.0
 
 
 def test_collect_live_predictor_diagnostics_preserves_deployment_blocker_fields():

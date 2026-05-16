@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 from typing import Any, Mapping
 
@@ -204,10 +205,136 @@ def build_runtime_closure_summary(
 
 
 
+def build_circuit_breaker_release_surface(result: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Return normalized circuit-breaker release math for top-level API/probe surfaces.
+
+    The predictor already stores the canonical details under
+    ``deployment_blocker_details.release_condition``.  Operator-facing payloads
+    also need the same counters at top level so Dashboard, Execution Status,
+    Strategy Lab, docs sync, and probes can show the release gate without each
+    client re-implementing nested fallbacks.
+    """
+    result = result or {}
+    details = result.get("deployment_blocker_details") if isinstance(result.get("deployment_blocker_details"), Mapping) else {}
+    release_condition = details.get("release_condition") if isinstance(details.get("release_condition"), Mapping) else {}
+    recent_window = details.get("recent_window") if isinstance(details.get("recent_window"), Mapping) else {}
+    has_breaker_context = (
+        result.get("signal") == "CIRCUIT_BREAKER"
+        or result.get("deployment_blocker") == "circuit_breaker_active"
+        or bool(release_condition)
+        or bool(recent_window)
+    )
+    if not has_breaker_context:
+        return {}
+
+    def _first_present(*values: Any) -> Any:
+        for value in values:
+            if value is not None:
+                return value
+        return None
+
+    def _window_size(value: Any) -> Any:
+        if isinstance(value, Mapping):
+            return value.get("window_size")
+        return value
+
+    release_ready = _first_present(result.get("release_ready"), release_condition.get("release_ready"))
+    current_streak = _first_present(
+        result.get("current_streak"),
+        release_condition.get("current_streak"),
+        details.get("streak"),
+        result.get("streak"),
+    )
+    recent_window_size = _window_size(_first_present(
+        result.get("recent_window"),
+        release_condition.get("recent_window"),
+        recent_window.get("window_size"),
+        details.get("window_size"),
+        result.get("window_size"),
+    ))
+    recent_win_rate_floor = _first_present(
+        result.get("recent_win_rate_must_be_at_least"),
+        release_condition.get("recent_win_rate_must_be_at_least"),
+        recent_window.get("floor"),
+    )
+    current_recent_window_win_rate = _first_present(
+        result.get("current_recent_window_win_rate"),
+        release_condition.get("current_recent_window_win_rate"),
+        recent_window.get("win_rate"),
+        details.get("recent_window_win_rate"),
+        result.get("recent_window_win_rate"),
+        result.get("win_rate"),
+    )
+    current_recent_window_wins = _first_present(
+        result.get("current_recent_window_wins"),
+        release_condition.get("current_recent_window_wins"),
+        recent_window.get("wins"),
+        details.get("recent_window_wins"),
+        result.get("recent_window_wins"),
+    )
+    required_recent_window_wins = _first_present(
+        result.get("required_recent_window_wins"),
+        release_condition.get("required_recent_window_wins"),
+        details.get("required_recent_window_wins"),
+    )
+    if required_recent_window_wins is None:
+        window_value = _int_or_none(recent_window_size)
+        floor_value = _float_or_none(recent_win_rate_floor)
+        if window_value is not None and floor_value is not None:
+            required_recent_window_wins = int(math.ceil(window_value * floor_value))
+    additional_recent_window_wins_needed = _first_present(
+        result.get("additional_recent_window_wins_needed"),
+        release_condition.get("additional_recent_window_wins_needed"),
+        details.get("additional_recent_window_wins_needed"),
+    )
+    if additional_recent_window_wins_needed is None:
+        required_value = _int_or_none(required_recent_window_wins)
+        wins_value = _int_or_none(current_recent_window_wins)
+        if required_value is not None and wins_value is not None:
+            additional_recent_window_wins_needed = max(required_value - wins_value, 0)
+    blocked_by = _first_present(result.get("release_blocked_by"), release_condition.get("blocked_by"))
+    streak_must_be_below = _first_present(result.get("streak_must_be_below"), release_condition.get("streak_must_be_below"))
+
+    normalized_release_condition = dict(release_condition)
+    for key, value in {
+        "release_ready": release_ready,
+        "blocked_by": blocked_by,
+        "current_streak": current_streak,
+        "streak_must_be_below": streak_must_be_below,
+        "recent_window": recent_window_size,
+        "recent_win_rate_must_be_at_least": recent_win_rate_floor,
+        "current_recent_window_win_rate": current_recent_window_win_rate,
+        "current_recent_window_wins": current_recent_window_wins,
+        "required_recent_window_wins": required_recent_window_wins,
+        "additional_recent_window_wins_needed": additional_recent_window_wins_needed,
+    }.items():
+        if value is not None:
+            normalized_release_condition[key] = value
+
+    surface = {"release_condition": normalized_release_condition}
+    for key, value in {
+        "release_ready": release_ready,
+        "release_blocked_by": blocked_by,
+        "current_streak": current_streak,
+        "streak_must_be_below": streak_must_be_below,
+        "recent_window": recent_window_size,
+        "recent_win_rate_must_be_at_least": recent_win_rate_floor,
+        "current_recent_window_win_rate": current_recent_window_win_rate,
+        "current_recent_window_wins": current_recent_window_wins,
+        "required_recent_window_wins": required_recent_window_wins,
+        "additional_recent_window_wins_needed": additional_recent_window_wins_needed,
+    }.items():
+        if value is not None:
+            surface[key] = value
+    return surface
+
+
+
 def _append_scope_summary(summary: str, scope_pathology_summary: Mapping[str, Any] | None) -> str:
     if isinstance(scope_pathology_summary, Mapping) and scope_pathology_summary.get("summary"):
         return f"{summary} 精準路徑與外溢對照：{_humanize_runtime_text(scope_pathology_summary.get('summary'))}"
     return summary
+
 
 
 def _humanize_runtime_text(value: Any) -> str:
@@ -436,6 +563,14 @@ def _int_or_none(value: Any) -> int | None:
 
 def _int_or_zero(value: Any) -> int:
     return _int_or_none(value) or 0
+
+
+
+def _float_or_none(value: Any) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 

@@ -22,6 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from database.models import init_db
 from model.predictor import load_latest_features, load_predictor, predict
 from model.runtime_closure import (
+    build_circuit_breaker_release_surface as shared_circuit_breaker_release_surface,
     runtime_patch_name as shared_runtime_patch_name,
     build_runtime_closure_state as shared_runtime_closure_state,
     build_runtime_closure_summary as shared_runtime_closure_summary,
@@ -848,6 +849,10 @@ def _build_probe_payload(
         recommended_patch_minimum_rows = recommended_patch_summary.get("minimum_support_rows")
     breaker_release = deployment_blocker_details.get("release_condition") if isinstance(deployment_blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = deployment_blocker_details.get("recent_window") if isinstance(deployment_blocker_details.get("recent_window"), dict) else {}
+    circuit_breaker_release_surface = shared_circuit_breaker_release_surface(runtime_result)
+    if circuit_breaker_release_surface:
+        runtime_result.update(circuit_breaker_release_surface)
+        breaker_release = circuit_breaker_release_surface.get("release_condition") or breaker_release
     release_window = breaker_release.get("recent_window") or breaker_recent_window.get("window_size") or 50
     release_floor = breaker_release.get("recent_win_rate_must_be_at_least")
     release_wins = breaker_release.get("required_recent_window_wins")
@@ -904,6 +909,7 @@ def _build_probe_payload(
         "deployment_blocker_reason": runtime_result.get("deployment_blocker_reason"),
         "deployment_blocker_source": runtime_result.get("deployment_blocker_source"),
         "deployment_blocker_details": deployment_blocker_details,
+        **circuit_breaker_release_surface,
         "support_route_verdict": support_route.get("verdict"),
         "support_route_deployable": support_route.get("deployable"),
         "support_governance_route": support_governance_route,

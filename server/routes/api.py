@@ -33,7 +33,11 @@ from server.live_pathology_summary import (
     load_bull_4h_pocket_ablation_summary as shared_load_bull_4h_pocket_ablation_summary,
 )
 from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized, OrderLifecycleEvent
-from model.runtime_closure import build_runtime_closure_state, build_runtime_closure_summary
+from model.runtime_closure import (
+    build_circuit_breaker_release_surface,
+    build_runtime_closure_state,
+    build_runtime_closure_summary,
+)
 from feature_engine.feature_history_policy import (
     FEATURE_KEY_MAP,
     assess_feature_quality,
@@ -1555,6 +1559,15 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
     if current_live_structure_bucket and not runtime_payload.get("structure_bucket"):
         runtime_payload["structure_bucket"] = current_live_structure_bucket
 
+    circuit_breaker_release_surface = build_circuit_breaker_release_surface(runtime_payload)
+    if circuit_breaker_release_surface:
+        runtime_payload.update(circuit_breaker_release_surface)
+        breaker_release = circuit_breaker_release_surface.get("release_condition") or breaker_release
+        release_window = circuit_breaker_release_surface.get("recent_window") or release_window
+        release_floor = circuit_breaker_release_surface.get("recent_win_rate_must_be_at_least") or release_floor
+        current_wins = circuit_breaker_release_surface.get("current_recent_window_wins")
+        wins_gap = circuit_breaker_release_surface.get("additional_recent_window_wins_needed")
+
     runtime_closure_state = build_runtime_closure_state(runtime_payload)
     runtime_closure_summary = build_runtime_closure_summary(
         runtime_payload,
@@ -1612,6 +1625,7 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "deployment_blocker_reason": payload.get("deployment_blocker_reason"),
         "deployment_blocker_source": payload.get("deployment_blocker_source"),
         "deployment_blocker_details": payload.get("deployment_blocker_details"),
+        **circuit_breaker_release_surface,
         "q35_discriminative_redesign_applied": payload.get("q35_discriminative_redesign_applied"),
         "q35_discriminative_redesign": payload.get("q35_discriminative_redesign"),
         "q15_exact_supported_component_patch_applied": patch_active,

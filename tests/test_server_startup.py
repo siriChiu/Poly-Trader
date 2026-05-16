@@ -1514,6 +1514,12 @@ def test_build_live_runtime_closure_surface_marks_circuit_breaker_as_runtime_blo
     assert payload["decision_quality_recent_pathology_alerts"] == ["label_imbalance", "regime_concentration"]
     assert payload["decision_quality_recent_pathology_summary"]["avg_pnl"] == -0.0123
     assert "解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%" in payload["runtime_closure_summary"]
+    assert payload["release_condition"]["current_recent_window_wins"] == 5
+    assert payload["release_condition"]["required_recent_window_wins"] == 15
+    assert payload["current_recent_window_wins"] == 5
+    assert payload["required_recent_window_wins"] == 15
+    assert payload["additional_recent_window_wins_needed"] == 10
+    assert payload["recent_window"] == 50
     assert "目前最近 50 筆只贏 5/50，至少還差 10 勝" in payload["runtime_closure_summary"]
     assert "近期病態=近期範圍切片 100 筆 顯示 分佈病態" in payload["runtime_closure_summary"]
 

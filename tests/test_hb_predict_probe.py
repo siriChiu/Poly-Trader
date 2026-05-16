@@ -114,6 +114,63 @@ def test_build_probe_payload_ignores_stale_q15_support_identity_overlay(monkeypa
     assert "32/50" not in payload["deployment_blocker_reason"]
 
 
+
+def test_build_probe_payload_promotes_circuit_breaker_release_math_to_top_level(monkeypatch):
+    monkeypatch.setattr(hb_predict_probe, "build_live_pathology_scope_surface", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(hb_predict_probe, "_load_q35_scaling_audit_summary", lambda _bucket: {})
+
+    payload = hb_predict_probe._build_probe_payload(
+        latest={"timestamp": "2026-05-16T03:00:00+00:00", "regime_label": "bear"},
+        result={
+            "target_col": "simulated_pyramid_win",
+            "used_model": "regime_bear_ensemble",
+            "model_type": "RegimeAwarePredictor",
+            "signal": "CIRCUIT_BREAKER",
+            "reason": "Recent 50-sample win rate: 8.00% < 30%",
+            "confidence": 0.0,
+            "allowed_layers": 0,
+            "allowed_layers_raw": None,
+            "allowed_layers_reason": "circuit_breaker_blocks_trade",
+            "allowed_layers_raw_reason": "circuit_breaker_preempts_runtime_sizing",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "circuit_breaker_blocks_trade",
+            "deployment_blocker": "circuit_breaker_active",
+            "deployment_blocker_reason": "Recent 50-sample win rate: 8.00% < 30%",
+            "deployment_blocker_source": "circuit_breaker",
+            "deployment_blocker_details": {
+                "recent_window": {"window_size": 50, "wins": 4, "win_rate": 0.08, "floor": 0.3},
+                "release_condition": {
+                    "release_ready": False,
+                    "blocked_by": ["recent_window_win_rate"],
+                    "recent_window": 50,
+                    "recent_win_rate_must_be_at_least": 0.3,
+                    "current_recent_window_wins": 4,
+                    "additional_recent_window_wins_needed": 11,
+                    "streak_must_be_below": 50,
+                },
+            },
+        },
+        target_col="simulated_pyramid_win",
+        used_model="regime_bear_ensemble",
+        current_live_structure_bucket="CIRCUIT_BREAKER",
+        current_live_structure_bucket_rows=0,
+        q15_support_audit={},
+        four_h_non_null={},
+        lag_non_null={},
+    )
+
+    assert payload["runtime_closure_state"] == "circuit_breaker_active"
+    assert payload["release_condition"]["release_ready"] is False
+    assert payload["release_condition"]["required_recent_window_wins"] == 15
+    assert payload["release_ready"] is False
+    assert payload["current_recent_window_wins"] == 4
+    assert payload["required_recent_window_wins"] == 15
+    assert payload["additional_recent_window_wins_needed"] == 11
+    assert payload["recent_window"] == 50
+    assert "至少還差 11 勝" in payload["runtime_closure_summary"]
+
+
+
 def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, capsys, tmp_path):
     session = DummySession()
     out_path = tmp_path / "live_predict_probe.json"

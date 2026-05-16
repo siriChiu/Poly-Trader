@@ -892,7 +892,7 @@ def _current_live_blocker_issue_summary(live_predictor_diagnostics: Dict[str, An
     details = live_predictor_diagnostics.get("deployment_blocker_details") or {}
     if not isinstance(details, dict):
         details = {}
-    release = details.get("release_condition") or {}
+    release = live_predictor_diagnostics.get("release_condition") or details.get("release_condition") or {}
     if not isinstance(release, dict):
         release = {}
     support_progress = live_predictor_diagnostics.get("support_progress") or details.get("support_progress") or {}
@@ -5489,6 +5489,18 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
     support_progress = payload.get("support_progress")
     if not isinstance(support_progress, dict):
         support_progress = deployment_blocker_details.get("support_progress") or {}
+    release_condition = payload.get("release_condition")
+    if not isinstance(release_condition, dict):
+        release_condition = deployment_blocker_details.get("release_condition") or {}
+    if not isinstance(release_condition, dict):
+        release_condition = {}
+
+    def _first_not_none(*values):
+        for value in values:
+            if value is not None:
+                return value
+        return None
+
     return {
         "target_col": payload.get("target_col"),
         "used_model": payload.get("used_model"),
@@ -5525,6 +5537,27 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "deployment_blocker_reason": payload.get("deployment_blocker_reason"),
         "deployment_blocker_source": payload.get("deployment_blocker_source"),
         "deployment_blocker_details": deployment_blocker_details,
+        "release_condition": release_condition,
+        "release_ready": _first_not_none(payload.get("release_ready"), release_condition.get("release_ready")),
+        "recent_window": _first_not_none(payload.get("recent_window"), release_condition.get("recent_window"), payload.get("window_size")),
+        "current_recent_window_wins": _first_not_none(
+            payload.get("current_recent_window_wins"),
+            release_condition.get("current_recent_window_wins"),
+            payload.get("recent_window_wins"),
+        ),
+        "required_recent_window_wins": _first_not_none(
+            payload.get("required_recent_window_wins"),
+            release_condition.get("required_recent_window_wins"),
+        ),
+        "additional_recent_window_wins_needed": _first_not_none(
+            payload.get("additional_recent_window_wins_needed"),
+            release_condition.get("additional_recent_window_wins_needed"),
+        ),
+        "current_recent_window_win_rate": _first_not_none(
+            payload.get("current_recent_window_win_rate"),
+            release_condition.get("current_recent_window_win_rate"),
+            payload.get("recent_window_win_rate"),
+        ),
         "support_route_verdict": payload.get("support_route_verdict") or deployment_blocker_details.get("support_route_verdict"),
         "support_route_deployable": payload.get("support_route_deployable") if payload.get("support_route_deployable") is not None else deployment_blocker_details.get("support_route_deployable"),
         "support_governance_route": payload.get("support_governance_route") or deployment_blocker_details.get("support_governance_route"),
