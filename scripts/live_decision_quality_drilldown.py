@@ -656,6 +656,21 @@ def main() -> None:
     current_live_structure_bucket = payload.get("current_live_structure_bucket") or payload.get("structure_bucket")
     q35_counterfactuals = _load_q35_audit_counterfactuals()
     q35_audit_summary = _load_q35_audit_summary(current_live_structure_bucket)
+    exact_lane_bucket_diagnostics = payload.get("decision_quality_exact_live_lane_bucket_diagnostics")
+    if not isinstance(exact_lane_bucket_diagnostics, dict):
+        exact_lane_bucket_diagnostics = {}
+    exact_lane_bucket_verdict = _first_present(
+        payload.get("decision_quality_exact_live_lane_bucket_verdict"),
+        exact_lane_bucket_diagnostics.get("verdict"),
+    )
+    exact_lane_bucket_reason = _first_present(
+        payload.get("decision_quality_exact_live_lane_bucket_reason"),
+        exact_lane_bucket_diagnostics.get("reason"),
+    )
+    exact_lane_toxic_bucket = _first_present(
+        payload.get("decision_quality_exact_live_lane_toxic_bucket"),
+        exact_lane_bucket_diagnostics.get("toxic_bucket"),
+    )
     if entry_quality_components:
         component_gap_attribution = _component_gap_attribution(entry_quality_components, q35_counterfactuals)
     else:
@@ -727,6 +742,10 @@ def main() -> None:
         "chosen_scope": chosen_scope,
         "chosen_scope_summary": _scope_summary(chosen_scope, diags.get(chosen_scope) or {}),
         "exact_live_lane_summary": _scope_summary(exact_scope_name, diags.get(exact_scope_name) or {}),
+        "decision_quality_exact_live_lane_bucket_diagnostics": exact_lane_bucket_diagnostics or None,
+        "decision_quality_exact_live_lane_bucket_verdict": exact_lane_bucket_verdict,
+        "decision_quality_exact_live_lane_bucket_reason": exact_lane_bucket_reason,
+        "decision_quality_exact_live_lane_toxic_bucket": exact_lane_toxic_bucket,
         "narrow_same_regime_summary": _scope_summary(narrow_scope_name, diags.get(narrow_scope_name) or {}),
         "broad_same_gate_summary": _scope_summary(broad_scope_name, diags.get(broad_scope_name) or {}),
         "recent_pathology_reason": payload.get("decision_quality_recent_pathology_reason"),
@@ -748,6 +767,11 @@ def main() -> None:
     ) or "None"
     chosen = report["chosen_scope_summary"]
     exact = report["exact_live_lane_summary"]
+    exact_bucket_diagnostics = report.get("decision_quality_exact_live_lane_bucket_diagnostics") or {}
+    exact_bucket_verdict_text = _humanize_runtime_text(report.get("decision_quality_exact_live_lane_bucket_verdict") or "None").replace("_", " ")
+    exact_bucket_reason_text = _humanize_runtime_text(report.get("decision_quality_exact_live_lane_bucket_reason") or "None")
+    exact_bucket_count = exact_bucket_diagnostics.get("bucket_count")
+    exact_lane_toxic_bucket = report.get("decision_quality_exact_live_lane_toxic_bucket") or {}
     narrow = report["narrow_same_regime_summary"]
     broad = report["broad_same_gate_summary"]
     worst = report["worst_pathology_scope"]
@@ -918,6 +942,12 @@ def main() -> None:
         f"| narrow `{narrow_scope_name}` | {narrow.get('rows', 0)} | {narrow.get('win_rate')} | {narrow.get('avg_quality')} | {narrow.get('avg_drawdown_penalty')} | {narrow.get('avg_time_underwater')} | {narrow.get('current_live_structure_bucket_rows')} | {narrow.get('recent_pathology_applied')} |",
         f"| broad `{broad_scope_name}` | {broad.get('rows', 0)} | {broad.get('win_rate')} | {broad.get('avg_quality')} | {broad.get('avg_drawdown_penalty')} | {broad.get('avg_time_underwater')} | {broad.get('current_live_structure_bucket_rows')} | {broad.get('recent_pathology_applied')} |",
         "",
+        "## Exact live-lane bucket diagnostic",
+        "",
+        f"- verdict: **{exact_bucket_verdict_text}** | bucket_count: **{exact_bucket_count}**",
+        f"- reason: {exact_bucket_reason_text}",
+        f"- toxic_bucket: {(_humanize_runtime_text(exact_lane_toxic_bucket.get('bucket')) if isinstance(exact_lane_toxic_bucket, dict) and exact_lane_toxic_bucket else 'None')}",
+        "",
         "## Shared shifts",
         "",
         f"- {shared_text}",
@@ -954,6 +984,9 @@ def main() -> None:
         "allowed_layers": report.get("allowed_layers"),
         "allowed_layers_reason": report.get("allowed_layers_reason"),
         "support_route_verdict": report.get("support_route_verdict"),
+        "decision_quality_exact_live_lane_bucket_verdict": report.get("decision_quality_exact_live_lane_bucket_verdict"),
+        "decision_quality_exact_live_lane_bucket_reason": report.get("decision_quality_exact_live_lane_bucket_reason"),
+        "decision_quality_exact_live_lane_bucket_count": (report.get("decision_quality_exact_live_lane_bucket_diagnostics") or {}).get("bucket_count"),
         "recommended_patch_profile": recommended_patch_profile,
         "recommended_patch_status": recommended_patch_status,
         "recommended_patch_support_route": recommended_patch.get("support_route_verdict"),

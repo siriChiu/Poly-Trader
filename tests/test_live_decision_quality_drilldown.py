@@ -590,6 +590,24 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
         "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
         "floor_cross_verdict": "runtime_blocker_preempts_floor_analysis",
         "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "decision_quality_exact_live_lane_bucket_diagnostics": {
+            "bucket_count": 1,
+            "buckets": {
+                "BLOCK|bull_q15_bias50_overextended_block|q15": {
+                    "bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+                    "rows": 0,
+                    "win_rate": None,
+                    "avg_quality": None,
+                    "vs_current_bucket": None,
+                }
+            },
+            "toxic_bucket": None,
+            "verdict": "no_exact_lane_sub_bucket_split",
+            "reason": "exact live lane 沒有可比較的非 current bucket 子 bucket。",
+        },
+        "decision_quality_exact_live_lane_bucket_verdict": "no_exact_lane_sub_bucket_split",
+        "decision_quality_exact_live_lane_bucket_reason": "exact live lane 沒有可比較的非 current bucket 子 bucket。",
+        "decision_quality_exact_live_lane_toxic_bucket": None,
         "q15_exact_supported_component_patch_applied": False,
         "decision_quality_scope_diagnostics": {
             "regime_label+regime_gate+entry_quality_label": {
@@ -723,6 +741,13 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
     assert payload["support_route_deployable"] is False
     assert payload["support_progress"]["status"] == "stalled_under_minimum"
     assert payload["support_progress"]["gap_to_minimum"] == 50
+    assert payload["decision_quality_exact_live_lane_bucket_diagnostics"]["bucket_count"] == 1
+    assert payload["decision_quality_exact_live_lane_bucket_verdict"] == "no_exact_lane_sub_bucket_split"
+    assert payload["decision_quality_exact_live_lane_bucket_reason"] == "exact live lane 沒有可比較的非 current bucket 子 bucket。"
+    assert payload["decision_quality_exact_live_lane_toxic_bucket"] is None
+    assert "## Exact live-lane bucket diagnostic" in markdown
+    assert "verdict: **no exact lane sub bucket split**" in markdown
+    assert "精準即時路徑 沒有可比較的非 current bucket 子 bucket。" in markdown
     assert "建議修補方案: **core_plus_macro**" in markdown
     assert "狀態：非目前即時範圍，僅供治理參考" in markdown
     assert "適用範圍 牛市｜觀察" in markdown
