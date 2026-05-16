@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-15 23:01:07.325269**
+- generated_at: **2026-05-16 00:02:06.022960**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -8,7 +8,7 @@
 - signal: **HOLD**
 - regime / gate / label: **bear / BLOCK / C**
 - current_live_structure_bucket: **BLOCK|structure_quality_block|q00**
-- current_live_structure_bucket_rows: **32**
+- current_live_structure_bucket_rows: **10**
 - allowed_layers: **0** (under_minimum_exact_live_structure_bucket)
 - execution_guardrail_reason: **under_minimum_exact_live_structure_bucket**
 
@@ -25,22 +25,22 @@
 - deployable: **False**
 - governance_reference_only: **True**
 - preferred_support_cohort: **bull_exact_live_lane_proxy**
-- current bucket gap to minimum: **18**
-- exact-bucket proxy rows: **34**
-- exact-lane proxy rows: **216**
+- current bucket gap to minimum: **40**
+- exact-bucket proxy rows: **7**
+- exact-lane proxy rows: **10**
 - supported neighbor rows: **0**
 - reason: current live exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
-- support_progress.status: **no_recent_comparable_history**
-- support_progress.regression_basis: **no_same_identity_same_semantic_signature_history**
-- support_progress.current_rows / minimum: **32 / 50**
-- support_progress.previous_rows: **None**
-- support_progress.delta_vs_previous: **None**
+- support_progress.status: **accumulating**
+- support_progress.regression_basis: **same_identity_same_semantic_signature**
+- support_progress.current_rows / minimum: **10 / 50**
+- support_progress.previous_rows: **0**
+- support_progress.delta_vs_previous: **10**
 - support_progress.stagnant_run_count: **0**
 - support_progress.escalate_to_blocker: **False**
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'BLOCK|structure_quality_block|q00', 'regime_label': 'bear', 'regime_gate': 'BLOCK', 'entry_quality_label': 'C', 'calibration_window': 600, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'BLOCK|structure_quality_block|q00', 'regime_label': 'bear', 'regime_gate': 'BLOCK', 'entry_quality_label': 'C', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `None`
-- support_progress.reason: 目前找不到同一 current live structure bucket且同 support_identity / semantic signature 的最近 heartbeat 可比較；先持續累積 exact support。
+- support_progress.reason: current live exact support 仍低於 minimum，但同 bucket rows 較上一輪增加。 route 已切換，代表 support pathology 正在從缺樣本轉向 exact rows 累積。
 
 ## Floor-cross legality
 - verdict: **floor_crossed_but_support_not_ready**
@@ -57,9 +57,9 @@
 - mode: **reference_only_non_current_live_scope**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.561**
+- current_entry_quality: **0.5745**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.011**
+- current_trade_floor_gap: **0.0245**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_applicable_current_live_not_q15_lane)
@@ -73,7 +73,7 @@
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **HOLD / 0 / under_minimum_exact_live_structure_bucket**
-- support rows / minimum / gap: **32 / 50 / 18**
+- support rows / minimum / gap: **10 / 50 / 40**
 - stagnant_run_count: **0**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh']`
 - legacy_semantic_evidence.verdict: **None**

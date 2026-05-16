@@ -53,6 +53,59 @@ def test_compact_topk_never_projects_full_rows_list():
     }
 
 
+def test_compact_circuit_breaker_projects_release_math_without_rows():
+    audit = {
+        "heartbeat": "1263",
+        "target_col": "simulated_pyramid_win",
+        "trigger_thresholds": {"horizon_minutes": 1440},
+        "mixed_scope": {
+            "triggered": True,
+            "triggered_by": ["recent_win_rate"],
+            "release_ready": False,
+            "release_condition": {
+                "current_streak": 13,
+                "streak_must_be_below": 50,
+                "recent_window": 50,
+                "current_recent_window_win_rate": 0.18,
+                "current_recent_window_wins": 9,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 6,
+            },
+            "recent_window": {"rows": [{"target": 0}] * 50, "losses": 41},
+        },
+        "aligned_scope": {
+            "triggered": False,
+            "release_ready": True,
+            "release_condition": {
+                "current_streak": 32,
+                "streak_must_be_below": 50,
+                "recent_window": 50,
+                "current_recent_window_win_rate": 0.36,
+                "current_recent_window_wins": 18,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 0,
+            },
+            "streak": {"rows": [{"target": 0}] * 32},
+        },
+        "root_cause": {
+            "verdict": "mixed_horizon_false_positive",
+            "summary": "混合 horizon false positive",
+            "recommended_patch": "對齊 canonical 1440m。",
+        },
+    }
+
+    compact = hb_facts.compact_circuit_breaker_audit({}, audit)
+
+    assert compact["verdict"] == "mixed_horizon_false_positive"
+    assert compact["canonical_horizon_minutes"] == 1440
+    assert compact["mixed_scope"]["additional_recent_window_wins_needed"] == 6
+    assert compact["aligned_scope"]["release_ready"] is True
+    assert compact["aligned_scope"]["current_recent_window_wins"] == 18
+    assert "不可因此繞過目前即時精準支持阻塞" in compact["operator_guardrail_summary"]
+    assert "rows" not in compact["mixed_scope"]
+    assert "rows" not in compact["aligned_scope"]
+
+
 def test_build_runtime_facts_uses_summary_counts_and_reference_only_patch():
     facts = hb_facts.build_runtime_facts(
         probe={

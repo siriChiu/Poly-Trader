@@ -154,6 +154,82 @@ def compact_q15(q15: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _compact_circuit_scope(scope: dict[str, Any]) -> dict[str, Any]:
+    release = scope.get("release_condition") if isinstance(scope.get("release_condition"), dict) else {}
+    streak = scope.get("streak") if isinstance(scope.get("streak"), dict) else {}
+    recent = scope.get("recent_window") if isinstance(scope.get("recent_window"), dict) else {}
+    tail = scope.get("tail_pathology") if isinstance(scope.get("tail_pathology"), dict) else {}
+    return {
+        "triggered": scope.get("triggered"),
+        "triggered_by": scope.get("triggered_by"),
+        "release_ready": first_present(scope.get("release_ready"), release.get("release_ready")),
+        "current_streak": first_present(release.get("current_streak"), streak.get("count")),
+        "streak_threshold": first_present(release.get("streak_must_be_below"), streak.get("threshold")),
+        "recent_window": first_present(release.get("recent_window"), recent.get("window_size")),
+        "recent_win_rate_floor": first_present(release.get("recent_win_rate_floor"), recent.get("trigger_floor")),
+        "current_recent_window_win_rate": first_present(
+            release.get("current_recent_window_win_rate"),
+            recent.get("win_rate"),
+        ),
+        "current_recent_window_wins": first_present(
+            release.get("current_recent_window_wins"),
+            recent.get("wins"),
+            tail.get("wins_in_recent_window"),
+        ),
+        "required_recent_window_wins": release.get("required_recent_window_wins"),
+        "additional_recent_window_wins_needed": release.get("additional_recent_window_wins_needed"),
+        "losses_in_recent_window": first_present(recent.get("losses"), tail.get("losses_in_recent_window")),
+        "loss_share": tail.get("loss_share"),
+    }
+
+
+def _circuit_operator_summary(verdict: Any, aligned_scope: dict[str, Any]) -> str | None:
+    if verdict != "mixed_horizon_false_positive":
+        return None
+    if aligned_scope.get("release_ready") is True:
+        return "熔斷審計：混合 horizon 訊號屬 false positive；canonical 1440m 解除條件已達標，但不可因此繞過目前即時精準支持阻塞。"
+    needed = aligned_scope.get("additional_recent_window_wins_needed")
+    if needed is not None:
+        return f"熔斷審計：canonical 1440m 尚未達解除條件，recent window 還差 {needed} 筆勝樣本；維持 fail-closed。"
+    return "熔斷審計：canonical 1440m 尚未確認解除；維持 fail-closed。"
+
+
+def compact_circuit_breaker_audit(summary_audit: dict[str, Any], artifact_audit: dict[str, Any]) -> dict[str, Any]:
+    """Project circuit-breaker release math without heavyweight row previews.
+
+    The raw audit includes recent-window row examples for debugging. Cron reports only
+    need the canonical-vs-mixed horizon verdict and release counters, especially when
+    mixed-horizon false positives must not obscure the current-live support blocker.
+    """
+    if not isinstance(summary_audit, dict):
+        summary_audit = {}
+    if not isinstance(artifact_audit, dict):
+        artifact_audit = {}
+
+    def merged_mapping(key: str) -> dict[str, Any]:
+        artifact_value = artifact_audit.get(key) if isinstance(artifact_audit.get(key), dict) else {}
+        summary_value = summary_audit.get(key) if isinstance(summary_audit.get(key), dict) else {}
+        return {**artifact_value, **summary_value}
+
+    root = merged_mapping("root_cause")
+    thresholds = merged_mapping("trigger_thresholds")
+    mixed = merged_mapping("mixed_scope")
+    aligned = merged_mapping("aligned_scope")
+    compact_aligned = _compact_circuit_scope(aligned)
+    verdict = root.get("verdict")
+    return {
+        "heartbeat": first_present(summary_audit.get("heartbeat"), artifact_audit.get("heartbeat")),
+        "target_col": first_present(summary_audit.get("target_col"), artifact_audit.get("target_col")),
+        "canonical_horizon_minutes": thresholds.get("horizon_minutes"),
+        "verdict": verdict,
+        "summary": root.get("summary"),
+        "recommended_patch": root.get("recommended_patch"),
+        "operator_guardrail_summary": _circuit_operator_summary(verdict, compact_aligned),
+        "mixed_scope": _compact_circuit_scope(mixed),
+        "aligned_scope": compact_aligned,
+    }
+
+
 def build_runtime_facts(
     *,
     probe: dict[str, Any],
@@ -163,6 +239,7 @@ def build_runtime_facts(
     issues: dict[str, Any],
     topk: dict[str, Any],
     q15: dict[str, Any],
+    circuit_breaker: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     blocker_summary = drill.get("support_blocker_summary") or {}
     if not isinstance(blocker_summary, dict):
@@ -177,6 +254,11 @@ def build_runtime_facts(
     summary_topk = summary.get("high_conviction_topk") or {}
     if not isinstance(summary_topk, dict):
         summary_topk = {}
+    summary_circuit = summary.get("circuit_breaker_audit") or {}
+    if not isinstance(summary_circuit, dict):
+        summary_circuit = {}
+    if not isinstance(circuit_breaker, dict):
+        circuit_breaker = {}
 
     return {
         "summary_path": summary_path,
@@ -255,6 +337,7 @@ def build_runtime_facts(
         ),
         "topk": compact_topk(summary_topk, topk),
         "q15": compact_q15(q15),
+        "circuit_breaker": compact_circuit_breaker_audit(summary_circuit, circuit_breaker),
         "docs_sync": pick(summary.get("docs_sync") or {}, "ok", "stale_docs", "auto_synced", "written_docs") if isinstance(summary.get("docs_sync"), dict) else {},
         "issues_active_count": len(issues.get("issues", [])) if isinstance(issues.get("issues"), list) else None,
     }
@@ -267,6 +350,7 @@ def main() -> None:
     issues = load("issues.json")
     topk = load("data/high_conviction_topk_oos_matrix.json")
     q15 = load("data/q15_support_audit.json")
+    circuit_breaker = load("data/circuit_breaker_audit.json")
     out = build_runtime_facts(
         probe=probe,
         drill=drill,
@@ -275,6 +359,7 @@ def main() -> None:
         issues=issues,
         topk=topk,
         q15=q15,
+        circuit_breaker=circuit_breaker,
     )
     print(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=True))
 
