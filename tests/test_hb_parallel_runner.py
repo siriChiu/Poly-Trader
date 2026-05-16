@@ -5962,6 +5962,25 @@ def test_leaderboard_candidate_cache_hit_uses_semantic_alignment_signature(tmp_p
     assert hit["details"]["selected_feature_profile"] == "core_only"
 
 
+def test_leaderboard_payload_cache_staleness_recomputes_wall_clock_age_from_updated_at():
+    payload = {
+        "leaderboard_payload_source": "latest_persisted_snapshot",
+        "leaderboard_payload_stale": False,
+        # This serialized age was true when the artifact was written; it must not
+        # be reused an hour later as proof that the payload is still fresh.
+        "leaderboard_payload_cache_age_sec": 8,
+        "leaderboard_payload_updated_at": "2026-05-16T00:03:28Z",
+        "leaderboard_snapshot_created_at": "2026-05-16T00:03:28Z",
+    }
+    now = hb_parallel_runner.datetime.fromisoformat("2026-05-16T01:02:28+00:00")
+
+    assert hb_parallel_runner._leaderboard_payload_cache_is_stale(
+        payload,
+        freshness_margin_seconds=0,
+        now=now,
+    ) is True
+
+
 def test_leaderboard_candidate_cache_hit_live_rebuilds_stale_payload_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"

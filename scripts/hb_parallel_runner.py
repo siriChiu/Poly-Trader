@@ -3953,15 +3953,30 @@ def _leaderboard_payload_cache_is_stale(
     payload: Dict[str, Any],
     *,
     freshness_margin_seconds: float = 0.0,
+    now: datetime | None = None,
 ) -> bool:
     if payload.get("leaderboard_payload_stale") is True:
         return True
+
+    margin = 0.0
+    try:
+        margin = max(float(freshness_margin_seconds or 0.0), 0.0)
+    except (TypeError, ValueError):
+        margin = 0.0
+
+    checked_at = now or datetime.now(timezone.utc)
+    for timestamp_key in ("leaderboard_payload_updated_at", "leaderboard_snapshot_created_at"):
+        payload_updated_at = _safe_parse_datetime(payload.get(timestamp_key))
+        if payload_updated_at is None:
+            continue
+        age = max((checked_at - payload_updated_at).total_seconds(), 0.0)
+        return age + margin >= LEADERBOARD_PAYLOAD_STALE_AFTER_SECONDS
+
     cache_age = payload.get("leaderboard_payload_cache_age_sec")
     if cache_age is None:
         return False
     try:
         age = float(cache_age)
-        margin = max(float(freshness_margin_seconds or 0.0), 0.0)
     except (TypeError, ValueError):
         return False
     return age + margin >= LEADERBOARD_PAYLOAD_STALE_AFTER_SECONDS
