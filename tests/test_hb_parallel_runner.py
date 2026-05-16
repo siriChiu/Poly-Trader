@@ -2213,6 +2213,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "curl http://127.0.0.1:8000/api/models/leaderboard" not in issues_md
     assert "current-state docs overwrite sync 已自動化" in roadmap_md
     assert "Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）" in issues_md
+    assert "Dashboard 啟動連續性 guardrail 已納入 feature deferred truth" in issues_md
+    assert "特徵缺口已延後到心跳維護收斂" in issues_md
     assert "`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout" in issues_md
     assert "Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe" in issues_md
     assert "最接近部署候選列不再把內部訊號 token 直接丟給 operator" in issues_md
@@ -2253,6 +2255,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "API/UI 已把 per-venue proof state 與下一步驗證欄位掛到 metadata smoke venue rows" in roadmap_md
     assert "manual_trade=paused_when_deployment_blocked" not in issues_md
     assert "Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）" in roadmap_md
+    assert "Dashboard 啟動連續性 guardrail 已納入 feature deferred truth" in roadmap_md
+    assert "特徵缺口已延後到心跳維護收斂" in roadmap_md
     assert "Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe" in roadmap_md
     assert "候選列維持模擬觀察 / 影子驗證 / 僅觀察" in roadmap_md
     assert "Live DQ drilldown operator-facing markdown 已 enum-safe" in roadmap_md
@@ -2270,6 +2274,7 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，減碼保留" in orid_md
     assert "Bot 營運 payload 誤報成 `API timeout`" in orid_md
     assert "`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停" in orid_md
+    assert "Dashboard 啟動連續性卡會把 feature deferred / repair_deferred 顯示成警示與心跳維護收斂文案" in orid_md
     assert "直接 API 買入 / 加倉也必須 409 暫停" in orid_md
     assert "`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡" in orid_md
     assert "買入 / 加倉與啟用自動模式 fail-closed，減碼保留" in orid_md

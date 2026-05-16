@@ -581,7 +581,7 @@ interface RuntimeStatusResponse {
     };
   } | null;
   feature_continuity?: {
-    status?: "clean" | "repaired" | "error" | string;
+    status?: "clean" | "repaired" | "deferred" | "error" | string;
     checked_at?: string;
     error?: string;
     continuity_repair?: {
@@ -1127,6 +1127,12 @@ export default function Dashboard() {
     : featureStartupBackfillDisabled
       ? "啟動安全：後端啟動時只偵測特徵缺口，不做重補，避免就緒狀態被長任務阻塞。"
       : null;
+  const featureContinuityStatus = featureContinuity?.status ?? null;
+  const continuityStatus = featureContinuityStatus === "error"
+    ? "error"
+    : featureStartupBackfillDeferred || featureContinuityStatus === "deferred"
+      ? "deferred"
+      : rawContinuity?.status;
   const executionModeRaw = executionSummary?.mode || accountSummary?.mode || "unknown";
   const executionModeLabel = runtimeStatusPending ? "同步中" : humanizeExecutionModeLabel(executionSummary?.mode || accountSummary?.mode || "unknown");
   const executionVenueLabel = runtimeStatusPending ? "同步中" : humanizeExecutionVenueLabel(executionSummary?.venue || accountSummary?.venue || "—");
@@ -1197,11 +1203,11 @@ export default function Dashboard() {
       : executionModeRaw === "live_canary"
         ? "border-amber-700/40 bg-amber-950/30 text-amber-200"
         : "border-slate-700/40 bg-slate-950/30 text-slate-300";
-  const continuityTone = rawContinuity?.status === "clean"
+  const continuityTone = continuityStatus === "clean"
     ? "border-emerald-700/40 bg-emerald-950/30 text-emerald-200"
-    : rawContinuity?.status === "repaired"
+    : continuityStatus === "repaired" || continuityStatus === "deferred"
       ? "border-amber-700/40 bg-amber-950/30 text-amber-200"
-      : rawContinuity?.status === "error"
+      : continuityStatus === "error"
         ? "border-red-700/40 bg-red-950/30 text-red-200"
         : "border-slate-700/40 bg-slate-950/30 text-slate-300";
   const reconciliationStatusLabel = runtimeStatusPending
@@ -1218,13 +1224,17 @@ export default function Dashboard() {
       : humanizeRuntimeDetailText(executionReconciliation?.summary || "尚未收到對帳摘要。");
   const continuityLabel = runtimeStatusPending
     ? "同步 /api/status 中"
-    : rawContinuity?.status === "clean"
-      ? "raw 連續性正常"
-      : rawContinuity?.status === "repaired"
-        ? "啟動時已自動回填資料斷點"
-        : rawContinuity?.status === "error"
-          ? "啟動檢查失敗"
-          : "尚未收到啟動檢查結果";
+    : featureContinuityStatus === "error"
+      ? "特徵連續性檢查失敗"
+      : featureStartupBackfillDeferred
+        ? "特徵缺口已延後到心跳維護收斂"
+        : rawContinuity?.status === "clean"
+          ? "raw 連續性正常"
+          : rawContinuity?.status === "repaired"
+            ? "啟動時已自動回填資料斷點"
+            : rawContinuity?.status === "error"
+              ? "啟動檢查失敗"
+              : "尚未收到啟動檢查結果";
   const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
 
   const handleTrade = useCallback(async (side: string) => {
