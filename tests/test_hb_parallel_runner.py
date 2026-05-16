@@ -1185,6 +1185,19 @@ def test_high_conviction_live_context_and_rows_surface_q15_active_repair(monkeyp
         "support_route_verdict": "exact_bucket_present_but_below_minimum",
         "support_governance_route": "exact_live_bucket_present_but_below_minimum",
         "support_route_deployable": False,
+        "support_progress": {
+            "status": "regressed_under_minimum",
+            "reason": "semantic_support_rebaseline",
+            "regression_basis": "current_identity",
+            "current_rows": 7,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 43,
+            "delta_vs_previous": -43,
+            "previous_rows": 50,
+            "stagnant_run_count": 3,
+            "stalled_support_accumulation": True,
+            "escalate_to_blocker": True,
+        },
         "allowed_layers": 0,
         "signal": "HOLD",
         "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
@@ -1226,6 +1239,14 @@ def test_high_conviction_live_context_and_rows_surface_q15_active_repair(monkeyp
     hb_parallel_runner._apply_live_support_context_to_high_conviction_row(row, context)
 
     assert context["active_repair_phase"] == "semantic_evidence_backfill_or_exact_accumulation"
+    assert context["support_progress_status"] == "regressed_under_minimum"
+    assert context["support_progress_reason"] == "semantic_support_rebaseline"
+    assert context["support_progress_regression_basis"] == "current_identity"
+    assert context["support_delta_vs_previous"] == -43
+    assert context["support_previous_rows"] == 50
+    assert context["support_rows_needed"] == 43
+    assert context["stagnant_run_count"] == 3
+    assert context["stalled_support_accumulation"] is True
     assert context["active_repair_live_exposure_allowed"] is False
     assert context["active_repair_shadow_or_paper_allowed"] is True
     assert context["active_repair_action_ids"] == [
@@ -1237,6 +1258,14 @@ def test_high_conviction_live_context_and_rows_surface_q15_active_repair(monkeyp
     assert row["active_repair_current_signal"] == "HOLD"
     assert row["active_repair_current_allowed_layers"] == 0
     assert row["active_repair_current_execution_guardrail_reason"] == "under_minimum_exact_live_structure_bucket"
+    assert row["support_progress_status"] == "regressed_under_minimum"
+    assert row["support_progress_reason"] == "semantic_support_rebaseline"
+    assert row["support_progress_regression_basis"] == "current_identity"
+    assert row["support_delta_vs_previous"] == -43
+    assert row["support_previous_rows"] == 50
+    assert row["support_rows_needed"] == 43
+    assert row["stagnant_run_count"] == 3
+    assert row["stalled_support_accumulation"] is True
     assert row["legacy_semantic_evidence_promotable_to_same_identity_history"] is True
     assert row["deployable_verdict"] == "not_deployable"
     assert row["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
@@ -3826,6 +3855,19 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
         "support_governance_route": "exact_live_lane_proxy_available",
         "support_route_deployable": False,
         "current_live_structure_bucket_gap_to_minimum": 50,
+        "support_progress": {
+            "status": "regressed_under_minimum",
+            "reason": "semantic_support_rebaseline",
+            "regression_basis": "current_identity",
+            "current_rows": 0,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 50,
+            "delta_vs_previous": -42,
+            "previous_rows": 42,
+            "stagnant_run_count": 2,
+            "stalled_support_accumulation": True,
+            "escalate_to_blocker": True,
+        },
         "deployment_blocker_details": {
             "release_condition": {
                 "release_ready": False,
@@ -3862,6 +3904,14 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert latest["current_recent_window_wins"] == 9
     assert latest["required_recent_window_wins"] == 25
     assert latest["additional_recent_window_wins_needed"] == 16
+    assert latest["support_progress_status"] == "regressed_under_minimum"
+    assert latest["support_progress_reason"] == "semantic_support_rebaseline"
+    assert latest["support_progress_regression_basis"] == "current_identity"
+    assert latest["support_delta_vs_previous"] == -42
+    assert latest["support_previous_rows"] == 42
+    assert latest["support_rows_needed"] == 50
+    assert latest["stagnant_run_count"] == 2
+    assert latest["stalled_support_accumulation"] is True
     assert latest["nearest_deployable_candidate"]["release_ready"] is False
     assert latest["nearest_deployable_candidate"]["current_recent_window_wins"] == 9
     assert latest["deployable_rows"] == 0
@@ -3879,6 +3929,10 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert latest["nearest_deployable_candidate"]["current_live_structure_bucket_rows"] == 0
     assert latest["nearest_deployable_candidate"]["minimum_support_rows"] == 50
     assert latest["nearest_deployable_candidate"]["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert latest["nearest_deployable_candidate"]["support_progress_status"] == "regressed_under_minimum"
+    assert latest["nearest_deployable_candidate"]["support_delta_vs_previous"] == -42
+    assert latest["nearest_deployable_candidate"]["support_rows_needed"] == 50
+    assert latest["nearest_deployable_candidate"]["stalled_support_accumulation"] is True
     assert latest["nearest_deployable_candidate"]["blocked_only_by_live_guardrails"] is True
     assert latest["highest_roi_not_deployable"]["model"] == "xgboost"
     issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
@@ -3897,6 +3951,13 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert "recent_window_wins=9/50" in issues_md
     assert "required_recent_window_wins=25" in issues_md
     assert "additional_recent_window_wins_needed=16" in issues_md
+    assert "support_progress_status=regressed_under_minimum" in issues_md
+    assert "support_progress_reason=semantic_support_rebaseline" in issues_md
+    assert "regression_basis=current_identity" in issues_md
+    assert "delta_vs_previous=-42" in issues_md
+    assert "previous_rows=42" in issues_md
+    assert "support_rows_needed=50" in issues_md
+    assert "stalled_support_accumulation=True" in issues_md
     assert "Execution Console 高信心 Top-K 影子觀察入口已產品化" in issues_md
     assert "paper_shadow=true" in issues_md
     assert "risk_on_order_enabled=false" in issues_md
@@ -3910,6 +3971,8 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert "矩陣新鮮度" in roadmap_md
     assert "release_ready=False" in roadmap_md
     assert "additional_recent_window_wins_needed=16" in roadmap_md
+    assert "support_progress_status=regressed_under_minimum" in roadmap_md
+    assert "support_rows_needed=50" in roadmap_md
     assert "Execution Console 高信心 Top-K 影子觀察入口已產品化" in roadmap_md
     assert "paper_shadow=true" in roadmap_md
     assert "risk_on_order_enabled=false" in roadmap_md
@@ -3917,6 +3980,8 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert "freshness=stale" in orid_md
     assert "release_ready=False" in orid_md
     assert "additional_recent_window_wins_needed=16" in orid_md
+    assert "support_progress_status=regressed_under_minimum" in orid_md
+    assert "support_rows_needed=50" in orid_md
     assert "high-conviction paper shadow" in orid_md
     assert "risk_on_order_enabled=false" in orid_md
     assert "runtime mirror / event log / reconciliation context" in orid_md

@@ -600,8 +600,23 @@ def _format_legacy_supported_reference(reference: Any) -> str:
 def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
     support_context = support_context or {}
     status = support_context.get("support_progress_status")
+    reason = support_context.get("support_progress_reason")
     regression_basis = support_context.get("support_progress_regression_basis")
     legacy_ref = support_context.get("legacy_supported_reference")
+    current_rows = support_context.get("current_rows")
+    if current_rows is None:
+        current_rows = support_context.get("current_live_structure_bucket_rows")
+    minimum_rows = support_context.get("minimum_rows")
+    if minimum_rows is None:
+        minimum_rows = support_context.get("minimum_support_rows")
+    gap_to_minimum = support_context.get("gap_to_minimum")
+    if gap_to_minimum is None:
+        gap_to_minimum = support_context.get("current_live_structure_bucket_gap_to_minimum")
+    previous_rows = support_context.get("support_previous_rows")
+    delta_vs_previous = support_context.get("support_delta_vs_previous")
+    rows_needed = support_context.get("support_rows_needed")
+    if rows_needed is None:
+        rows_needed = gap_to_minimum
     stagnant_run_count = support_context.get("support_progress_stagnant_run_count")
     stalled_support_accumulation = support_context.get("support_progress_stalled_support_accumulation")
     escalate_to_blocker = support_context.get("support_progress_escalate_to_blocker")
@@ -638,8 +653,15 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
     )
     if (
         status in (None, "")
+        and reason in (None, "")
         and regression_basis in (None, "")
         and not legacy_ref
+        and current_rows is None
+        and minimum_rows is None
+        and gap_to_minimum is None
+        and previous_rows is None
+        and delta_vs_previous is None
+        and rows_needed is None
         and stagnant_run_count is None
         and stalled_support_accumulation is None
         and escalate_to_blocker is None
@@ -648,7 +670,14 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
         return ""
     parts = [
         f"`status={status or '—'}`",
+        f"`reason={reason or '—'}`",
         f"`regression_basis={regression_basis or '—'}`",
+        f"`current_rows={current_rows if current_rows is not None else '—'}`",
+        f"`minimum_rows={minimum_rows if minimum_rows is not None else '—'}`",
+        f"`gap_to_minimum={gap_to_minimum if gap_to_minimum is not None else '—'}`",
+        f"`support_rows_needed={rows_needed if rows_needed is not None else '—'}`",
+        f"`previous_rows={previous_rows if previous_rows is not None else '—'}`",
+        f"`delta_vs_previous={delta_vs_previous if delta_vs_previous is not None else '—'}`",
         f"`legacy_supported_reference={_format_legacy_supported_reference(legacy_ref)}`",
     ]
     if stagnant_run_count is not None:
@@ -688,6 +717,54 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
             repair_parts.append(f"`legacy_missing={','.join(str(item) for item in legacy_evidence_missing)}`")
         line += "；active repair：" + " / ".join(repair_parts)
     return line
+
+
+def _high_conviction_support_progress_doc_fragment(source: Dict[str, Any] | None) -> str:
+    """Compact row/local support-progress truth for Top-K docs and issue details."""
+    if not isinstance(source, dict):
+        return ""
+
+    def _first_present(*values: Any) -> Any:
+        for value in values:
+            if value is not None and value != "":
+                return value
+        return None
+
+    status = _first_present(source.get("support_progress_status"), source.get("active_repair_support_status"))
+    reason = source.get("support_progress_reason")
+    regression_basis = source.get("support_progress_regression_basis")
+    stagnant = _first_present(source.get("support_progress_stagnant_run_count"), source.get("stagnant_run_count"))
+    stalled = _first_present(
+        source.get("support_progress_stalled_support_accumulation"),
+        source.get("stalled_support_accumulation"),
+    )
+    escalate = _first_present(source.get("support_progress_escalate_to_blocker"), source.get("escalate_to_blocker"))
+    delta = source.get("support_delta_vs_previous")
+    previous = source.get("support_previous_rows")
+    rows_needed = _first_present(source.get("support_rows_needed"), source.get("current_live_structure_bucket_gap_to_minimum"))
+    if all(
+        value is None
+        for value in (status, reason, regression_basis, stagnant, stalled, escalate, delta, previous, rows_needed)
+    ):
+        return ""
+    parts = [f"`support_progress_status={status or '—'}`"]
+    if reason is not None:
+        parts.append(f"`support_progress_reason={reason}`")
+    if regression_basis is not None:
+        parts.append(f"`regression_basis={regression_basis}`")
+    if delta is not None:
+        parts.append(f"`delta_vs_previous={delta}`")
+    if previous is not None:
+        parts.append(f"`previous_rows={previous}`")
+    if rows_needed is not None:
+        parts.append(f"`support_rows_needed={rows_needed}`")
+    if stagnant is not None:
+        parts.append(f"`stagnant_run_count={stagnant}`")
+    if stalled is not None:
+        parts.append(f"`stalled_support_accumulation={stalled}`")
+    if escalate is not None:
+        parts.append(f"`escalate_to_blocker={escalate}`")
+    return " / ".join(parts)
 
 
 _PATCH_EMPTY_DOC_MARKERS = {"", "-", "—", "none", "null", "n/a", "na"}
@@ -1181,6 +1258,18 @@ def _compact_high_conviction_topk_matrix_summary(
         "current_recent_window_wins",
         "required_recent_window_wins",
         "additional_recent_window_wins_needed",
+        "support_progress_status",
+        "support_progress_reason",
+        "support_progress_regression_basis",
+        "support_progress_stagnant_run_count",
+        "support_progress_stalled_support_accumulation",
+        "support_progress_escalate_to_blocker",
+        "stagnant_run_count",
+        "stalled_support_accumulation",
+        "escalate_to_blocker",
+        "support_delta_vs_previous",
+        "support_previous_rows",
+        "support_rows_needed",
         "active_repair_phase",
         "active_repair_component_verify_ready",
         "active_repair_live_exposure_allowed",
@@ -1222,6 +1311,18 @@ def _compact_high_conviction_topk_matrix_summary(
             "current_recent_window_wins": "current_recent_window_wins",
             "required_recent_window_wins": "required_recent_window_wins",
             "additional_recent_window_wins_needed": "additional_recent_window_wins_needed",
+            "support_progress_status": "support_progress_status",
+            "support_progress_reason": "support_progress_reason",
+            "support_progress_regression_basis": "support_progress_regression_basis",
+            "support_progress_stagnant_run_count": "support_progress_stagnant_run_count",
+            "support_progress_stalled_support_accumulation": "support_progress_stalled_support_accumulation",
+            "support_progress_escalate_to_blocker": "support_progress_escalate_to_blocker",
+            "stagnant_run_count": "stagnant_run_count",
+            "stalled_support_accumulation": "stalled_support_accumulation",
+            "escalate_to_blocker": "escalate_to_blocker",
+            "support_delta_vs_previous": "support_delta_vs_previous",
+            "support_previous_rows": "support_previous_rows",
+            "support_rows_needed": "support_rows_needed",
             "active_repair_phase": "active_repair_phase",
             "active_repair_component_verify_ready": "active_repair_component_verify_ready",
             "active_repair_live_exposure_allowed": "active_repair_live_exposure_allowed",
@@ -1287,6 +1388,18 @@ def _compact_high_conviction_topk_matrix_summary(
         "current_recent_window_wins": _support_value("current_recent_window_wins"),
         "required_recent_window_wins": _support_value("required_recent_window_wins"),
         "additional_recent_window_wins_needed": _support_value("additional_recent_window_wins_needed"),
+        "support_progress_status": _support_value("support_progress_status"),
+        "support_progress_reason": _support_value("support_progress_reason"),
+        "support_progress_regression_basis": _support_value("support_progress_regression_basis"),
+        "support_progress_stagnant_run_count": _support_value("support_progress_stagnant_run_count"),
+        "support_progress_stalled_support_accumulation": _support_value("support_progress_stalled_support_accumulation"),
+        "support_progress_escalate_to_blocker": _support_value("support_progress_escalate_to_blocker"),
+        "stagnant_run_count": _support_value("stagnant_run_count"),
+        "stalled_support_accumulation": _support_value("stalled_support_accumulation"),
+        "escalate_to_blocker": _support_value("escalate_to_blocker"),
+        "support_delta_vs_previous": _support_value("support_delta_vs_previous"),
+        "support_previous_rows": _support_value("support_previous_rows"),
+        "support_rows_needed": _support_value("support_rows_needed"),
         "active_repair_phase": _support_value("active_repair_phase"),
         "active_repair_component_verify_ready": _support_value("active_repair_component_verify_ready"),
         "active_repair_live_exposure_allowed": _support_value("active_repair_live_exposure_allowed"),
@@ -1329,6 +1442,18 @@ _HIGH_CONVICTION_LIVE_SUPPORT_KEYS = (
     "current_recent_window_wins",
     "required_recent_window_wins",
     "additional_recent_window_wins_needed",
+    "support_progress_status",
+    "support_progress_reason",
+    "support_progress_regression_basis",
+    "support_progress_stagnant_run_count",
+    "support_progress_stalled_support_accumulation",
+    "support_progress_escalate_to_blocker",
+    "stagnant_run_count",
+    "stalled_support_accumulation",
+    "escalate_to_blocker",
+    "support_delta_vs_previous",
+    "support_previous_rows",
+    "support_rows_needed",
     "active_repair_phase",
     "active_repair_component_verify_ready",
     "active_repair_live_exposure_allowed",
@@ -1390,6 +1515,22 @@ def _high_conviction_support_context_from_live(
             value = support_progress.get("minimum_support_rows")
         if value is None and key == "current_live_structure_bucket_gap_to_minimum":
             value = support_progress.get("gap_to_minimum")
+        progress_field_map = {
+            "support_progress_status": "status",
+            "support_progress_reason": "reason",
+            "support_progress_regression_basis": "regression_basis",
+            "support_progress_stagnant_run_count": "stagnant_run_count",
+            "support_progress_stalled_support_accumulation": "stalled_support_accumulation",
+            "support_progress_escalate_to_blocker": "escalate_to_blocker",
+            "stagnant_run_count": "stagnant_run_count",
+            "stalled_support_accumulation": "stalled_support_accumulation",
+            "escalate_to_blocker": "escalate_to_blocker",
+            "support_delta_vs_previous": "delta_vs_previous",
+            "support_previous_rows": "previous_rows",
+            "support_rows_needed": "gap_to_minimum",
+        }
+        if value is None and key in progress_field_map:
+            value = support_progress.get(progress_field_map[key])
         if value is None and key == "execution_guardrail_reason":
             value = (
                 live_predictor_diagnostics.get("allowed_layers_reason")
@@ -1724,6 +1865,18 @@ def _apply_live_support_context_to_high_conviction_row(
         "current_recent_window_wins": "current_recent_window_wins",
         "required_recent_window_wins": "required_recent_window_wins",
         "additional_recent_window_wins_needed": "additional_recent_window_wins_needed",
+        "support_progress_status": "support_progress_status",
+        "support_progress_reason": "support_progress_reason",
+        "support_progress_regression_basis": "support_progress_regression_basis",
+        "support_progress_stagnant_run_count": "support_progress_stagnant_run_count",
+        "support_progress_stalled_support_accumulation": "support_progress_stalled_support_accumulation",
+        "support_progress_escalate_to_blocker": "support_progress_escalate_to_blocker",
+        "stagnant_run_count": "stagnant_run_count",
+        "stalled_support_accumulation": "stalled_support_accumulation",
+        "escalate_to_blocker": "escalate_to_blocker",
+        "support_delta_vs_previous": "support_delta_vs_previous",
+        "support_previous_rows": "support_previous_rows",
+        "support_rows_needed": "support_rows_needed",
         "active_repair_phase": "active_repair_phase",
         "active_repair_component_verify_ready": "active_repair_component_verify_ready",
         "active_repair_live_exposure_allowed": "active_repair_live_exposure_allowed",
@@ -2507,7 +2660,8 @@ def _issue_current_lines(
                     f"`deployment_blocker={latest_matrix.get('deployment_blocker', '—')}` / "
                     f"`current_live_structure_bucket={latest_matrix.get('current_live_structure_bucket', '—')}` / "
                     f"`current_live_structure_bucket_rows={latest_matrix.get('current_live_structure_bucket_rows', '—')}/{latest_matrix.get('minimum_support_rows', '—')}` / "
-                    f"`current_live_structure_bucket_gap_to_minimum={latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`",
+                    f"`current_live_structure_bucket_gap_to_minimum={latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`"
+                    f"{(' / ' + _high_conviction_support_progress_doc_fragment(latest_matrix)) if _high_conviction_support_progress_doc_fragment(latest_matrix) else ''}",
                     "nearest deployable candidate："
                     f"`model={best_row.get('model', '—')}` / "
                     f"`regime={best_row.get('regime', '—')}` / "
@@ -2525,7 +2679,8 @@ def _issue_current_lines(
                     f"`governance={best_row.get('support_governance_route', '—')}` / "
                     f"`bucket={best_row.get('current_live_structure_bucket', '—')}` / "
                     f"`bucket_rows={best_row.get('current_live_structure_bucket_rows', '—')}/{best_row.get('minimum_support_rows', '—')}` / "
-                    f"`gap={best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`",
+                    f"`gap={best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`"
+                    f"{(' / ' + _high_conviction_support_progress_doc_fragment(best_row)) if _high_conviction_support_progress_doc_fragment(best_row) else ''}",
                 ]
             )
         return [
@@ -2971,6 +3126,8 @@ def overwrite_current_state_docs(
 
     high_conviction_matrix_release_fragment = _high_conviction_release_doc_fragment(high_conviction_latest_matrix)
     high_conviction_best_release_fragment = _high_conviction_release_doc_fragment(high_conviction_best_row)
+    high_conviction_matrix_progress_fragment = _high_conviction_support_progress_doc_fragment(high_conviction_latest_matrix)
+    high_conviction_best_progress_fragment = _high_conviction_support_progress_doc_fragment(high_conviction_best_row)
     high_conviction_deployable_rows = _int_or_none(high_conviction_latest_matrix.get("deployable_rows")) or 0
     high_conviction_risk_qualified_rows = _int_or_none(high_conviction_latest_matrix.get("risk_qualified_rows")) or 0
     high_conviction_runtime_blocked_rows = _int_or_none(
@@ -3527,7 +3684,7 @@ def overwrite_current_state_docs(
             (
                 f"   - `data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at={high_conviction_latest_matrix.get('generated_at', '—')}` / "
                 f"`freshness={high_conviction_latest_matrix.get('artifact_freshness_status', '—')}` / `age_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_age_minutes'), 1)}` / `stale_after_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_stale_after_minutes'), 0)}` / `deployment_blocking={high_conviction_latest_matrix.get('artifact_deployment_blocking', '—')}` / "
-                f"`rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `gap={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_matrix_release_fragment) if high_conviction_matrix_release_fragment else ''}；`/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板已改為最接近部署候選優先，並以操作員繁中 copy 顯示矩陣新鮮度、breaker release math 與即時支持脈絡；矩陣過期或即時分桶 / 支持 / release 條件未解除前仍 fail-closed。"
+                f"`rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `gap={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_matrix_release_fragment) if high_conviction_matrix_release_fragment else ''}{(' / ' + high_conviction_matrix_progress_fragment) if high_conviction_matrix_progress_fragment else ''}；`/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板已改為最接近部署候選優先，並以操作員繁中 copy 顯示矩陣新鮮度、breaker release math 與即時支持脈絡；矩陣過期或即時分桶 / 支持 / release 條件未解除前仍 fail-closed。"
                 if high_conviction_latest_matrix
                 else "   - 先產出 `data/high_conviction_topk_oos_matrix.json`，用 walk-forward OOS 比較 `model × feature_profile × regime × top_k`；未達最低交易數 / 勝率 / 最大回撤 / 盈虧比 / 支持路徑時保持模擬觀察 / 影子驗證 / 僅觀察。"
             ),
@@ -3555,8 +3712,8 @@ def overwrite_current_state_docs(
         high_conviction_matrix_lines = []
         if high_conviction_latest_matrix:
             high_conviction_matrix_lines = [
-                f"- 最新 matrix artifact 已產出：`artifact={high_conviction_latest_matrix.get('artifact', 'data/high_conviction_topk_oos_matrix.json')}` / `generated_at={high_conviction_latest_matrix.get('generated_at', '—')}` / `freshness={high_conviction_latest_matrix.get('artifact_freshness_status', '—')}` / `age_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_age_minutes'), 1)}` / `stale_after_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_stale_after_minutes'), 0)}` / `deployment_blocking={high_conviction_latest_matrix.get('artifact_deployment_blocking', '—')}` / `samples={high_conviction_latest_matrix.get('samples', '—')}` / `rows={high_conviction_latest_matrix.get('rows', '—')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows', '—')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `support_route={high_conviction_latest_matrix.get('support_route', '—')}` / `deployment_blocker={high_conviction_latest_matrix.get('deployment_blocker', '—')}` / `current_live_structure_bucket={high_conviction_latest_matrix.get('current_live_structure_bucket', '—')}` / `current_live_structure_bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `current_live_structure_bucket_gap_to_minimum={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_matrix_release_fragment) if high_conviction_matrix_release_fragment else ''}。",
-                f"- 最接近部署候選優先：`model={high_conviction_best_row.get('model', '—')}` / `regime={high_conviction_best_row.get('regime', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` / `win_rate={high_conviction_best_row.get('win_rate', '—')}` / `profit_factor={high_conviction_best_row.get('profit_factor', '—')}` / `max_drawdown={high_conviction_best_row.get('max_drawdown', '—')}` / `worst_fold={high_conviction_best_row.get('worst_fold', '—')}` / `trades={high_conviction_best_row.get('trade_count', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` / `verdict={high_conviction_best_row.get('deployable_verdict', '—')}` / `support_route={high_conviction_best_row.get('support_route', '—')}` / `governance={high_conviction_best_row.get('support_governance_route', '—')}` / `bucket={high_conviction_best_row.get('current_live_structure_bucket', '—')}` / `bucket_rows={high_conviction_best_row.get('current_live_structure_bucket_rows', '—')}/{high_conviction_best_row.get('minimum_support_rows', '—')}` / `gap={high_conviction_best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_best_release_fragment) if high_conviction_best_release_fragment else ''}；若只剩即時分桶 / 支持 / release gate，仍模擬觀察 / 影子驗證 / 僅觀察。",
+                f"- 最新 matrix artifact 已產出：`artifact={high_conviction_latest_matrix.get('artifact', 'data/high_conviction_topk_oos_matrix.json')}` / `generated_at={high_conviction_latest_matrix.get('generated_at', '—')}` / `freshness={high_conviction_latest_matrix.get('artifact_freshness_status', '—')}` / `age_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_age_minutes'), 1)}` / `stale_after_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_stale_after_minutes'), 0)}` / `deployment_blocking={high_conviction_latest_matrix.get('artifact_deployment_blocking', '—')}` / `samples={high_conviction_latest_matrix.get('samples', '—')}` / `rows={high_conviction_latest_matrix.get('rows', '—')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows', '—')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `support_route={high_conviction_latest_matrix.get('support_route', '—')}` / `deployment_blocker={high_conviction_latest_matrix.get('deployment_blocker', '—')}` / `current_live_structure_bucket={high_conviction_latest_matrix.get('current_live_structure_bucket', '—')}` / `current_live_structure_bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `current_live_structure_bucket_gap_to_minimum={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_matrix_release_fragment) if high_conviction_matrix_release_fragment else ''}{(' / ' + high_conviction_matrix_progress_fragment) if high_conviction_matrix_progress_fragment else ''}。",
+                f"- 最接近部署候選優先：`model={high_conviction_best_row.get('model', '—')}` / `regime={high_conviction_best_row.get('regime', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `oos_roi={high_conviction_best_row.get('oos_roi', '—')}` / `win_rate={high_conviction_best_row.get('win_rate', '—')}` / `profit_factor={high_conviction_best_row.get('profit_factor', '—')}` / `max_drawdown={high_conviction_best_row.get('max_drawdown', '—')}` / `worst_fold={high_conviction_best_row.get('worst_fold', '—')}` / `trades={high_conviction_best_row.get('trade_count', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` / `verdict={high_conviction_best_row.get('deployable_verdict', '—')}` / `support_route={high_conviction_best_row.get('support_route', '—')}` / `governance={high_conviction_best_row.get('support_governance_route', '—')}` / `bucket={high_conviction_best_row.get('current_live_structure_bucket', '—')}` / `bucket_rows={high_conviction_best_row.get('current_live_structure_bucket_rows', '—')}/{high_conviction_best_row.get('minimum_support_rows', '—')}` / `gap={high_conviction_best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_best_release_fragment) if high_conviction_best_release_fragment else ''}{(' / ' + high_conviction_best_progress_fragment) if high_conviction_best_progress_fragment else ''}；若只剩即時分桶 / 支持 / release gate，仍模擬觀察 / 影子驗證 / 僅觀察。",
             ]
         else:
             high_conviction_matrix_lines = [
@@ -3693,7 +3850,7 @@ def overwrite_current_state_docs(
     if high_conviction_issue:
         high_conviction_orid_fact_lines = [
             (
-                f"- 實戰化 P0：`data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at={high_conviction_latest_matrix.get('generated_at', '—')}` / `freshness={high_conviction_latest_matrix.get('artifact_freshness_status', '—')}` / `age_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_age_minutes'), 1)}` / `stale_after_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_stale_after_minutes'), 0)}` / `deployment_blocking={high_conviction_latest_matrix.get('artifact_deployment_blocking', '—')}` / `rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `gap={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_matrix_release_fragment) if high_conviction_matrix_release_fragment else ''}；最接近部署候選 `model={high_conviction_best_row.get('model', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` / `bucket_rows={high_conviction_best_row.get('current_live_structure_bucket_rows', '—')}/{high_conviction_best_row.get('minimum_support_rows', '—')}` / `gap={high_conviction_best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_best_release_fragment) if high_conviction_best_release_fragment else ''}，仍被矩陣新鮮度或即時分桶 / 支持 / release gate 擋下。"
+                f"- 實戰化 P0：`data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at={high_conviction_latest_matrix.get('generated_at', '—')}` / `freshness={high_conviction_latest_matrix.get('artifact_freshness_status', '—')}` / `age_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_age_minutes'), 1)}` / `stale_after_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_stale_after_minutes'), 0)}` / `deployment_blocking={high_conviction_latest_matrix.get('artifact_deployment_blocking', '—')}` / `rows={high_conviction_latest_matrix.get('rows')}` / `deployable_rows={high_conviction_latest_matrix.get('deployable_rows')}` / `risk_qualified_rows={high_conviction_latest_matrix.get('risk_qualified_rows', '—')}` / `runtime_blocked_candidates={high_conviction_latest_matrix.get('runtime_blocked_candidate_rows', '—')}` / `bucket_rows={high_conviction_latest_matrix.get('current_live_structure_bucket_rows', '—')}/{high_conviction_latest_matrix.get('minimum_support_rows', '—')}` / `gap={high_conviction_latest_matrix.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_matrix_release_fragment) if high_conviction_matrix_release_fragment else ''}{(' / ' + high_conviction_matrix_progress_fragment) if high_conviction_matrix_progress_fragment else ''}；最接近部署候選 `model={high_conviction_best_row.get('model', '—')}` / `top_k={high_conviction_best_row.get('top_k', '—')}` / `tier={high_conviction_best_row.get('deployment_candidate_tier', '—')}` / `bucket_rows={high_conviction_best_row.get('current_live_structure_bucket_rows', '—')}/{high_conviction_best_row.get('minimum_support_rows', '—')}` / `gap={high_conviction_best_row.get('current_live_structure_bucket_gap_to_minimum', '—')}`{(' / ' + high_conviction_best_release_fragment) if high_conviction_best_release_fragment else ''}{(' / ' + high_conviction_best_progress_fragment) if high_conviction_best_progress_fragment else ''}，仍被矩陣新鮮度或即時分桶 / 支持 / release gate 擋下。"
                 if high_conviction_latest_matrix
                 else "- 實戰化新 P0：high-conviction top-k OOS ROI gate 已進入 current-state issues；下一步產出 `data/high_conviction_topk_oos_matrix.json`，用 walk-forward OOS top-k matrix 驗證 ROI、勝率、回撤、盈虧比、最差分折、最低交易數與即時支持。"
             ),

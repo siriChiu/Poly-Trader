@@ -308,6 +308,17 @@ def test_load_support_context_preserves_current_live_support_progress(monkeypatc
                     "gap_to_minimum": 50,
                 },
                 "deployment_blocker_details": {
+                    "support_progress": {
+                        "status": "regressed_under_minimum",
+                        "reason": "semantic_support_rebaseline",
+                        "regression_basis": "current_identity",
+                        "stagnant_run_count": 4,
+                        "stalled_support_accumulation": True,
+                        "escalate_to_blocker": True,
+                        "delta_vs_previous": -43,
+                        "previous_rows": 50,
+                        "gap_to_minimum": 43,
+                    },
                     "release_condition": {
                         "release_ready": False,
                         "recent_window": 50,
@@ -343,6 +354,44 @@ def test_load_support_context_preserves_current_live_support_progress(monkeypatc
     assert context["required_recent_window_wins"] == 25
     assert context["additional_recent_window_wins_needed"] == 16
     assert context["current_recent_window_win_rate"] == pytest.approx(0.18)
+    assert context["support_progress_status"] == "regressed_under_minimum"
+    assert context["support_progress_reason"] == "semantic_support_rebaseline"
+    assert context["support_progress_regression_basis"] == "current_identity"
+    assert context["support_progress_stagnant_run_count"] == 4
+    assert context["support_progress_stalled_support_accumulation"] is True
+    assert context["support_progress_escalate_to_blocker"] is True
+    assert context["support_delta_vs_previous"] == -43
+    assert context["support_previous_rows"] == 50
+    assert context["support_rows_needed"] == 50
+    assert context["stagnant_run_count"] == 4
+    assert context["stalled_support_accumulation"] is True
+    assert context["escalate_to_blocker"] is True
+
+    rows = topk.build_high_conviction_oos_matrix_rows(
+        "catboost",
+        {
+            "folds": [
+                {"fold": 0, "top_slices": {"top_1pct": {"trade_count": 80, "n": 80, "win_rate": 0.66, "oos_roi": 0.04, "profit_factor": 2.0, "max_drawdown": 0.03}}},
+                {"fold": 1, "top_slices": {"top_1pct": {"trade_count": 80, "n": 80, "win_rate": 0.65, "oos_roi": 0.03, "profit_factor": 1.9, "max_drawdown": 0.04}}},
+            ],
+            "aggregate_top_slices": {
+                "top_1pct": {"trade_count": 80, "n": 80, "win_rate": 0.66, "oos_roi": 0.11, "profit_factor": 2.0, "max_drawdown": 0.04, "wins": 53, "losses": 27}
+            },
+            "aggregate_regime_top_slices": {},
+        },
+        support_context=context,
+    )
+    row = rows[0]
+    assert row["support_progress_status"] == "regressed_under_minimum"
+    assert row["support_progress_reason"] == "semantic_support_rebaseline"
+    assert row["support_progress_regression_basis"] == "current_identity"
+    assert row["support_delta_vs_previous"] == -43
+    assert row["support_previous_rows"] == 50
+    assert row["support_rows_needed"] == 50
+    assert row["stagnant_run_count"] == 4
+    assert row["stalled_support_accumulation"] is True
+    assert row["deployable_verdict"] == "not_deployable"
+    assert "support_route_not_deployable" in row["live_gate_failures"]
 
 
 def test_coalesce_regime_label_handles_merge_suffixes():
@@ -390,6 +439,13 @@ def test_apply_top_level_live_gate_summary_exposes_breaker_release_math():
         "current_recent_window_wins": 14,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 1,
+        "support_progress_status": "regressed_under_minimum",
+        "support_progress_regression_basis": "current_identity",
+        "support_progress_stagnant_run_count": 2,
+        "support_progress_stalled_support_accumulation": False,
+        "support_delta_vs_previous": -7,
+        "support_previous_rows": 17,
+        "support_rows_needed": 40,
         "source_live_probe_generated_at": "2026-05-16T02:02:18Z",
         "live_truth_source_artifact": "data/live_predict_probe.json",
     }
@@ -411,6 +467,13 @@ def test_apply_top_level_live_gate_summary_exposes_breaker_release_math():
     assert result["current_recent_window_wins"] == 14
     assert result["required_recent_window_wins"] == 15
     assert result["additional_recent_window_wins_needed"] == 1
+    assert result["support_progress_status"] == "regressed_under_minimum"
+    assert result["support_progress_regression_basis"] == "current_identity"
+    assert result["support_delta_vs_previous"] == -7
+    assert result["support_previous_rows"] == 17
+    assert result["support_rows_needed"] == 40
     assert result["source_live_probe_generated_at"] == "2026-05-16T02:02:18Z"
     assert result["live_truth_source_artifact"] == "data/live_predict_probe.json"
     assert result["live_gate_summary"]["additional_recent_window_wins_needed"] == 1
+    assert result["live_gate_summary"]["support_progress_status"] == "regressed_under_minimum"
+    assert result["live_gate_summary"]["support_rows_needed"] == 40

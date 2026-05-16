@@ -168,7 +168,13 @@ def _load_support_context() -> dict:
     for context_key, value in release_fallbacks.items():
         if context.get(context_key) is None and value is not None:
             context[context_key] = value
-    support_progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
+    top_level_support_progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
+    blocker_support_progress = blocker_details.get("support_progress") if isinstance(blocker_details.get("support_progress"), dict) else {}
+    # Merge instead of choosing one source: live probes often expose current row
+    # counts at top level while detailed progress status/reason lives under
+    # deployment_blocker_details.support_progress.  Top-level values win for
+    # overlapping current-count fields because they reflect the latest probe.
+    support_progress = {**blocker_support_progress, **top_level_support_progress}
     fallback_map = {
         "current_live_structure_bucket_rows": "current_rows",
         "minimum_support_rows": "minimum_support_rows",
@@ -177,6 +183,30 @@ def _load_support_context() -> dict:
     for context_key, progress_key in fallback_map.items():
         if context.get(context_key) is None and support_progress.get(progress_key) is not None:
             context[context_key] = support_progress.get(progress_key)
+    progress_field_map = {
+        "support_progress_status": "status",
+        "support_progress_reason": "reason",
+        "support_progress_regression_basis": "regression_basis",
+        "support_progress_stagnant_run_count": "stagnant_run_count",
+        "support_progress_stalled_support_accumulation": "stalled_support_accumulation",
+        "support_progress_escalate_to_blocker": "escalate_to_blocker",
+        "support_delta_vs_previous": "delta_vs_previous",
+        "support_previous_rows": "previous_rows",
+        "support_rows_needed": "gap_to_minimum",
+    }
+    for context_key, progress_key in progress_field_map.items():
+        if context.get(context_key) is None and support_progress.get(progress_key) is not None:
+            context[context_key] = support_progress.get(progress_key)
+    # Keep legacy top-level names used by older Strategy Lab/docs readers while
+    # also exposing the namespaced support_progress_* row contract.
+    alias_field_map = {
+        "stagnant_run_count": "support_progress_stagnant_run_count",
+        "stalled_support_accumulation": "support_progress_stalled_support_accumulation",
+        "escalate_to_blocker": "support_progress_escalate_to_blocker",
+    }
+    for alias_key, context_key in alias_field_map.items():
+        if context.get(alias_key) is None and context.get(context_key) is not None:
+            context[alias_key] = context.get(context_key)
     if probe.get("generated_at"):
         context["source_live_probe_generated_at"] = probe.get("generated_at")
     context["live_truth_source_artifact"] = str(probe_path)
@@ -207,8 +237,14 @@ TOP_LEVEL_LIVE_GATE_SUMMARY_KEYS = (
     "required_recent_window_wins",
     "additional_recent_window_wins_needed",
     "support_progress_status",
+    "support_progress_reason",
+    "support_progress_regression_basis",
+    "support_progress_stagnant_run_count",
+    "support_progress_stalled_support_accumulation",
+    "support_progress_escalate_to_blocker",
     "stagnant_run_count",
     "stalled_support_accumulation",
+    "escalate_to_blocker",
     "support_delta_vs_previous",
     "support_previous_rows",
     "support_rows_needed",
@@ -489,6 +525,18 @@ def build_high_conviction_oos_matrix_rows(
                 "current_recent_window_wins": support_context.get("current_recent_window_wins"),
                 "required_recent_window_wins": support_context.get("required_recent_window_wins"),
                 "additional_recent_window_wins_needed": support_context.get("additional_recent_window_wins_needed"),
+                "support_progress_status": support_context.get("support_progress_status"),
+                "support_progress_reason": support_context.get("support_progress_reason"),
+                "support_progress_regression_basis": support_context.get("support_progress_regression_basis"),
+                "support_progress_stagnant_run_count": support_context.get("support_progress_stagnant_run_count"),
+                "support_progress_stalled_support_accumulation": support_context.get("support_progress_stalled_support_accumulation"),
+                "support_progress_escalate_to_blocker": support_context.get("support_progress_escalate_to_blocker"),
+                "stagnant_run_count": support_context.get("stagnant_run_count"),
+                "stalled_support_accumulation": support_context.get("stalled_support_accumulation"),
+                "escalate_to_blocker": support_context.get("escalate_to_blocker"),
+                "support_delta_vs_previous": support_context.get("support_delta_vs_previous"),
+                "support_previous_rows": support_context.get("support_previous_rows"),
+                "support_rows_needed": support_context.get("support_rows_needed"),
                 "source_live_probe_generated_at": support_context.get("source_live_probe_generated_at"),
                 "live_truth_source_artifact": support_context.get("live_truth_source_artifact"),
                 "minimum_deployment_gates": gates,
