@@ -189,22 +189,30 @@ def _circuit_operator_summary(verdict: Any, aligned_scope: dict[str, Any]) -> st
     required = aligned_scope.get("required_recent_window_wins")
     window = aligned_scope.get("recent_window")
     release_ready = aligned_scope.get("release_ready")
+    release_math_ready = needed is not None and wins is not None and required is not None and window is not None
     if verdict == "canonical_breaker_active":
-        if needed is not None and wins is not None and required is not None and window is not None:
+        if release_math_ready:
             return (
-                "熔斷審計：canonical 1440m 仍是即時部署阻塞；"
-                f"最近 {window} 筆目前 {wins}/{required} 勝，還差 {needed} 勝；維持 fail-closed。"
+                "熔斷審計：金字塔 24h 仍是即時部署阻塞；"
+                f"最近 {window} 筆目前 {wins}/{window} 勝，解除至少需要 {required} 勝，還差 {needed} 勝；"
+                "買入 / 加倉維持關閉，減風險路徑保留。"
             )
         if release_ready is False:
-            return "熔斷審計：canonical 1440m 尚未達解除條件；維持 fail-closed。"
+            return "熔斷審計：金字塔 24h 尚未達解除條件；買入 / 加倉維持關閉，減風險路徑保留。"
         return None
     if verdict != "mixed_horizon_false_positive":
         return None
     if release_ready is True:
-        return "熔斷審計：混合 horizon 訊號屬 false positive；canonical 1440m 解除條件已達標，但不可因此繞過目前即時精準支持阻塞。"
+        return "熔斷審計：混合週期訊號屬誤報；金字塔 24h 解除條件已達標，但不可因此繞過目前即時精準支持阻塞。"
+    if release_math_ready:
+        return (
+            "熔斷審計：金字塔 24h 尚未達解除條件；"
+            f"最近 {window} 筆目前 {wins}/{window} 勝，解除至少需要 {required} 勝，還差 {needed} 勝；"
+            "買入 / 加倉維持關閉，減風險路徑保留。"
+        )
     if needed is not None:
-        return f"熔斷審計：canonical 1440m 尚未達解除條件，recent window 還差 {needed} 筆勝樣本；維持 fail-closed。"
-    return "熔斷審計：canonical 1440m 尚未確認解除；維持 fail-closed。"
+        return f"熔斷審計：金字塔 24h 尚未達解除條件，還差 {needed} 筆勝樣本；買入 / 加倉維持關閉，減風險路徑保留。"
+    return "熔斷審計：金字塔 24h 尚未確認解除；買入 / 加倉維持關閉，減風險路徑保留。"
 
 
 def compact_circuit_breaker_audit(summary_audit: dict[str, Any], artifact_audit: dict[str, Any]) -> dict[str, Any]:

@@ -101,7 +101,12 @@ def test_compact_circuit_breaker_projects_release_math_without_rows():
     assert compact["mixed_scope"]["additional_recent_window_wins_needed"] == 6
     assert compact["aligned_scope"]["release_ready"] is True
     assert compact["aligned_scope"]["current_recent_window_wins"] == 18
-    assert "不可因此繞過目前即時精準支持阻塞" in compact["operator_guardrail_summary"]
+    summary = compact["operator_guardrail_summary"]
+    assert "混合週期訊號屬誤報" in summary
+    assert "金字塔 24h 解除條件已達標" in summary
+    assert "不可因此繞過目前即時精準支持阻塞" in summary
+    assert "canonical" not in summary
+    assert "false positive" not in summary
     assert "rows" not in compact["mixed_scope"]
     assert "rows" not in compact["aligned_scope"]
 
@@ -139,8 +144,14 @@ def test_compact_circuit_breaker_explains_canonical_active_release_gap():
     assert compact["verdict"] == "canonical_breaker_active"
     assert compact["aligned_scope"]["current_recent_window_wins"] == 2
     assert compact["aligned_scope"]["additional_recent_window_wins_needed"] == 13
-    assert "最近 50 筆目前 2/15 勝，還差 13 勝" in compact["operator_guardrail_summary"]
-    assert "維持 fail-closed" in compact["operator_guardrail_summary"]
+    summary = compact["operator_guardrail_summary"]
+    assert "最近 50 筆目前 2/50 勝" in summary
+    assert "解除至少需要 15 勝，還差 13 勝" in summary
+    assert "買入 / 加倉維持關閉" in summary
+    assert "減風險路徑保留" in summary
+    assert "2/15" not in summary
+    assert "canonical" not in summary
+    assert "fail-closed" not in summary
     assert "examples" not in compact["aligned_scope"]
 
 
