@@ -298,6 +298,11 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
     assert answers["blocking_gate"] == "即時支持 gate"
     assert any("還差 48" in item for item in answers["distance_to_canary"])
     assert any("還差 7" in item for item in answers["distance_to_canary"])
+    readiness_text = str(readiness) + str(answers)
+    for raw_token in ["broader bucket", "reference support", "risk-on", "live automation", "deployable"]:
+        assert raw_token not in readiness_text
+    assert "寬範圍分桶" in readiness_text
+    assert "風險進攻" in readiness_text
     assert answers["first_canary_plan_if_all_gates_pass"]["exposure_pct_max"] == 0.01
     assert answers["first_canary_plan_if_all_gates_pass"]["add_exposure_enabled"] is False
 

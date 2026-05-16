@@ -364,8 +364,8 @@ def build_execution_readiness_bundle(
     if risk_qualified_count:
         model_detail_parts.append(f"離線 / 風控已過 {risk_qualified_count} 筆")
     if runtime_blocked_candidate_count:
-        model_detail_parts.append(f"runtime blocked candidates {runtime_blocked_candidate_count} 筆")
-    model_detail_parts.append(f"deployable rows {deployable_count}")
+        model_detail_parts.append(f"執行期阻塞候選 {runtime_blocked_candidate_count} 筆")
+    model_detail_parts.append(f"可部署樣本 {deployable_count} 筆")
 
     support_summary = (
         f"即時部署精準支持 {support_rows if support_rows is not None else '—'}/{support_minimum if support_minimum is not None else '—'}"
@@ -388,7 +388,7 @@ def build_execution_readiness_bundle(
             "required": 1,
             "gap": 0 if model_gate_passed else 1,
             "summary": "；".join(model_detail_parts),
-            "next_action": "研究 winner 可進影子觀察；不可標成 deployable，直到即時 gate 與場館證據鏈通過。",
+            "next_action": "研究勝出模型可進影子觀察；不可標成可部署，直到即時 gate 與場館證據鏈通過。",
         },
         {
             "key": "current_live_support_gate",
@@ -399,7 +399,7 @@ def build_execution_readiness_bundle(
             "required": support_minimum,
             "gap": support_gap,
             "summary": support_summary,
-            "next_action": "等待 exact bucket 累積到最低支持樣本；broader / offline / reference support 不可替代。",
+            "next_action": "等待精準分桶累積到最低支持樣本；寬範圍 / 離線 / 參考支持不可替代。",
         },
         {
             "key": "circuit_breaker_gate",
@@ -448,8 +448,8 @@ def build_execution_readiness_bundle(
     ]
     what_cannot_do_now = [
         "買入 / 加倉仍鎖住，直到即時支持 gate、熔斷 gate、場館 gate 全過",
-        "不能把 OOS winner、broader bucket 或 reference support 標成可部署",
-        "不能啟用 risk-on 自動下單或完整 live automation",
+        "不能把 OOS 勝出模型、寬範圍分桶或參考支持標成可部署",
+        "不能啟用風險進攻自動下單或完整實單自動化",
     ]
 
     execution_readiness = {
