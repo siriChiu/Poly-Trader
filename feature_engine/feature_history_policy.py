@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 import json
+import re
 import sqlite3
 from typing import Any, Dict, Iterable, List, Sequence
 
@@ -27,6 +28,19 @@ SOURCE_FEATURE_KEYS = {
     'claw', 'claw_intensity', 'fang_pcr', 'fang_skew', 'fin_netflow',
     'web_whale', 'scales_ssr', 'nest_pred',
 }
+
+_CREDENTIAL_PATTERN = re.compile(
+    r"\b[A-Z][A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)\b"
+    r"|\b[a-zA-Z0-9]+[._-](?:api[_-]?key|token|secret|password)\b",
+)
+
+
+def _redact_credential_text(value: Any) -> Any:
+    """Remove credential identifiers from feature-coverage API/artifact text."""
+    if not isinstance(value, str):
+        return value
+    return _CREDENTIAL_PATTERN.sub("[REDACTED]", value)
+
 
 CORE_MATURITY_TIER = 'core'
 RESEARCH_MATURITY_TIER = 'research'
@@ -381,16 +395,16 @@ def compute_raw_snapshot_counts(conn: sqlite3.Connection) -> Dict[str, int]:
 def _auth_missing_operator_action(latest_message: Any, latest_operator_action: Any = None) -> str:
     """Return source-specific, credential-safe guidance for auth_missing snapshots."""
     if latest_operator_action:
-        return str(latest_operator_action).strip()
+        action = str(_redact_credential_text(latest_operator_action)).strip()
+        if action:
+            return action
     message = str(latest_message or "")
     message_lower = message.lower()
-    if "coinglass_api_key" in message or "coinglass" in message_lower:
-        return "Configure COINGLASS_API_KEY for the CoinGlass-backed source first"
-    if "coinalyze.api_key" in message_lower:
-        return "Configure coinalyze.api_key in config.yaml for the Coinalyze-backed source first"
+    if "coinglass" in message_lower:
+        return "Configure [REDACTED] source credentials for the CoinGlass-backed source first"
     if "coinalyze" in message_lower:
-        return "Configure the Coinalyze API key for this source first"
-    return "Configure the missing credential for this source first"
+        return "Configure [REDACTED] source credentials for the Coinalyze-backed source first"
+    return "Configure [REDACTED] source credentials for this source first"
 
 
 def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapshot_counts: Dict[str, int] | None = None, snapshot_stats: Dict[str, Dict[str, Any]] | None = None) -> Dict[str, Any]:
@@ -427,6 +441,11 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
     else:
         archive_status = 'missing'
 
+    latest_message_raw = latest_messages[0] if latest_messages else None
+    latest_operator_action_raw = latest_operator_actions[0] if latest_operator_actions else None
+    latest_message_safe = _redact_credential_text(latest_message_raw)
+    latest_operator_action_safe = _redact_credential_text(latest_operator_action_raw)
+
     enriched = dict(quality)
     enriched['raw_snapshot_subtypes'] = subtypes
     enriched['raw_snapshot_events'] = raw_snapshot_events
@@ -435,12 +454,12 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
     enriched['raw_snapshot_span_hours'] = max_span_hours
     enriched['raw_snapshot_latest_age_min'] = latest_age_minutes
     enriched['raw_snapshot_latest_status'] = latest_statuses[0] if latest_statuses else None
-    enriched['raw_snapshot_latest_message'] = latest_messages[0] if latest_messages else None
+    enriched['raw_snapshot_latest_message'] = latest_message_safe
     enriched['raw_snapshot_latest_source'] = latest_sources[0] if latest_sources else None
     enriched['raw_snapshot_latest_endpoint'] = latest_endpoints[0] if latest_endpoints else None
     enriched['raw_snapshot_latest_trust_policy'] = latest_trust_policies[0] if latest_trust_policies else None
     enriched['raw_snapshot_latest_tls_verification'] = latest_tls_verifications[0] if latest_tls_verifications else None
-    enriched['raw_snapshot_latest_operator_action'] = latest_operator_actions[0] if latest_operator_actions else None
+    enriched['raw_snapshot_latest_operator_action'] = latest_operator_action_safe
     enriched['forward_archive_started'] = archive_started
     enriched['forward_archive_ready'] = archive_ready
     enriched['forward_archive_stale'] = archive_stale

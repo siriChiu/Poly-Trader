@@ -152,7 +152,10 @@ def test_source_blocker_surfaces_auth_missing_snapshot_status(tmp_path: Path):
     assert claw["quality_label"] == "source auth missing; latest snapshots are failing"
     assert claw["reasons"][0] == "source_auth_blocked"
     assert "Latest snapshot status=auth_missing" in claw["backfill_blocker"]
-    assert "Configure COINGLASS_API_KEY" in claw["recommended_action"]
+    assert "[REDACTED] missing" in claw["raw_snapshot_latest_message"]
+    assert "COINGLASS_API_KEY" not in claw["raw_snapshot_latest_message"]
+    assert "Configure [REDACTED] source credentials" in claw["recommended_action"]
+    assert "COINGLASS_API_KEY" not in claw["recommended_action"]
 
 
 def test_source_auth_missing_recommended_action_uses_source_specific_credential_hint(tmp_path: Path):
@@ -181,10 +184,13 @@ def test_source_auth_missing_recommended_action_uses_source_specific_credential_
     claw_summary = next(row for row in summary["blocked_features"] if row["key"] == "claw_intensity")
 
     assert claw_intensity["quality_flag"] == "source_auth_blocked"
-    assert "coinalyze.api_key is missing" in claw_intensity["backfill_blocker"]
-    assert "Configure coinalyze.api_key in config.yaml" in claw_intensity["recommended_action"]
+    assert "coinalyze.api_key is missing" not in claw_intensity["backfill_blocker"]
+    assert "[REDACTED] is missing" in claw_intensity["backfill_blocker"]
+    assert "Configure [REDACTED] source credentials" in claw_intensity["recommended_action"]
     assert "COINGLASS_API_KEY" not in claw_intensity["recommended_action"]
-    assert "Configure coinalyze.api_key in config.yaml" in claw_summary["recommended_action"]
+    assert "coinalyze.api_key" not in claw_intensity["recommended_action"]
+    assert "Configure [REDACTED] source credentials" in claw_summary["recommended_action"]
+    assert "coinalyze.api_key" not in claw_summary["recommended_action"]
 
 
 def test_source_blocker_surfaces_tls_verify_failure_as_trust_gate(tmp_path: Path):

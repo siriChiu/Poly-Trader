@@ -166,6 +166,158 @@ def _format_doc_number(value: Any, digits: int = 1) -> str:
         return str(value)
 
 
+_CURRENT_STATE_DOC_MAX_LINE_LENGTH = 1000
+_CURRENT_STATE_DOC_WRAP_TARGET_LENGTH = 900
+
+
+def _compact_support_progress_reason(reason: Any, context: Dict[str, Any] | None = None) -> str:
+    """Keep current-state docs readable while preserving support-progress truth.
+
+    The raw q15 support reason can exceed one thousand characters because it embeds
+    the full semantic-identity explanation.  Operator-facing current-state docs only
+    need the decision-critical facts; the JSON artifacts remain the detailed source.
+    """
+    text = str(reason or "").strip()
+    if not text:
+        return "—"
+    if len(text) <= 180:
+        return text
+
+    context = context or {}
+    current_rows = context.get("current_rows", context.get("current_live_structure_bucket_rows"))
+    minimum_rows = context.get("minimum_rows", context.get("minimum_support_rows"))
+    gap = context.get("gap_to_minimum", context.get("current_live_structure_bucket_gap_to_minimum"))
+    legacy_ref = _format_legacy_supported_reference(context.get("legacy_supported_reference"))
+    mismatched = context.get("legacy_semantic_evidence_mismatched_fields") or []
+    missing = context.get("legacy_semantic_evidence_missing_fields") or []
+
+    parts: list[str] = []
+    if current_rows is not None and minimum_rows is not None:
+        support_text = f"current exact support {current_rows}/{minimum_rows} below minimum"
+        if gap is not None:
+            support_text += f" (gap={gap})"
+        parts.append(support_text)
+    if legacy_ref != "—":
+        parts.append(f"legacy {legacy_ref} remains reference-only")
+    if mismatched:
+        parts.append(f"semantic mismatch={','.join(str(item) for item in mismatched)}")
+    if missing:
+        parts.append(f"missing={','.join(str(item) for item in missing)}")
+    if not parts:
+        return text[:177].rstrip() + "..."
+    return "; ".join(parts)
+
+
+def _continuation_indent_for_doc_line(line: str) -> str:
+    leading = line[: len(line) - len(line.lstrip())]
+    stripped = line.lstrip()
+    if stripped.startswith(('- ', '* ')):
+        return f"{leading}  "
+    if re.match(r"\d+\.\s", stripped):
+        return f"{leading}   "
+    return leading
+
+
+def _split_oversized_doc_chunk(chunk: str, *, target_length: int) -> list[str]:
+    chunks: list[str] = []
+    remaining = chunk
+    while len(remaining) > target_length:
+        split_at = max(
+            remaining.rfind(" / ", 0, target_length),
+            remaining.rfind("；", 0, target_length),
+            remaining.rfind("。", 0, target_length),
+            remaining.rfind("，", 0, target_length),
+            remaining.rfind(", ", 0, target_length),
+            remaining.rfind(" ", 0, target_length),
+        )
+        if split_at <= 0:
+            split_at = target_length
+        chunks.append(remaining[:split_at].rstrip())
+        remaining = remaining[split_at:].lstrip()
+    if remaining:
+        chunks.append(remaining)
+    return chunks
+
+
+def _wrap_current_state_doc_line(
+    line: str,
+    *,
+    max_line_length: int = _CURRENT_STATE_DOC_MAX_LINE_LENGTH,
+    target_length: int = _CURRENT_STATE_DOC_WRAP_TARGET_LENGTH,
+) -> list[str]:
+    """Wrap long generated markdown lines without dropping machine-readable tokens."""
+    if len(line) <= max_line_length:
+        return [line]
+
+    continuation_indent = _continuation_indent_for_doc_line(line)
+    tokens = re.split(r"( / |；|。|，|, )", line)
+    raw_chunks: list[str] = []
+    idx = 0
+    while idx < len(tokens):
+        chunk = tokens[idx]
+        if idx + 1 < len(tokens):
+            chunk += tokens[idx + 1]
+            idx += 2
+        else:
+            idx += 1
+        if chunk:
+            raw_chunks.extend(_split_oversized_doc_chunk(chunk, target_length=target_length))
+
+    wrapped: list[str] = []
+    current = ""
+    for chunk in raw_chunks:
+        candidate = chunk if not current else current + chunk
+        if current and len(candidate) > target_length:
+            wrapped.append(current.rstrip())
+            current = continuation_indent + chunk.lstrip()
+        else:
+            current = candidate
+    if current:
+        wrapped.append(current.rstrip())
+
+    # Hard safety net: never let generated current-state docs reintroduce very long
+    # single-line operator copy if a future token has no natural separator.
+    final_lines: list[str] = []
+    for wrapped_line in wrapped:
+        if len(wrapped_line) <= max_line_length:
+            final_lines.append(wrapped_line)
+            continue
+        final_lines.extend(
+            _split_oversized_doc_chunk(wrapped_line, target_length=target_length)
+        )
+    return final_lines
+
+
+def _wrap_current_state_doc_content(content: str) -> str:
+    lines: list[str] = []
+    for line in content.splitlines():
+        lines.extend(_wrap_current_state_doc_line(line))
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _redact_current_state_doc_secrets(content: str) -> str:
+    """Redact credential identifiers/values from operator-facing current-state docs."""
+    redacted = re.sub(r"\b[A-Z][A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)\b", "[REDACTED]", content)
+    redacted = re.sub(r"\b[a-zA-Z0-9]+[._-](?:api[_-]?key|token|secret|password)\b", "[REDACTED]", redacted)
+    return redacted
+
+
+def _redact_current_state_doc_payload(value: Any) -> Any:
+    """Recursively redact credential identifiers in persisted current-state JSON."""
+    if isinstance(value, str):
+        return _redact_current_state_doc_secrets(value)
+    if isinstance(value, list):
+        return [_redact_current_state_doc_payload(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_current_state_doc_payload(item) for item in value)
+    if isinstance(value, dict):
+        return {
+            key: _redact_current_state_doc_payload(item)
+            for key, item in value.items()
+        }
+    return value
+
+
 def _high_conviction_topk_freshness(generated_at: Any, *, now: datetime | None = None) -> Dict[str, Any]:
     """Compact freshness contract for high-conviction Top-K artifacts."""
     checked_at = now or datetime.now(timezone.utc)
@@ -684,9 +836,10 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
         and not has_active_repair
     ):
         return ""
+    reason_text = _compact_support_progress_reason(reason, support_context)
     parts = [
         f"`status={status or '—'}`",
-        f"`reason={reason or '—'}`",
+        f"`reason={reason_text}`",
         f"`regression_basis={regression_basis or '—'}`",
         f"`current_rows={current_rows if current_rows is not None else '—'}`",
         f"`minimum_rows={minimum_rows if minimum_rows is not None else '—'}`",
@@ -765,7 +918,7 @@ def _high_conviction_support_progress_doc_fragment(source: Dict[str, Any] | None
         return ""
     parts = [f"`support_progress_status={status or '—'}`"]
     if reason is not None:
-        parts.append(f"`support_progress_reason={reason}`")
+        parts.append(f"`support_progress_reason={_compact_support_progress_reason(reason, source)}`")
     if regression_basis is not None:
         parts.append(f"`regression_basis={regression_basis}`")
     if delta is not None:
@@ -872,10 +1025,7 @@ def _source_blocker_forward_archive_status(blocker: Dict[str, Any]) -> str:
 def _format_source_blocker_action_hint(blocker: Dict[str, Any]) -> str:
     if blocker.get("raw_snapshot_latest_status") != "auth_missing":
         return ""
-    action = str(blocker.get("recommended_action") or "").split(";")[0].strip()
-    if not action:
-        return ""
-    return f", next={action}"
+    return ", next=configure [REDACTED] source credentials"
 
 
 def _format_source_blocker_for_docs(blocker: Dict[str, Any]) -> str:
@@ -2064,8 +2214,9 @@ def _sync_live_issue_summaries(
 
 def _save_open_current_state_issues(issues: list[Dict[str, Any]]) -> None:
     issues_path = Path(PROJECT_ROOT) / "issues.json"
+    safe_issues = _redact_current_state_doc_payload(issues)
     issues_path.write_text(
-        json.dumps({"issues": issues}, ensure_ascii=False, indent=2) + "\n",
+        json.dumps({"issues": safe_issues}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
@@ -3968,7 +4119,8 @@ def overwrite_current_state_docs(
     errors: list[str] = []
     for path, content in docs_to_write.items():
         try:
-            path.write_text(content, encoding="utf-8")
+            safe_content = _redact_current_state_doc_secrets(content)
+            path.write_text(_wrap_current_state_doc_content(safe_content), encoding="utf-8")
             written_docs.append(path.name)
         except Exception as exc:
             errors.append(f"{path.name}: {exc}")

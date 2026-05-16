@@ -94,6 +94,90 @@ def test_high_conviction_support_route_context_string_false_fails_closed():
     )
 
 
+def test_current_state_source_blocker_docs_redact_auth_hint():
+    line = hb_parallel_runner._format_source_blocker_for_docs(
+        {
+            "key": "fin_netflow",
+            "quality_flag": "source_auth_blocked",
+            "raw_snapshot_latest_status": "auth_missing",
+            "coverage_pct": 0.0,
+            "archive_window_coverage_pct": 0.0,
+            "forward_archive_status": "ready",
+            "recommended_action": "Configure COINGLASS_API_KEY for the CoinGlass-backed source first",
+        }
+    )
+
+    assert "[REDACTED]" in line
+    assert "COINGLASS_API_KEY" not in line
+    assert "fin_netflow" in line
+
+
+def test_current_state_doc_secret_redaction_handles_issue_titles_and_actions():
+    content = "### P1. fin_netflow remains source_auth_blocked because COINGLASS_API_KEY is missing\n- 下一步：Configure coinalyze.api_key in config.yaml"
+    redacted = hb_parallel_runner._redact_current_state_doc_secrets(content)
+
+    assert "[REDACTED]" in redacted
+    assert "COINGLASS_API_KEY" not in redacted
+    assert "coinalyze.api_key" not in redacted
+
+
+def test_current_state_issue_payload_redacts_nested_credential_hints():
+    payload = {
+        "title": "source_auth_blocked because COINGLASS_API_KEY is missing",
+        "summary": {
+            "recommended_action": "Configure coinalyze.api_key in config.yaml",
+            "verify": ["keep source health visible"],
+        },
+    }
+
+    redacted = hb_parallel_runner._redact_current_state_doc_payload(payload)
+
+    assert redacted["title"] == "source_auth_blocked because [REDACTED] is missing"
+    assert redacted["summary"]["recommended_action"] == "Configure [REDACTED] in config.yaml"
+    assert redacted["summary"]["verify"] == ["keep source health visible"]
+    assert "COINGLASS_API_KEY" not in json.dumps(redacted)
+    assert "coinalyze.api_key" not in json.dumps(redacted)
+
+
+def test_current_state_doc_wrapper_caps_generated_line_lengths():
+    raw_line = "- support progress：" + " / ".join(f"`field_{idx}=value_{idx}`" for idx in range(120))
+    wrapped = hb_parallel_runner._wrap_current_state_doc_content(raw_line)
+    lines = wrapped.splitlines()
+
+    assert len(lines) > 1
+    assert max(len(line) for line in lines) <= hb_parallel_runner._CURRENT_STATE_DOC_MAX_LINE_LENGTH
+    assert "`field_0=value_0`" in wrapped
+    assert "`field_119=value_119`" in wrapped
+
+
+def test_support_progress_reason_compacts_semantic_evidence_for_docs():
+    reason = "current q15 exact support 目前是 5/50，仍低於 minimum；" * 20
+    compacted = hb_parallel_runner._compact_support_progress_reason(
+        reason,
+        {
+            "current_rows": 5,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 45,
+            "legacy_supported_reference": {
+                "heartbeat": "20260419b",
+                "live_current_structure_bucket_rows": 53,
+                "minimum_support_rows": 50,
+            },
+            "legacy_semantic_evidence_mismatched_fields": [
+                "calibration_window",
+                "entry_quality_label",
+                "regime_label",
+            ],
+        },
+    )
+
+    assert "5/50" in compacted
+    assert "gap=45" in compacted
+    assert "20260419b" in compacted
+    assert "calibration_window,entry_quality_label,regime_label" in compacted
+    assert len(compacted) < 260
+
+
 def test_high_conviction_release_math_without_explicit_ready_still_blocks_deployable_rows():
     support_context = {
         "support_route_verdict": "exact_bucket_supported",
@@ -2217,7 +2301,7 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "特徵缺口已延後到心跳維護收斂" in issues_md
     assert "`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout" in issues_md
     assert "Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe" in issues_md
-    assert "最接近部署候選列不再把內部訊號 token 直接丟給 operator" in issues_md
+    assert "最接近部署候選列不再把內部訊號 token 直接丟給 operator" in issues_md.replace("\n", " ")
     assert "高低震盪 / 擁塞實戰拆解已產品化（fail-closed）" in issues_md
     assert "震盪不是停工，也不是永遠不能實戰" in issues_md
     assert "區間影子觀察、減碼 / 取消掛單與證據收集" in issues_md
@@ -2997,7 +3081,7 @@ def test_overwrite_current_state_docs_surfaces_top_source_blockers_beyond_fin_ne
         assert "top source blockers" in content
         assert (
             "fin_netflow(source_auth_blocked/auth_missing, coverage=0.0%, archive_window=0.0%, "
-            "forward_archive=ready, next=Configure COINGLASS_API_KEY for the CoinGlass-backed source first)"
+            "forward_archive=ready, next=configure [REDACTED] source credentials)"
         ) in content
         assert "nest_pred(source_tls_verify_failed/tls_verify_failed, coverage=16.3%, archive_window=98.6%, forward_archive=ready)" in content
 
@@ -3027,9 +3111,10 @@ def test_top_source_blockers_docs_line_includes_auth_action_hint_without_secret_
         }
     )
 
-    assert "next=Configure coinalyze.api_key in config.yaml for the Coinalyze-backed source first" in line
+    assert "next=configure [REDACTED] source credentials" in line
+    assert "coinalyze.api_key" not in line
     assert "secret" not in line.lower()
-    assert "[REDACTED]" not in line
+    assert "[REDACTED]" in line
 
 
 

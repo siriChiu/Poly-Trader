@@ -1,48 +1,48 @@
 # Feature Coverage Report
 
-- Total rows: **12876**
-- Chart-usable: **24**
-- Hidden by default: **16**
+- Total rows: **24562**
+- Chart-usable: **27**
+- Hidden by default: **13**
 
 | Feature | Coverage | Archive-window coverage | Distinct | Chart usable | Quality | History policy | Forward archive | Freshness | Next action |
 |---|---:|---:|---:|---|---|---|---|---|---|
-| fin_netflow | 0.00% | 0.00% (0/1576) | 0 | ❌ | source_auth_blocked | archive_required | 1603/10 ready (fin_snapshot) · status=auth_missing (COINGLASS_API_KEY is missing; ETF flow endpoint requires CoinGlass v4 auth.) | age=0.7m / span=151.21h | Configure COINGLASS_API_KEY for the CoinGlass-backed source first; forward archive events are being logged, but they currently contain auth_missing snapshots so feature coverage cannot improve until credentials work. After auth is fixed, keep running heartbeat collection until at least 10 successful forward snapshots accumulate, then evaluate whether historical export/backfill is still needed. |
-| donchian_pos | 8.90% | n/a | 884 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
-| adx | 8.90% | n/a | 897 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
-| nw_width | 8.90% | n/a | 900 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
-| nw_slope | 8.90% | n/a | 900 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
-| choppiness | 8.90% | n/a | 900 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
-| claw | 9.35% | 74.68% (1177/1576) | 398 | ❌ | source_history_gap | archive_required | 1603/10 ready (claw_snapshot) | age=0.7m / span=151.21h | Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap. |
-| claw_intensity | 9.35% | 74.68% (1177/1576) | 398 | ❌ | source_history_gap | archive_required | 1603/10 ready (claw_snapshot) | age=0.7m / span=151.21h | Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap. |
-| nest_pred | 12.36% | 99.05% (1561/1576) | 6 | ❌ | source_history_gap | snapshot_only | 1603/10 ready (nest_snapshot) | age=0.7m / span=151.21h | Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap. |
-| scales_ssr | 25.99% | 99.18% (1563/1576) | 2396 | ❌ | source_history_gap | snapshot_only | 1603/10 ready (scales_snapshot) | age=0.7m / span=151.21h | Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap. |
-| fang_skew | 26.16% | 99.81% (1573/1576) | 668 | ❌ | source_history_gap | snapshot_only | 1603/10 ready (fang_snapshot) | age=0.7m / span=151.21h | Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap. |
-| fang_pcr | 26.16% | 99.81% (1573/1576) | 2849 | ❌ | source_history_gap | snapshot_only | 1603/10 ready (fang_snapshot) | age=0.7m / span=151.21h | Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap. |
-| web_whale | 26.17% | 99.94% (1575/1576) | 753 | ❌ | source_history_gap | short_window_public_api | 1603/10 ready (web_snapshot) | age=0.7m / span=151.21h | Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap. |
-| pulse | 35.67% | n/a | 4007 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
-| mind | 35.67% | n/a | 4461 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
-| aura | 35.67% | n/a | 4512 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
-| 4h_vol_ratio | 96.42% | n/a | 3283 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| 4h_bias200 | 96.42% | n/a | 12211 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| 4h_dist_bb_lower | 96.42% | n/a | 12211 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| 4h_ma_order | 96.43% | n/a | 3 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| 4h_rsi14 | 96.43% | n/a | 3237 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| 4h_macd_hist | 96.43% | n/a | 3238 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| 4h_dist_sl | 96.43% | n/a | 12182 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| 4h_bias50 | 96.43% | n/a | 12212 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| 4h_bias20 | 96.43% | n/a | 12212 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| 4h_bb_pct_b | 96.43% | n/a | 12212 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| nq_return_24h | 99.74% | n/a | 9339 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| vix | 99.91% | n/a | 1434 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| nq_return_1h | 99.92% | n/a | 2742 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| dxy | 99.98% | n/a | 3265 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| body | 100.00% | n/a | 4544 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| tongue | 100.00% | n/a | 4628 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| nose | 100.00% | n/a | 5323 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| vwap_dev | 100.00% | n/a | 12639 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| rsi14 | 100.00% | n/a | 12652 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| bb_pct_b | 100.00% | n/a | 12741 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| ear | 100.00% | n/a | 12747 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| macd_hist | 100.00% | n/a | 12781 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| atr_pct | 100.00% | n/a | 12782 | ✅ | ok | native_timeseries | n/a | n/a | ok |
-| eye | 100.00% | n/a | 12830 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| fin_netflow | 0.00% | 0.00% (0/4091) | 0 | ❌ | source_auth_blocked | archive_required | 4147/10 ready (fin_snapshot) · status=auth_missing ([REDACTED] is missing; ETF flow endpoint requires CoinGlass v4 auth.) | age=2.1m / span=915.99h | Configure [REDACTED] source credentials for the CoinGlass-backed source first; forward archive events are being logged, but they currently contain auth_missing snapshots so feature coverage cannot improve until credentials work. After auth is fixed, keep running heartbeat collection until at least 10 successful forward snapshots accumulate, then evaluate whether historical export/backfill is still needed. |
+| claw_intensity | 14.56% | 85.48% (3497/4091) | 1591 | ❌ | source_auth_blocked | archive_required | 4147/10 ready (claw_snapshot) · status=auth_missing ([REDACTED] is missing in config.yaml.) | age=2.1m / span=915.99h | Configure [REDACTED] source credentials for this source first; forward archive events are being logged, but they currently contain auth_missing snapshots so feature coverage cannot improve until credentials work. After auth is fixed, keep running heartbeat collection until at least 10 successful forward snapshots accumulate, then evaluate whether historical export/backfill is still needed. |
+| claw | 14.56% | 85.48% (3497/4091) | 1592 | ❌ | source_auth_blocked | archive_required | 4147/10 ready (claw_snapshot) · status=auth_missing ([REDACTED] is missing in config.yaml.) | age=2.1m / span=915.99h | Configure [REDACTED] source credentials for this source first; forward archive events are being logged, but they currently contain auth_missing snapshots so feature coverage cannot improve until credentials work. After auth is fixed, keep running heartbeat collection until at least 10 successful forward snapshots accumulate, then evaluate whether historical export/backfill is still needed. |
+| nest_pred | 16.16% | 94.99% (3886/4091) | 21 | ❌ | source_tls_verify_failed | snapshot_only | 4147/10 ready (nest_snapshot) · status=tls_verify_failed (Polymarket Gamma TLS verification failed; refusing insecure fallback. Detail: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate (_ssl.c:1016)>) | age=2.1m / span=915.99h | Fix the current source TLS trust failure before treating this as a pure history gap: Fix the trusted CA / proxy root for Python and curl, or route the heartbeat through a verified network path. Do not disable TLS verification in production. Once verified TLS snapshots succeed, keep collecting until at least 10 forward raw snapshots accumulate, then decide whether a dedicated historical export/archive loader is still required. |
+| scales_ssr | 23.92% | 98.61% (4034/4091) | 4408 | ❌ | source_history_gap | snapshot_only | 4147/10 ready (scales_snapshot) | age=2.1m / span=915.99h | Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap. |
+| fang_skew | 24.06% | 99.19% (4058/4091) | 1320 | ❌ | source_history_gap | snapshot_only | 4147/10 ready (fang_snapshot) | age=2.1m / span=915.99h | Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap. |
+| fang_pcr | 24.06% | 99.19% (4058/4091) | 5044 | ❌ | source_history_gap | snapshot_only | 4147/10 ready (fang_snapshot) | age=2.1m / span=915.99h | Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap. |
+| web_whale | 24.07% | 99.27% (4061/4091) | 1718 | ❌ | source_history_gap | short_window_public_api | 4147/10 ready (web_snapshot) | age=2.1m / span=915.99h | Forward raw snapshot archive is ready for recent-window diagnostics; keep collection running to extend the archive span, but historical rows before the cutoff still require a dedicated export/archive loader before coverage can exceed the legacy gap. |
+| adx | 52.24% | n/a | 4288 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
+| donchian_pos | 52.24% | n/a | 12354 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
+| nw_width | 52.24% | n/a | 12477 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
+| nw_slope | 52.24% | n/a | 12477 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
+| choppiness | 52.24% | n/a | 12477 | ❌ | low_coverage | native_timeseries | n/a | n/a | coverage<60% |
+| nq_return_24h | 64.87% | n/a | 11396 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| vix | 65.06% | n/a | 1440 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| nq_return_1h | 65.06% | n/a | 4592 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| dxy | 65.10% | n/a | 3342 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| pulse | 66.28% | n/a | 15654 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| mind | 66.28% | n/a | 16086 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| aura | 66.28% | n/a | 16167 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| 4h_ma_order | 98.90% | n/a | 3 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| 4h_rsi14 | 98.90% | n/a | 5338 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| 4h_macd_hist | 98.90% | n/a | 5339 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| 4h_vol_ratio | 98.90% | n/a | 5461 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| 4h_dist_sl | 98.90% | n/a | 23790 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| 4h_bias200 | 98.90% | n/a | 23867 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| 4h_bias50 | 98.90% | n/a | 23868 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| 4h_bias20 | 98.90% | n/a | 23868 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| 4h_dist_bb_lower | 98.90% | n/a | 23868 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| 4h_bb_pct_b | 98.90% | n/a | 23869 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| body | 100.00% | n/a | 16150 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| tongue | 100.00% | n/a | 16291 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| nose | 100.00% | n/a | 16982 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| rsi14 | 100.00% | n/a | 24160 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| vwap_dev | 100.00% | n/a | 24171 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| bb_pct_b | 100.00% | n/a | 24318 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| macd_hist | 100.00% | n/a | 24358 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| atr_pct | 100.00% | n/a | 24359 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| ear | 100.00% | n/a | 24362 | ✅ | ok | native_timeseries | n/a | n/a | ok |
+| eye | 100.00% | n/a | 24483 | ✅ | ok | native_timeseries | n/a | n/a | ok |
