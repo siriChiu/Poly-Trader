@@ -269,6 +269,48 @@ def test_load_recent_tw_history_keeps_numbered_current_run_on_numbered_lineage(t
     assert [row["heartbeat"] for row in history] == ["1115", "1114", "1113"]
 
 
+def test_load_recent_tw_history_treats_productization_suffix_as_numbered_lineage(tmp_path, monkeypatch):
+    monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    (data_dir / "heartbeat_1290-productization_summary.json").write_text(
+        '{"heartbeat":"1290-productization","ic_diagnostics":{"tw_pass":23,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_1289-productization_summary.json").write_text(
+        '{"heartbeat":"1289-productization","ic_diagnostics":{"tw_pass":22,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_20260425_1528_summary.json").write_text(
+        '{"heartbeat":"20260425_1528","ic_diagnostics":{"tw_pass":27,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_20260425_015620_summary.json").write_text(
+        '{"heartbeat":"20260425_015620","ic_diagnostics":{"tw_pass":29,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_20260421-0023_summary.json").write_text(
+        '{"heartbeat":"20260421-0023","ic_diagnostics":{"tw_pass":26,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_2026-04-17-cache_summary.json").write_text(
+        '{"heartbeat":"2026-04-17-cache","ic_diagnostics":{"tw_pass":28,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_20260425_0125_patchverify_summary.json").write_text(
+        '{"heartbeat":"20260425_0125_patchverify","ic_diagnostics":{"tw_pass":28,"total_features":30}}'
+    )
+    (data_dir / "heartbeat_fast_summary.json").write_text(
+        '{"heartbeat":"fast","ic_diagnostics":{"tw_pass":12,"total_features":30}}'
+    )
+
+    history = auto_propose_fixes.load_recent_tw_history(
+        limit=3,
+        current_entry={"heartbeat": "1291-productization", "tw_pass": 24, "total_features": 30},
+    )
+
+    assert [row["heartbeat"] for row in history] == [
+        "1291-productization",
+        "1290-productization",
+        "1289-productization",
+    ]
+
+
 def test_summarize_recent_drift_formats_primary_window():
     summary = auto_propose_fixes.summarize_recent_drift(
         {
