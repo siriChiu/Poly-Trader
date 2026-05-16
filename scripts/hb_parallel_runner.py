@@ -434,10 +434,18 @@ def _support_truth_context(
         )
     if live_support_progress.get("status") is not None:
         context["support_progress_status"] = live_support_progress.get("status")
+    if live_support_progress.get("reason") is not None:
+        context["support_progress_reason"] = live_support_progress.get("reason")
     if live_support_progress.get("regression_basis") is not None:
         context["support_progress_regression_basis"] = live_support_progress.get("regression_basis")
     if live_support_progress.get("legacy_supported_reference") is not None:
         context["legacy_supported_reference"] = live_support_progress.get("legacy_supported_reference")
+    if live_support_progress.get("delta_vs_previous") is not None:
+        context["support_delta_vs_previous"] = live_support_progress.get("delta_vs_previous")
+    if live_support_progress.get("previous_rows") is not None:
+        context["support_previous_rows"] = live_support_progress.get("previous_rows")
+    if live_support_progress.get("support_rows_needed") is not None:
+        context["support_rows_needed"] = live_support_progress.get("support_rows_needed")
     for field in (
         "stagnant_run_count",
         "stalled_support_accumulation",
@@ -465,10 +473,18 @@ def _support_truth_context(
             context["support_governance_route"] = support_route.get("support_governance_route")
         if support_progress.get("status") is not None:
             context["support_progress_status"] = support_progress.get("status")
+        if support_progress.get("reason") is not None:
+            context["support_progress_reason"] = support_progress.get("reason")
         if support_progress.get("regression_basis") is not None:
             context["support_progress_regression_basis"] = support_progress.get("regression_basis")
         if support_progress.get("legacy_supported_reference") is not None:
             context["legacy_supported_reference"] = support_progress.get("legacy_supported_reference")
+        if support_progress.get("delta_vs_previous") is not None:
+            context["support_delta_vs_previous"] = support_progress.get("delta_vs_previous")
+        if support_progress.get("previous_rows") is not None:
+            context["support_previous_rows"] = support_progress.get("previous_rows")
+        if support_progress.get("support_rows_needed") is not None:
+            context["support_rows_needed"] = support_progress.get("support_rows_needed")
         for field in (
             "stagnant_run_count",
             "stalled_support_accumulation",

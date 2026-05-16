@@ -982,9 +982,13 @@ def test_support_truth_context_preserves_non_q15_live_support_progress():
         "support_governance_route": "no_support_proxy",
         "support_progress": {
             "status": "stalled_under_minimum",
+            "reason": "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
+            "regression_basis": "same_identity_same_semantic_signature",
             "current_rows": 0,
             "minimum_support_rows": 50,
             "gap_to_minimum": 50,
+            "delta_vs_previous": 0,
+            "previous_rows": 0,
             "stagnant_run_count": 3,
             "stalled_support_accumulation": True,
             "escalate_to_blocker": True,
@@ -1017,6 +1021,14 @@ def test_support_truth_context_preserves_non_q15_live_support_progress():
     assert issue_summary["support_progress"]["stagnant_run_count"] == 3
     assert issue_summary["support_progress"]["stalled_support_accumulation"] is True
     assert issue_summary["support_progress"]["escalate_to_blocker"] is True
+    assert context["support_progress_reason"] == "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。"
+    assert context["support_progress_regression_basis"] == "same_identity_same_semantic_signature"
+    assert context["support_delta_vs_previous"] == 0
+    assert context["support_previous_rows"] == 0
+    assert "reason=current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。" in doc_line
+    assert "regression_basis=same_identity_same_semantic_signature" in doc_line
+    assert "delta_vs_previous=0" in doc_line
+    assert "previous_rows=0" in doc_line
 
 
 def test_support_truth_context_surfaces_q15_support_stagnation_metadata():
