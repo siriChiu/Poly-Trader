@@ -869,6 +869,15 @@ def _source_blocker_forward_archive_status(blocker: Dict[str, Any]) -> str:
     return "—"
 
 
+def _format_source_blocker_action_hint(blocker: Dict[str, Any]) -> str:
+    if blocker.get("raw_snapshot_latest_status") != "auth_missing":
+        return ""
+    action = str(blocker.get("recommended_action") or "").split(";")[0].strip()
+    if not action:
+        return ""
+    return f", next={action}"
+
+
 def _format_source_blocker_for_docs(blocker: Dict[str, Any]) -> str:
     key = str(blocker.get("key") or "unknown")
     quality_flag = str(blocker.get("quality_flag") or "unknown")
@@ -878,7 +887,8 @@ def _format_source_blocker_for_docs(blocker: Dict[str, Any]) -> str:
         f"`{key}({status}, "
         f"coverage={_format_source_blocker_pct(blocker.get('coverage_pct'))}, "
         f"archive_window={_format_source_blocker_pct(blocker.get('archive_window_coverage_pct'))}, "
-        f"forward_archive={_source_blocker_forward_archive_status(blocker)})`"
+        f"forward_archive={_source_blocker_forward_archive_status(blocker)}"
+        f"{_format_source_blocker_action_hint(blocker)})`"
     )
 
 

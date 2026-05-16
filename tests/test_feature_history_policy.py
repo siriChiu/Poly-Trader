@@ -155,6 +155,38 @@ def test_source_blocker_surfaces_auth_missing_snapshot_status(tmp_path: Path):
     assert "Configure COINGLASS_API_KEY" in claw["recommended_action"]
 
 
+def test_source_auth_missing_recommended_action_uses_source_specific_credential_hint(tmp_path: Path):
+    db_path = tmp_path / "poly_trader.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE features_normalized (id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, feat_claw_intensity REAL)")
+    conn.execute("CREATE TABLE raw_events (id INTEGER PRIMARY KEY, subtype TEXT, timestamp TEXT, payload_json TEXT)")
+    conn.execute(
+        "INSERT INTO raw_events (subtype, timestamp, payload_json) VALUES (?, ?, ?)",
+        (
+            "claw_snapshot",
+            "2026-04-09 01:00:00",
+            '{"status": "auth_missing", "message": "coinalyze.api_key is missing in config.yaml."}',
+        ),
+    )
+    conn.execute(
+        "INSERT INTO features_normalized (timestamp, symbol, feat_claw_intensity) VALUES (?, 'BTCUSDT', NULL)",
+        ("2026-04-09T01:00:00",),
+    )
+    conn.commit()
+    conn.close()
+
+    payload = compute_sqlite_feature_coverage(db_path)
+    claw_intensity = next(row for row in payload["features"] if row["key"] == "claw_intensity")
+    summary = build_source_blocker_summary(payload)
+    claw_summary = next(row for row in summary["blocked_features"] if row["key"] == "claw_intensity")
+
+    assert claw_intensity["quality_flag"] == "source_auth_blocked"
+    assert "coinalyze.api_key is missing" in claw_intensity["backfill_blocker"]
+    assert "Configure coinalyze.api_key in config.yaml" in claw_intensity["recommended_action"]
+    assert "COINGLASS_API_KEY" not in claw_intensity["recommended_action"]
+    assert "Configure coinalyze.api_key in config.yaml" in claw_summary["recommended_action"]
+
+
 def test_source_blocker_surfaces_tls_verify_failure_as_trust_gate(tmp_path: Path):
     db_path = tmp_path / "poly_trader.db"
     conn = sqlite3.connect(db_path)

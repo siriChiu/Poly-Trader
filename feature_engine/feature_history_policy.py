@@ -378,6 +378,21 @@ def compute_raw_snapshot_counts(conn: sqlite3.Connection) -> Dict[str, int]:
     }
 
 
+def _auth_missing_operator_action(latest_message: Any, latest_operator_action: Any = None) -> str:
+    """Return source-specific, credential-safe guidance for auth_missing snapshots."""
+    if latest_operator_action:
+        return str(latest_operator_action).strip()
+    message = str(latest_message or "")
+    message_lower = message.lower()
+    if "coinglass_api_key" in message or "coinglass" in message_lower:
+        return "Configure COINGLASS_API_KEY for the CoinGlass-backed source first"
+    if "coinalyze.api_key" in message_lower:
+        return "Configure coinalyze.api_key in config.yaml for the Coinalyze-backed source first"
+    if "coinalyze" in message_lower:
+        return "Configure the Coinalyze API key for this source first"
+    return "Configure the missing credential for this source first"
+
+
 def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapshot_counts: Dict[str, int] | None = None, snapshot_stats: Dict[str, Dict[str, Any]] | None = None) -> Dict[str, Any]:
     snapshot_counts = snapshot_counts or {}
     snapshot_stats = snapshot_stats or {}
@@ -486,8 +501,9 @@ def attach_forward_archive_meta(clean_key: str, quality: Dict[str, Any], snapsho
         if blocker and blocker_note.strip() not in blocker:
             enriched['backfill_blocker'] = blocker + blocker_note
         if latest_status == 'auth_missing':
+            action = _auth_missing_operator_action(latest_message, latest_operator_action)
             enriched['recommended_action'] = (
-                'Configure COINGLASS_API_KEY for the CoinGlass-backed source first; forward archive events are being logged, '
+                f'{action}; forward archive events are being logged, '
                 'but they currently contain auth_missing snapshots so feature coverage cannot improve until credentials work. '
                 'After auth is fixed, keep running heartbeat collection until at least '
                 f'{FORWARD_ARCHIVE_READY_MIN_EVENTS} successful forward snapshots accumulate, then evaluate whether historical export/backfill is still needed.'

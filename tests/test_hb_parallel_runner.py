@@ -2951,6 +2951,10 @@ def test_overwrite_current_state_docs_surfaces_top_source_blockers_beyond_fin_ne
                 "archive_window_coverage_pct": 0.0,
                 "raw_snapshot_events": 99,
                 "forward_archive_status": "ready",
+                "recommended_action": (
+                    "Configure COINGLASS_API_KEY for the CoinGlass-backed source first; "
+                    "forward archive events are being logged, but they currently contain auth_missing snapshots"
+                ),
             },
             {
                 "key": "nest_pred",
@@ -2991,13 +2995,41 @@ def test_overwrite_current_state_docs_surfaces_top_source_blockers_beyond_fin_ne
     orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
     for content in (issues_md, roadmap_md, orid_md):
         assert "top source blockers" in content
-        assert "fin_netflow(source_auth_blocked/auth_missing, coverage=0.0%, archive_window=0.0%, forward_archive=ready)" in content
+        assert (
+            "fin_netflow(source_auth_blocked/auth_missing, coverage=0.0%, archive_window=0.0%, "
+            "forward_archive=ready, next=Configure COINGLASS_API_KEY for the CoinGlass-backed source first)"
+        ) in content
         assert "nest_pred(source_tls_verify_failed/tls_verify_failed, coverage=16.3%, archive_window=98.6%, forward_archive=ready)" in content
 
 
 
 def test_top_source_blockers_docs_line_handles_missing_payload():
     assert "source blocker 資訊暫缺" in hb_parallel_runner._top_source_blockers_docs_line({})
+
+
+def test_top_source_blockers_docs_line_includes_auth_action_hint_without_secret_values():
+    line = hb_parallel_runner._top_source_blockers_docs_line(
+        {
+            "blocked_features": [
+                {
+                    "key": "claw",
+                    "quality_flag": "source_auth_blocked",
+                    "raw_snapshot_latest_status": "auth_missing",
+                    "coverage_pct": 14.57,
+                    "archive_window_coverage_pct": 85.63,
+                    "forward_archive_status": "ready",
+                    "recommended_action": (
+                        "Configure coinalyze.api_key in config.yaml for the Coinalyze-backed source first; "
+                        "forward archive events are being logged"
+                    ),
+                }
+            ]
+        }
+    )
+
+    assert "next=Configure coinalyze.api_key in config.yaml for the Coinalyze-backed source first" in line
+    assert "secret" not in line.lower()
+    assert "[REDACTED]" not in line
 
 
 
