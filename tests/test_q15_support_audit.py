@@ -1192,14 +1192,21 @@ def test_build_report_separates_current_floor_cross_from_blocked_component_exper
     assert report["component_experiment"]["verdict"] == "reference_only_until_exact_support_ready"
     machine_answer = report["component_experiment"]["machine_read_answer"]
     assert machine_answer["support_ready"] is False
+    # Legacy field remains component-experiment readiness, not the current row's floor truth.
     assert machine_answer["entry_quality_ge_0_55"] is False
+    assert machine_answer["component_experiment_entry_quality_ge_0_55"] is False
+    assert machine_answer["entry_quality_ge_0_55_scope"] == "component_experiment_counterfactual"
     assert machine_answer["current_entry_quality"] == 0.6187
     assert machine_answer["trade_floor"] == 0.55
     assert machine_answer["current_trade_floor_gap"] == 0.0687
+    assert machine_answer["current_entry_quality_ge_0_55"] is True
     assert machine_answer["current_entry_quality_ge_trade_floor"] is True
     markdown = q15_support_audit._markdown(report)
+    assert "- entry_quality_ge_0_55_scope: **component_experiment_counterfactual**" in markdown
+    assert "- component_experiment_entry_quality_ge_0_55: **False**" in markdown
     assert "- current_entry_quality: **0.6187**" in markdown
     assert "- current_trade_floor_gap: **0.0687**" in markdown
+    assert "- current_entry_quality_ge_0_55: **True**" in markdown
     assert "- current_entry_quality_ge_trade_floor: **True**" in markdown
 
 

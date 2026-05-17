@@ -64,6 +64,31 @@ def test_execution_metadata_smoke_lane_uses_explicit_okx_and_binance_venues(monk
     assert calls[0][-5:] == ["--symbol", "BTCUSDT", "--venues", "okx", "binance"]
 
 
+def test_q15_governance_console_line_disambiguates_component_and_current_floor_flags():
+    line = hb_parallel_runner._format_q15_governance_console_line(
+        {
+            "scope_applicability": {"status": "current_live_q15_lane_active", "active_for_current_live_row": True},
+            "support_route": {"verdict": "exact_bucket_present_but_below_minimum", "deployable": False},
+            "floor_cross_legality": {"verdict": "floor_crossed_but_support_not_ready", "legal_to_relax_runtime_gate": False, "remaining_gap_to_floor": 0.0},
+            "component_experiment": {
+                "verdict": "reference_only_until_exact_support_ready",
+                "machine_read_answer": {
+                    "entry_quality_ge_0_55": False,
+                    "component_experiment_entry_quality_ge_0_55": False,
+                    "current_entry_quality_ge_0_55": True,
+                    "current_entry_quality_ge_trade_floor": True,
+                    "allowed_layers_gt_0": False,
+                },
+            },
+        }
+    )
+
+    assert "component_entry55=False" in line
+    assert "current_entry55=True" in line
+    assert "current_floor=True" in line
+    assert " entry55=" not in line
+
+
 def test_high_conviction_support_route_context_string_false_fails_closed():
     assert (
         hb_parallel_runner._support_route_context_is_deployable(

@@ -6307,6 +6307,31 @@ def _needs_q15_post_audit_runtime_resync(
     ) is not None
 
 
+def _format_q15_governance_console_line(q15_support_summary: Dict[str, Any] | None) -> str:
+    q15_support_summary = q15_support_summary or {}
+    scope = q15_support_summary.get("scope_applicability") or {}
+    support = q15_support_summary.get("support_route") or {}
+    floor = q15_support_summary.get("floor_cross_legality") or {}
+    experiment = q15_support_summary.get("component_experiment") or {}
+    experiment_answer = experiment.get("machine_read_answer") or {}
+    component_entry55 = experiment_answer.get(
+        "component_experiment_entry_quality_ge_0_55",
+        experiment_answer.get("entry_quality_ge_0_55"),
+    )
+    return (
+        "🧩 Q15 治理："
+        f"scope={scope.get('status')} active={scope.get('active_for_current_live_row')} "
+        f"support={support.get('verdict')} deployable={support.get('deployable')} "
+        f"floor={floor.get('verdict')} legal={floor.get('legal_to_relax_runtime_gate')} "
+        f"best={floor.get('best_single_component')} gap={floor.get('remaining_gap_to_floor')} "
+        f"experiment={experiment.get('verdict')} "
+        f"component_entry55={component_entry55} "
+        f"current_entry55={experiment_answer.get('current_entry_quality_ge_0_55')} "
+        f"current_floor={experiment_answer.get('current_entry_quality_ge_trade_floor')} "
+        f"layers>0={experiment_answer.get('allowed_layers_gt_0')}"
+    )
+
+
 
 def _format_q15_post_audit_runtime_resync_message(reason: str | None) -> str:
     if reason == "support_truth_changed_under_breaker":
@@ -7988,21 +8013,7 @@ def main(argv=None):
     if q15_support_result.get("stderr"):
         print(f"\n--- hb_q15_support_audit stderr ---\n{q15_support_result['stderr']}")
     if q15_support_summary:
-        scope = q15_support_summary.get("scope_applicability") or {}
-        support = q15_support_summary.get("support_route") or {}
-        floor = q15_support_summary.get("floor_cross_legality") or {}
-        experiment = q15_support_summary.get("component_experiment") or {}
-        experiment_answer = experiment.get("machine_read_answer") or {}
-        print(
-            "🧩 Q15 治理："
-            f"scope={scope.get('status')} active={scope.get('active_for_current_live_row')} "
-            f"support={support.get('verdict')} deployable={support.get('deployable')} "
-            f"floor={floor.get('verdict')} legal={floor.get('legal_to_relax_runtime_gate')} "
-            f"best={floor.get('best_single_component')} gap={floor.get('remaining_gap_to_floor')} "
-            f"experiment={experiment.get('verdict')} "
-            f"entry55={experiment_answer.get('entry_quality_ge_0_55')} "
-            f"layers>0={experiment_answer.get('allowed_layers_gt_0')}"
-        )
+        print(_format_q15_governance_console_line(q15_support_summary))
 
     q15_runtime_resync = {"triggered": False, "reason": None, "message": None}
     resync_reason = _q15_post_audit_runtime_resync_reason(live_predictor_diagnostics, q15_support_summary)

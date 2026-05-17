@@ -1029,10 +1029,14 @@ def _current_floor_context(component_gap: dict[str, Any]) -> dict[str, Any]:
         crossed = gap <= 0
     else:
         crossed = None
+    current_gap = None if entry_quality is None or trade_floor is None else round(entry_quality - trade_floor, 4)
     return {
         "current_entry_quality": entry_quality,
         "trade_floor": trade_floor,
-        "current_trade_floor_gap": None if entry_quality is None or trade_floor is None else round(entry_quality - trade_floor, 4),
+        "current_trade_floor_gap": current_gap,
+        # Explicitly name the current-row 0.55/floor checks so downstream agents do not
+        # mistake the legacy `entry_quality_ge_0_55` experiment flag for live deployability.
+        "current_entry_quality_ge_0_55": None if entry_quality is None else entry_quality >= 0.55,
         "current_entry_quality_ge_trade_floor": crossed,
     }
 
@@ -1049,8 +1053,11 @@ def _component_experiment_answer(
 ) -> dict[str, Any]:
     answer = {
         "support_ready": support_ready,
-        # Candidate/counterfactual readiness, not the current row's baseline floor truth.
+        # Backward-compatible legacy name: this is candidate/counterfactual readiness,
+        # not the current row's baseline floor truth.
         "entry_quality_ge_0_55": entry_quality_ge_0_55,
+        "entry_quality_ge_0_55_scope": "component_experiment_counterfactual",
+        "component_experiment_entry_quality_ge_0_55": entry_quality_ge_0_55,
         "allowed_layers_gt_0": allowed_layers_gt_0,
         "preserves_positive_discrimination": preserves_positive_discrimination,
         "preserves_positive_discrimination_status": preserves_positive_discrimination_status,
@@ -1661,9 +1668,12 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- mode: **{experiment.get('mode')}**",
             f"- support_ready: **{experiment_answer.get('support_ready')}**",
             f"- entry_quality_ge_0_55: **{experiment_answer.get('entry_quality_ge_0_55')}**",
+            f"- entry_quality_ge_0_55_scope: **{experiment_answer.get('entry_quality_ge_0_55_scope')}**",
+            f"- component_experiment_entry_quality_ge_0_55: **{experiment_answer.get('component_experiment_entry_quality_ge_0_55')}**",
             f"- current_entry_quality: **{experiment_answer.get('current_entry_quality')}**",
             f"- trade_floor: **{experiment_answer.get('trade_floor')}**",
             f"- current_trade_floor_gap: **{experiment_answer.get('current_trade_floor_gap')}**",
+            f"- current_entry_quality_ge_0_55: **{experiment_answer.get('current_entry_quality_ge_0_55')}**",
             f"- current_entry_quality_ge_trade_floor: **{experiment_answer.get('current_entry_quality_ge_trade_floor')}**",
             f"- allowed_layers_gt_0: **{experiment_answer.get('allowed_layers_gt_0')}**",
             f"- preserves_positive_discrimination: **{experiment_answer.get('preserves_positive_discrimination')}** ({experiment_answer.get('preserves_positive_discrimination_status')})",
