@@ -1,16 +1,16 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-17 22:31:23.703449**
+- generated_at: **2026-05-17 23:01:24.007852**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
 - signal: **HOLD**
-- regime / gate / label: **bear / CAUTION / C**
+- regime / gate / label: **bear / CAUTION / B**
 - current_live_structure_bucket: **CAUTION|structure_quality_caution|q15**
-- current_live_structure_bucket_rows: **33**
-- allowed_layers: **0** (under_minimum_exact_live_structure_bucket)
-- execution_guardrail_reason: **under_minimum_exact_live_structure_bucket**
+- current_live_structure_bucket_rows: **0**
+- allowed_layers: **0** (unsupported_exact_live_structure_bucket)
+- execution_guardrail_reason: **unsupported_exact_live_structure_bucket**
 
 ## Scope applicability
 - status: **current_live_q15_lane_active**
@@ -20,33 +20,33 @@
 - reason: current live row 正位於 q15 lane；q15 support / component verify 可直接視為 current-live deployment 檢查。
 
 ## Support route verdict
-- support_governance_route: **exact_live_bucket_present_but_below_minimum**
-- verdict: **exact_bucket_present_but_below_minimum**
+- support_governance_route: **no_support_proxy**
+- verdict: **insufficient_support_everywhere**
 - deployable: **False**
 - governance_reference_only: **True**
-- preferred_support_cohort: **bull_exact_live_lane_proxy**
-- current bucket gap to minimum: **17**
+- preferred_support_cohort: **None**
+- current bucket gap to minimum: **50**
 - exact-bucket proxy rows: **0**
-- exact-lane proxy rows: **8**
+- exact-lane proxy rows: **0**
 - supported neighbor rows: **0**
-- reason: current q15 exact bucket 已出現，但 rows 尚未達 minimum support；仍需維持 blocker。
-- release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
+- reason: current q15 live path 在 exact bucket / proxy / neighbor 都沒有 deployment 級支撐。
+- release_condition: 先擴充 exact bucket 或縮小治理範圍，否則不得調整 runtime gate。
 - support_progress.status: **semantic_rebaseline_under_minimum**
 - support_progress.regression_basis: **legacy_or_different_semantic_signature**
-- support_progress.current_rows / minimum: **33 / 50**
-- support_progress.previous_rows: **33**
-- support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **2**
+- support_progress.current_rows / minimum: **0 / 50**
+- support_progress.previous_rows: **None**
+- support_progress.delta_vs_previous: **None**
+- support_progress.stagnant_run_count: **0**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
-- support_identity.path: **bear / CAUTION / C**
+- support_identity.path: **bear / CAUTION / B**
 - support_identity.bucket/window/signature: **CAUTION|structure_quality_caution|q15 / 200 / live_structure_bucket:q15_support_identity:v2**
 - legacy_supported_reference: **reference-only; not deployment closure**
 - legacy reference heartbeat/rows/minimum: **20260419b / 53 / 50**
 - legacy semantic verdict: **reference_only_semantic_mismatch_or_missing_fields**; supports_current_identity=**False**; promotable=**False**
 - legacy semantic mismatch/missing fields: `['entry_quality_label', 'regime_label']` / `[]`
 - legacy reference_only_reason: **semantic_evidence_mismatch_or_missing_fields**
-- support_progress.reason: current q15 exact support 目前是 33/50，仍低於 minimum；歷史上同 bucket 曾有 53/50（heartbeat 20260419b），語義證據已回填但不吻合 current support_identity（mismatched=['entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。
+- support_progress.reason: current q15 exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 53/50（heartbeat 20260419b），語義證據已回填但不吻合 current support_identity（mismatched=['entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。
 
 ## Floor-cross legality
 - verdict: **floor_crossed_but_support_not_ready**
@@ -65,9 +65,9 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.6686**
+- current_entry_quality: **0.6844**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.1186**
+- current_trade_floor_gap: **0.1344**
 - current_entry_quality_ge_0_55: **True**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
@@ -81,9 +81,9 @@
 - component_verify_ready: **False**
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
-- current_signal / layers / guardrail: **HOLD / 0 / under_minimum_exact_live_structure_bucket**
-- support rows / minimum / gap: **33 / 50 / 17**
-- stagnant_run_count: **2**
+- current_signal / layers / guardrail: **HOLD / 0 / unsupported_exact_live_structure_bucket**
+- support rows / minimum / gap: **0 / 50 / 50**
+- stagnant_run_count: **0**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**
