@@ -1,29 +1,29 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-17 11:02:13.006037**
+- generated_at: **2026-05-17 12:01:57.351618**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q15 bucket**
 - verdict: **runtime_blocker_preempts_bucket_root_cause**
 - candidate_patch_type: **None**
 - candidate_patch_feature: **None**
 - artifact_context_freshness: **current_context** (`[]`)
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'B', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 
 ## Current live
-- live path: **bear / CAUTION / B**
+- live path: **bear / CAUTION / C**
 - structure_bucket: `CAUTION|structure_quality_caution|q15`
-- structure_quality: **0.277**
-- gap_to_q35_boundary: **0.073**
+- structure_quality: **0.2833**
+- gap_to_q35_boundary: **0.0667**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
 - support rows/minimum/gap: **0 / 50 / 50**
 
 ## Exact live lane
-- rows: **0**
-- bucket_counts: `{}`
+- rows: **41**
+- bucket_counts: `{'CAUTION|structure_quality_caution|q15': 41}`
 - dominant_neighbor_bucket: **None** (0 rows)
-- near_boundary_window: `None`
-- near_boundary_rows: **0**
+- near_boundary_window: `{'lower': 0.2833, 'upper': 0.35}`
+- near_boundary_rows: **3**
 
 ## Decision
 - reason: 目前 live runtime 已先被 circuit breaker 擋下；current-live q15 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。
@@ -31,9 +31,9 @@
 - verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.5575 / norm=0.5575 / Δto_cross_q35=0.2147 / target_p25=None / target_median=None
-- `feat_4h_dist_bb_lower`: current=1.391 / norm=0.1739 / Δto_cross_q35=1.7697 / target_p25=None / target_median=None
-- `feat_4h_dist_swing_low`: current=0.9102 / norm=0.091 / Δto_cross_q35=2.2121 / target_p25=None / target_median=None
+- `feat_4h_bb_pct_b`: current=0.5676 / norm=0.5676 / Δto_cross_q35=0.1962 / target_p25=None / target_median=None
+- `feat_4h_dist_bb_lower`: current=1.4188 / norm=0.1774 / Δto_cross_q35=1.617 / target_p25=None / target_median=None
+- `feat_4h_dist_swing_low`: current=0.9638 / norm=0.0964 / Δto_cross_q35=2.0212 / target_p25=None / target_median=None
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
