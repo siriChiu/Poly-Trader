@@ -48,7 +48,7 @@ def test_parse_args_allows_fast_without_hb():
     assert hb_parallel_runner.resolve_run_label(args) == "fast"
 
 
-def test_execution_metadata_smoke_lane_uses_explicit_okx_venue(monkeypatch):
+def test_execution_metadata_smoke_lane_uses_explicit_okx_and_binance_venues(monkeypatch):
     calls = []
 
     def fake_run_serial_command(cmd, *args, **kwargs):
@@ -61,7 +61,7 @@ def test_execution_metadata_smoke_lane_uses_explicit_okx_venue(monkeypatch):
 
     assert result["success"] is True
     assert calls == [hb_parallel_runner.EXECUTION_METADATA_SMOKE_CMD]
-    assert calls[0][-4:] == ["--symbol", "BTCUSDT", "--venues", "okx"]
+    assert calls[0][-5:] == ["--symbol", "BTCUSDT", "--venues", "okx", "binance"]
 
 
 def test_high_conviction_support_route_context_string_false_fails_closed():
