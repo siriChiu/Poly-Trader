@@ -4081,6 +4081,22 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert latest["nearest_deployable_candidate"]["stalled_support_accumulation"] is True
     assert latest["nearest_deployable_candidate"]["blocked_only_by_live_guardrails"] is True
     assert latest["highest_roi_not_deployable"]["model"] == "xgboost"
+
+    topk_payload = json.loads((data_dir / "high_conviction_topk_oos_matrix.json").read_text(encoding="utf-8"))
+    assert topk_payload["nearest_deployable_candidate"]["model"] == "random_forest"
+    assert topk_payload["nearest_deployable_candidate"]["support_route"] == "exact_bucket_unsupported_block"
+    assert topk_payload["nearest_deployable_candidate"]["support_governance_route"] == "exact_live_lane_proxy_available"
+    assert topk_payload["nearest_deployable_candidate"]["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert topk_payload["nearest_deployable_candidate"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q35"
+    assert topk_payload["nearest_deployable_candidate"]["current_live_structure_bucket_rows"] == 0
+    assert topk_payload["nearest_deployable_candidate"]["minimum_support_rows"] == 50
+    assert topk_payload["nearest_deployable_candidate"]["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert topk_payload["nearest_deployable_candidate"]["support_progress_status"] == "regressed_under_minimum"
+    assert topk_payload["nearest_deployable_candidate"]["support_delta_vs_previous"] == -42
+    assert topk_payload["nearest_deployable_candidate"]["support_rows_needed"] == 50
+    assert topk_payload["nearest_deployable_candidate"]["blocked_only_by_live_guardrails"] is True
+    assert topk_payload["nearest_deployable_rows"][0] == topk_payload["nearest_deployable_candidate"]
+    assert topk_payload["highest_roi_not_deployable"]["model"] == "xgboost"
     issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
     assert "deployment_blocker=unsupported_exact_live_structure_bucket" in issues_md
     assert "freshness=stale" in issues_md

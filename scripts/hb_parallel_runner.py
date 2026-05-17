@@ -2089,6 +2089,194 @@ def _apply_live_support_context_to_high_conviction_row(
         row["deployment_candidate_tier"] = "research_oos_gate_failed"
 
 
+_HIGH_CONVICTION_CANDIDATE_SUMMARY_KEYS = (
+    "model",
+    "feature_profile",
+    "regime",
+    "top_k",
+    "oos_roi",
+    "win_rate",
+    "profit_factor",
+    "max_drawdown",
+    "worst_fold",
+    "trade_count",
+    "deployable_verdict",
+    "deployment_candidate_tier",
+    "gate_failures",
+    "model_gate_failures",
+    "live_gate_failures",
+    "oos_gate_passed",
+    "blocked_only_by_live_guardrails",
+    "support_route",
+    "support_governance_route",
+    "support_route_deployable",
+    "deployment_blocker",
+    "runtime_closure_state",
+    "current_live_structure_bucket",
+    "current_live_structure_bucket_rows",
+    "minimum_support_rows",
+    "current_live_structure_bucket_gap_to_minimum",
+    "allowed_layers",
+    "signal",
+    "execution_guardrail_reason",
+    "release_condition",
+    "release_ready",
+    "current_streak",
+    "recent_window",
+    "current_recent_window_win_rate",
+    "current_recent_window_wins",
+    "required_recent_window_wins",
+    "additional_recent_window_wins_needed",
+    "support_progress_status",
+    "support_progress_reason",
+    "support_progress_regression_basis",
+    "support_progress_stagnant_run_count",
+    "support_progress_stalled_support_accumulation",
+    "support_progress_escalate_to_blocker",
+    "stagnant_run_count",
+    "stalled_support_accumulation",
+    "escalate_to_blocker",
+    "support_delta_vs_previous",
+    "support_previous_rows",
+    "support_rows_needed",
+    "active_repair_phase",
+    "active_repair_component_verify_ready",
+    "active_repair_live_exposure_allowed",
+    "active_repair_shadow_or_paper_allowed",
+    "active_repair_current_signal",
+    "active_repair_current_allowed_layers",
+    "active_repair_current_execution_guardrail_reason",
+    "active_repair_support_status",
+    "active_repair_action_ids",
+    "legacy_semantic_evidence_verdict",
+    "legacy_semantic_evidence_supports_current_identity",
+    "legacy_semantic_evidence_promotable_to_same_identity_history",
+    "legacy_semantic_evidence_mismatched_fields",
+    "legacy_semantic_evidence_missing_fields",
+    "source_live_probe_generated_at",
+    "live_truth_source_artifact",
+)
+
+
+def _high_conviction_topk_float(value: Any, default: float) -> float:
+    try:
+        if value is None or value == "":
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _high_conviction_topk_row_gate_parts(row: Dict[str, Any]) -> tuple[list[str], list[str], list[str], bool, bool]:
+    gate_failures = row.get("gate_failures") if isinstance(row.get("gate_failures"), list) else []
+    gate_failures = _unique_string_list(gate_failures)
+    model_gate_failures = row.get("model_gate_failures") if isinstance(row.get("model_gate_failures"), list) else []
+    live_gate_failures = row.get("live_gate_failures") if isinstance(row.get("live_gate_failures"), list) else []
+    model_gate_failures = _unique_string_list(model_gate_failures)
+    live_gate_failures = _unique_string_list(live_gate_failures)
+    if not model_gate_failures and not live_gate_failures:
+        model_gate_failures = [failure for failure in gate_failures if failure not in _HIGH_CONVICTION_TOPK_LIVE_FAILURES]
+        live_gate_failures = [failure for failure in gate_failures if failure in _HIGH_CONVICTION_TOPK_LIVE_FAILURES]
+    oos_gate_passed = bool(row.get("oos_gate_passed")) if row.get("oos_gate_passed") is not None else not model_gate_failures
+    blocked_only_by_live_guardrails = (
+        bool(row.get("blocked_only_by_live_guardrails"))
+        if row.get("blocked_only_by_live_guardrails") is not None
+        else bool(gate_failures) and oos_gate_passed and bool(live_gate_failures) and not model_gate_failures
+    )
+    return gate_failures, model_gate_failures, live_gate_failures, oos_gate_passed, blocked_only_by_live_guardrails
+
+
+def _high_conviction_topk_risk_first_sort_key(row: Dict[str, Any]) -> tuple:
+    gate_failures, model_gate_failures, _live_gate_failures, oos_gate_passed, blocked_only_by_live_guardrails = (
+        _high_conviction_topk_row_gate_parts(row)
+    )
+    return (
+        str(row.get("deployable_verdict") or "") == "deployable",
+        blocked_only_by_live_guardrails,
+        oos_gate_passed,
+        -len(model_gate_failures),
+        -len(gate_failures),
+        -_high_conviction_topk_float(row.get("max_drawdown"), 999.0),
+        _high_conviction_topk_float(row.get("worst_fold"), -999.0),
+        _high_conviction_topk_float(row.get("oos_roi"), -999.0),
+        _high_conviction_topk_float(row.get("win_rate"), -999.0),
+        _high_conviction_topk_float(row.get("profit_factor"), -999.0),
+        _high_conviction_topk_float(row.get("trade_count"), -999.0),
+    )
+
+
+def _compact_high_conviction_topk_candidate_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(row, dict) or not row:
+        return {}
+    gate_failures, model_gate_failures, live_gate_failures, oos_gate_passed, blocked_only_by_live_guardrails = (
+        _high_conviction_topk_row_gate_parts(row)
+    )
+    compact = {key: row.get(key) for key in _HIGH_CONVICTION_CANDIDATE_SUMMARY_KEYS if row.get(key) is not None}
+    compact.setdefault("gate_failures", gate_failures)
+    compact.setdefault("model_gate_failures", model_gate_failures)
+    compact.setdefault("live_gate_failures", live_gate_failures)
+    compact.setdefault("oos_gate_passed", oos_gate_passed)
+    compact.setdefault("blocked_only_by_live_guardrails", blocked_only_by_live_guardrails)
+    compact.setdefault("deployable_verdict", row.get("deployable_verdict") or "not_deployable")
+    return compact
+
+
+def _refresh_high_conviction_topk_candidate_summaries(payload: Dict[str, Any], *, limit: int = 6) -> None:
+    """Recompute compact Top-K candidate summaries after live support overlay.
+
+    The rows carry the authoritative live support route after
+    ``_apply_live_support_context_to_high_conviction_row`` runs.  Keep the
+    top-level ``nearest_deployable_*`` and ``highest_roi_not_deployable``
+    summaries derived from those same rows so Strategy Lab, docs, and cron
+    extractors cannot show stale proxy/governance truth from a previous live
+    bucket.
+    """
+    rows = [row for row in payload.get("rows", []) if isinstance(row, dict)]
+    if not rows:
+        for key in (
+            "nearest_deployable_rows",
+            "nearest_deployable_candidate",
+            "best_not_deployable",
+            "highest_roi_not_deployable",
+        ):
+            payload.pop(key, None)
+        return
+
+    ranked_rows = sorted(rows, key=_high_conviction_topk_risk_first_sort_key, reverse=True)
+    nearest_rows = [
+        row
+        for row in ranked_rows
+        if str(row.get("deployable_verdict") or "") == "deployable"
+        or _high_conviction_topk_row_gate_parts(row)[4]
+    ]
+    if not nearest_rows:
+        nearest_rows = ranked_rows[:1]
+
+    compact_nearest_rows = [
+        row
+        for row in (_compact_high_conviction_topk_candidate_row(row) for row in nearest_rows[: max(int(limit), 1)])
+        if row
+    ]
+    if compact_nearest_rows:
+        payload["nearest_deployable_rows"] = compact_nearest_rows
+        payload["nearest_deployable_candidate"] = compact_nearest_rows[0]
+        payload["best_not_deployable"] = compact_nearest_rows[0]
+    else:
+        payload.pop("nearest_deployable_rows", None)
+        payload.pop("nearest_deployable_candidate", None)
+        payload.pop("best_not_deployable", None)
+
+    highest_roi_not_deployable = max(
+        [row for row in rows if str(row.get("deployable_verdict") or "") != "deployable"] or rows,
+        key=lambda row: _high_conviction_topk_float(row.get("oos_roi"), -999.0),
+    )
+    highest_compact = _compact_high_conviction_topk_candidate_row(highest_roi_not_deployable)
+    if highest_compact:
+        payload["highest_roi_not_deployable"] = highest_compact
+    else:
+        payload.pop("highest_roi_not_deployable", None)
+
+
 def _sync_high_conviction_topk_matrix_live_context(
     live_predictor_diagnostics: Dict[str, Any] | None,
 ) -> bool:
@@ -2138,6 +2326,7 @@ def _sync_high_conviction_topk_matrix_live_context(
         payload["runtime_blocked_candidate_rows"] = sum(
             1 for row in rows if isinstance(row, dict) and row.get("blocked_only_by_live_guardrails")
         )
+        _refresh_high_conviction_topk_candidate_summaries(payload)
         _apply_high_conviction_top_level_live_gate_summary(payload, support_context)
 
         updated = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)

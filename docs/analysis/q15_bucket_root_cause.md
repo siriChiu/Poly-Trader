@@ -1,39 +1,39 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-17 14:02:35.701094**
+- generated_at: **2026-05-17 15:01:35.194162**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q15 bucket**
-- verdict: **insufficient_scope_data**
-- candidate_patch_type: **None**
-- candidate_patch_feature: **None**
+- verdict: **no_exact_live_lane_rows**
+- candidate_patch_type: **scope_generation**
+- candidate_patch_feature: **feat_4h_bb_pct_b**
 - artifact_context_freshness: **current_context** (`[]`)
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'B', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 
 ## Current live
-- live path: **bear / CAUTION / C**
+- live path: **bear / CAUTION / B**
 - structure_bucket: `CAUTION|structure_quality_caution|q15`
-- structure_quality: **0.2293**
-- gap_to_q35_boundary: **0.1207**
+- structure_quality: **0.1941**
+- gap_to_q35_boundary: **0.1559**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `unsupported_exact_live_structure_bucket`
 - support rows/minimum/gap: **0 / 50 / 50**
 
 ## Exact live lane
-- rows: **41**
-- bucket_counts: `{'CAUTION|structure_quality_caution|q15': 41}`
+- rows: **0**
+- bucket_counts: `{}`
 - dominant_neighbor_bucket: **None** (0 rows)
-- near_boundary_window: `{'lower': 0.2293, 'upper': 0.35}`
-- near_boundary_rows: **20**
+- near_boundary_window: `None`
+- near_boundary_rows: **0**
 
 ## Decision
-- reason: 目前資料不足，尚無法判定 current-live q15 bucket 0-row 的最小可修補原因。
-- candidate_patch: `{}`
-- verify_next: 先確保 live probe / support artifacts 完整，再重跑 current-live bucket root-cause artifact。
+- reason: 連 exact live lane 都沒有資料，先補 same regime/gate/entry-quality lane，而不是只修 bucket 邊界。
+- candidate_patch: `{'type': 'scope_generation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.403, 'current_normalized': 0.403, 'needed_raw_delta_to_cross_q35': 0.4585, 'target_bucket_p25': None, 'target_bucket_median': None, 'needed_raw_delta_to_target_p25': None, 'needed_raw_delta_to_target_median': None}`
+- verify_next: 重跑 bull_4h_pocket_ablation.py，確認 exact_scope_rows > 0。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.4676 / norm=0.4676 / Δto_cross_q35=0.355 / target_p25=None / target_median=None
-- `feat_4h_dist_bb_lower`: current=1.1769 / norm=0.1471 / Δto_cross_q35=2.9261 / target_p25=None / target_median=None
-- `feat_4h_dist_swing_low`: current=0.6601 / norm=0.066 / Δto_cross_q35=3.6576 / target_p25=None / target_median=None
+- `feat_4h_bb_pct_b`: current=0.403 / norm=0.403 / Δto_cross_q35=0.4585 / target_p25=None / target_median=None
+- `feat_4h_dist_bb_lower`: current=1.012 / norm=0.1265 / Δto_cross_q35=3.7794 / target_p25=None / target_median=None
+- `feat_4h_dist_swing_low`: current=0.4636 / norm=0.0464 / Δto_cross_q35=4.7242 / target_p25=None / target_median=None
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
