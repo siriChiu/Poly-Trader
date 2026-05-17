@@ -1061,11 +1061,13 @@ export default function Dashboard() {
     : (typeof breakerRecentWindow?.floor === "number" ? breakerRecentWindow.floor : null);
   const breakerCurrentStreak = typeof breakerRelease?.current_streak === "number" ? breakerRelease.current_streak : null;
   const breakerStreakLimit = typeof breakerRelease?.streak_must_be_below === "number" ? breakerRelease.streak_must_be_below : null;
-  const liveRuntimeSupportAlignmentTone = liveRuntimeTruth?.support_alignment_status === "runtime_ahead_of_calibration"
+  const liveRuntimeSupportAlignmentTone = liveRuntimeTruth?.support_alignment_status?.includes("under_minimum")
     ? "text-amber-200"
-    : liveRuntimeTruth?.support_alignment_status === "aligned"
-      ? "text-emerald-200"
-      : "text-slate-300";
+    : liveRuntimeTruth?.support_alignment_status === "runtime_ahead_of_calibration"
+      ? "text-amber-200"
+      : liveRuntimeTruth?.support_alignment_status === "aligned"
+        ? "text-emerald-200"
+        : "text-slate-300";
   const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;
   const dashboardCurrentLiveBlocker = liveRuntimeTruth?.deployment_blocker || null;
   const dashboardPrimaryRuntimeMessage = liveRuntimeTruth?.deployment_blocker_reason

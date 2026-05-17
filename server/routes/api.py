@@ -1493,30 +1493,65 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
 
     support_alignment_status = "unavailable"
     support_alignment_summary = "尚未取得 exact live lane calibration 對照。"
-    if current_rows is not None and calibration_exact_lane_rows is not None:
-        if int(current_rows) > 0 and int(calibration_exact_lane_rows) == 0:
+
+    def _to_int_or_none(value: Any) -> Optional[int]:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    current_rows_int = _to_int_or_none(current_rows)
+    calibration_exact_lane_rows_int = _to_int_or_none(calibration_exact_lane_rows)
+    minimum_rows_int = _to_int_or_none(minimum_rows)
+    support_gap_int = None
+    if current_rows_int is not None and minimum_rows_int is not None:
+        support_gap_int = max(minimum_rows_int - current_rows_int, 0)
+    under_minimum_exact_support = bool(support_gap_int and support_gap_int > 0)
+
+    if current_rows_int is not None and calibration_exact_lane_rows_int is not None:
+        if current_rows_int > 0 and calibration_exact_lane_rows_int == 0:
             support_alignment_status = "runtime_ahead_of_calibration"
             support_alignment_summary = (
-                f"runtime 已有 {int(current_rows)} 筆 exact support，但 calibration exact lane 仍是 0 筆；"
+                f"runtime 已有 {current_rows_int} 筆 exact support，但 calibration exact lane 仍是 0 筆；"
                 "目前 deployment capacity 應以 q15 support audit / runtime exact-support closure 為準，"
                 "不能把 calibration 0 rows 誤讀成 runtime 未支援。"
             )
-        elif int(current_rows) == int(calibration_exact_lane_rows):
-            support_alignment_status = "aligned"
-            support_alignment_summary = (
-                f"runtime exact support 與 calibration exact lane 已對齊（{int(current_rows)} 筆）。"
+        elif current_rows_int == calibration_exact_lane_rows_int:
+            if under_minimum_exact_support:
+                support_alignment_status = "aligned_under_minimum"
+                support_alignment_summary = (
+                    f"runtime exact support 與 calibration exact lane 已對齊（{current_rows_int} 筆），"
+                    f"但仍低於最小支持門檻 {minimum_rows_int}，缺 {support_gap_int}；"
+                    "目前仍是精準支持樣本不足阻塞，不可視為部署閉環。"
+                )
+            else:
+                support_alignment_status = "aligned"
+                support_alignment_summary = (
+                    f"runtime exact support 與 calibration exact lane 已對齊（{current_rows_int} 筆）。"
+                )
+        elif current_rows_int > calibration_exact_lane_rows_int:
+            support_alignment_status = "runtime_above_calibration_under_minimum" if under_minimum_exact_support else "runtime_above_calibration"
+            under_minimum_suffix = (
+                f" 但仍低於最小支持門檻 {minimum_rows_int}，缺 {support_gap_int}；不可視為部署閉環。"
+                if under_minimum_exact_support
+                else ""
             )
-        elif int(current_rows) > int(calibration_exact_lane_rows):
-            support_alignment_status = "runtime_above_calibration"
             support_alignment_summary = (
-                f"runtime exact support={int(current_rows)}，高於 calibration exact lane={int(calibration_exact_lane_rows)}；"
+                f"runtime exact support={current_rows_int}，高於 calibration exact lane={calibration_exact_lane_rows_int}；"
                 "operator 應優先確認 label replay / calibration artifact 是否落後。"
+                f"{under_minimum_suffix}"
             )
         else:
-            support_alignment_status = "calibration_above_runtime"
+            support_alignment_status = "calibration_above_runtime_under_minimum" if under_minimum_exact_support else "calibration_above_runtime"
+            under_minimum_suffix = (
+                f" 且 runtime exact support 仍低於最小支持門檻 {minimum_rows_int}，缺 {support_gap_int}；不可視為部署閉環。"
+                if under_minimum_exact_support
+                else ""
+            )
             support_alignment_summary = (
-                f"calibration exact lane={int(calibration_exact_lane_rows)}，高於 runtime exact support={int(current_rows)}；"
+                f"calibration exact lane={calibration_exact_lane_rows_int}，高於 runtime exact support={current_rows_int}；"
                 "需檢查 runtime current-live row / support bucket 是否切換。"
+                f"{under_minimum_suffix}"
             )
 
     recommended_patch_summary = spillover_patch_summary if isinstance(spillover_patch_summary, dict) else None

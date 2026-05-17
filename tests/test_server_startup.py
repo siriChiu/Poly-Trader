@@ -757,6 +757,42 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     ]
 
 
+def test_live_runtime_truth_marks_aligned_exact_support_under_minimum_as_blocking():
+    payload = api_module._build_live_runtime_closure_surface({
+        "signal": "HOLD",
+        "regime_label": "bear",
+        "regime_gate": "CAUTION",
+        "structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "allowed_layers": 0,
+        "allowed_layers_reason": "decision_quality_below_trade_floor",
+        "deployment_blocker": "decision_quality_below_trade_floor",
+        "deployment_blocker_reason": "精準支持樣本不足，仍不可部署。",
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+        "support_progress": {
+            "current_rows": 31,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 19,
+            "status": "stalled_under_minimum",
+        },
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                "current_live_structure_bucket_rows": 31,
+                "alerts": ["label_imbalance"],
+            }
+        },
+    })
+
+    assert payload["support_alignment_status"] == "aligned_under_minimum"
+    assert payload["runtime_exact_support_rows"] == 31
+    assert payload["calibration_exact_lane_rows"] == 31
+    assert payload["current_live_structure_bucket_gap_to_minimum"] == 19
+    assert "低於最小支持門檻 50，缺 19" in payload["support_alignment_summary"]
+    assert "不可視為部署閉環" in payload["support_alignment_summary"]
+
+
 def test_api_trade_rejects_buy_when_current_live_blocker_active(monkeypatch):
     async def _blocked_confidence_payload():
         return {

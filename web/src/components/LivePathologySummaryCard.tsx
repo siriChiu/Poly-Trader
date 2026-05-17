@@ -144,6 +144,12 @@ const formatSupportAlignmentStatus = (status?: string | null) => {
   switch (status) {
     case "runtime_ahead_of_calibration":
       return "執行期樣本先於校準樣本";
+    case "aligned_under_minimum":
+      return "已對齊但低於最小支持門檻";
+    case "runtime_above_calibration_under_minimum":
+      return "執行期樣本較多但仍低於門檻";
+    case "calibration_above_runtime_under_minimum":
+      return "校準樣本較多但執行期仍低於門檻";
     case "aligned":
       return "執行期 / 校準已對齊";
     default:
@@ -234,11 +240,13 @@ export default function LivePathologySummaryCard({
   const supportAlignmentCountsLabel = runtimeExactSupportRows != null || calibrationExactLaneRows != null
     ? `執行期 / 校準 ${runtimeExactSupportRows ?? "—"} / ${calibrationExactLaneRows ?? "—"}`
     : null;
-  const supportAlignmentTone = supportAlignmentStatus === "runtime_ahead_of_calibration"
+  const supportAlignmentTone = supportAlignmentStatus?.includes("under_minimum")
     ? "text-amber-200/90"
-    : supportAlignmentStatus === "aligned"
-      ? "text-emerald-200/90"
-      : "text-slate-200/80";
+    : supportAlignmentStatus === "runtime_ahead_of_calibration"
+      ? "text-amber-200/90"
+      : supportAlignmentStatus === "aligned"
+        ? "text-emerald-200/90"
+        : "text-slate-200/80";
   const supportRouteLabel = supportRouteVerdict || recommendedPatch?.support_route_verdict || null;
   const supportGovernanceRouteLabel = supportGovernanceRoute || recommendedPatch?.support_governance_route || null;
   const supportRouteDisplayLabel = humanizeSupportRouteLabel(supportRouteLabel);

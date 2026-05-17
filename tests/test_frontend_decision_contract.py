@@ -2165,6 +2165,15 @@ def test_dashboard_and_strategy_lab_use_compact_live_pathology_cards_on_summary_
     assert 'compact' in strategy_lab_source.split('LivePathologySummaryCard', 1)[1]
 
 
+def test_live_pathology_card_humanizes_under_minimum_alignment_as_warning():
+    source = _read("components/LivePathologySummaryCard.tsx")
+    dashboard_source = _read("pages/Dashboard.tsx")
+    assert 'case "aligned_under_minimum":' in source
+    assert 'return "已對齊但低於最小支持門檻";' in source
+    assert 'supportAlignmentStatus?.includes("under_minimum")' in source
+    assert 'liveRuntimeTruth?.support_alignment_status?.includes("under_minimum")' in dashboard_source
+
+
 def test_venue_readiness_summary_component_surfaces_per_venue_contract():
     source = _read("components/VenueReadinessSummary.tsx")
     required_snippets = [
