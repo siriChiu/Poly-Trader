@@ -45,10 +45,12 @@ Poly-Trader/
 ├── tests/                 # pytest contract/regression tests
 ├── docs/
 │   ├── harness/           # heartbeat harness engineering map、Q&A gate、machine-readable contract
+│   ├── pm/                # PM heartbeat map、stakeholder conflict Q&A gate、current PM status
 │   ├── analysis/          # 可重跑分析 artifact 的人類可讀摘要
 │   └── plans/             # 實作計畫與設計藍圖
 ├── README.md              # 專案入口與使用說明
 ├── HEARTBEAT.md           # 心跳流程規範，不是每輪更新 log
+├── PM_HEARTBEAT.md        # 產品 PM 心跳流程，協調客戶期待與工程安全邊界
 ├── ISSUES.md              # current-state issue view（由 runner overwrite）
 ├── ROADMAP.md             # current-state plan view（由 runner overwrite）
 └── ORID_DECISIONS.md      # current ORID view（由 runner overwrite）
@@ -189,6 +191,7 @@ UI 原則：
 - `scripts/hb_parallel_runner.py` 是 heartbeat runner 主入口。
 - `HEARTBEAT.md` 是 evergreen 流程規範，不再承載單輪 summary。
 - `docs/harness/README.md` 與 `docs/harness/heartbeat-qa.md` 是 heartbeat harness engineering 的入口地圖與一問一答 gate；`scripts/heartbeat_harness_check.py` 以機械檢查確保這些入口沒有腐爛。
+- `PM_HEARTBEAT.md` 與 `docs/pm/README.md` / `docs/pm/pm-heartbeat-qa.md` 是產品 PM 心跳入口；`scripts/pm_heartbeat_check.py` 檢查 PM harness、客戶期待、工程證據與 deadlock escalation 契約沒有腐爛。
 - `ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md` 只保留 current state，由 runner overwrite sync。
 - 每輪 heartbeat 可以產出 `data/heartbeat_*`，但這些 run logs 預設 ignored，不應污染 git diff。
 - 若 current-state docs 與 machine-readable artifacts 不一致，應修 runner/doc sync，而不是追加新的歷史段落。

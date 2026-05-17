@@ -14,3 +14,5 @@ Keep this file as a short map, not a manual. For heartbeat work:
 - Read `HEARTBEAT.md`, `AI_AGENT_ROLE.md`, `ISSUES.md`, `ROADMAP.md`, and `ORID_DECISIONS.md` before acting.
 - For harness-engineering/Q&A gates, read `docs/harness/README.md` and `docs/harness/heartbeat-qa.md`.
 - Run `python scripts/heartbeat_harness_check.py --format text` when touching heartbeat governance, docs, or agent workflow contracts.
+- For product-PM arbitration heartbeat work, read `PM_HEARTBEAT.md`, `docs/pm/README.md`, `docs/pm/pm-heartbeat-qa.md`, and `docs/pm/pm-status.md`.
+- Run `python scripts/pm_heartbeat_check.py --format text` when touching PM heartbeat governance, PM status, or delivery-conflict contracts.

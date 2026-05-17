@@ -43,6 +43,7 @@ Poly-Trader 是一套面向 **BTC/USDT 多特徵研究、策略驗證、即時�
 - **快取與增量刷新**：圖表優先從本地還原，再只補缺的 K 線尾段
 - **Heartbeat 閉環**：用固定治理流程推進 patch、驗證、文件同步與下一輪 gate
 - **Harness engineering**：`docs/harness/README.md` + Q&A gate + `scripts/heartbeat_harness_check.py`，讓 heartbeat 代理可導航、可自問自答、可機械驗證
+- **PM heartbeat governance**：`PM_HEARTBEAT.md` + `docs/pm/README.md` + `scripts/pm_heartbeat_check.py`，把客戶「現在要能用」與工程 fail-closed 安全邊界轉成可交付的產品梯度
 
 ---
 
