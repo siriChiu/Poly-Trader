@@ -411,13 +411,14 @@ def test_compact_venue_readiness_keeps_runtime_proof_blockers():
                 {
                     "venue": "binance",
                     "ok": False,
+                    "adapter_supported": False,
                     "enabled_in_config": False,
                     "credentials_configured": False,
-                    "proof_state": "metadata_contract_failed",
+                    "proof_state": "adapter_unsupported",
                     "readiness_state": "blocked_until_runtime_lifecycle_proof",
                     "runtime_ready": False,
-                    "blockers": ["元資料契約尚未通過", "場館設定停用"],
-                    "operator_next_action": "先修復 binance 元資料檢查。",
+                    "blockers": ["場館 adapter 尚未接入", "元資料契約尚未通過", "場館設定停用"],
+                    "operator_next_action": "先接入 binance 交易所 adapter。",
                     "verify_next": "重跑元資料檢查。",
                 },
             ],
@@ -431,6 +432,8 @@ def test_compact_venue_readiness_keeps_runtime_proof_blockers():
     assert compact["venues"][0]["venue"] == "okx"
     assert compact["venues"][0]["proof_state"] == "public_metadata_only"
     assert compact["venues"][0]["runtime_ready"] is False
+    assert compact["venues"][1]["adapter_supported"] is False
+    assert compact["venues"][1]["proof_state"] == "adapter_unsupported"
     assert compact["venues"][1]["enabled_in_config"] is False
 
 

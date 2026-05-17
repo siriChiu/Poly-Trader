@@ -696,11 +696,14 @@ def _build_execution_metadata_smoke_freshness(
 
 def _build_venue_runtime_proof_contract(venue: str, item: Dict[str, Any]) -> Dict[str, Any]:
     """Expose venue readiness as a proof contract, not just public metadata OK/FAIL."""
+    adapter_supported = item.get("adapter_supported") is not False
     enabled = bool(item.get("enabled_in_config"))
     credentials_configured = bool(item.get("credentials_configured"))
     metadata_ok = bool(item.get("ok"))
 
     blockers: List[str] = []
+    if not adapter_supported:
+        blockers.append("場館 adapter 尚未接入")
     if not metadata_ok:
         blockers.append("元資料契約尚未通過")
     if not enabled:
@@ -712,24 +715,33 @@ def _build_venue_runtime_proof_contract(venue: str, item: Dict[str, Any]) -> Dic
         "fill lifecycle 尚未驗證",
     ])
 
-    if not metadata_ok:
+    if not adapter_supported:
+        proof_state = "adapter_unsupported"
+        operator_next_action = f"先接入 {venue} 交易所 adapter，並確認場館設定與憑證，再補委託確認 / 成交 / 取消生命週期。"
+        verify_next = "接入 adapter 後重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
+    elif not metadata_ok:
         proof_state = "metadata_contract_failed"
         operator_next_action = f"先修復 {venue} 元資料檢查，再評估憑證與實單生命週期。"
+        verify_next = "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
     elif not enabled:
         proof_state = "config_disabled_metadata_only"
         operator_next_action = f"若要啟用 {venue}，先開啟場館設定並配置憑證；目前只能作公開元資料觀測。"
+        verify_next = "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
     elif not credentials_configured:
         proof_state = "public_metadata_only"
         operator_next_action = f"先配置 {venue} 交易憑證，再用沙盒或極小額委託捕捉委託確認 / 成交 / 取消生命週期。"
+        verify_next = "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
     else:
         proof_state = "credentials_configured_missing_runtime_lifecycle"
         operator_next_action = f"使用 {venue} 沙盒或極小額實單捕捉交易所回傳的委託確認 / 成交 / 取消生命週期。"
+        verify_next = "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
 
     return {
         "proof_state": proof_state,
+        "adapter_supported": adapter_supported,
         "blockers": blockers,
         "operator_next_action": operator_next_action,
-        "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。",
+        "verify_next": verify_next,
         "readiness_scope": "venue_runtime_proof_required",
         "readiness_state": "blocked_until_runtime_lifecycle_proof",
         "runtime_ready": False,
@@ -781,6 +793,7 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
         return {
             "venue": venue,
             "ok": bool(item.get("ok")),
+            "adapter_supported": item.get("adapter_supported") is not False,
             "enabled_in_config": bool(item.get("enabled_in_config")),
             "credentials_configured": bool(item.get("credentials_configured")),
             "error": item.get("error"),

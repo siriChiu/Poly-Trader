@@ -633,6 +633,7 @@ const LIFECYCLE_DIAGNOSTIC_LABEL_MAPPINGS: Array<[string, string]> = [
   ["not-upgraded", "尚未升級"],
   ["unknown", "未知"],
   ["none", "無"],
+  ["adapter_unsupported", "場館 adapter 尚未接入"],
   ["metadata_contract_failed", "元資料契約失敗"],
   ["config_disabled_metadata_only", "場館停用，僅元資料觀測"],
   ["public_metadata_only", "僅公開元資料，尚無交易憑證"],

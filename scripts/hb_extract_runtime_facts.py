@@ -176,6 +176,7 @@ def compact_venue_readiness(metadata_smoke: dict[str, Any] | None) -> dict[str, 
             {
                 "venue": item.get("venue"),
                 "ok": item.get("ok"),
+                "adapter_supported": item.get("adapter_supported"),
                 "enabled_in_config": item.get("enabled_in_config"),
                 "credentials_configured": item.get("credentials_configured"),
                 "proof_state": item.get("proof_state"),

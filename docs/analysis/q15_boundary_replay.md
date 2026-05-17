@@ -1,6 +1,6 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-05-17 18:01:46.796484**
+- generated_at: **2026-05-17 19:20:05.795776**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_replay_not_applicable_for_current_context**
 - artifact_context_freshness: **current_context** (`[]`)
@@ -11,28 +11,28 @@
 - signal: **HOLD**
 - regime/gate: **bear / CAUTION**
 - structure bucket: **CAUTION|structure_quality_caution|q15**
-- structure_quality: **0.2236**
-- entry_quality: **0.6687** (trade_floor_gap=0.1187)
+- structure_quality: **0.2574**
+- entry_quality: **0.6551** (trade_floor_gap=0.1051)
 - support_route: **exact_bucket_present_but_below_minimum**
 - floor_cross_legality: **floor_crossed_but_support_not_ready**
 
 ## Boundary replay
-- legacy bucket rows: **3**
+- legacy bucket rows: **5**
 - replay bucket: **CAUTION|structure_quality_caution|q35**
 - replay bucket rows: **0**
-- generated_rows_via_boundary_only: **21**
+- generated_rows_via_boundary_only: **8**
 - preexisting_rows_in_replay_bucket: **0**
 - generated_row_share: **None**
-- generated_rows_exceed_replay_scope: **True** (excess=21)
+- generated_rows_exceed_replay_scope: **True** (excess=8)
 - dominant_neighbor_bucket: **CAUTION|structure_quality_caution|q35** rows=0
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.4608 → None**
-- structure_quality: **0.2236 → 0.35**
+- raw before/after: **0.5229 → None**
+- structure_quality: **0.2574 → 0.35**
 - bucket_after: **CAUTION|structure_quality_caution|q35**
-- entry_quality: **0.6687 → 0.7003**
-- trade_floor_gap_after: **0.1503**
-- allowed_layers_after: **2** (regime_gate_caution_caps_two_layers)
+- entry_quality: **0.6551 → 0.6783**
+- trade_floor_gap_after: **0.1283**
+- allowed_layers_after: **1** (entry_quality_C_single_layer)
 - counterfactual verdict: **counterfactual_not_evaluated**
 - counterfactual reason: boundary replay 不適用於目前 RCA verdict，因此不消費舊 q15 counterfactual。
 

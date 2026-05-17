@@ -2230,6 +2230,38 @@ def test_load_execution_metadata_smoke_summary_marks_disabled_venue_as_metadata_
     assert "先開啟場館設定" in venue["operator_next_action"]
 
 
+def test_load_execution_metadata_smoke_summary_preserves_adapter_unsupported_truth(tmp_path, monkeypatch):
+    fresh_path = tmp_path / "execution_metadata_smoke.json"
+    fresh_path.write_text(json.dumps({
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "symbol": "BTC/USDT",
+        "all_ok": False,
+        "ok_count": 0,
+        "venues_checked": 1,
+        "results": {
+            "binance": {
+                "ok": False,
+                "adapter_supported": False,
+                "enabled_in_config": False,
+                "credentials_configured": False,
+                "error": "unsupported venue: binance",
+            },
+        },
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_EXECUTION_METADATA_SMOKE_PATH", fresh_path)
+
+    summary = api_module._load_execution_metadata_smoke_summary()
+
+    assert summary is not None
+    venue = summary["venues"][0]
+    assert venue["venue"] == "binance"
+    assert venue["adapter_supported"] is False
+    assert venue["proof_state"] == "adapter_unsupported"
+    assert "場館 adapter 尚未接入" in venue["blockers"]
+    assert "先接入 binance 交易所 adapter" in venue["operator_next_action"]
+    assert "場館 adapter 尚未接入" in summary["runtime_ready_blockers"]
+
+
 def test_build_venue_runtime_proof_contract_marks_credentials_configured_lifecycle_gap():
     contract = api_module._build_venue_runtime_proof_contract("okx", {
         "ok": True,

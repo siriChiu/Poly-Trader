@@ -3,6 +3,7 @@ import { humanizeExecutionReason, humanizeLifecycleDiagnosticLabel } from "../ut
 type VenueReadinessItem = {
   venue?: string;
   ok?: boolean;
+  adapter_supported?: boolean | null;
   enabled_in_config?: boolean;
   credentials_configured?: boolean;
   error?: string | null;
@@ -32,6 +33,7 @@ const hasRuntimeProofBlockers = (item: VenueReadinessItem) => Boolean(item.block
 const isRuntimeReady = (item: VenueReadinessItem) => item.runtime_ready === true && !hasRuntimeProofBlockers(item);
 
 const readinessTone = (item: VenueReadinessItem) => {
+  if (item.adapter_supported === false) return "border-rose-500/30 bg-rose-500/10 text-rose-100";
   if (!item.ok) return "border-rose-500/30 bg-rose-500/10 text-rose-100";
   if (isRuntimeReady(item)) return "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";
   if (item.enabled_in_config) return "border-amber-500/30 bg-amber-500/10 text-amber-100";
@@ -39,6 +41,7 @@ const readinessTone = (item: VenueReadinessItem) => {
 };
 
 const readinessLabel = (item: VenueReadinessItem) => {
+  if (item.adapter_supported === false) return "場館 adapter 未接入 / 暫不可交易";
   if (!item.ok) return "元資料契約失敗";
   if (isRuntimeReady(item)) return "可交易 / 實單證據完成";
   if (item.enabled_in_config && item.credentials_configured) return "已配置憑證 / 實單證據未完成";
@@ -47,6 +50,7 @@ const readinessLabel = (item: VenueReadinessItem) => {
 };
 
 const readinessBadgeLabel = (item: VenueReadinessItem) => {
+  if (item.adapter_supported === false) return "未接入";
   if (!item.ok) return "元資料失敗";
   if (isRuntimeReady(item)) return "可交易";
   if (item.enabled_in_config && item.credentials_configured) return "待補證據";
@@ -91,7 +95,7 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
                 <div className="text-right opacity-80">{readinessBadgeLabel(item)}</div>
               </div>
               <div className="mt-2 opacity-90">
-                設定 {item.enabled_in_config ? "啟用" : "停用"} · 憑證 {item.credentials_configured ? "已配置" : "僅公開資料"} · 元資料 {item.ok ? "正常" : "失敗"}
+                adapter {item.adapter_supported === false ? "未接入" : "已接入"} · 設定 {item.enabled_in_config ? "啟用" : "停用"} · 憑證 {item.credentials_configured ? "已配置" : "僅公開資料"} · 元資料 {item.ok ? "正常" : "失敗"}
               </div>
               <div className="opacity-90">
                 數量步進 {item.contract?.step_size ?? "—"} · 價格刻度 {item.contract?.tick_size ?? "—"} · 最小數量 {formatScalar(item.contract?.min_qty)}
@@ -116,7 +120,7 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
               </div>
               <div className="text-right opacity-80">{readinessBadgeLabel(item)}</div>
             </div>
-            <div className="mt-2 opacity-90">設定 {item.enabled_in_config ? "啟用" : "停用"} · 憑證 {item.credentials_configured ? "已配置" : "僅公開資料"}</div>
+            <div className="mt-2 opacity-90">adapter {item.adapter_supported === false ? "未接入" : "已接入"} · 設定 {item.enabled_in_config ? "啟用" : "停用"} · 憑證 {item.credentials_configured ? "已配置" : "僅公開資料"}</div>
             <div className="opacity-90">元資料契約 {item.ok ? "正常" : "失敗"}</div>
             <div className="opacity-90">數量步進 {item.contract?.step_size ?? "—"} · 價格刻度 {item.contract?.tick_size ?? "—"}</div>
             <div className="opacity-90">最小數量 {formatScalar(item.contract?.min_qty)} · 最小成本 {formatScalar(item.contract?.min_cost)}</div>

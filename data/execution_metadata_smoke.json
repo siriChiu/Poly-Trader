@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-17T18:12:03.686659Z",
+  "generated_at": "2026-05-17T19:21:03.431952Z",
   "symbol": "BTC/USDT",
   "all_ok": false,
   "ok_count": 1,
@@ -13,6 +13,7 @@
     "live exchange credential 尚未驗證",
     "order ack lifecycle 尚未驗證",
     "元資料契約尚未通過",
+    "場館 adapter 尚未接入",
     "場館設定停用"
   ],
   "venues": [
@@ -20,6 +21,7 @@
       "ok": true,
       "venue": "okx",
       "symbol": "BTC/USDT",
+      "adapter_supported": true,
       "enabled_in_config": true,
       "credentials_configured": false,
       "contract": {
@@ -58,22 +60,24 @@
       "ok": false,
       "venue": "binance",
       "symbol": "BTC/USDT",
+      "adapter_supported": false,
       "enabled_in_config": false,
       "credentials_configured": false,
       "error": "unsupported venue: binance",
-      "proof_state": "metadata_contract_failed",
+      "proof_state": "adapter_unsupported",
       "readiness_scope": "venue_runtime_proof_required",
       "readiness_state": "blocked_until_runtime_lifecycle_proof",
       "runtime_ready": false,
       "blockers": [
+        "場館 adapter 尚未接入",
         "元資料契約尚未通過",
         "場館設定停用",
         "live exchange credential 尚未驗證",
         "order ack lifecycle 尚未驗證",
         "fill lifecycle 尚未驗證"
       ],
-      "operator_next_action": "先修復 binance 元資料檢查，再評估憑證與實單生命週期。",
-      "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
+      "operator_next_action": "先接入 binance 交易所 adapter，並確認場館設定與憑證，再補委託確認 / 成交 / 取消生命週期。",
+      "verify_next": "接入 adapter 後重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
     }
   ],
   "results": {
@@ -81,6 +85,7 @@
       "ok": true,
       "venue": "okx",
       "symbol": "BTC/USDT",
+      "adapter_supported": true,
       "enabled_in_config": true,
       "credentials_configured": false,
       "contract": {
@@ -119,22 +124,24 @@
       "ok": false,
       "venue": "binance",
       "symbol": "BTC/USDT",
+      "adapter_supported": false,
       "enabled_in_config": false,
       "credentials_configured": false,
       "error": "unsupported venue: binance",
-      "proof_state": "metadata_contract_failed",
+      "proof_state": "adapter_unsupported",
       "readiness_scope": "venue_runtime_proof_required",
       "readiness_state": "blocked_until_runtime_lifecycle_proof",
       "runtime_ready": false,
       "blockers": [
+        "場館 adapter 尚未接入",
         "元資料契約尚未通過",
         "場館設定停用",
         "live exchange credential 尚未驗證",
         "order ack lifecycle 尚未驗證",
         "fill lifecycle 尚未驗證"
       ],
-      "operator_next_action": "先修復 binance 元資料檢查，再評估憑證與實單生命週期。",
-      "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
+      "operator_next_action": "先接入 binance 交易所 adapter，並確認場館設定與憑證，再補委託確認 / 成交 / 取消生命週期。",
+      "verify_next": "接入 adapter 後重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
     }
   }
 }

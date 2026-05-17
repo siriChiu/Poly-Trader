@@ -2174,16 +2174,19 @@ def test_venue_readiness_summary_component_surfaces_per_venue_contract():
         'const readinessLabel = (item: VenueReadinessItem) => {',
         'const readinessBadgeLabel = (item: VenueReadinessItem) => {',
         'runtime_ready?: boolean | null;',
+        'adapter_supported?: boolean | null;',
         'const hasRuntimeProofBlockers = (item: VenueReadinessItem) => Boolean(item.blockers?.length) || item.runtime_ready === false;',
         'const isRuntimeReady = (item: VenueReadinessItem) => item.runtime_ready === true && !hasRuntimeProofBlockers(item);',
         'if (isRuntimeReady(item)) return "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";',
+        'if (item.adapter_supported === false) return "場館 adapter 未接入 / 暫不可交易";',
+        'if (item.adapter_supported === false) return "未接入";',
         'return "待補證據";',
         'return "可交易";',
         'return "公開資料";',
         'return "停用";',
         'const blockerSummary = (item.blockers?.length ? item.blockers : defaultProofSummary)',
         '.map((entry) => humanizeExecutionReason(entry))',
-        '設定 {item.enabled_in_config ? "啟用" : "停用"}',
+        'adapter {item.adapter_supported === false ? "未接入" : "已接入"} · 設定 {item.enabled_in_config ? "啟用" : "停用"}',
         '憑證 {item.credentials_configured ? "已配置" : "僅公開資料"}',
         '元資料契約 {item.ok ? "正常" : "失敗"}',
         '待補實單證據',
@@ -2199,7 +2202,7 @@ def test_venue_readiness_summary_supports_compact_operator_summary_mode():
     required_snippets = [
         'if (compact) {',
         '待補實單證據 · {blockerSummary}',
-        '設定 {item.enabled_in_config ? "啟用" : "停用"} · 憑證 {item.credentials_configured ? "已配置" : "僅公開資料"} · 元資料 {item.ok ? "正常" : "失敗"}',
+        'adapter {item.adapter_supported === false ? "未接入" : "已接入"} · 設定 {item.enabled_in_config ? "啟用" : "停用"} · 憑證 {item.credentials_configured ? "已配置" : "僅公開資料"} · 元資料 {item.ok ? "正常" : "失敗"}',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -2235,6 +2238,7 @@ def test_runtime_copy_humanizes_execution_governance_without_raw_runtime_english
         '["installed-but-not-ticking", "已安裝但尚未觀察到自然排程觸發"]',
         '["installed_but_artifact_not_fresh", "已安裝但產物未維持新鮮"]',
         '["blocked_until_runtime_lifecycle_proof", "尚未完成實單生命週期證據"]',
+        '["adapter_unsupported", "場館 adapter 尚未接入"]',
         '["runtime_ready", "實單生命週期證據完成"]',
     ]
     for snippet in required_snippets:
