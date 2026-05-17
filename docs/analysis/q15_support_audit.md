@@ -1,16 +1,16 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-17 13:02:08.359263**
+- generated_at: **2026-05-17 14:02:35.701094**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
-- signal: **CIRCUIT_BREAKER**
+- signal: **HOLD**
 - regime / gate / label: **bear / CAUTION / C**
 - current_live_structure_bucket: **CAUTION|structure_quality_caution|q15**
 - current_live_structure_bucket_rows: **0**
-- allowed_layers: **0** (decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active)
-- execution_guardrail_reason: **decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active**
+- allowed_layers: **0** (unsupported_exact_live_structure_bucket)
+- execution_guardrail_reason: **unsupported_exact_live_structure_bucket**
 
 ## Scope applicability
 - status: **current_live_q15_lane_active**
@@ -36,35 +36,35 @@
 - support_progress.current_rows / minimum: **0 / 50**
 - support_progress.previous_rows: **0**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **3**
+- support_progress.stagnant_run_count: **4**
 - support_progress.escalate_to_blocker: **True**
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 100, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `{'heartbeat': '20260419b', 'timestamp': '2026-04-18T17:55:51.910159+00:00', 'live_current_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'live_current_structure_bucket_rows': 53, 'minimum_support_rows': 50, 'support_route_verdict': 'exact_bucket_supported', 'support_governance_route': 'exact_live_bucket_supported', 'support_identity': None, 'support_identity_backfilled': False, 'semantic_identity_evidence': {'source': 'backfilled_runtime_fields', 'explicit_support_identity_present': False, 'explicit_bucket_semantic_signature_present': False, 'backfilled_bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2', 'backfilled_support_identity': {'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bull', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}, 'candidate_support_identity': {'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|structure_quality_caution|q15', 'regime_label': 'bull', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}, 'source_fields_complete': True, 'matched_fields': ['target_col', 'horizon_minutes', 'current_live_structure_bucket', 'regime_gate', 'bucket_semantic_signature'], 'mismatched_fields': ['calibration_window', 'entry_quality_label', 'regime_label'], 'missing_fields': [], 'supports_current_identity': False, 'promotable_to_same_identity_history': False, 'verdict': 'reference_only_semantic_mismatch_or_missing_fields'}, 'reference_only_reason': 'semantic_evidence_mismatch_or_missing_fields'}`
 - support_progress.reason: current q15 exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 53/50（heartbeat 20260419b），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。
 
 ## Floor-cross legality
-- verdict: **runtime_blocker_preempts_floor_analysis**
+- verdict: **floor_crossed_but_support_not_ready**
 - legal_to_relax_runtime_gate: **False**
 - remaining_gap_to_floor: **0.0**
 - best_single_component: **None**
 - best_single_component_required_score_delta: **None**
 - best_single_component_can_cross_floor: **False**
-- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 28.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
+- reason: 即使 entry floor 已跨過，exact q15 support 仍未達標，不能把 proxy/neighbor 當 deployment 放行證據。
 
 ## Exact-supported component experiment
-- verdict: **runtime_blocker_preempts_component_experiment**
+- verdict: **reference_only_until_exact_support_ready**
 - feature: **None**
 - mode: **None**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.6241**
+- current_entry_quality: **0.6477**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.0741**
+- current_trade_floor_gap: **0.0977**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
-- preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
-- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 28.00% < 30%），q15 component experiment 只能保留為背景研究。
-- verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
+- preserves_positive_discrimination: **None** (not_measured_support_missing)
+- reason: exact support 尚未達 deployment 門檻；component experiment 只能作 reference-only 研究。
+- verify_next: 先把 current q15 exact bucket rows 補到 minimum support，再回來做 component experiment。
 
 ## Active repair plan
 - phase: **semantic_evidence_backfill_or_exact_accumulation**
@@ -72,9 +72,9 @@
 - component_verify_ready: **False**
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
-- current_signal / layers / guardrail: **CIRCUIT_BREAKER / 0 / decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active**
+- current_signal / layers / guardrail: **HOLD / 0 / unsupported_exact_live_structure_bucket**
 - support rows / minimum / gap: **0 / 50 / 50**
-- stagnant_run_count: **3**
+- stagnant_run_count: **4**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**

@@ -80,3 +80,18 @@ def test_moved_legacy_scripts_are_documented() -> None:
     assert "New temporary checks should not be added to the project root" in readme
     assert "tests/comprehensive_test.py" in readme
     assert "promote it into `scripts/` with tests" in readme
+
+
+def test_prd_high_conviction_truth_tracks_current_live_blocker() -> None:
+    """PRD product truth must not advertise stale breaker/supported-bucket closure."""
+
+    prd = (PROJECT_ROOT / "PRD.md").read_text(encoding="utf-8")
+    section = prd.split("### 5. High-Conviction Top-k ROI Gate（P0）", 1)[1].split("---", 1)[0]
+
+    assert "deployment_blocker=unsupported_exact_live_structure_bucket" in section
+    assert "support_route=insufficient_support_everywhere" in section
+    assert "support_governance_route=exact_live_lane_proxy_available" in section
+    assert "bucket=CAUTION|structure_quality_caution|q15" in section
+    assert "bucket_rows=0/50" in section
+    assert "deployment_blocker=circuit_breaker_active" not in section
+    assert "support route 已是 `exact_bucket_supported`" not in section
