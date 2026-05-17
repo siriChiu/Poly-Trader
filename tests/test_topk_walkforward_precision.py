@@ -477,3 +477,73 @@ def test_apply_top_level_live_gate_summary_exposes_breaker_release_math():
     assert result["live_gate_summary"]["additional_recent_window_wins_needed"] == 1
     assert result["live_gate_summary"]["support_progress_status"] == "regressed_under_minimum"
     assert result["live_gate_summary"]["support_rows_needed"] == 40
+
+
+def test_apply_top_level_candidate_summary_surfaces_runtime_blocked_rows_fail_closed():
+    result = {
+        "rows": [
+            {
+                "model": "xgboost",
+                "feature_profile": "current_full",
+                "regime": "all",
+                "top_k": "top_5pct",
+                "oos_roi": 1.9,
+                "win_rate": 0.79,
+                "profit_factor": 9.1,
+                "max_drawdown": 0.10,
+                "worst_fold": -0.26,
+                "trade_count": 146,
+                "deployable_verdict": "not_deployable",
+                "gate_failures": [
+                    "max_drawdown_too_high",
+                    "worst_fold_negative",
+                    "support_route_not_deployable",
+                    "deployment_blocker_active",
+                ],
+            },
+            {
+                "model": "random_forest",
+                "feature_profile": "current_full_no_bull_collapse_4h",
+                "regime": "all",
+                "top_k": "top_5pct",
+                "oos_roi": 1.2,
+                "win_rate": 0.68,
+                "profit_factor": 2.4,
+                "max_drawdown": 0.04,
+                "worst_fold": 0.03,
+                "trade_count": 88,
+                "deployable_verdict": "not_deployable",
+                "gate_failures": ["support_route_not_deployable", "deployment_blocker_active", "breaker_release_not_ready"],
+                "support_route": "exact_bucket_present_but_below_minimum",
+                "deployment_blocker": "circuit_breaker_active",
+                "runtime_closure_state": "circuit_breaker_active",
+                "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                "current_live_structure_bucket_rows": 21,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 29,
+                "release_ready": False,
+                "recent_window": 50,
+                "current_recent_window_wins": 0,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 15,
+                "support_rows_needed": 29,
+            },
+        ]
+    }
+
+    topk.apply_top_level_candidate_summary(result)
+
+    assert result["nearest_deployable_candidate"]["model"] == "random_forest"
+    assert result["nearest_deployable_candidate"]["deployable_verdict"] == "not_deployable"
+    assert result["nearest_deployable_candidate"]["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+    assert result["nearest_deployable_candidate"]["oos_gate_passed"] is True
+    assert result["nearest_deployable_candidate"]["blocked_only_by_live_guardrails"] is True
+    assert result["nearest_deployable_candidate"]["deployment_blocker"] == "circuit_breaker_active"
+    assert result["nearest_deployable_candidate"]["release_ready"] is False
+    assert result["nearest_deployable_candidate"]["additional_recent_window_wins_needed"] == 15
+    assert result["nearest_deployable_candidate"]["current_live_structure_bucket_rows"] == 21
+    assert result["nearest_deployable_candidate"]["support_rows_needed"] == 29
+    assert result["nearest_deployable_rows"][0] == result["nearest_deployable_candidate"]
+    assert result["best_not_deployable"] == result["nearest_deployable_candidate"]
+    assert result["highest_roi_not_deployable"]["model"] == "xgboost"
+    assert result["highest_roi_not_deployable"]["deployment_candidate_tier"] == "research_oos_gate_failed"

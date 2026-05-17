@@ -558,6 +558,202 @@ def build_high_conviction_oos_matrix_rows(
     return rows
 
 
+HIGH_CONVICTION_CANDIDATE_SUMMARY_KEYS = (
+    "model",
+    "feature_profile",
+    "regime",
+    "top_k",
+    "oos_roi",
+    "win_rate",
+    "profit_factor",
+    "max_drawdown",
+    "worst_fold",
+    "trade_count",
+    "deployable_verdict",
+    "deployment_candidate_tier",
+    "gate_failures",
+    "model_gate_failures",
+    "live_gate_failures",
+    "oos_gate_passed",
+    "blocked_only_by_live_guardrails",
+    "support_route",
+    "support_governance_route",
+    "support_route_deployable",
+    "deployment_blocker",
+    "runtime_closure_state",
+    "current_live_structure_bucket",
+    "current_live_structure_bucket_rows",
+    "minimum_support_rows",
+    "current_live_structure_bucket_gap_to_minimum",
+    "allowed_layers",
+    "signal",
+    "execution_guardrail_reason",
+    "release_condition",
+    "release_ready",
+    "current_streak",
+    "recent_window",
+    "current_recent_window_win_rate",
+    "current_recent_window_wins",
+    "required_recent_window_wins",
+    "additional_recent_window_wins_needed",
+    "support_progress_status",
+    "support_progress_reason",
+    "support_progress_regression_basis",
+    "support_progress_stagnant_run_count",
+    "support_progress_stalled_support_accumulation",
+    "support_progress_escalate_to_blocker",
+    "stagnant_run_count",
+    "stalled_support_accumulation",
+    "escalate_to_blocker",
+    "support_delta_vs_previous",
+    "support_previous_rows",
+    "support_rows_needed",
+    "source_live_probe_generated_at",
+    "live_truth_source_artifact",
+)
+
+
+def _row_string_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if item is not None]
+    if value is None:
+        return []
+    return [str(value)]
+
+
+def _topk_row_gate_parts(row: dict) -> tuple[list[str], list[str], list[str], bool, bool, str]:
+    gate_failures = _row_string_list(row.get("gate_failures"))
+    model_gate_failures = _row_string_list(row.get("model_gate_failures"))
+    live_gate_failures = _row_string_list(row.get("live_gate_failures"))
+    if not model_gate_failures and not live_gate_failures:
+        model_gate_failures = [item for item in gate_failures if item not in LIVE_GUARDRAIL_FAILURES]
+        live_gate_failures = [item for item in gate_failures if item in LIVE_GUARDRAIL_FAILURES]
+    explicit_oos = row.get("oos_gate_passed")
+    oos_gate_passed = bool(explicit_oos) if explicit_oos is not None else not model_gate_failures
+    explicit_runtime_blocked = row.get("blocked_only_by_live_guardrails")
+    blocked_only_by_live_guardrails = (
+        bool(explicit_runtime_blocked)
+        if explicit_runtime_blocked is not None
+        else bool(gate_failures) and oos_gate_passed and bool(live_gate_failures) and not model_gate_failures
+    )
+    deployment_candidate_tier = str(row.get("deployment_candidate_tier") or "")
+    if not deployment_candidate_tier:
+        if str(row.get("deployable_verdict") or "") == "deployable":
+            deployment_candidate_tier = "deployable"
+        elif blocked_only_by_live_guardrails:
+            deployment_candidate_tier = "runtime_blocked_oos_pass"
+        else:
+            deployment_candidate_tier = "research_oos_gate_failed"
+    return (
+        gate_failures,
+        model_gate_failures,
+        live_gate_failures,
+        oos_gate_passed,
+        blocked_only_by_live_guardrails,
+        deployment_candidate_tier,
+    )
+
+
+def _sort_float(value: Any, default: float) -> float:
+    parsed = _round_or_none(value, digits=8)
+    return default if parsed is None else float(parsed)
+
+
+def _risk_first_candidate_sort_key(row: dict) -> tuple:
+    (
+        gate_failures,
+        model_gate_failures,
+        _live_failures,
+        oos_gate_passed,
+        blocked_only_by_live_guardrails,
+        _tier,
+    ) = _topk_row_gate_parts(row)
+    return (
+        str(row.get("deployable_verdict") or "") == "deployable",
+        blocked_only_by_live_guardrails,
+        oos_gate_passed,
+        -len(model_gate_failures),
+        -len(gate_failures),
+        -_sort_float(row.get("max_drawdown"), 999.0),
+        _sort_float(row.get("worst_fold"), -999.0),
+        _sort_float(row.get("oos_roi"), -999.0),
+        _sort_float(row.get("win_rate"), -999.0),
+        _sort_float(row.get("profit_factor"), -999.0),
+        _sort_float(row.get("trade_count"), -999.0),
+    )
+
+
+def _compact_high_conviction_candidate_row(row: dict) -> dict[str, Any]:
+    if not isinstance(row, dict) or not row:
+        return {}
+    (
+        gate_failures,
+        model_gate_failures,
+        live_gate_failures,
+        oos_gate_passed,
+        blocked_only_by_live_guardrails,
+        deployment_candidate_tier,
+    ) = _topk_row_gate_parts(row)
+    compact = {key: row.get(key) for key in HIGH_CONVICTION_CANDIDATE_SUMMARY_KEYS if row.get(key) is not None}
+    compact.setdefault("gate_failures", gate_failures)
+    compact.setdefault("model_gate_failures", model_gate_failures)
+    compact.setdefault("live_gate_failures", live_gate_failures)
+    compact.setdefault("oos_gate_passed", oos_gate_passed)
+    compact.setdefault("blocked_only_by_live_guardrails", blocked_only_by_live_guardrails)
+    compact.setdefault("deployment_candidate_tier", deployment_candidate_tier)
+    compact.setdefault("deployable_verdict", row.get("deployable_verdict") or "not_deployable")
+    return compact
+
+
+def apply_top_level_candidate_summary(result: dict, *, limit: int = 6) -> dict:
+    """Keep Top-K artifacts self-contained about nearest deployable/runtime-blocked rows.
+
+    ``rows`` already contain the full matrix. Current-state docs and compact cron
+    extractors also need a small, fail-closed pointer to the best candidate: a row
+    that is fully deployable if one exists, otherwise an OOS-passing row blocked
+    only by live guardrails. If none exists, fall back to the best ranked research
+    row so operators still see why it is not deployable.
+    """
+    rows = [row for row in result.get("rows", []) if isinstance(row, dict)]
+    if not rows:
+        result.pop("nearest_deployable_rows", None)
+        result.pop("nearest_deployable_candidate", None)
+        result.pop("best_not_deployable", None)
+        result.pop("highest_roi_not_deployable", None)
+        return result
+
+    ranked_rows = sorted(rows, key=_risk_first_candidate_sort_key, reverse=True)
+    nearest_rows = [
+        row
+        for row in ranked_rows
+        if str(row.get("deployable_verdict") or "") == "deployable" or _topk_row_gate_parts(row)[4]
+    ]
+    if not nearest_rows:
+        nearest_rows = ranked_rows[:1]
+
+    highest_roi_not_deployable = max(
+        [row for row in rows if str(row.get("deployable_verdict") or "") != "deployable"] or rows,
+        key=lambda row: _sort_float(row.get("oos_roi"), -999.0),
+    )
+
+    compact_nearest_rows = [_compact_high_conviction_candidate_row(row) for row in nearest_rows[:limit]]
+    compact_nearest_rows = [row for row in compact_nearest_rows if row]
+    if compact_nearest_rows:
+        result["nearest_deployable_rows"] = compact_nearest_rows
+        result["nearest_deployable_candidate"] = compact_nearest_rows[0]
+        result["best_not_deployable"] = compact_nearest_rows[0]
+    else:
+        result.pop("nearest_deployable_rows", None)
+        result.pop("nearest_deployable_candidate", None)
+        result.pop("best_not_deployable", None)
+    highest_compact = _compact_high_conviction_candidate_row(highest_roi_not_deployable)
+    if highest_compact:
+        result["highest_roi_not_deployable"] = highest_compact
+    else:
+        result.pop("highest_roi_not_deployable", None)
+    return result
+
+
 def evaluate_model(data: pd.DataFrame, target_col: str, model_name: str) -> dict | None:
     lb = ModelLeaderboard(data, target_col=target_col)
     splits = lb._get_walk_forward_splits()
@@ -687,6 +883,7 @@ def main() -> None:
         1 for row in result["rows"] if row.get("blocked_only_by_live_guardrails")
     )
     apply_top_level_live_gate_summary(result, support_context)
+    apply_top_level_candidate_summary(result)
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     LEGACY_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)

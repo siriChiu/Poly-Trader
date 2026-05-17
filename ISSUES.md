@@ -1,29 +1,29 @@
 # ISSUES.md — Current State Only
 
-_最後更新：2026-05-17 13:03:14 CST_
+_最後更新：2026-05-17 14:18:41 CST_
 
 只保留目前有效問題；由 heartbeat runner overwrite sync，避免 current-state markdown 落後 issues.json / live artifacts。
 
 ---
 
 ## 當前主線事實
-- **最新 fast heartbeat #1302-productization 已完成 collect + diagnostics refresh**
-  - `Raw=33443 / Features=24577 / Labels=66740`
+- **最新 fast heartbeat #1303-productization-patch 已完成 collect + diagnostics refresh**
+  - `Raw=33460 / Features=24581 / Labels=66747`
   - 歷史覆蓋確認：`2y_backfill_ok=True` / `raw_start=2024-04-13T22:00:00+00:00` / `features_start=2024-04-14T07:00:00+00:00` / `labels_start=2024-04-14T07:00:00+00:00`
   - `simulated_pyramid_win=56.65%`
 - **canonical 即時部署阻塞仍是熔斷優先真相**
-  - `deployment_blocker=circuit_breaker_active` / `streak=108` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
+  - `deployment_blocker=circuit_breaker_active` / `streak=112` / `recent_window_wins=0/50` / `additional_recent_window_wins_needed=15`
   - `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `support=21/50` / `gap=29` / `support_route_verdict=exact_bucket_present_but_below_minimum`
-  - support progress：`status=semantic_rebaseline_under_minimum` / `reason=current exact support 21/50 below minimum (gap=29); legacy 53/50@20260419b remains reference-only; semantic mismatch=entry_quality_label,regime_label` / `regression_basis=legacy_or_different_semantic_signature` / `current_rows=21` / `minimum_rows=50` / `gap_to_minimum=29` / `support_rows_needed=29` / `previous_rows=21` / `delta_vs_previous=0` / `legacy_supported_reference=53/50@20260419b` / `stagnant_run_count=2` / `stalled_support_accumulation=False` / `escalate_to_blocker=True`；active repair：`phase=semantic_evidence_backfill_or_exact_accumulation` / `component_verify_ready=False` / `live_exposure_allowed=False` / `shadow_or_paper_allowed=True` / `current_signal=CIRCUIT_BREAKER` / `current_allowed_layers=0` / `guardrail=circuit_breaker_active` /
+  - support progress：`status=semantic_rebaseline_under_minimum` / `reason=current exact support 21/50 below minimum (gap=29); legacy 53/50@20260419b remains reference-only; semantic mismatch=entry_quality_label,regime_label` / `regression_basis=legacy_or_different_semantic_signature` / `current_rows=21` / `minimum_rows=50` / `gap_to_minimum=29` / `support_rows_needed=29` / `previous_rows=21` / `delta_vs_previous=0` / `legacy_supported_reference=53/50@20260419b` / `stagnant_run_count=4` / `stalled_support_accumulation=False` / `escalate_to_blocker=True`；active repair：`phase=semantic_evidence_backfill_or_exact_accumulation` / `component_verify_ready=False` / `live_exposure_allowed=False` / `shadow_or_paper_allowed=True` / `current_signal=CIRCUIT_BREAKER` / `current_allowed_layers=0` / `guardrail=circuit_breaker_active` /
     `actions=collect_exact_current_bucket_rows,force_q15_support_audit_refresh,semantic_legacy_evidence_backfill` / `legacy_evidence=reference_only_semantic_mismatch_or_missing_fields` / `legacy_supports_current_identity=False` / `legacy_promotable=False` / `legacy_mismatched=entry_quality_label,regime_label`
 - **recent canonical diagnostics 已刷新**
-  - `latest_window=100` / `win_rate=0.0%` / `dominant_regime=chop(51.0%)` / `avg_quality=-0.3207` / `avg_pnl=-0.0129` / `alerts=constant_target`
+  - `latest_window=100` / `win_rate=0.0%` / `dominant_regime=bear(53.0%)` / `avg_quality=-0.3156` / `avg_pnl=-0.0126` / `alerts=constant_target,regime_shift`
 - **leaderboard / governance 仍維持 dual-role contract**
-  - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=0.1m`
+  - `leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=13.8m`
 - **source / venue blockers 仍開啟**
   - `blocked_sparse_features=8` / `{'archive_required': 3, 'snapshot_only': 4, 'short_window_public_api': 1}`
-  - top source blockers：`fin_netflow(source_auth_blocked/auth_missing, coverage=0.0%, archive_window=0.0%, forward_archive=ready, next=configure [REDACTED] source credentials)` / `claw(source_auth_blocked/auth_missing, coverage=14.6%, archive_window=85.3%, forward_archive=ready, next=configure [REDACTED] source credentials)` / `claw_intensity(source_auth_blocked/auth_missing, coverage=14.6%, archive_window=85.3%, forward_archive=ready, next=configure [REDACTED] source credentials)` / `nest_pred(source_tls_verify_failed/tls_verify_failed, coverage=16.1%, archive_window=94.8%, forward_archive=ready)`
-  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=4156` / `archive_window_coverage_pct=0.0`
+  - top source blockers：`fin_netflow(source_auth_blocked/auth_missing, coverage=0.0%, archive_window=0.0%, forward_archive=ready, next=configure [REDACTED] source credentials)` / `claw(source_auth_blocked/auth_missing, coverage=14.6%, archive_window=85.2%, forward_archive=ready, next=configure [REDACTED] source credentials)` / `claw_intensity(source_auth_blocked/auth_missing, coverage=14.6%, archive_window=85.2%, forward_archive=ready, next=configure [REDACTED] source credentials)` / `nest_pred(source_tls_verify_failed/tls_verify_failed, coverage=16.1%, archive_window=94.7%, forward_archive=ready)`
+  - fin_netflow：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=4159` / `archive_window_coverage_pct=0.0`
   - venue：`live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof；`execution_metadata_smoke.venues[]` 已提供 per-venue `proof_state / blockers / operator_next_action / verify_next` 給 Dashboard / Execution / Lab 直接顯示證據缺口
 - **Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）**
   - 前端快捷：`manual_buy=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間只暫停買入 / 加倉與啟用自動模式，減碼 / 賣出風險降低、切到手動模式、查看阻塞原因與重新整理仍可用。`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`。後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑；`data/live_predict_probe.json` 同步輸出 `api_trade_guardrail_active / api_trade_buy_guardrail / api_trade_allowed_risk_off_sides` 作為 machine-readable proof
@@ -49,23 +49,23 @@ _最後更新：2026-05-17 13:03:14 CST_
 
 ## Open Issues
 
-### P0. 連續 108 筆 1440m simulated_pyramid_win=0
-- 目前真相：`canonical_horizon_minutes=1440` / `losing_streak=108` / `all_horizon_losing_streak=0`
+### P0. 連續 112 筆 1440m simulated_pyramid_win=0
+- 目前真相：`canonical_horizon_minutes=1440` / `losing_streak=112` / `all_horizon_losing_streak=0`
 - 下一步：檢查 recent canonical labels / regime breakdown / circuit breaker；必要時升級為 distribution-aware drift 調查
 
 ### P0. 熔斷解除條件仍是唯一即時部署阻塞點
-- 目前真相：`deployment_blocker=circuit_breaker_active` / `streak=108` / `recent 50 wins=0/50` / `additional_recent_window_wins_needed=15`
+- 目前真相：`deployment_blocker=circuit_breaker_active` / `streak=112` / `recent 50 wins=0/50` / `additional_recent_window_wins_needed=15`
 - same-bucket truth：`bucket=CAUTION|structure_quality_caution|q15` / `support=21/50` / `support_route_verdict=exact_bucket_present_but_below_minimum` / `support_governance_route=exact_live_bucket_present_but_below_minimum`
-- support progress：`status=semantic_rebaseline_under_minimum` / `reason=current exact support 21/50 below minimum (gap=29); legacy 53/50@20260419b remains reference-only; semantic mismatch=entry_quality_label,regime_label` / `regression_basis=legacy_or_different_semantic_signature` / `current_rows=21` / `minimum_rows=50` / `gap_to_minimum=29` / `support_rows_needed=29` / `previous_rows=21` / `delta_vs_previous=0` / `legacy_supported_reference=53/50@20260419b` / `stagnant_run_count=2` / `stalled_support_accumulation=False` / `escalate_to_blocker=True`；active repair：`phase=semantic_evidence_backfill_or_exact_accumulation` / `component_verify_ready=False` / `live_exposure_allowed=False` / `shadow_or_paper_allowed=True` / `current_signal=CIRCUIT_BREAKER` / `current_allowed_layers=0` / `guardrail=circuit_breaker_active` /
+- support progress：`status=semantic_rebaseline_under_minimum` / `reason=current exact support 21/50 below minimum (gap=29); legacy 53/50@20260419b remains reference-only; semantic mismatch=entry_quality_label,regime_label` / `regression_basis=legacy_or_different_semantic_signature` / `current_rows=21` / `minimum_rows=50` / `gap_to_minimum=29` / `support_rows_needed=29` / `previous_rows=21` / `delta_vs_previous=0` / `legacy_supported_reference=53/50@20260419b` / `stagnant_run_count=4` / `stalled_support_accumulation=False` / `escalate_to_blocker=True`；active repair：`phase=semantic_evidence_backfill_or_exact_accumulation` / `component_verify_ready=False` / `live_exposure_allowed=False` / `shadow_or_paper_allowed=True` / `current_signal=CIRCUIT_BREAKER` / `current_allowed_layers=0` / `guardrail=circuit_breaker_active` /
   `actions=collect_exact_current_bucket_rows,force_q15_support_audit_refresh,semantic_legacy_evidence_backfill` / `legacy_evidence=reference_only_semantic_mismatch_or_missing_fields` / `legacy_supports_current_identity=False` / `legacy_promotable=False` / `legacy_mismatched=entry_quality_label,regime_label`
 - runtime/API guardrail：`POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留減倉 / 賣出風險降低路徑。
 - 下一步：先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆需至少 15 勝，當前 0 勝，還差 15 勝；同時連續虧損必須 < 50。
 
 ### P0. 建立 high-conviction top-k OOS ROI gate，讓 APP 從研究轉實戰
 - 目前真相：`mode_label=模擬觀察_影子驗證_即時阻塞` / `validation=walk_forward_oos_topk_matrix` / `top_k_grid=1%,2%,5%,10%` / `output_artifact=data/high_conviction_topk_oos_matrix.json`
-- latest matrix：`generated_at=2026-05-17T05:03:02.663266+00:00` / `freshness=fresh` / `age_min=0.2` / `stale_after_min=60` / `deployment_blocking=False` / `samples=24462` / `rows=24` / `models=logistic_regression,random_forest,xgboost` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `support_route=exact_bucket_present_but_below_minimum` / `deployment_blocker=circuit_breaker_active` / `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `current_live_structure_bucket_rows=21/50` / `current_live_structure_bucket_gap_to_minimum=29` / `support_progress_status=semantic_rebaseline_under_minimum` / `support_progress_reason=current exact support 21/50 below minimum (gap=29); semantic mismatch=entry_quality_label,regime_label` / `regression_basis=legacy_or_different_semantic_signature` / `delta_vs_previous=0` / `previous_rows=21` /
-  `support_rows_needed=29` / `stagnant_run_count=2` / `stalled_support_accumulation=False` / `escalate_to_blocker=True`
-- nearest deployable candidate：`model=logistic_regression` / `regime=all` / `top_k=top_2pct` / `oos_roi=0.9324` / `win_rate=0.8621` / `profit_factor=19.8864` / `max_drawdown=0.022` / `worst_fold=0.2068` / `trade_count=58` / `tier=runtime_blocked_oos_pass` / `oos_gate_passed=True` / `verdict=not_deployable` / `support_route=exact_bucket_present_but_below_minimum` / `governance=exact_live_bucket_present_but_below_minimum` / `bucket=CAUTION|structure_quality_caution|q15` / `bucket_rows=21/50` / `gap=29` / `support_progress_status=semantic_rebaseline_under_minimum` / `support_progress_reason=current exact support 21/50 below minimum (gap=29); semantic mismatch=entry_quality_label,regime_label` / `regression_basis=legacy_or_different_semantic_signature` / `delta_vs_previous=0` / `previous_rows=21` / `support_rows_needed=29` / `stagnant_run_count=2` / `stalled_support_accumulation=False` / `escalate_to_blocker=True`
+- latest matrix：`generated_at=2026-05-17T06:15:35.909188+00:00` / `freshness=fresh` / `age_min=3.1` / `stale_after_min=60` / `deployment_blocking=False` / `samples=24465` / `rows=24` / `models=logistic_regression,random_forest,xgboost` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `support_route=exact_bucket_present_but_below_minimum` / `deployment_blocker=circuit_breaker_active` / `current_live_structure_bucket=CAUTION|structure_quality_caution|q15` / `current_live_structure_bucket_rows=21/50` / `current_live_structure_bucket_gap_to_minimum=29` / `support_progress_status=semantic_rebaseline_under_minimum` / `support_progress_reason=current exact support 21/50 below minimum (gap=29); semantic mismatch=entry_quality_label,regime_label` / `regression_basis=legacy_or_different_semantic_signature` / `delta_vs_previous=0` / `previous_rows=21` /
+  `support_rows_needed=29` / `stagnant_run_count=4` / `stalled_support_accumulation=False` / `escalate_to_blocker=True`
+- nearest deployable candidate：`model=logistic_regression` / `regime=all` / `top_k=top_2pct` / `oos_roi=0.9324` / `win_rate=0.8621` / `profit_factor=19.8864` / `max_drawdown=0.022` / `worst_fold=0.2068` / `trade_count=58` / `tier=runtime_blocked_oos_pass` / `oos_gate_passed=True` / `verdict=not_deployable` / `support_route=exact_bucket_present_but_below_minimum` / `governance=exact_live_bucket_present_but_below_minimum` / `bucket=CAUTION|structure_quality_caution|q15` / `bucket_rows=21/50` / `gap=29` / `support_progress_status=semantic_rebaseline_under_minimum` / `support_progress_reason=current exact support 21/50 below minimum (gap=29); semantic mismatch=entry_quality_label,regime_label` / `regression_basis=legacy_or_different_semantic_signature` / `delta_vs_previous=0` / `previous_rows=21` / `support_rows_needed=29` / `stagnant_run_count=4` / `stalled_support_accumulation=False` / `escalate_to_blocker=True`
 - 研究依據：`basis=walk_forward_oos,purged_cv,triple_barrier_pyramid_label,meta_labeling_take_skip,conformal_uncertainty_reject,regime_aware_deployment` / `目的=只讓高信心、低回撤、經 OOS 驗證的金字塔候選進入部署候選`
 - 部署門檻：`min_trades>=50` / `win_rate>=0.6` / `max_drawdown<=0.08` / `profit_factor>=1.5` / `worst_fold=non_negative_or_above_baseline` / `support_route=deployable`
 - 目前 scan 只能作線索：`model=catboost` / `roi=0.1978` / `win_rate=0.6216` / `max_drawdown=0.0655` / `trades=37` / `status_label=研究觀察_不可部署`
@@ -81,12 +81,12 @@ _最後更新：2026-05-17 13:03:14 CST_
   - source venv/bin/activate && PYTHONPATH=. python -m pytest tests/test_model_leaderboard.py::test_high_conviction_topk_support_context_uses_fresher_live_probe -q
   - source venv/bin/activate && PYTHONPATH=. python -m pytest tests/test_model_leaderboard.py::test_high_conviction_topk_live_support_overlay_fail_closes_stale_deployable_rows -q
 
-### P1. model stability still needs work (cv=0.6672, cv_std=0.0895, cv_worst=0.5777)
-- 目前真相：`cv_accuracy=0.6672117743254293` / `cv_std=0.08953393295175799` / `cv_worst=0.5776778413736713`
+### P1. model stability still needs work (cv=0.6891, cv_std=0.1208, cv_worst=0.5683)
+- 目前真相：`cv_accuracy=0.6890842191332789` / `cv_std=0.12080948487326243` / `cv_worst=0.5682747342600164`
 - 下一步：優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。
 
-### P1. TW-IC 25 vs Global IC 17 — 信號強依賴近期資料
-- 目前真相：`global_pass=17` / `tw_pass=25` / `total_features=30`
+### P1. TW-IC 26 vs Global IC 17 — 信號強依賴近期資料
+- 目前真相：`global_pass=17` / `tw_pass=26` / `total_features=30`
 - 下一步：市場 regime 可能已變化; 考慮 regime-gated feature weighting
 
 ### P1. OKX/Binance venue readiness is still unverified
@@ -104,14 +104,14 @@ _最後更新：2026-05-17 13:03:14 CST_
   - cd web && npm run build
 
 ### P1. fin_netflow remains source_auth_blocked because [REDACTED] is missing
-- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=4156` / `archive_window_coverage_pct=0.0`
+- 目前真相：`quality_flag=source_auth_blocked` / `latest_status=auth_missing` / `forward_archive_rows=4159` / `archive_window_coverage_pct=0.0`
 - 下一步：Configure [REDACTED], then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.
 - 驗證：
   - data/execution_metadata_smoke.json
   - /api/features/coverage
 
 ### P1. leaderboard comparable rows are back; keep the recent-window contract stable and cron-safe
-- 目前真相：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=0.1m`
+- 目前真相：`leaderboard_count=6` / `selected_feature_profile=core_only` / `support_aware_profile=current_full_no_bull_collapse_4h` / `governance_contract=dual_role_governance_active` / `current_closure=global_ranking_vs_support_aware_production_split` / `payload_source=latest_persisted_snapshot` / `payload_stale=false` / `payload_age=13.8m`
 - 下一步：Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.
 - 驗證：
   - browser /lab
@@ -128,13 +128,9 @@ _最後更新：2026-05-17 13:03:14 CST_
 
 ### P1. q15 exact support under minimum after semantic rebaseline while breaker is active (21/50)
 - 目前真相：`bucket=CAUTION|structure_quality_caution|q15` / `support=21/50` / `gap=29` / `support_route_verdict=exact_bucket_present_but_below_minimum` / `governance_route=exact_live_bucket_present_but_below_minimum` / `breaker_context=circuit_breaker_active`
-- support progress：`status=semantic_rebaseline_under_minimum` / `reason=current exact support 21/50 below minimum (gap=29); legacy 53/50@20260419b remains reference-only; semantic mismatch=entry_quality_label,regime_label` / `regression_basis=legacy_or_different_semantic_signature` / `current_rows=21` / `minimum_rows=50` / `gap_to_minimum=29` / `support_rows_needed=29` / `previous_rows=21` / `delta_vs_previous=0` / `legacy_supported_reference=53/50@20260419b` / `stagnant_run_count=2` / `stalled_support_accumulation=False` / `escalate_to_blocker=True`；active repair：`phase=semantic_evidence_backfill_or_exact_accumulation` / `component_verify_ready=False` / `live_exposure_allowed=False` / `shadow_or_paper_allowed=True` / `current_signal=CIRCUIT_BREAKER` / `current_allowed_layers=0` / `guardrail=circuit_breaker_active` /
+- support progress：`status=semantic_rebaseline_under_minimum` / `reason=current exact support 21/50 below minimum (gap=29); legacy 53/50@20260419b remains reference-only; semantic mismatch=entry_quality_label,regime_label` / `regression_basis=legacy_or_different_semantic_signature` / `current_rows=21` / `minimum_rows=50` / `gap_to_minimum=29` / `support_rows_needed=29` / `previous_rows=21` / `delta_vs_previous=0` / `legacy_supported_reference=53/50@20260419b` / `stagnant_run_count=4` / `stalled_support_accumulation=False` / `escalate_to_blocker=True`；active repair：`phase=semantic_evidence_backfill_or_exact_accumulation` / `component_verify_ready=False` / `live_exposure_allowed=False` / `shadow_or_paper_allowed=True` / `current_signal=CIRCUIT_BREAKER` / `current_allowed_layers=0` / `guardrail=circuit_breaker_active` /
   `actions=collect_exact_current_bucket_rows,force_q15_support_audit_refresh,semantic_legacy_evidence_backfill` / `legacy_evidence=reference_only_semantic_mismatch_or_missing_fields` / `legacy_supports_current_identity=False` / `legacy_promotable=False` / `legacy_mismatched=entry_quality_label,regime_label`
 - 下一步：Treat legacy supported rows as reference-only: keep support_identity/regression_basis/legacy_supported_reference visible in probe/API/UI/docs, keep the current-live exact-support blocker open, and do not describe this as same-identity support regression unless the semantic signature matches.
-
-### P1. recent canonical window 100 rows = distribution_pathology but current live regime is outside the blocker pocket
-- 目前真相：`window=100` / `interpretation=distribution_pathology` / `win_rate=0.0` / `dominant_regime=chop` / `dominant_regime_share=0.51` / `avg_pnl=-0.0129`
-- 下一步：保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。
 
 ---
 
@@ -144,5 +140,5 @@ _最後更新：2026-05-17 13:03:14 CST_
 3. **守住 q15 current-live bucket support truth / blocker truth、leaderboard dual-role governance、venue/source blockers 可見性**
 4. **讓 heartbeat 自動 overwrite sync current-state docs，不再把 docs drift 留給人工補寫**
 5. **P0 實戰化：建立 high-conviction top-k OOS ROI gate，把研究 winner 轉成可拒單部署候選**
-   - `data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at=2026-05-17T05:03:02.663266+00:00` / `freshness=fresh` / `age_min=0.2` / `stale_after_min=60` / `deployment_blocking=False` / `rows=24` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `bucket_rows=21/50` / `gap=29` / `release_ready=False` / `recent_window_wins=0/50` / `required_recent_window_wins=15` / `additional_recent_window_wins_needed=15` / `current_recent_window_win_rate=0.000` / `support_progress_status=semantic_rebaseline_under_minimum` / `support_progress_reason=current exact support 21/50 below minimum (gap=29); semantic mismatch=entry_quality_label,regime_label` / `regression_basis=legacy_or_different_semantic_signature` / `delta_vs_previous=0` / `previous_rows=21` / `support_rows_needed=29` / `stagnant_run_count=2` / `stalled_support_accumulation=False` /
+   - `data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at=2026-05-17T06:15:35.909188+00:00` / `freshness=fresh` / `age_min=3.1` / `stale_after_min=60` / `deployment_blocking=False` / `rows=24` / `deployable_rows=0` / `risk_qualified_rows=6` / `runtime_blocked_candidates=6` / `bucket_rows=21/50` / `gap=29` / `release_ready=False` / `recent_window_wins=0/50` / `required_recent_window_wins=15` / `additional_recent_window_wins_needed=15` / `current_recent_window_win_rate=0.000` / `support_progress_status=semantic_rebaseline_under_minimum` / `support_progress_reason=current exact support 21/50 below minimum (gap=29); semantic mismatch=entry_quality_label,regime_label` / `regression_basis=legacy_or_different_semantic_signature` / `delta_vs_previous=0` / `previous_rows=21` / `support_rows_needed=29` / `stagnant_run_count=4` / `stalled_support_accumulation=False` /
      `escalate_to_blocker=True`；`/api/models/leaderboard` 與 Strategy Lab 高信心 OOS Top-K 部署門檻面板已改為最接近部署候選優先，並以操作員繁中 copy 顯示矩陣新鮮度、breaker release math 與即時支持脈絡；矩陣過期或即時分桶 / 支持 / release 條件未解除前仍 fail-closed。
