@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-17 02:01:33.543175**
+- generated_at: **2026-05-17 03:13:28.462557**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -36,7 +36,7 @@
 - support_progress.current_rows / minimum: **0 / 50**
 - support_progress.previous_rows: **0**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **3**
+- support_progress.stagnant_run_count: **5**
 - support_progress.escalate_to_blocker: **True**
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'BLOCK|structure_quality_block|q00', 'regime_label': 'bear', 'regime_gate': 'BLOCK', 'entry_quality_label': 'B', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 - legacy_supported_reference: `None`
@@ -49,7 +49,7 @@
 - best_single_component: **None**
 - best_single_component_required_score_delta: **None**
 - best_single_component_can_cross_floor: **False**
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 101 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 105 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
@@ -57,13 +57,13 @@
 - mode: **None**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.7176**
+- current_entry_quality: **0.6927**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.1676**
+- current_trade_floor_gap: **0.1427**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 101 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 105 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
 - verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Active repair plan
@@ -74,7 +74,7 @@
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **CIRCUIT_BREAKER / 0 / decision_quality_below_trade_floor; circuit_breaker_active**
 - support rows / minimum / gap: **0 / 50 / 50**
-- stagnant_run_count: **3**
+- stagnant_run_count: **5**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh']`
 - legacy_semantic_evidence.verdict: **None**
 - legacy_semantic_evidence.supports_current_identity: **None**

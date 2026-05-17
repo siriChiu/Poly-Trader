@@ -387,6 +387,50 @@ def _load_recent_support_history(
     return history
 
 
+def _load_live_probe_support_progress_hint(
+    *,
+    current_bucket: Any,
+    current_route: str | None,
+    current_rows: int,
+    minimum_support_rows: int,
+) -> dict[str, Any] | None:
+    """Reuse canonical live-probe support progress when it matches this bucket.
+
+    Leaderboard candidate governance is a downstream product surface.  It must not
+    re-derive a different stalled/regressed support count when the fresh live probe
+    already emitted a matching current-live support_progress contract; otherwise
+    Strategy Lab/docs can show a different blocker age from Dashboard/Execution.
+    """
+    live_probe = _load_json(LIVE_PROBE_PATH)
+    support_progress = live_probe.get("support_progress") or {}
+    if not support_progress:
+        return None
+    probe_bucket = (
+        live_probe.get("current_live_structure_bucket")
+        or support_progress.get("support_identity", {}).get("current_live_structure_bucket")
+    )
+    if probe_bucket != current_bucket:
+        return None
+    probe_rows = live_probe.get("current_live_structure_bucket_rows")
+    if probe_rows is None:
+        probe_rows = support_progress.get("current_rows")
+    if int(probe_rows or 0) != int(current_rows or 0):
+        return None
+    progress_minimum = support_progress.get("minimum_support_rows")
+    if progress_minimum is not None and int(progress_minimum or 0) != int(minimum_support_rows or 0):
+        return None
+    probe_route = live_probe.get("support_governance_route")
+    if probe_route is None:
+        probe_route = support_progress.get("support_governance_route") or (
+            support_progress.get("history", [{}])[0].get("support_governance_route")
+            if isinstance(support_progress.get("history"), list) and support_progress.get("history")
+            else None
+        )
+    if current_route and probe_route and probe_route != current_route:
+        return None
+    return support_progress
+
+
 def _load_q15_support_progress_hint(
     *,
     current_bucket: Any,
@@ -426,6 +470,15 @@ def _summarize_support_progress(
     data_dir: Path | None = None,
 ) -> dict[str, Any]:
     current_rows = int(live_bucket_rows or 0)
+    live_probe_hint = _load_live_probe_support_progress_hint(
+        current_bucket=current_bucket,
+        current_route=current_route,
+        current_rows=current_rows,
+        minimum_support_rows=minimum_support_rows,
+    )
+    if live_probe_hint is not None:
+        return live_probe_hint
+
     q15_hint = _load_q15_support_progress_hint(
         current_bucket=current_bucket,
         current_route=current_route,
@@ -640,7 +693,7 @@ def _build_governance_contract(
             "current_closure": "global_ranking_vs_support_aware_production_split",
             "reason": "目前 global winner 與 production winner 扮演不同角色：leaderboard 保留 global shrinkage winner 作排名基線，train / runtime 則沿用 support-aware 或 exact-supported production profile 描述 current live bull lane。這是治理分工，不是 parity drift。",
             "recommended_action": (
-                "current live exact support 已連續停滯，下一輪若仍未增加應升級成 #PROFILE_GOVERNANCE_STALLED blocker。"
+                "current live exact support 已達連續停滯升級門檻，應立即保持 #PROFILE_GOVERNANCE_STALLED / support-accumulation blocker；不得等下一輪才升級。"
                 if support_progress.get("escalate_to_blocker")
                 else "文件與 heartbeat 應把 split 明寫為雙角色治理；在 exact support 未達標前，不要把 production profile fallback 誤報為 parity blocker。"
             ),

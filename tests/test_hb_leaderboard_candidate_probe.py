@@ -157,6 +157,104 @@ def test_summarize_support_progress_detects_stalled_exact_support(tmp_path):
     assert progress["history"][0]["heartbeat"] == "fast"
 
 
+def test_summarize_support_progress_prefers_live_probe_current_truth(tmp_path, monkeypatch):
+    live_probe = tmp_path / "live_predict_probe.json"
+    live_probe.write_text(
+        json.dumps(
+            {
+                "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "support_governance_route": "no_support_proxy",
+                "support_progress": {
+                    "status": "stalled_under_minimum",
+                    "reason": "from live probe",
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                    "delta_vs_previous": 0,
+                    "previous_rows": 0,
+                    "previous_support_governance_route": "no_support_proxy",
+                    "stagnant_run_count": 4,
+                    "stalled_support_accumulation": True,
+                    "escalate_to_blocker": True,
+                    "support_identity": {
+                        "current_live_structure_bucket": "BLOCK|structure_quality_block|q00"
+                    },
+                    "history": [
+                        {
+                            "heartbeat": "current",
+                            "support_governance_route": "no_support_proxy",
+                            "live_current_structure_bucket": "BLOCK|structure_quality_block|q00",
+                            "live_current_structure_bucket_rows": 0,
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "heartbeat_1298_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "1298",
+                "timestamp": "2026-05-17T02:00:00+00:00",
+                "leaderboard_candidate_diagnostics": {
+                    "live_current_structure_bucket": "BLOCK|structure_quality_block|q00",
+                    "live_current_structure_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "support_governance_route": "no_support_proxy",
+                    "governance_contract": {"verdict": "single_role_governance_ok"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hb_leaderboard_candidate_probe, "LIVE_PROBE_PATH", live_probe)
+    monkeypatch.setattr(
+        hb_leaderboard_candidate_probe,
+        "Q15_SUPPORT_AUDIT_PATH",
+        tmp_path / "missing_q15_support_audit.json",
+    )
+
+    progress = hb_leaderboard_candidate_probe._summarize_support_progress(
+        current_bucket="BLOCK|structure_quality_block|q00",
+        current_route="no_support_proxy",
+        live_bucket_rows=0,
+        minimum_support_rows=50,
+        current_label="fast",
+        data_dir=tmp_path,
+    )
+
+    assert progress["reason"] == "from live probe"
+    assert progress["stagnant_run_count"] == 4
+    assert progress["escalate_to_blocker"] is True
+
+
+def test_dual_role_governance_action_uses_active_stall_blocker_when_escalated():
+    contract = hb_leaderboard_candidate_probe._build_governance_contract(
+        dual_profile_state="leaderboard_global_winner_vs_train_support_fallback",
+        profile_split={
+            "split_required": True,
+            "global_profile": "core_plus_macro",
+            "production_profile": "current_full_no_bull_collapse_4h",
+            "global_profile_role": "global_shrinkage_winner",
+            "production_profile_role": "support_aware_production_profile",
+        },
+        support_governance_route="no_support_proxy",
+        minimum_support_rows=50,
+        live_bucket_rows=0,
+        support_progress={
+            "status": "stalled_under_minimum",
+            "escalate_to_blocker": True,
+            "stagnant_run_count": 4,
+        },
+    )
+
+    assert contract["verdict"] == "dual_role_governance_active"
+    assert "立即保持" in contract["recommended_action"]
+    assert "不得等下一輪" in contract["recommended_action"]
+
 
 def test_summarize_support_progress_keeps_regression_visible_until_exact_support_recovers(tmp_path):
     (tmp_path / "heartbeat_720_summary.json").write_text(
