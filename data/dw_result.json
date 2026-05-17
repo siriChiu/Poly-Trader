@@ -1,133 +1,57 @@
 {
   "100": {
     "ics": {
-      "feat_eye": 0.1262,
-      "feat_ear": 0.1237,
-      "feat_nose": 0.1114,
-      "feat_tongue": 0.1534,
-      "feat_body": -0.2425,
-      "feat_pulse": -0.0495,
-      "feat_aura": -0.0792,
-      "feat_mind": -0.1782
+      "feat_eye": 0.0,
+      "feat_ear": 0.0,
+      "feat_nose": 0.0,
+      "feat_tongue": 0.0,
+      "feat_body": 0.0,
+      "feat_pulse": 0.0,
+      "feat_aura": 0.0,
+      "feat_mind": 0.0
     },
     "diagnostics": {
       "feat_eye": {
         "n": 100,
-        "reason": "ok"
+        "reason": "constant_target"
       },
       "feat_ear": {
         "n": 100,
-        "reason": "ok"
+        "reason": "constant_target"
       },
       "feat_nose": {
         "n": 100,
-        "reason": "ok"
+        "reason": "constant_target"
       },
       "feat_tongue": {
         "n": 100,
-        "reason": "ok"
+        "reason": "constant_target"
       },
       "feat_body": {
         "n": 100,
-        "reason": "ok"
+        "reason": "constant_target"
       },
       "feat_pulse": {
         "n": 100,
-        "reason": "ok"
+        "reason": "constant_target"
       },
       "feat_aura": {
         "n": 100,
-        "reason": "ok"
+        "reason": "constant_target"
       },
       "feat_mind": {
         "n": 100,
-        "reason": "ok"
+        "reason": "constant_target"
       }
     },
-    "constant_target": false,
+    "constant_target": true,
     "target_counts": {
-      "0": 98,
-      "1": 2
+      "0": 100
     },
-    "win_rate": 0.02,
+    "win_rate": 0.0,
     "regime_counts": {
-      "bear": 41,
-      "chop": 59
-    },
-    "regime_pct": {
-      "bear": 0.41,
-      "chop": 0.59
-    },
-    "dominant_regime": "chop",
-    "dominant_regime_share": 0.59,
-    "alerts": [
-      "label_imbalance"
-    ],
-    "external_drift_summary": {
-      "win_rate": 0.05,
-      "win_rate_delta_vs_full": -0.5691,
-      "dominant_regime": "chop",
-      "dominant_regime_share": 0.59,
-      "alerts": [
-        "label_imbalance"
-      ]
-    },
-    "distribution_guardrail": false
-  },
-  "200": {
-    "ics": {
-      "feat_eye": 0.0837,
-      "feat_ear": -0.0056,
-      "feat_nose": 0.0906,
-      "feat_tongue": 0.0091,
-      "feat_body": -0.2688,
-      "feat_pulse": 0.1008,
-      "feat_aura": -0.5436,
-      "feat_mind": -0.3728
-    },
-    "diagnostics": {
-      "feat_eye": {
-        "n": 200,
-        "reason": "ok"
-      },
-      "feat_ear": {
-        "n": 200,
-        "reason": "ok"
-      },
-      "feat_nose": {
-        "n": 200,
-        "reason": "ok"
-      },
-      "feat_tongue": {
-        "n": 200,
-        "reason": "ok"
-      },
-      "feat_body": {
-        "n": 200,
-        "reason": "ok"
-      },
-      "feat_pulse": {
-        "n": 200,
-        "reason": "ok"
-      },
-      "feat_aura": {
-        "n": 200,
-        "reason": "ok"
-      },
-      "feat_mind": {
-        "n": 200,
-        "reason": "ok"
-      }
-    },
-    "constant_target": false,
-    "target_counts": {
-      "0": 119,
-      "1": 81
-    },
-    "win_rate": 0.405,
-    "regime_counts": {
-      "chop": 116,
-      "bear": 84
+      "chop": 58,
+      "bear": 42
     },
     "regime_pct": {
       "chop": 0.58,
@@ -135,20 +59,96 @@
     },
     "dominant_regime": "chop",
     "dominant_regime_share": 0.58,
+    "alerts": [
+      "constant_target",
+      "label_imbalance"
+    ],
+    "external_drift_summary": {
+      "win_rate": 0.02,
+      "win_rate_delta_vs_full": -0.599,
+      "dominant_regime": "chop",
+      "dominant_regime_share": 0.59,
+      "alerts": [
+        "label_imbalance"
+      ]
+    },
+    "distribution_guardrail": true
+  },
+  "200": {
+    "ics": {
+      "feat_eye": 0.0837,
+      "feat_ear": -0.0019,
+      "feat_nose": 0.0851,
+      "feat_tongue": 0.0185,
+      "feat_body": -0.2825,
+      "feat_pulse": 0.0899,
+      "feat_aura": -0.5305,
+      "feat_mind": -0.3753
+    },
+    "diagnostics": {
+      "feat_eye": {
+        "n": 200,
+        "reason": "ok"
+      },
+      "feat_ear": {
+        "n": 200,
+        "reason": "ok"
+      },
+      "feat_nose": {
+        "n": 200,
+        "reason": "ok"
+      },
+      "feat_tongue": {
+        "n": 200,
+        "reason": "ok"
+      },
+      "feat_body": {
+        "n": 200,
+        "reason": "ok"
+      },
+      "feat_pulse": {
+        "n": 200,
+        "reason": "ok"
+      },
+      "feat_aura": {
+        "n": 200,
+        "reason": "ok"
+      },
+      "feat_mind": {
+        "n": 200,
+        "reason": "ok"
+      }
+    },
+    "constant_target": false,
+    "target_counts": {
+      "0": 121,
+      "1": 79
+    },
+    "win_rate": 0.395,
+    "regime_counts": {
+      "chop": 113,
+      "bear": 87
+    },
+    "regime_pct": {
+      "chop": 0.565,
+      "bear": 0.435
+    },
+    "dominant_regime": "chop",
+    "dominant_regime_share": 0.565,
     "alerts": [],
     "external_drift_summary": null,
     "distribution_guardrail": false
   },
   "400": {
     "ics": {
-      "feat_eye": 0.0654,
-      "feat_ear": 0.0234,
-      "feat_nose": 0.1235,
-      "feat_tongue": 0.0645,
-      "feat_body": -0.2108,
-      "feat_pulse": 0.031,
-      "feat_aura": -0.3346,
-      "feat_mind": 0.0382
+      "feat_eye": 0.0674,
+      "feat_ear": 0.0248,
+      "feat_nose": 0.1075,
+      "feat_tongue": 0.0589,
+      "feat_body": -0.195,
+      "feat_pulse": 0.0241,
+      "feat_aura": -0.3242,
+      "feat_mind": 0.0427
     },
     "diagnostics": {
       "feat_eye": {
@@ -186,22 +186,22 @@
     },
     "constant_target": false,
     "target_counts": {
-      "0": 198,
-      "1": 202
+      "0": 201,
+      "1": 199
     },
-    "win_rate": 0.505,
+    "win_rate": 0.4975,
     "regime_counts": {
-      "chop": 302,
+      "chop": 299,
       "bull": 14,
-      "bear": 84
+      "bear": 87
     },
     "regime_pct": {
-      "chop": 0.755,
+      "chop": 0.7475,
       "bull": 0.035,
-      "bear": 0.21
+      "bear": 0.2175
     },
     "dominant_regime": "chop",
-    "dominant_regime_share": 0.755,
+    "dominant_regime_share": 0.7475,
     "alerts": [
       "regime_shift"
     ],
@@ -210,14 +210,14 @@
   },
   "600": {
     "ics": {
-      "feat_eye": 0.0138,
-      "feat_ear": 0.0101,
-      "feat_nose": 0.0262,
-      "feat_tongue": 0.0297,
-      "feat_body": -0.0781,
-      "feat_pulse": -0.0089,
-      "feat_aura": -0.239,
-      "feat_mind": -0.0161
+      "feat_eye": 0.008,
+      "feat_ear": 0.0054,
+      "feat_nose": 0.0128,
+      "feat_tongue": 0.0241,
+      "feat_body": -0.0693,
+      "feat_pulse": -0.0071,
+      "feat_aura": -0.2401,
+      "feat_mind": -0.0193
     },
     "diagnostics": {
       "feat_eye": {
@@ -260,17 +260,17 @@
     },
     "win_rate": 0.5633,
     "regime_counts": {
-      "chop": 438,
-      "bear": 148,
+      "chop": 435,
+      "bear": 151,
       "bull": 14
     },
     "regime_pct": {
-      "chop": 0.73,
-      "bear": 0.2467,
+      "chop": 0.725,
+      "bear": 0.2517,
       "bull": 0.0233
     },
     "dominant_regime": "chop",
-    "dominant_regime_share": 0.73,
+    "dominant_regime_share": 0.725,
     "alerts": [
       "regime_shift"
     ],
@@ -279,14 +279,14 @@
   },
   "1000": {
     "ics": {
-      "feat_eye": -0.0928,
-      "feat_ear": -0.0393,
-      "feat_nose": -0.0787,
-      "feat_tongue": -0.0218,
-      "feat_body": -0.2045,
-      "feat_pulse": -0.0527,
-      "feat_aura": -0.2858,
-      "feat_mind": -0.1376
+      "feat_eye": -0.0901,
+      "feat_ear": -0.0376,
+      "feat_nose": -0.0796,
+      "feat_tongue": -0.0211,
+      "feat_body": -0.2003,
+      "feat_pulse": -0.054,
+      "feat_aura": -0.2805,
+      "feat_mind": -0.135
     },
     "diagnostics": {
       "feat_eye": {
@@ -324,26 +324,26 @@
     },
     "constant_target": false,
     "target_counts": {
-      "0": 514,
-      "1": 486
+      "0": 516,
+      "1": 484
     },
-    "win_rate": 0.486,
+    "win_rate": 0.484,
     "regime_counts": {
-      "bull": 252,
+      "bull": 249,
       "chop": 600,
-      "bear": 148
+      "bear": 151
     },
     "regime_pct": {
-      "bull": 0.252,
+      "bull": 0.249,
       "chop": 0.6,
-      "bear": 0.148
+      "bear": 0.151
     },
     "dominant_regime": "chop",
     "dominant_regime_share": 0.6,
     "alerts": [],
     "external_drift_summary": {
-      "win_rate": 0.489,
-      "win_rate_delta_vs_full": -0.1301,
+      "win_rate": 0.486,
+      "win_rate_delta_vs_full": -0.133,
       "dominant_regime": "chop",
       "dominant_regime_share": 0.6,
       "alerts": []
@@ -352,14 +352,14 @@
   },
   "2000": {
     "ics": {
-      "feat_eye": -0.0284,
-      "feat_ear": -0.0344,
-      "feat_nose": -0.0484,
-      "feat_tongue": -0.0229,
-      "feat_body": -0.0129,
-      "feat_pulse": -0.0406,
-      "feat_aura": -0.1812,
-      "feat_mind": -0.0867
+      "feat_eye": -0.0296,
+      "feat_ear": -0.0343,
+      "feat_nose": -0.0512,
+      "feat_tongue": -0.0235,
+      "feat_body": -0.0131,
+      "feat_pulse": -0.0398,
+      "feat_aura": -0.1803,
+      "feat_mind": -0.0886
     },
     "diagnostics": {
       "feat_eye": {
@@ -402,31 +402,31 @@
     },
     "win_rate": 0.519,
     "regime_counts": {
-      "bull": 1058,
+      "bull": 1055,
       "chop": 794,
-      "bear": 148
+      "bear": 151
     },
     "regime_pct": {
-      "bull": 0.529,
+      "bull": 0.5275,
       "chop": 0.397,
-      "bear": 0.074
+      "bear": 0.0755
     },
     "dominant_regime": "bull",
-    "dominant_regime_share": 0.529,
+    "dominant_regime_share": 0.5275,
     "alerts": [],
     "external_drift_summary": null,
     "distribution_guardrail": false
   },
   "5000": {
     "ics": {
-      "feat_eye": 0.0416,
-      "feat_ear": 0.0107,
-      "feat_nose": 0.0097,
-      "feat_tongue": 0.0162,
-      "feat_body": 0.0598,
-      "feat_pulse": 0.0265,
-      "feat_aura": -0.0689,
-      "feat_mind": -0.0424
+      "feat_eye": 0.0421,
+      "feat_ear": 0.0113,
+      "feat_nose": 0.0094,
+      "feat_tongue": 0.0163,
+      "feat_body": 0.0604,
+      "feat_pulse": 0.0277,
+      "feat_aura": -0.0665,
+      "feat_mind": -0.0407
     },
     "diagnostics": {
       "feat_eye": {
@@ -469,16 +469,16 @@
     },
     "win_rate": 0.6024,
     "regime_counts": {
-      "neutral": 8,
+      "neutral": 5,
       "bull": 2450,
       "chop": 2394,
-      "bear": 148
+      "bear": 151
     },
     "regime_pct": {
-      "neutral": 0.0016,
+      "neutral": 0.001,
       "bull": 0.49,
       "chop": 0.4788,
-      "bear": 0.0296
+      "bear": 0.0302
     },
     "dominant_regime": "bull",
     "dominant_regime_share": 0.49,
@@ -486,10 +486,10 @@
     "external_drift_summary": null,
     "distribution_guardrail": false
   },
-  "raw_best_n": 100,
-  "raw_best_pass": 7,
-  "recommended_best_n": 100,
-  "recommended_best_pass": 7,
+  "raw_best_n": 200,
+  "raw_best_pass": 6,
+  "recommended_best_n": 200,
+  "recommended_best_pass": 6,
   "guardrail_policy": {
     "disqualifying_alerts": [
       "constant_target",
@@ -497,5 +497,5 @@
     ],
     "source": "local_window_distribution + recent_drift_report.json"
   },
-  "total_n": 24183
+  "total_n": 24186
 }

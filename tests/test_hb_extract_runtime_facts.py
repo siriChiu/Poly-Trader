@@ -165,10 +165,18 @@ def test_build_runtime_facts_uses_summary_counts_and_reference_only_patch():
             "current_live_structure_bucket_gap_to_minimum": 18,
             "support_route_verdict": "exact_bucket_present_but_below_minimum",
             "support_progress": {
-                "status": "no_recent_comparable_history",
+                "status": "stalled_under_minimum",
+                "reason": "current live exact support stayed at the same count across heartbeats",
                 "current_rows": 32,
                 "minimum_support_rows": 50,
                 "gap_to_minimum": 18,
+                "previous_rows": 32,
+                "delta_vs_previous": 0,
+                "support_rows_needed": 18,
+                "stagnant_run_count": 3,
+                "stalled_support_accumulation": True,
+                "escalate_to_blocker": True,
+                "regression_basis": "same_identity_same_semantic_signature",
             },
             "api_trade_guardrail_active": True,
             "api_trade_buy_guardrail": "current_live_deployment_blocker_409",
@@ -221,4 +229,13 @@ def test_build_runtime_facts_uses_summary_counts_and_reference_only_patch():
     assert facts["recommended_patch"]["recommended_patch_status"] == "reference_only_non_current_live_scope"
     assert facts["support_blocker_summary"]["recommended_patch_reference_only"] is True
     assert facts["api_trade_guardrail"]["api_trade_buy_guardrail"] == "current_live_deployment_blocker_409"
+    assert facts["support_progress"]["status"] == "stalled_under_minimum"
+    assert facts["support_progress"]["reason"] == "current live exact support stayed at the same count across heartbeats"
+    assert facts["support_progress"]["previous_rows"] == 32
+    assert facts["support_progress"]["delta_vs_previous"] == 0
+    assert facts["support_progress"]["support_rows_needed"] == 18
+    assert facts["support_progress"]["stagnant_run_count"] == 3
+    assert facts["support_progress"]["stalled_support_accumulation"] is True
+    assert facts["support_progress"]["escalate_to_blocker"] is True
+    assert facts["support_progress"]["regression_basis"] == "same_identity_same_semantic_signature"
     assert facts["q15"]["gap_to_minimum"] == 18
