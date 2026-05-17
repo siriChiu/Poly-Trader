@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-05-18T02:43:56+08:00",
-  "purpose": "Poly-Trader PM heartbeat contract for objective delivery arbitration between customer urgency and engineering safety guardrails.",
+  "updated_at": "2026-05-18T03:09:47+08:00",
+  "purpose": "Poly-Trader PM heartbeat contract for customer-side delivery advocacy, claim audit, framework-capture detection, and safety-preserving arbitration between customer urgency and engineering guardrails.",
   "entrypoints": {
     "pm_charter": "PM_HEARTBEAT.md",
     "pm_readme": "docs/pm/README.md",
@@ -13,106 +13,235 @@
     "engineering_harness": "docs/harness/README.md"
   },
   "required_docs": [
-    {"path": "PM_HEARTBEAT.md", "role": "PM heartbeat operating procedure"},
-    {"path": "docs/pm/README.md", "role": "PM harness map"},
-    {"path": "docs/pm/pm-heartbeat-qa.md", "role": "PM question-answer gates"},
-    {"path": "docs/pm/pm-status.md", "role": "current PM status only"},
-    {"path": "HEARTBEAT.md", "role": "engineering heartbeat operating procedure"},
-    {"path": "ISSUES.md", "role": "current engineering blockers"},
-    {"path": "ROADMAP.md", "role": "current engineering plan"},
-    {"path": "ORID_DECISIONS.md", "role": "current engineering ORID"},
-    {"path": "docs/harness/README.md", "role": "engineering harness map"}
+    {
+      "path": "PM_HEARTBEAT.md",
+      "role": "PM heartbeat operating procedure"
+    },
+    {
+      "path": "docs/pm/README.md",
+      "role": "PM harness map"
+    },
+    {
+      "path": "docs/pm/pm-heartbeat-qa.md",
+      "role": "PM question-answer gates"
+    },
+    {
+      "path": "docs/pm/pm-status.md",
+      "role": "current PM status only"
+    },
+    {
+      "path": "HEARTBEAT.md",
+      "role": "engineering heartbeat operating procedure"
+    },
+    {
+      "path": "ISSUES.md",
+      "role": "current engineering blockers"
+    },
+    {
+      "path": "ROADMAP.md",
+      "role": "current engineering plan"
+    },
+    {
+      "path": "ORID_DECISIONS.md",
+      "role": "current engineering ORID"
+    },
+    {
+      "path": "docs/harness/README.md",
+      "role": "engineering harness map"
+    }
   ],
   "question_gates": [
     {
       "id": "PMHQ0_context_map",
       "question": "Do I have the minimal map of PM, engineering, and runtime truth?",
-      "required_evidence": ["git status", "PM_HEARTBEAT.md", "docs/pm/README.md", "HEARTBEAT.md"]
+      "required_evidence": [
+        "git status",
+        "PM_HEARTBEAT.md",
+        "docs/pm/README.md",
+        "HEARTBEAT.md"
+      ]
     },
     {
       "id": "PMHQ1_stakeholder_expectation",
-      "question": "What does the customer need now, and what would satisfy them without unsafe live trading?",
-      "required_evidence": ["user request", "PM status", "safe product lane"]
+      "question": "What does the customer need now, and what would satisfy them without unsafe live trading or process-only delay?",
+      "required_evidence": [
+        "user request",
+        "PM status",
+        "safe product lane",
+        "customer-side usable lane",
+        "framework-capture check"
+      ]
     },
     {
       "id": "PMHQ2_artifact_truth",
       "question": "What do the artifacts prove right now?",
-      "required_evidence": ["data/live_predict_probe.json", "data/high_conviction_topk_oos_matrix.json", "data/execution_metadata_smoke.json", "data/recent_drift_report.json"]
+      "required_evidence": [
+        "data/live_predict_probe.json",
+        "data/high_conviction_topk_oos_matrix.json",
+        "data/execution_metadata_smoke.json",
+        "data/recent_drift_report.json"
+      ]
     },
     {
       "id": "PMHQ3_conflict_diagnosis",
       "question": "Is this a real safety blocker, a communication gap, or a delivery deadlock?",
-      "required_evidence": ["safety blocker", "evidence gap", "UX gap", "planning gap", "deadlock"]
+      "required_evidence": [
+        "safety blocker",
+        "evidence gap",
+        "UX gap",
+        "planning gap",
+        "deadlock",
+        "framework-capture"
+      ]
     },
     {
       "id": "PMHQ4_engineering_claim_audit",
       "question": "What exactly did engineering claim, and do we accept it?",
-      "required_evidence": ["claim", "evidence path", "PM verdict", "smaller deliverable"]
+      "required_evidence": [
+        "claim",
+        "evidence path",
+        "PM verdict",
+        "smaller deliverable",
+        "framework verdict"
+      ]
     },
     {
       "id": "PMHQ5_delivery_ladder",
       "question": "What can be delivered or used in the next hour?",
-      "required_evidence": ["safe ladder rung", "blocked live actions", "artifact or route"]
+      "required_evidence": [
+        "safe ladder rung",
+        "blocked live actions",
+        "artifact or route"
+      ]
     },
     {
       "id": "PMHQ6_action_contract",
       "question": "What is the next action, owner, artifact, and verification?",
-      "required_evidence": ["owner", "action", "artifact", "verification", "fallback"]
+      "required_evidence": [
+        "owner",
+        "action",
+        "artifact",
+        "verification",
+        "fallback"
+      ]
     },
     {
       "id": "PMHQ7_deadlock_escape",
       "question": "If the same blocker repeats, what changes in the system?",
-      "required_evidence": ["same-wait count", "missing capability classification", "fallback"]
+      "required_evidence": [
+        "same-wait count",
+        "missing capability classification",
+        "fallback"
+      ]
     },
     {
       "id": "PMHQ8_customer_report",
       "question": "Can the customer understand the state in 30 seconds?",
-      "required_evidence": ["Traditional Chinese summary", "usable now", "blocked still", "next gate"]
+      "required_evidence": [
+        "Traditional Chinese summary",
+        "usable now",
+        "blocked still",
+        "next gate",
+        "customer-side PM action"
+      ]
     }
   ],
   "pm_decision_states": [
     "GREEN_live_canary_ready",
     "YELLOW_shadow_or_paper_usable",
     "ORANGE_customer_value_gap",
+    "ORANGE_framework_capture_risk",
     "RED_delivery_deadlock"
   ],
   "agent_readable_signals": [
     {
       "name": "current_live_blocker_truth",
-      "paths": ["data/live_predict_probe.json", "issues.json", "ISSUES.md"],
+      "paths": [
+        "data/live_predict_probe.json",
+        "issues.json",
+        "ISSUES.md"
+      ],
       "purpose": "support rows, deployment blocker, allowed layers, signal, release boundary"
     },
     {
       "name": "research_to_delivery_truth",
-      "paths": ["data/high_conviction_topk_oos_matrix.json", "ROADMAP.md"],
+      "paths": [
+        "data/high_conviction_topk_oos_matrix.json",
+        "ROADMAP.md"
+      ],
       "purpose": "high-conviction candidates, OOS risk gates, runtime-blocked rows"
     },
     {
       "name": "venue_readiness_truth",
-      "paths": ["data/execution_metadata_smoke.json"],
+      "paths": [
+        "data/execution_metadata_smoke.json"
+      ],
       "purpose": "per-venue runtime proof state and missing lifecycle evidence"
     },
     {
       "name": "recent_pathology_truth",
-      "paths": ["data/recent_drift_report.json"],
+      "paths": [
+        "data/recent_drift_report.json"
+      ],
       "purpose": "recent market regime and quality degradation affecting PM risk"
     },
     {
       "name": "pm_current_state",
-      "paths": ["docs/pm/pm-status.md"],
+      "paths": [
+        "docs/pm/pm-status.md"
+      ],
       "purpose": "current PM classification, customer-usable lanes, engineering ask, next gate"
     }
   ],
   "mechanical_invariants": [
-    {"id": "pm_docs_exist", "description": "PM charter, map, QA playbook, and status docs exist."},
-    {"id": "pm_qa_gates_complete", "description": "Contract and QA playbook contain every PMHQ0-PMHQ8 gate."},
-    {"id": "pm_links_engineering_truth", "description": "PM docs link to engineering HEARTBEAT and current-state docs."},
-    {"id": "repo_map_links_pm", "description": "AGENTS.md exposes the PM heartbeat entrypoints."},
-    {"id": "readme_architecture_expose_pm", "description": "README and ARCHITECTURE mention the PM heartbeat harness."}
+    {
+      "id": "pm_docs_exist",
+      "description": "PM charter, map, QA playbook, and status docs exist."
+    },
+    {
+      "id": "pm_qa_gates_complete",
+      "description": "Contract and QA playbook contain every PMHQ0-PMHQ8 gate."
+    },
+    {
+      "id": "pm_links_engineering_truth",
+      "description": "PM docs link to engineering HEARTBEAT and current-state docs."
+    },
+    {
+      "id": "repo_map_links_pm",
+      "description": "AGENTS.md exposes the PM heartbeat entrypoints."
+    },
+    {
+      "id": "readme_architecture_expose_pm",
+      "description": "README and ARCHITECTURE mention the PM heartbeat harness."
+    },
+    {
+      "id": "pm_customer_side_advocacy",
+      "description": "PM docs require customer-side advocacy and safe customer value now."
+    },
+    {
+      "id": "pm_framework_capture_guard",
+      "description": "PM docs require detection and correction of docs/skills/process loops that block customer value without protecting safety."
+    }
   ],
   "verification_commands": [
     "python scripts/pm_heartbeat_check.py --format text",
     "python -m pytest tests/test_pm_heartbeat_contract.py -q",
     "git diff --check -- PM_HEARTBEAT.md docs/pm scripts/pm_heartbeat_check.py tests/test_pm_heartbeat_contract.py AGENTS.md README.md ARCHITECTURE.md"
-  ]
+  ],
+  "customer_advocacy_policy": {
+    "stance": "customer_side_advocate",
+    "north_star": "customer_outcome_and_usable_product_value_now",
+    "definition": "PM stands with the customer by actively unblocking safe product value, not by approving unsafe live trading without proof.",
+    "non_negotiables": [
+      "do_not_lower_live_trading_safety_gates",
+      "do_not_claim_live_buy_add_ready_without_machine_readable_proof",
+      "do_not_accept_engineering_wait_without_safe_deliverable_or_release_condition"
+    ]
+  },
+  "framework_capture_guard": {
+    "risk_name": "framework_capture",
+    "verdict_when_process_blocks_value": "framework_capture_risk",
+    "trigger": "Poly-Trader custom skills, docs, or harness rules cause repeated wait/blocker narratives without a safe customer deliverable.",
+    "pm_action": "name the constraining rule, decide whether it protects customer capital, then patch/simplify/bypass it for the smallest safe customer deliverable while preserving proof gates."
+  }
 }

@@ -38,7 +38,11 @@ REQUIRED_DOC_REFERENCES = {
         "docs/pm/pm-heartbeat-qa.md",
         "docs/pm/pm-status.md",
         "scripts/pm_heartbeat_check.py",
+        "customer-side advocate",
+        "framework-capture",
     ],
+    "docs/pm/README.md": ["customer-side advocate", "framework-capture"],
+    "docs/pm/pm-heartbeat-qa.md": ["PMHQ1_stakeholder_expectation", "framework-capture"],
     "README.md": ["docs/pm/README.md", "scripts/pm_heartbeat_check.py"],
     "ARCHITECTURE.md": ["docs/pm", "PM_HEARTBEAT.md"],
 }
@@ -223,6 +227,8 @@ def _check_pm_status_current_state() -> list[CheckResult]:
         "under_minimum_exact_live_structure_bucket",
         "Strategy Lab",
         "Execution Console",
+        "客戶成功",
+        "framework-capture",
         "Next-hour gate",
     ]
     missing = [snippet for snippet in required if snippet not in text]

@@ -45,6 +45,9 @@ def test_pm_heartbeat_contract_is_machine_readable() -> None:
 
     gate_ids = {gate["id"] for gate in payload["question_gates"]}
     assert gate_ids == set(REQUIRED_GATE_IDS)
+    assert payload["customer_advocacy_policy"]["stance"] == "customer_side_advocate"
+    assert payload["framework_capture_guard"]["verdict_when_process_blocks_value"] == "framework_capture_risk"
+    assert "ORANGE_framework_capture_risk" in payload["pm_decision_states"]
 
     qa_text = QA_PATH.read_text(encoding="utf-8")
     for gate_id in REQUIRED_GATE_IDS:
@@ -98,4 +101,7 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     assert "gap=47" in text
     assert "Strategy Lab" in text
     assert "Execution Console" in text
+    assert "客戶成功" in text
+    assert "framework-capture" in text
+    assert "ORANGE_framework_capture_risk" in text
     assert "live buy/add" in text or "真實買入 / 加倉" in text

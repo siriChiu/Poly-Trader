@@ -1,6 +1,6 @@
 # PM Heartbeat Q&A Gate
 
-> These gates force the PM heartbeat to arbitrate between customer urgency and engineering caution using evidence. The PM may challenge engineering, but must not weaken live-trading safety.
+> These gates force the PM heartbeat to arbitrate from the customer's side using evidence. The PM must actively solve the customer's usability/value problem, challenge engineering and framework inertia, and still preserve live-trading safety.
 
 ---
 
@@ -9,6 +9,7 @@
 - Run `python scripts/pm_heartbeat_check.py --format text` at the start of PM heartbeat work.
 - The final customer report can be short, but the run must internally answer PMHQ0-PMHQ8.
 - If any answer lacks evidence, the PM action should be to request/produce evidence, not to invent certainty.
+- If the process itself blocks customer progress, mark `framework-capture` risk and propose a smaller safe deliverable or framework patch.
 
 ---
 
@@ -35,8 +36,10 @@
 
 **Answer rules:**
 - State the customer’s expectation in one sentence.
+- Treat customer urgency as a real product-risk signal, not as noise.
 - Separate “use product now” from “send real buy/add orders now”.
 - Identify at least one safe immediate usage lane when live trading is blocked.
+- If no lane is visible, challenge the framework/engineering plan before telling the customer to wait.
 
 **Evidence:** user request, PM status, UI/API surfaces, current ROADMAP gate.
 
@@ -78,6 +81,7 @@ Classify the conflict as one or more:
 3. **UX gap** — safe product value exists but the customer cannot see it.
 4. **Planning gap** — no one has named the next smallest deliverable.
 5. **Deadlock** — repeated “wait” without artifact movement or safe output.
+6. **Framework-capture** — docs, custom skills, or harness rules cause the agent to preserve a blocker narrative instead of finding the next safe customer deliverable.
 
 **Evidence:** blocker fields, UI/API copy, tests, cron/heartbeat outputs, PM status.
 
@@ -96,9 +100,10 @@ For each important engineering claim, record:
 - claim;
 - evidence path/command;
 - PM verdict: accepted / rejected / insufficient evidence;
-- smaller deliverable if the claim blocks the customer.
+- smaller deliverable if the claim blocks the customer;
+- framework verdict if the claim depends on a doc/skill/process rule: customer protection / framework-capture risk / needs patch.
 
-**Evidence:** artifacts, tests, current-state docs, browser/API checks when applicable.
+**Evidence:** artifacts, tests, current-state docs, skill/doc paths, browser/API checks when applicable.
 
 **If fail:** Do not tell the customer the claim is true; request evidence.
 
@@ -110,7 +115,7 @@ For each important engineering claim, record:
 **Question:** What can be delivered or used in the next hour?
 
 **Answer rules:**
-Choose the highest safe ladder rung:
+Start from customer value and choose the highest safe ladder rung, not the lowest process-comfort rung:
 
 1. Diagnostics/visibility only.
 2. Research/Strategy Lab usage.
@@ -154,6 +159,7 @@ Every PM run must leave a concrete action contract:
 - Same “wait” twice → require a one-hour safe deliverable.
 - Same blocker three times with no movement → classify missing capability: Map / Tool / Signal / Constraint / Review.
 - Same failed patch path three times → ask for an alternative architecture or product lane.
+- Same docs/skills/framework loop twice → mark `ORANGE_framework_capture_risk` and patch/simplify the constraining framework.
 
 **Evidence:** PM status, issue ID, prior gates, repeated blocker fields.
 
@@ -171,6 +177,7 @@ Report in Traditional Chinese:
 
 - PM decision color and reason;
 - what they can use now;
+- what PM actively did or demanded on the customer's behalf;
 - what remains blocked and why;
 - what engineering must prove next;
 - files/verification if anything changed.
@@ -193,6 +200,9 @@ A: <accepted/rejected/insufficient + evidence>
 
 Q: 下一小時可交付什麼？
 A: <safe ladder rung + artifact>
+
+Q: 是否有 framework-capture 風險？
+A: <none / constraining doc-skill-rule + patch or bypass>
 
 Q: 若又卡住怎麼辦？
 A: <deadlock escape>
