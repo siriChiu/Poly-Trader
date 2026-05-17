@@ -11,6 +11,7 @@ older alias after a numbered run.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,120 @@ def row_count(value: Any) -> int | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return int(value)
     return None
+
+
+SENSITIVE_TEXT_REPLACEMENTS = (
+    ("COINGLASS", "[REDACTED]"),
+    ("CoinGlass", "[REDACTED]"),
+)
+
+
+def redact_sensitive_text(value: Any) -> Any:
+    """Remove concrete credential/source names from compact cron facts.
+
+    Runtime artifacts may include concrete secret/env-var names. Cron reports
+    need the blocker class and operator action, not exact provider/env
+    identifiers. Keep generic words such as "credential" because they describe
+    the required operator proof.
+    """
+    if not isinstance(value, str):
+        return value
+    text = re.sub(
+        r"\b[A-Z][A-Z0-9_]*(?:API[_-]?KEY|APIKEY|SECRET|TOKEN|PASSWORD|CREDENTIAL)[A-Z0-9_]*\b",
+        "[REDACTED]",
+        value,
+    )
+    for needle, replacement in SENSITIVE_TEXT_REPLACEMENTS:
+        text = text.replace(needle, replacement)
+    return text
+
+
+def _compact_counts(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = row.get(key)
+        if value is None:
+            continue
+        text = str(value)
+        counts[text] = counts.get(text, 0) + 1
+    return counts
+
+
+def compact_source_blockers(summary_source_blockers: dict[str, Any] | None) -> dict[str, Any]:
+    """Project source coverage/auth/TLS blockers without dumping full artifacts."""
+    if not isinstance(summary_source_blockers, dict):
+        summary_source_blockers = {}
+    raw_rows = summary_source_blockers.get("blocked_features") or []
+    rows = [row for row in raw_rows if isinstance(row, dict)]
+
+    top_blockers: list[dict[str, Any]] = []
+    for row in rows[:5]:
+        top_blockers.append(
+            {
+                "key": row.get("key"),
+                "quality_flag": row.get("quality_flag"),
+                "history_class": row.get("history_class"),
+                "coverage_pct": row.get("coverage_pct"),
+                "archive_window_coverage_pct": row.get("archive_window_coverage_pct"),
+                "forward_archive_ready": row.get("forward_archive_ready"),
+                "forward_archive_status": row.get("forward_archive_status"),
+                "latest_status": row.get("raw_snapshot_latest_status"),
+                "latest_age_min": row.get("raw_snapshot_latest_age_min"),
+                "operator_action": redact_sensitive_text(
+                    first_present(row.get("raw_snapshot_latest_operator_action"), row.get("recommended_action"))
+                ),
+                "message": redact_sensitive_text(row.get("raw_snapshot_latest_message")),
+            }
+        )
+
+    return {
+        "blocked_count": first_present(summary_source_blockers.get("blocked_count"), len(rows) if rows else None),
+        "history_class_counts": _compact_counts(rows, "history_class"),
+        "quality_flag_counts": _compact_counts(rows, "quality_flag"),
+        "top_blockers": top_blockers,
+    }
+
+
+def compact_venue_readiness(metadata_smoke: dict[str, Any] | None) -> dict[str, Any]:
+    """Project venue runtime proof status for cron/productization reports."""
+    if not isinstance(metadata_smoke, dict):
+        metadata_smoke = {}
+    raw_venues = metadata_smoke.get("venues") or []
+    if not isinstance(raw_venues, list):
+        raw_venues = []
+
+    venues: list[dict[str, Any]] = []
+    for item in raw_venues[:5]:
+        if not isinstance(item, dict):
+            continue
+        blockers = item.get("blockers") if isinstance(item.get("blockers"), list) else []
+        venues.append(
+            {
+                "venue": item.get("venue"),
+                "ok": item.get("ok"),
+                "enabled_in_config": item.get("enabled_in_config"),
+                "credentials_configured": item.get("credentials_configured"),
+                "proof_state": item.get("proof_state"),
+                "readiness_state": item.get("readiness_state"),
+                "runtime_ready": item.get("runtime_ready"),
+                "blockers": blockers[:6],
+                "operator_next_action": item.get("operator_next_action"),
+                "verify_next": item.get("verify_next"),
+            }
+        )
+
+    blockers = metadata_smoke.get("runtime_ready_blockers")
+    return {
+        "generated_at": metadata_smoke.get("generated_at"),
+        "venues_checked": metadata_smoke.get("venues_checked"),
+        "all_ok": first_present(metadata_smoke.get("all_ok"), metadata_smoke.get("ok")),
+        "runtime_ready": metadata_smoke.get("runtime_ready"),
+        "runtime_ready_count": metadata_smoke.get("runtime_ready_count"),
+        "readiness_scope": metadata_smoke.get("readiness_scope"),
+        "readiness_state": metadata_smoke.get("readiness_state"),
+        "runtime_ready_blockers": blockers[:8] if isinstance(blockers, list) else [],
+        "venues": venues,
+    }
 
 
 def compact_topk(summary_topk: dict[str, Any], artifact_topk: dict[str, Any]) -> dict[str, Any]:
@@ -261,6 +376,7 @@ def build_runtime_facts(
     topk: dict[str, Any],
     q15: dict[str, Any],
     circuit_breaker: dict[str, Any] | None = None,
+    execution_metadata_smoke: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     blocker_summary = drill.get("support_blocker_summary") or {}
     if not isinstance(blocker_summary, dict):
@@ -280,6 +396,8 @@ def build_runtime_facts(
         summary_circuit = {}
     if not isinstance(circuit_breaker, dict):
         circuit_breaker = {}
+    if not isinstance(execution_metadata_smoke, dict):
+        execution_metadata_smoke = {}
 
     return {
         "summary_path": summary_path,
@@ -371,6 +489,10 @@ def build_runtime_facts(
             "legacy_promotable_to_same_identity_history",
         ),
         "topk": compact_topk(summary_topk, topk),
+        "source_blockers": compact_source_blockers(
+            summary.get("source_blockers") if isinstance(summary.get("source_blockers"), dict) else None
+        ),
+        "venue_readiness": compact_venue_readiness(execution_metadata_smoke),
         "q15": compact_q15(q15),
         "circuit_breaker": compact_circuit_breaker_audit(summary_circuit, circuit_breaker),
         "docs_sync": pick(summary.get("docs_sync") or {}, "ok", "stale_docs", "auto_synced", "written_docs") if isinstance(summary.get("docs_sync"), dict) else {},
@@ -386,6 +508,7 @@ def main() -> None:
     topk = load("data/high_conviction_topk_oos_matrix.json")
     q15 = load("data/q15_support_audit.json")
     circuit_breaker = load("data/circuit_breaker_audit.json")
+    execution_metadata_smoke = load("data/execution_metadata_smoke.json")
     out = build_runtime_facts(
         probe=probe,
         drill=drill,
@@ -395,6 +518,7 @@ def main() -> None:
         topk=topk,
         q15=q15,
         circuit_breaker=circuit_breaker,
+        execution_metadata_smoke=execution_metadata_smoke,
     )
     print(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=True))
 

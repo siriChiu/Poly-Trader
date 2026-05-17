@@ -239,3 +239,150 @@ def test_build_runtime_facts_uses_summary_counts_and_reference_only_patch():
     assert facts["support_progress"]["escalate_to_blocker"] is True
     assert facts["support_progress"]["regression_basis"] == "same_identity_same_semantic_signature"
     assert facts["q15"]["gap_to_minimum"] == 18
+
+
+def test_compact_source_blockers_projects_counts_and_redacts_secret_names():
+    compact = hb_facts.compact_source_blockers(
+        {
+            "blocked_count": 3,
+            "blocked_features": [
+                {
+                    "key": "fin_netflow",
+                    "quality_flag": "source_auth_blocked",
+                    "history_class": "archive_required",
+                    "coverage_pct": 0.0,
+                    "archive_window_coverage_pct": 0.0,
+                    "forward_archive_ready": True,
+                    "forward_archive_status": "ready",
+                    "raw_snapshot_latest_status": "auth_missing",
+                    "raw_snapshot_latest_age_min": 0.1,
+                    "raw_snapshot_latest_message": "SENSITIVE_SOURCE_API_KEY is missing for SensitiveSource v4 auth.",
+                    "recommended_action": "Configure SENSITIVE_SOURCE_API_KEY before using this source.",
+                },
+                {
+                    "key": "nest_pred",
+                    "quality_flag": "source_tls_verify_failed",
+                    "history_class": "snapshot_only",
+                    "coverage_pct": 16.1,
+                    "raw_snapshot_latest_status": "tls_verify_failed",
+                },
+                {
+                    "key": "web_whale",
+                    "quality_flag": "source_history_gap",
+                    "history_class": "short_window_public_api",
+                    "coverage_pct": 24.1,
+                    "raw_snapshot_latest_status": "ok",
+                },
+            ],
+        }
+    )
+
+    assert compact["blocked_count"] == 3
+    assert compact["history_class_counts"] == {
+        "archive_required": 1,
+        "snapshot_only": 1,
+        "short_window_public_api": 1,
+    }
+    assert compact["quality_flag_counts"]["source_auth_blocked"] == 1
+    assert compact["top_blockers"][0]["key"] == "fin_netflow"
+    first = compact["top_blockers"][0]
+    assert first["latest_status"] == "auth_missing"
+    assert "COINGLASS" not in first["message"]
+    assert "API_KEY" not in first["message"]
+    assert "[REDACTED]" in first["message"]
+    assert "COINGLASS" not in first["operator_action"]
+    assert "API_KEY" not in first["operator_action"]
+
+
+def test_compact_venue_readiness_keeps_runtime_proof_blockers():
+    compact = hb_facts.compact_venue_readiness(
+        {
+            "generated_at": "2026-05-17T09:03:01Z",
+            "all_ok": False,
+            "venues_checked": 2,
+            "runtime_ready": False,
+            "runtime_ready_count": 0,
+            "readiness_scope": "venue_runtime_proof_required",
+            "readiness_state": "blocked_until_runtime_lifecycle_proof",
+            "runtime_ready_blockers": [
+                "live exchange credential 尚未驗證",
+                "order ack lifecycle 尚未驗證",
+                "fill lifecycle 尚未驗證",
+            ],
+            "venues": [
+                {
+                    "venue": "okx",
+                    "ok": True,
+                    "enabled_in_config": True,
+                    "credentials_configured": False,
+                    "proof_state": "public_metadata_only",
+                    "readiness_state": "blocked_until_runtime_lifecycle_proof",
+                    "runtime_ready": False,
+                    "blockers": ["live exchange credential 尚未驗證", "order ack lifecycle 尚未驗證"],
+                    "operator_next_action": "先配置 okx 交易憑證。",
+                    "verify_next": "重跑元資料檢查。",
+                },
+                {
+                    "venue": "binance",
+                    "ok": False,
+                    "enabled_in_config": False,
+                    "credentials_configured": False,
+                    "proof_state": "metadata_contract_failed",
+                    "readiness_state": "blocked_until_runtime_lifecycle_proof",
+                    "runtime_ready": False,
+                    "blockers": ["元資料契約尚未通過", "場館設定停用"],
+                    "operator_next_action": "先修復 binance 元資料檢查。",
+                    "verify_next": "重跑元資料檢查。",
+                },
+            ],
+        }
+    )
+
+    assert compact["venues_checked"] == 2
+    assert compact["runtime_ready"] is False
+    assert compact["runtime_ready_count"] == 0
+    assert "order ack lifecycle 尚未驗證" in compact["runtime_ready_blockers"]
+    assert compact["venues"][0]["venue"] == "okx"
+    assert compact["venues"][0]["proof_state"] == "public_metadata_only"
+    assert compact["venues"][0]["runtime_ready"] is False
+    assert compact["venues"][1]["enabled_in_config"] is False
+
+
+def test_build_runtime_facts_includes_source_and_venue_guardrail_context():
+    facts = hb_facts.build_runtime_facts(
+        probe={},
+        drill={},
+        summary={
+            "source_blockers": {
+                "blocked_features": [
+                    {
+                        "key": "fin_netflow",
+                        "quality_flag": "source_auth_blocked",
+                        "history_class": "archive_required",
+                        "raw_snapshot_latest_status": "auth_missing",
+                    }
+                ]
+            }
+        },
+        summary_path="data/heartbeat_1306-productization_summary.json",
+        issues={"issues": []},
+        topk={},
+        q15={},
+        execution_metadata_smoke={
+            "venues_checked": 2,
+            "runtime_ready": False,
+            "venues": [
+                {
+                    "venue": "okx",
+                    "proof_state": "public_metadata_only",
+                    "runtime_ready": False,
+                    "blockers": ["live exchange credential 尚未驗證"],
+                }
+            ],
+        },
+    )
+
+    assert facts["source_blockers"]["blocked_count"] == 1
+    assert facts["source_blockers"]["top_blockers"][0]["latest_status"] == "auth_missing"
+    assert facts["venue_readiness"]["venues_checked"] == 2
+    assert facts["venue_readiness"]["venues"][0]["proof_state"] == "public_metadata_only"
