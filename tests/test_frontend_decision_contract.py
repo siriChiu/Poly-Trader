@@ -1717,6 +1717,23 @@ def test_strategy_lab_surfaces_recent_canonical_drift_summary_beside_live_lane_t
     assert source.index('LivePathologySummaryCard') < source.index('RecentCanonicalDriftCard')
 
 
+def test_execution_status_surfaces_recent_canonical_drift_between_deployment_and_account_snapshot():
+    source = _read("pages/ExecutionStatus.tsx")
+    required_snippets = [
+        'import RecentCanonicalDriftCard, { type RecentCanonicalDriftSummary } from "../components/RecentCanonicalDriftCard";',
+        'recent_canonical_drift?: RecentCanonicalDriftSummary | null;',
+        'const recentCanonicalDrift = runtimeStatus?.execution?.recent_canonical_drift ?? executionSurfaceContract?.recent_canonical_drift ?? runtimeStatus?.recent_canonical_drift ?? null;',
+        '<RecentCanonicalDriftCard',
+        'summary={recentCanonicalDrift}',
+        'pending={runtimeStatusPending && !recentCanonicalDrift}',
+        'className="mt-0"',
+        'title="📉 最近金字塔漂移"',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+    assert source.index('title="部署診斷"') < source.index('<RecentCanonicalDriftCard') < source.index('className="text-lg font-semibold text-white">帳戶快照')
+
+
 def test_recent_canonical_drift_card_surfaces_latest_and_blocking_windows():
     source = _read("components/RecentCanonicalDriftCard.tsx")
     required_snippets = [

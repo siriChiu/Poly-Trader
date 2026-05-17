@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import ExecutionMetadataFreshnessDetail from "../components/ExecutionMetadataFreshnessDetail";
+import RecentCanonicalDriftCard, { type RecentCanonicalDriftSummary } from "../components/RecentCanonicalDriftCard";
 import VenueReadinessSummary from "../components/VenueReadinessSummary";
 import { useApi } from "../hooks/useApi";
 import { ExecutionHero, ExecutionMetricCard, ExecutionPill, ExecutionSectionCard } from "../components/execution/ExecutionSurface";
@@ -155,6 +156,7 @@ type ExecutionStatusResponse = {
     live_ready?: boolean;
     live_ready_blockers?: string[];
     operator_message?: string;
+    recent_canonical_drift?: RecentCanonicalDriftSummary | null;
     live_runtime_truth?: LiveRuntimeTruth | null;
   } | null;
   execution?: {
@@ -168,6 +170,7 @@ type ExecutionStatusResponse = {
       error?: string;
     } | null;
     live_runtime_truth?: LiveRuntimeTruth | null;
+    recent_canonical_drift?: RecentCanonicalDriftSummary | null;
     guardrails?: {
       kill_switch?: boolean;
       daily_loss_halt?: boolean;
@@ -197,6 +200,7 @@ type ExecutionStatusResponse = {
       } | null;
     } | null;
   } | null;
+  recent_canonical_drift?: RecentCanonicalDriftSummary | null;
   account?: {
     captured_at?: string | null;
     degraded?: boolean;
@@ -468,6 +472,7 @@ export default function ExecutionStatus() {
   const operationsSurface = executionSurfaceContract?.operations_surface ?? null;
   const diagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;
   const liveRuntimeTruth = runtimeStatus?.execution?.live_runtime_truth ?? executionSurfaceContract?.live_runtime_truth ?? null;
+  const recentCanonicalDrift = runtimeStatus?.execution?.recent_canonical_drift ?? executionSurfaceContract?.recent_canonical_drift ?? runtimeStatus?.recent_canonical_drift ?? null;
   const liveRouting = liveRuntimeTruth?.sleeve_routing ?? null;
   const liveActiveSleeves = Array.isArray(liveRouting?.active_sleeves) ? liveRouting.active_sleeves : [];
   const liveInactiveSleeves = Array.isArray(liveRouting?.inactive_sleeves) ? liveRouting.inactive_sleeves : [];
@@ -922,6 +927,13 @@ export default function ExecutionStatus() {
               </div>
             </div>
           </ExecutionSectionCard>
+
+          <RecentCanonicalDriftCard
+            summary={recentCanonicalDrift}
+            pending={runtimeStatusPending && !recentCanonicalDrift}
+            className="mt-0"
+            title="📉 最近金字塔漂移"
+          />
 
           <section className="rounded-[24px] border border-white/8 bg-[#151b31] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
