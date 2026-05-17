@@ -1544,6 +1544,47 @@ def build_report(
     }
 
 
+def _support_identity_markdown_lines(identity: dict[str, Any]) -> list[str]:
+    if not isinstance(identity, dict) or not identity:
+        return ["- support_identity: **missing**"]
+    return [
+        f"- support_identity.target/horizon: **{identity.get('target_col')} / {identity.get('horizon_minutes')}m**",
+        (
+            "- support_identity.path: "
+            f"**{identity.get('regime_label')} / {identity.get('regime_gate')} / {identity.get('entry_quality_label')}**"
+        ),
+        (
+            "- support_identity.bucket/window/signature: "
+            f"**{identity.get('current_live_structure_bucket')} / {identity.get('calibration_window')} / "
+            f"{identity.get('bucket_semantic_signature')}**"
+        ),
+    ]
+
+
+def _legacy_reference_markdown_lines(reference: dict[str, Any] | None) -> list[str]:
+    if not isinstance(reference, dict) or not reference:
+        return ["- legacy_supported_reference: **None**"]
+    evidence = reference.get("semantic_identity_evidence") or {}
+    return [
+        "- legacy_supported_reference: **reference-only; not deployment closure**",
+        (
+            "- legacy reference heartbeat/rows/minimum: "
+            f"**{reference.get('heartbeat')} / {reference.get('live_current_structure_bucket_rows')} / "
+            f"{reference.get('minimum_support_rows')}**"
+        ),
+        (
+            "- legacy semantic verdict: "
+            f"**{evidence.get('verdict')}**; supports_current_identity=**{evidence.get('supports_current_identity')}**; "
+            f"promotable=**{evidence.get('promotable_to_same_identity_history')}**"
+        ),
+        (
+            "- legacy semantic mismatch/missing fields: "
+            f"`{evidence.get('mismatched_fields') or []}` / `{evidence.get('missing_fields') or []}`"
+        ),
+        f"- legacy reference_only_reason: **{reference.get('reference_only_reason')}**",
+    ]
+
+
 def _markdown(report: dict[str, Any]) -> str:
     current = report.get("current_live") or {}
     scope = report.get("scope_applicability") or {}
@@ -1557,6 +1598,8 @@ def _markdown(report: dict[str, Any]) -> str:
     repair = report.get("active_repair_plan") or {}
     repair_actions = repair.get("actions") or []
     legacy_semantic_evidence = repair.get("legacy_semantic_evidence") or {}
+    support_identity_lines = _support_identity_markdown_lines(support_identity)
+    legacy_reference_lines = _legacy_reference_markdown_lines(support_progress.get("legacy_supported_reference"))
     return "\n".join(
         [
             "# q15 Support Audit",
@@ -1599,8 +1642,8 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- support_progress.delta_vs_previous: **{support_progress.get('delta_vs_previous')}**",
             f"- support_progress.stagnant_run_count: **{support_progress.get('stagnant_run_count')}**",
             f"- support_progress.escalate_to_blocker: **{support_progress.get('escalate_to_blocker')}**",
-            f"- support_identity: `{support_identity}`",
-            f"- legacy_supported_reference: `{support_progress.get('legacy_supported_reference')}`",
+            *support_identity_lines,
+            *legacy_reference_lines,
             f"- support_progress.reason: {support_progress.get('reason')}",
             "",
             "## Floor-cross legality",

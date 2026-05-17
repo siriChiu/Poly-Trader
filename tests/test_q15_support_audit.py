@@ -418,6 +418,50 @@ def test_summarize_support_progress_keeps_mismatched_legacy_evidence_reference_o
 
 
 
+def test_markdown_compacts_support_identity_and_legacy_reference_for_operators():
+    identity = _support_identity(regime_label="bear", regime_gate="CAUTION", entry_quality_label="C", calibration_window=100)
+    legacy_reference = {
+        "heartbeat": "20260419b",
+        "live_current_structure_bucket_rows": 53,
+        "minimum_support_rows": 50,
+        "semantic_identity_evidence": {
+            "verdict": "reference_only_semantic_mismatch_or_missing_fields",
+            "supports_current_identity": False,
+            "promotable_to_same_identity_history": False,
+            "mismatched_fields": ["calibration_window", "entry_quality_label", "regime_label"],
+            "missing_fields": [],
+        },
+        "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields",
+    }
+    report = {
+        "generated_at": "2026-05-17 18:01:46",
+        "target_col": "simulated_pyramid_win",
+        "support_identity": identity,
+        "artifact_context_freshness": {},
+        "current_live": {},
+        "scope_applicability": {},
+        "support_route": {
+            "support_progress": {
+                "legacy_supported_reference": legacy_reference,
+            }
+        },
+        "floor_cross_legality": {},
+        "component_experiment": {},
+        "active_repair_plan": {},
+    }
+
+    markdown = q15_support_audit._markdown(report)
+
+    assert "- support_identity.target/horizon: **simulated_pyramid_win / 1440m**" in markdown
+    assert "- support_identity.path: **bear / CAUTION / C**" in markdown
+    assert "- legacy_supported_reference: **reference-only; not deployment closure**" in markdown
+    assert "- legacy semantic mismatch/missing fields:" in markdown
+    assert "legacy_supported_reference: `{" not in markdown
+    assert "support_identity: `{" not in markdown
+    assert max(len(line) for line in markdown.splitlines()) < 500
+
+
+
 def test_summarize_support_progress_preserves_supported_anchor_after_many_newer_stalled_heartbeats(tmp_path, monkeypatch):
     identity = _support_identity(bucket="BLOCK|bull_q15_bias50_overextended_block|q15", regime_gate="BLOCK")
 
