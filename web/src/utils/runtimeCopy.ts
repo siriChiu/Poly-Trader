@@ -883,6 +883,16 @@ function formatSupportProgressDelta(value: number): string {
   return `${value > 0 ? "+" : ""}${value}`;
 }
 
+function formatCurrentSupportGapLabel(
+  currentRows: number | null,
+  minimumRows: number | null,
+  gapToMinimum: number | null,
+): string | null {
+  if (currentRows === null || minimumRows === null) return null;
+  const normalizedGap = gapToMinimum !== null ? Math.max(gapToMinimum, 0) : Math.max(minimumRows - currentRows, 0);
+  return `目前 ${currentRows}/${minimumRows}，還差 ${normalizedGap}`;
+}
+
 function humanizeSupportIdentitySummary(identity?: SupportIdentityLike | null): string {
   if (!identity) return "—";
   const chips: string[] = [];
@@ -919,6 +929,9 @@ export function humanizeSupportProgressDeltaLabel(progress?: SupportProgressLike
   const semanticRebaseline = status === "semantic_rebaseline_under_minimum";
   const legacyReference = normalized.legacy_supported_reference ?? null;
   const legacyRows = normalizeSupportProgressCount(legacyReference?.live_current_structure_bucket_rows);
+  const minimumRows = normalizeSupportProgressCount(normalized.minimum_support_rows);
+  const gapToMinimum = normalizeSupportProgressCount(normalized.gap_to_minimum);
+  const currentGapLabel = formatCurrentSupportGapLabel(currentRows, minimumRows, gapToMinimum);
 
   // Semantic rebaseline is not a same-identity regression, so avoid showing only the
   // previous heartbeat delta (for example +2). Operators need the old supported
@@ -926,7 +939,8 @@ export function humanizeSupportProgressDeltaLabel(progress?: SupportProgressLike
   if (semanticRebaseline && legacyRows !== null) {
     if (currentRows !== null) {
       const deltaVsLegacy = currentRows - legacyRows;
-      return `相對舊版已就緒參考 ${formatSupportProgressDelta(deltaVsLegacy)}（${legacyRows} → ${currentRows}，僅供參考）`;
+      const currentGapSuffix = currentGapLabel ? `；${currentGapLabel}` : "";
+      return `相對舊版已就緒參考 ${formatSupportProgressDelta(deltaVsLegacy)}（${legacyRows} → ${currentRows}，僅供參考${currentGapSuffix}）`;
     }
     return `舊版已就緒參考 ${legacyRows} 筆（僅供參考）`;
   }
