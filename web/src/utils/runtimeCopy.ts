@@ -468,6 +468,7 @@ const GENERIC_OPERATOR_PHRASE_REPLACEMENTS: Array<[string, string]> = [
   ["deployment closure", "部署閉環"],
   ["deployment blocker", "部署阻塞點"],
   ["deployment", "部署"],
+  ["unsupported venue", "不支援的交易場館"],
   ["runtime last order", "執行期最新委託"],
   ["runtime order", "執行期委託"],
   ["runtime mirror", "執行期鏡像"],

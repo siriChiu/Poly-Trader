@@ -76,6 +76,7 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
         const proofStateLabel = humanizeLifecycleDiagnosticLabel(item.proof_state || item.readiness_state || item.readiness_scope || "unknown");
         const operatorNextAction = item.operator_next_action ? humanizeExecutionReason(item.operator_next_action) : null;
         const verifyNext = item.verify_next ? humanizeExecutionReason(item.verify_next) : null;
+        const venueErrorSummary = item.error ? humanizeExecutionReason(item.error) : null;
         if (compact) {
           return (
             <div
@@ -99,7 +100,7 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
               <div className="opacity-90">證據狀態 {proofStateLabel}</div>
               {operatorNextAction ? <div className="opacity-90">下一步 {operatorNextAction}</div> : null}
               {verifyNext ? <div className="opacity-90">驗證 {verifyNext}</div> : null}
-              {item.error ? <div className="mt-1 opacity-90">{item.error}</div> : null}
+              {venueErrorSummary ? <div className="mt-1 opacity-90">{venueErrorSummary}</div> : null}
             </div>
           );
         }
@@ -123,7 +124,7 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
             <div className="opacity-90">證據狀態 {proofStateLabel}</div>
             {operatorNextAction ? <div className="opacity-90">下一步 {operatorNextAction}</div> : null}
             {verifyNext ? <div className="opacity-90">驗證 {verifyNext}</div> : null}
-            {item.error ? <div className="mt-1 opacity-90">{item.error}</div> : null}
+            {venueErrorSummary ? <div className="mt-1 opacity-90">{venueErrorSummary}</div> : null}
           </div>
         );
       })}

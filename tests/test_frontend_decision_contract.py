@@ -2321,14 +2321,27 @@ def test_execution_status_reuses_shared_venue_readiness_component_and_explains_p
         'operator_next_action?: string | null;',
         'verify_next?: string | null;',
         'const proofStateLabel = humanizeLifecycleDiagnosticLabel(item.proof_state || item.readiness_state || item.readiness_scope || "unknown");',
+        'const venueErrorSummary = item.error ? humanizeExecutionReason(item.error) : null;',
         '證據狀態 {proofStateLabel}',
         '下一步 {operatorNextAction}',
         '驗證 {verifyNext}',
+        'venueErrorSummary ? <div className="mt-1 opacity-90">{venueErrorSummary}</div> : null',
     ]
     for snippet in required_component_snippets:
         assert snippet in component_source
+    assert '{item.error}</div>' not in component_source
     assert 'item.ok ? "OK" : "FAIL"' not in source
     assert '待補實單證據 · {blockerSummary}' in component_source
+
+
+def test_venue_readiness_summary_humanizes_backend_error_copy():
+    component_source = _read("components/VenueReadinessSummary.tsx")
+    runtime_copy_source = _read("utils/runtimeCopy.ts")
+
+    assert 'const venueErrorSummary = item.error ? humanizeExecutionReason(item.error) : null;' in component_source
+    assert 'venueErrorSummary ? <div className="mt-1 opacity-90">{venueErrorSummary}</div> : null' in component_source
+    assert '["unsupported venue", "不支援的交易場館"]' in runtime_copy_source
+    assert '{item.error}</div>' not in component_source
 
 
 def test_dashboard_execution_summary_explains_public_only_balance_unavailability():
