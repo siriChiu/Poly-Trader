@@ -269,6 +269,55 @@ def compact_q15(q15: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def compact_legacy_supported_reference(legacy: Any) -> dict[str, Any] | None:
+    """Project old supported-bucket evidence without making it look deployable.
+
+    The live probe may carry a large ``legacy_supported_reference`` object with
+    nested semantic-evidence rows. Cron summaries need the opposite: a compact
+    current-state proof that old 53/50-style support is reference-only unless
+    the support identity exactly matches the current live bucket semantics.
+    """
+    if not isinstance(legacy, dict):
+        return None
+    semantic = legacy.get("semantic_identity_evidence")
+    if not isinstance(semantic, dict):
+        semantic = {}
+    rows = first_present(
+        legacy.get("live_current_structure_bucket_rows"),
+        legacy.get("current_live_structure_bucket_rows"),
+    )
+    supports_current_identity = semantic.get("supports_current_identity")
+    promotable = semantic.get("promotable_to_same_identity_history")
+    mismatched_fields = semantic.get("mismatched_fields") if isinstance(semantic.get("mismatched_fields"), list) else []
+    missing_fields = semantic.get("missing_fields") if isinstance(semantic.get("missing_fields"), list) else []
+    reference_only = bool(
+        legacy.get("reference_only_reason")
+        or supports_current_identity is False
+        or promotable is False
+        or mismatched_fields
+        or missing_fields
+    )
+    return {
+        "heartbeat": legacy.get("heartbeat"),
+        "timestamp": legacy.get("timestamp"),
+        "current_live_structure_bucket": first_present(
+            legacy.get("live_current_structure_bucket"),
+            legacy.get("current_live_structure_bucket"),
+        ),
+        "rows": rows,
+        "minimum_support_rows": legacy.get("minimum_support_rows"),
+        "support_route_verdict": legacy.get("support_route_verdict"),
+        "support_governance_route": legacy.get("support_governance_route"),
+        "reference_only": reference_only,
+        "reference_only_reason": legacy.get("reference_only_reason"),
+        "supports_current_identity": supports_current_identity,
+        "promotable_to_same_identity_history": promotable,
+        "semantic_evidence_verdict": semantic.get("verdict"),
+        "mismatched_fields": mismatched_fields[:8],
+        "missing_fields": missing_fields[:8],
+    }
+
+
 def _compact_circuit_scope(scope: dict[str, Any]) -> dict[str, Any]:
     release = scope.get("release_condition") if isinstance(scope.get("release_condition"), dict) else {}
     streak = scope.get("streak") if isinstance(scope.get("streak"), dict) else {}
@@ -470,7 +519,7 @@ def build_runtime_facts(
             "recent_supported_rows": support_progress.get("recent_supported_rows"),
             "recent_supported_heartbeat": support_progress.get("recent_supported_heartbeat"),
             "delta_vs_recent_supported": support_progress.get("delta_vs_recent_supported"),
-            "legacy_supported_reference": legacy,
+            "legacy_supported_reference": compact_legacy_supported_reference(legacy),
         },
         "support_blocker_summary": pick(
             blocker_summary,

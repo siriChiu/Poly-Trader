@@ -241,6 +241,92 @@ def test_build_runtime_facts_uses_summary_counts_and_reference_only_patch():
     assert facts["q15"]["gap_to_minimum"] == 18
 
 
+def test_compact_legacy_supported_reference_stays_reference_only_and_drops_heavy_semantic_rows():
+    compact = hb_facts.compact_legacy_supported_reference(
+        {
+            "heartbeat": "20260419b",
+            "timestamp": "2026-04-18T17:55:51+00:00",
+            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "live_current_structure_bucket_rows": 53,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_governance_route": "exact_live_bucket_supported",
+            "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields",
+            "semantic_identity_evidence": {
+                "supports_current_identity": False,
+                "promotable_to_same_identity_history": False,
+                "verdict": "reference_only_semantic_mismatch_or_missing_fields",
+                "mismatched_fields": ["calibration_window", "entry_quality_label", "regime_label"],
+                "missing_fields": [],
+                "row_examples": [{"target": 1}] * 50,
+                "backfilled_support_identity": {"regime_label": "bull"},
+            },
+        }
+    )
+
+    assert compact == {
+        "heartbeat": "20260419b",
+        "timestamp": "2026-04-18T17:55:51+00:00",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "rows": 53,
+        "minimum_support_rows": 50,
+        "support_route_verdict": "exact_bucket_supported",
+        "support_governance_route": "exact_live_bucket_supported",
+        "reference_only": True,
+        "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields",
+        "supports_current_identity": False,
+        "promotable_to_same_identity_history": False,
+        "semantic_evidence_verdict": "reference_only_semantic_mismatch_or_missing_fields",
+        "mismatched_fields": ["calibration_window", "entry_quality_label", "regime_label"],
+        "missing_fields": [],
+    }
+    assert "semantic_identity_evidence" not in compact
+    assert "row_examples" not in compact
+    assert "backfilled_support_identity" not in compact
+
+
+def test_build_runtime_facts_compacts_legacy_reference_instead_of_dumping_full_probe_evidence():
+    facts = hb_facts.build_runtime_facts(
+        probe={
+            "support_progress": {
+                "status": "semantic_rebaseline_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+                "legacy_supported_reference": {
+                    "heartbeat": "20260419b",
+                    "live_current_structure_bucket_rows": 53,
+                    "minimum_support_rows": 50,
+                    "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields",
+                    "semantic_identity_evidence": {
+                        "supports_current_identity": False,
+                        "promotable_to_same_identity_history": False,
+                        "verdict": "reference_only_semantic_mismatch_or_missing_fields",
+                        "mismatched_fields": ["calibration_window", "entry_quality_label", "regime_label"],
+                        "row_examples": [{"target": 1}] * 50,
+                    },
+                },
+            }
+        },
+        drill={},
+        summary={},
+        summary_path=None,
+        issues={"issues": []},
+        topk={},
+        q15={},
+    )
+
+    legacy = facts["support_progress"]["legacy_supported_reference"]
+    assert legacy["heartbeat"] == "20260419b"
+    assert legacy["rows"] == 53
+    assert legacy["reference_only"] is True
+    assert legacy["supports_current_identity"] is False
+    assert legacy["promotable_to_same_identity_history"] is False
+    assert legacy["mismatched_fields"] == ["calibration_window", "entry_quality_label", "regime_label"]
+    assert "semantic_identity_evidence" not in legacy
+    assert "row_examples" not in legacy
+
+
 def test_compact_source_blockers_projects_counts_and_redacts_secret_names():
     compact = hb_facts.compact_source_blockers(
         {
