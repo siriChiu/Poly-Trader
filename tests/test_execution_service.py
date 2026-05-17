@@ -260,7 +260,8 @@ def test_resolve_trading_config_records_unsupported_legacy_venue_without_enablin
     cfg = resolve_trading_config({"execution": {"mode": "paper", "venue": "binance", "venues": {"binance": {"enabled": True}}}})
     assert cfg["venue"] == "okx"
     assert cfg["unsupported_venue_requested"] == "binance"
-    assert set(cfg["venues"]) == {"okx"}
+    assert set(cfg["venues"]) == {"okx", "binance"}
+    assert cfg["venues"]["binance"]["enabled"] is True
 
 
 def test_execution_service_rejects_configured_unsupported_legacy_venue_before_adapter_build():

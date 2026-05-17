@@ -110,10 +110,33 @@ def test_run_metadata_smoke_rejects_unsupported_configured_venue(monkeypatch):
     assert payload["ok_count"] == 0
     assert payload["all_ok"] is False
     assert payload["results"]["binance"]["ok"] is False
-    assert payload["results"]["binance"]["enabled_in_config"] is False
-    assert payload["results"]["binance"]["credentials_configured"] is False
+    assert payload["results"]["binance"]["enabled_in_config"] is True
+    assert payload["results"]["binance"]["credentials_configured"] is True
     assert payload["results"]["binance"]["runtime_ready"] is False
     assert payload["results"]["binance"]["readiness_state"] == "blocked_until_runtime_lifecycle_proof"
+    assert "unsupported venue" in payload["results"]["binance"]["error"]
+
+
+def test_run_metadata_smoke_defaults_to_okx_and_binance_readiness_targets(monkeypatch):
+    monkeypatch.setattr(
+        "execution.metadata_smoke.ADAPTER_FACTORIES",
+        {"okx": FakeAdapter},
+    )
+
+    payload = run_metadata_smoke(
+        {"execution": {"venues": {"okx": {"enabled": True}}}},
+        symbol="BTCUSDT",
+    )
+
+    assert payload["venues_checked"] == 2
+    assert payload["ok_count"] == 1
+    assert payload["all_ok"] is False
+    assert set(payload["results"]) == {"okx", "binance"}
+    assert payload["results"]["okx"]["ok"] is True
+    assert payload["results"]["binance"]["ok"] is False
+    assert payload["results"]["binance"]["enabled_in_config"] is False
+    assert payload["results"]["binance"]["credentials_configured"] is False
+    assert payload["results"]["binance"]["proof_state"] == "metadata_contract_failed"
     assert "unsupported venue" in payload["results"]["binance"]["error"]
 
 

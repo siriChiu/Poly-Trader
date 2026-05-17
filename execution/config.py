@@ -58,10 +58,19 @@ def resolve_trading_config(config: Dict[str, Any]) -> Dict[str, Any]:
     merged["venues"]["okx"].update(okx_cfg)
     for venue_name, venue_cfg in venue_overrides.items():
         venue_key = str(venue_name or "").strip().lower()
-        if venue_key not in merged["venues"] or not isinstance(venue_cfg, dict):
+        if not venue_key or not isinstance(venue_cfg, dict):
             continue
+        # Preserve unsupported venues (for example Binance before an adapter exists)
+        # so readiness surfaces can show an explicit unsupported/configured blocker
+        # instead of silently falling back to OKX and hiding operator intent.
+        if venue_key not in merged["venues"]:
+            merged["venues"][venue_key] = {}
         merged["venues"][venue_key].update(venue_cfg)
 
-    merged["venues"]["okx"]["enabled"] = bool(merged["venues"]["okx"].get("enabled", True))
+    for venue_key, venue_cfg in list(merged["venues"].items()):
+        if not isinstance(venue_cfg, dict):
+            merged["venues"][venue_key] = {"enabled": False}
+            continue
+        venue_cfg["enabled"] = bool(venue_cfg.get("enabled", venue_key == DEFAULT_EXECUTION_VENUE))
     merged["dry_run"] = merged["mode"] != "live" or not merged["enable_live_trading"]
     return merged

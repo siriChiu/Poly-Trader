@@ -9,6 +9,7 @@ from execution.exchanges.okx_adapter import OKXAdapter
 ADAPTER_FACTORIES = {
     "okx": OKXAdapter,
 }
+READINESS_TARGET_VENUES = ("okx", "binance")
 
 
 def _normalize_symbol(symbol: str) -> str:
@@ -104,7 +105,7 @@ def _iter_venues(execution_cfg: Dict[str, Any], venues: Optional[Iterable[str]])
     if unsupported_requested:
         return [str(unsupported_requested).strip().lower()]
     configured = list((execution_cfg.get("venues") or {}).keys())
-    return configured or list(ADAPTER_FACTORIES.keys())
+    return list(dict.fromkeys([*configured, *READINESS_TARGET_VENUES])) or list(ADAPTER_FACTORIES.keys())
 
 
 def run_metadata_smoke(

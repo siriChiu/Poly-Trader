@@ -135,6 +135,7 @@ EXECUTION_METADATA_SMOKE_CMD = [
     "BTCUSDT",
     "--venues",
     "okx",
+    "binance",
 ]
 
 
@@ -2901,9 +2902,10 @@ def _issue_current_lines(
     if issue_id == "P1_execution_venue_readiness_unverified":
         return [
             "目前真相："
-            "`okx=config enabled + public-only + metadata OK` / "
+            "`venues_checked=2` / `okx=config enabled + public-only + metadata OK + runtime proof missing` / "
+            "`binance=unsupported/disabled metadata contract failed` / "
             "`missing_runtime_proof=live exchange credential, order ack lifecycle, fill lifecycle`",
-            "API/UI contract：`execution_metadata_smoke.venues[]` 已帶 `proof_state / blockers / operator_next_action / verify_next`，Dashboard、`/execution/status`、`/execution`、`/lab` 可直接顯示每個場館的實單證據缺口，不再只靠 metadata OK/FAIL 猜測 readiness。",
+            "API/UI contract：`execution_metadata_smoke.venues[]` 已帶 `proof_state / blockers / operator_next_action / verify_next`，Dashboard、`/execution/status`、`/execution`、`/lab` 可直接顯示 OKX 與 Binance 每個場館的實單證據缺口，不再只靠 metadata OK/FAIL 猜測 readiness。",
         ]
 
     if issue_id == "P1_fin_netflow_auth_blocked":
@@ -4104,7 +4106,7 @@ def overwrite_current_state_docs(
         orid_action_line.rstrip("。") + "；`/execution` 操作入口在同步中 / 已阻塞時只對買入 / 加倉與啟用自動模式 fail-closed，減碼保留；直接 API 買入 / 加倉也必須 409 暫停，減倉 / 賣出保留風險降低路徑。",
         *high_conviction_orid_action_lines,
         "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/leaderboard_feature_profile_probe.json`、`data/high_conviction_topk_oos_matrix.json`、`data/execution_metadata_smoke.json`。",
-        "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`。",
+        "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx binance`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`。",
         orid_fail_line,
         "",
     ]
