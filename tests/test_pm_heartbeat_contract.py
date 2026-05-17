@@ -96,9 +96,11 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     text = STATUS_PATH.read_text(encoding="utf-8")
 
     assert "YELLOW_shadow_or_paper_usable" in text
-    assert "under_minimum_exact_live_structure_bucket" in text
-    assert "33/50" in text
-    assert "gap=17" in text
+    assert "unsupported_exact_live_structure_bucket" in text
+    assert "0/50" in text
+    assert "gap=50" in text
+    assert "insufficient_support_everywhere" in text
+    assert "no_support_proxy" in text
     assert "Strategy Lab" in text
     assert "Execution Console" in text
     assert "客戶成功" in text

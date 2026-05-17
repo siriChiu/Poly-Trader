@@ -224,7 +224,9 @@ def _check_pm_status_current_state() -> list[CheckResult]:
     text = status_path.read_text(encoding="utf-8")
     required = [
         "YELLOW_shadow_or_paper_usable",
-        "under_minimum_exact_live_structure_bucket",
+        "unsupported_exact_live_structure_bucket",
+        "0/50",
+        "insufficient_support_everywhere",
         "Strategy Lab",
         "Execution Console",
         "客戶成功",
