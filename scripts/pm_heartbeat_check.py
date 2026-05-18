@@ -227,7 +227,7 @@ def _check_pm_status_current_state() -> list[CheckResult]:
         "unsupported_exact_live_structure_bucket",
         "0/50",
         "exact_bucket_unsupported_block",
-        "no_support_proxy",
+        "exact_live_lane_proxy_available",
         "Strategy Lab",
         "Execution Console",
         "客戶成功",
