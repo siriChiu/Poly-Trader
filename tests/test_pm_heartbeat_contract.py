@@ -100,7 +100,7 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     assert "0/50" in text
     assert "gap=50" in text
     assert "exact_bucket_unsupported_block" in text
-    assert "exact_live_lane_proxy_available" in text
+    assert "no_support_proxy" in text
     assert "Strategy Lab" in text
     assert "Execution Console" in text
     assert "客戶成功" in text
