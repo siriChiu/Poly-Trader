@@ -64,6 +64,62 @@ def test_execution_metadata_smoke_lane_uses_explicit_okx_and_binance_venues(monk
     assert calls[0][-5:] == ["--symbol", "BTCUSDT", "--venues", "okx", "binance"]
 
 
+def test_execution_venue_docs_context_preserves_runtime_proof_truth_without_raw_errors():
+    context = hb_parallel_runner._execution_venue_docs_context(
+        {
+            "generated_at": "2026-05-18T09:02:54Z",
+            "venues_checked": 2,
+            "ok_count": 1,
+            "runtime_ready": False,
+            "runtime_ready_count": 0,
+            "readiness_state": "blocked_until_runtime_lifecycle_proof",
+            "runtime_ready_blockers": ["live exchange credential 尚未驗證"],
+            "venues": [
+                {
+                    "ok": True,
+                    "venue": "okx",
+                    "adapter_supported": True,
+                    "enabled_in_config": True,
+                    "credentials_configured": False,
+                    "proof_state": "public_metadata_only",
+                    "runtime_ready": False,
+                    "blockers": ["live exchange credential 尚未驗證", "order ack lifecycle 尚未驗證"],
+                    "operator_next_action": "配置 okx credential",
+                    "verify_next": "捕捉委託確認 / 成交 / 取消證據",
+                },
+                {
+                    "ok": False,
+                    "venue": "binance",
+                    "adapter_supported": False,
+                    "enabled_in_config": False,
+                    "credentials_configured": False,
+                    "error": "unsupported venue: binance",
+                    "proof_state": "adapter_unsupported",
+                    "runtime_ready": False,
+                    "blockers": ["場館 adapter 尚未接入", "場館設定停用"],
+                    "operator_next_action": "先接入 binance adapter",
+                    "verify_next": "重跑 metadata smoke",
+                },
+            ],
+        }
+    )
+
+    summary_line = hb_parallel_runner._execution_venue_summary_doc_line(context)
+    issue_summary = hb_parallel_runner._execution_venue_issue_summary(context)
+    issues = [{"id": "P1_execution_venue_readiness_unverified", "summary": {}}]
+
+    assert hb_parallel_runner._sync_execution_venue_issue_summary(issues, context) is True
+    assert context["runtime_ready"] is False
+    assert context["runtime_ready_count"] == 0
+    assert "okx=adapter_supported=true,enabled_in_config=true,credentials_configured=false" in summary_line
+    assert "binance=adapter_supported=false,enabled_in_config=false,credentials_configured=false" in summary_line
+    assert "runtime_ready=false" in summary_line
+    assert "unsupported venue" not in summary_line
+    assert "error" not in issue_summary["venues"]["binance"]
+    assert issues[0]["summary"]["execution_metadata_smoke"]["venues"]["okx"]["runtime_ready"] is False
+    assert issues[0]["summary"]["execution_metadata_smoke"]["venues"]["binance"]["proof_state"] == "adapter_unsupported"
+
+
 def test_q15_governance_console_line_disambiguates_component_and_current_floor_flags():
     line = hb_parallel_runner._format_q15_governance_console_line(
         {
@@ -2359,9 +2415,9 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "最近 50 筆目前 0/50，還差 15 勝；當前 q15 分桶支持樣本 / 候選修補不可取代熔斷解除條件" in issues_md
     assert "manual_buy=paused_when_status_syncing_or_deployment_blocked" in issues_md
     assert "manual_trade=paused_when_status_syncing_or_deployment_blocked" not in issues_md
-    assert "metadata smoke venue rows 已帶 adapter_supported / proof_state / blockers / operator_next_action / verify_next" in orid_md
-    assert "execution_metadata_smoke.venues[]` 已提供 per-venue `adapter_supported / proof_state / blockers / operator_next_action / verify_next`" in issues_md
-    assert "API/UI 已把 per-venue adapter_supported、proof state 與下一步驗證欄位掛到 metadata smoke venue rows" in roadmap_md
+    assert "metadata smoke venue rows 已帶 adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next" in orid_md
+    assert "execution_metadata_smoke.venues[]` 已提供 per-venue `adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next`" in issues_md
+    assert "metadata smoke venue rows 已帶 adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next" in roadmap_md
     assert "manual_trade=paused_when_deployment_blocked" not in issues_md
     assert "Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）" in roadmap_md
     assert "Dashboard 啟動連續性 guardrail 已納入 feature deferred truth" in roadmap_md

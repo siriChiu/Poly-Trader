@@ -2358,6 +2358,196 @@ def _sync_high_conviction_topk_issue_summary(
     return False
 
 
+def _execution_venue_docs_context(payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    """Return compact docs-ready venue runtime proof truth.
+
+    `data/execution_metadata_smoke.json` is the current-state source of truth
+    for venue readiness. Keep docs/issues fail-closed when the artifact is
+    missing or malformed, and only expose credential status as booleans.
+    """
+
+    if payload is None:
+        payload = _read_json_file(Path(PROJECT_ROOT) / "data" / "execution_metadata_smoke.json")
+    if not isinstance(payload, dict) or not payload:
+        return {
+            "available": False,
+            "generated_at": "—",
+            "venues_checked": 0,
+            "ok_count": 0,
+            "runtime_ready": False,
+            "runtime_ready_count": 0,
+            "readiness_state": "artifact_missing_or_unparseable",
+            "runtime_ready_blockers": [
+                "adapter support 尚未驗證",
+                "live exchange credential 尚未驗證",
+                "order ack lifecycle 尚未驗證",
+                "fill lifecycle 尚未驗證",
+            ],
+            "venues": [],
+        }
+
+    raw_venues: list[Dict[str, Any]] = []
+    venues_payload = payload.get("venues")
+    if isinstance(venues_payload, list):
+        raw_venues.extend(item for item in venues_payload if isinstance(item, dict))
+    elif isinstance(venues_payload, dict):
+        for venue_name, item in venues_payload.items():
+            if not isinstance(item, dict):
+                continue
+            row = dict(item)
+            row.setdefault("venue", venue_name)
+            raw_venues.append(row)
+    if not raw_venues:
+        results_payload = payload.get("results")
+        if isinstance(results_payload, dict):
+            for venue_name, item in results_payload.items():
+                if not isinstance(item, dict):
+                    continue
+                row = dict(item)
+                row.setdefault("venue", venue_name)
+                raw_venues.append(row)
+        elif isinstance(results_payload, list):
+            raw_venues.extend(item for item in results_payload if isinstance(item, dict))
+
+    venues: list[Dict[str, Any]] = []
+    for row in raw_venues:
+        blockers = row.get("blockers") if isinstance(row.get("blockers"), list) else []
+        venue_name = str(row.get("venue") or row.get("name") or "unknown").strip().lower() or "unknown"
+        venues.append(
+            {
+                "venue": venue_name,
+                "ok": row.get("ok"),
+                "adapter_supported": row.get("adapter_supported"),
+                "enabled_in_config": row.get("enabled_in_config"),
+                "credentials_configured": row.get("credentials_configured"),
+                "proof_state": row.get("proof_state") or "—",
+                "runtime_ready": row.get("runtime_ready"),
+                "blockers": [str(item) for item in blockers if str(item).strip()],
+                "operator_next_action": row.get("operator_next_action") or "—",
+                "verify_next": row.get("verify_next") or "—",
+            }
+        )
+
+    blockers: list[str] = []
+    payload_blockers = payload.get("runtime_ready_blockers")
+    if isinstance(payload_blockers, list):
+        blockers.extend(str(item) for item in payload_blockers if str(item).strip())
+    for venue in venues:
+        blockers.extend(str(item) for item in venue.get("blockers") or [] if str(item).strip())
+    deduped_blockers = list(dict.fromkeys(blockers))
+
+    venues_checked = payload.get("venues_checked")
+    if venues_checked is None:
+        venues_checked = len(venues)
+    ok_count = payload.get("ok_count")
+    if ok_count is None:
+        ok_count = sum(1 for venue in venues if venue.get("ok") is True)
+    runtime_ready_count = payload.get("runtime_ready_count")
+    if runtime_ready_count is None:
+        runtime_ready_count = sum(1 for venue in venues if venue.get("runtime_ready") is True)
+    runtime_ready = payload.get("runtime_ready")
+    if runtime_ready is None:
+        runtime_ready = bool(venues) and runtime_ready_count == len(venues)
+
+    return {
+        "available": True,
+        "generated_at": payload.get("generated_at") or "—",
+        "venues_checked": venues_checked,
+        "ok_count": ok_count,
+        "runtime_ready": runtime_ready,
+        "runtime_ready_count": runtime_ready_count,
+        "readiness_state": payload.get("readiness_state") or "—",
+        "readiness_scope": payload.get("readiness_scope") or "—",
+        "runtime_ready_blockers": deduped_blockers,
+        "venues": venues,
+    }
+
+
+def _format_execution_venue_status_for_docs(venue: Dict[str, Any], *, max_blockers: int = 3) -> str:
+    blockers = venue.get("blockers") if isinstance(venue.get("blockers"), list) else []
+    blocker_text = "|".join(str(item) for item in blockers[:max_blockers]) or "—"
+    return (
+        f"{venue.get('venue') or 'unknown'}="
+        f"adapter_supported={_format_bool_for_docs(venue.get('adapter_supported'))},"
+        f"enabled_in_config={_format_bool_for_docs(venue.get('enabled_in_config'))},"
+        f"credentials_configured={_format_bool_for_docs(venue.get('credentials_configured'))},"
+        f"proof_state={venue.get('proof_state') or '—'},"
+        f"runtime_ready={_format_bool_for_docs(venue.get('runtime_ready'))},"
+        f"blockers={blocker_text}"
+    )
+
+
+def _execution_venue_summary_doc_line(context: Dict[str, Any] | None, *, include_venues: bool = True) -> str:
+    context = context if isinstance(context, dict) else _execution_venue_docs_context()
+    blockers = context.get("runtime_ready_blockers") if isinstance(context.get("runtime_ready_blockers"), list) else []
+    blocker_text = "|".join(str(item) for item in blockers[:5]) or "—"
+    status = (
+        f"`generated_at={context.get('generated_at') or '—'}` / "
+        f"`venues_checked={context.get('venues_checked', '—')}` / "
+        f"`ok_count={context.get('ok_count', '—')}` / "
+        f"`runtime_ready_count={context.get('runtime_ready_count', '—')}` / "
+        f"`runtime_ready={_format_bool_for_docs(context.get('runtime_ready'))}` / "
+        f"`readiness_state={context.get('readiness_state') or '—'}` / "
+        f"`runtime_ready_blockers={blocker_text}`"
+    )
+    if not include_venues:
+        return status
+    venues = context.get("venues") if isinstance(context.get("venues"), list) else []
+    if not venues:
+        return status + "；`venue_rows=missing`（fail-closed）"
+    venue_text = " / ".join(
+        f"`{_format_execution_venue_status_for_docs(venue)}`" for venue in venues[:4] if isinstance(venue, dict)
+    )
+    return f"{status}；{venue_text}"
+
+
+def _execution_venue_issue_summary(context: Dict[str, Any] | None) -> Dict[str, Any]:
+    context = context if isinstance(context, dict) else _execution_venue_docs_context()
+    venues_payload: Dict[str, Any] = {}
+    for venue in context.get("venues") or []:
+        if not isinstance(venue, dict):
+            continue
+        name = str(venue.get("venue") or "unknown")
+        venues_payload[name] = {
+            "adapter_supported": venue.get("adapter_supported"),
+            "enabled_in_config": venue.get("enabled_in_config"),
+            "credentials_configured": venue.get("credentials_configured"),
+            "proof_state": venue.get("proof_state"),
+            "runtime_ready": venue.get("runtime_ready"),
+            "blockers": list((venue.get("blockers") or [])[:6]),
+            "operator_next_action": venue.get("operator_next_action"),
+            "verify_next": venue.get("verify_next"),
+        }
+    return {
+        "generated_at": context.get("generated_at"),
+        "venues_checked": context.get("venues_checked"),
+        "ok_count": context.get("ok_count"),
+        "runtime_ready": context.get("runtime_ready"),
+        "runtime_ready_count": context.get("runtime_ready_count"),
+        "readiness_state": context.get("readiness_state"),
+        "runtime_ready_blockers": list((context.get("runtime_ready_blockers") or [])[:8]),
+        "venues": venues_payload,
+    }
+
+
+def _sync_execution_venue_issue_summary(
+    issues: list[Dict[str, Any]],
+    execution_venue_context: Dict[str, Any] | None = None,
+) -> bool:
+    venue_summary = _execution_venue_issue_summary(execution_venue_context)
+    for issue in issues:
+        if issue.get("id") != "P1_execution_venue_readiness_unverified":
+            continue
+        current_summary = dict(issue.get("summary") or {})
+        next_summary = {**current_summary, "execution_metadata_smoke": venue_summary}
+        if current_summary != next_summary:
+            issue["summary"] = next_summary
+            issue["updated_at"] = datetime.utcnow().isoformat()
+            return True
+        break
+    return False
+
+
 def _sync_live_issue_summaries(
     issues: list[Dict[str, Any]],
     source_blockers: Dict[str, Any] | None,
@@ -2830,6 +3020,7 @@ def _issue_current_lines(
     q15_support_audit: Dict[str, Any] | None,
     circuit_breaker_audit: Dict[str, Any] | None,
     leaderboard_candidate_diagnostics: Dict[str, Any] | None,
+    execution_venue_context: Dict[str, Any] | None = None,
 ) -> list[str]:
     issue_id = str(issue.get("id") or "")
     counts = counts or {}
@@ -2840,6 +3031,7 @@ def _issue_current_lines(
     q15_support_audit = q15_support_audit or {}
     circuit_breaker_audit = circuit_breaker_audit or {}
     leaderboard_candidate_diagnostics = leaderboard_candidate_diagnostics or {}
+    execution_venue_context = execution_venue_context if isinstance(execution_venue_context, dict) else _execution_venue_docs_context()
     governance_contract = leaderboard_candidate_diagnostics.get("governance_contract") or {}
     governance_verdict = governance_contract.get("verdict") if isinstance(governance_contract, dict) else governance_contract
     governance_current_closure = (
@@ -3090,11 +3282,8 @@ def _issue_current_lines(
 
     if issue_id == "P1_execution_venue_readiness_unverified":
         return [
-            "目前真相："
-            "`venues_checked=2` / `okx=config enabled + public-only + metadata OK + runtime proof missing` / "
-            "`binance=adapter_unsupported + disabled + metadata unavailable` / "
-            "`missing_runtime_proof=live exchange credential, order ack lifecycle, fill lifecycle`",
-            "API/UI contract：`execution_metadata_smoke.venues[]` 已帶 `adapter_supported / proof_state / blockers / operator_next_action / verify_next`，Dashboard、`/execution/status`、`/execution`、`/lab` 可直接顯示 OKX 與 Binance 每個場館的 adapter 與實單證據缺口，不再只靠 metadata OK/FAIL 猜測 readiness。",
+            "目前真相：" + _execution_venue_summary_doc_line(execution_venue_context),
+            "API/UI contract：`execution_metadata_smoke.venues[]` 已帶 `adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next`，Dashboard、`/execution/status`、`/execution`、`/lab` 必須直接顯示 OKX 與 Binance 每個場館的 adapter、credential boolean 與實單證據缺口；`runtime_ready=true` 且 blockers 清空前不可宣稱 canary / live-ready。",
         ]
 
     if issue_id == "P1_fin_netflow_auth_blocked":
@@ -3382,6 +3571,7 @@ def overwrite_current_state_docs(
     leaderboard_candidate_diagnostics = leaderboard_candidate_diagnostics or {}
     issues = _load_open_current_state_issues()
     leaderboard_candidate_diagnostics = _leaderboard_docs_context(leaderboard_candidate_diagnostics, issues)
+    execution_venue_context = _execution_venue_docs_context()
     candidate_refresh_context = _candidate_artifact_refresh_context(serial_results)
     parallel_failure_context = _parallel_task_failure_context(
         parallel_results,
@@ -3392,6 +3582,8 @@ def overwrite_current_state_docs(
     if _sync_live_issue_summaries(issues, source_blockers, live_predictor_diagnostics):
         issues_changed = True
     if _sync_high_conviction_topk_issue_summary(issues, live_predictor_diagnostics):
+        issues_changed = True
+    if _sync_execution_venue_issue_summary(issues, execution_venue_context):
         issues_changed = True
     if _sync_candidate_artifact_refresh_issue(issues, candidate_refresh_context, run_label=run_label):
         issues_changed = True
@@ -3832,6 +4024,7 @@ def overwrite_current_state_docs(
         else "`fin_netflow` blocker 資訊暫缺"
     )
     top_source_blockers_line = _top_source_blockers_docs_line(source_blockers)
+    execution_venue_line = _execution_venue_summary_doc_line(execution_venue_context)
     candidate_refresh_line = candidate_refresh_context.get("docs_line") or "—"
     candidate_refresh_fact_lines = []
     candidate_refresh_goal_lines = []
@@ -4016,7 +4209,7 @@ def overwrite_current_state_docs(
         f"  - `blocked_sparse_features={source_blockers.get('blocked_count', '—')}` / `{source_blockers.get('counts_by_history_class', {})}`",
         f"  - top source blockers：{top_source_blockers_line}",
         f"  - fin_netflow：{fin_line}",
-        "  - venue：`adapter_unsupported / live exchange credential / order ack lifecycle / fill lifecycle` 尚未有 runtime-backed proof；`execution_metadata_smoke.venues[]` 已提供 per-venue `adapter_supported / proof_state / blockers / operator_next_action / verify_next` 給 Dashboard / Execution / Lab 直接顯示 adapter 與證據缺口；operator UI 會先 humanize backend error（例如 `unsupported venue` → `不支援的交易場館`），避免 raw venue error 洩漏到操作員畫面",
+        f"  - venue：{execution_venue_line}；`execution_metadata_smoke.venues[]` 已提供 per-venue `adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next` 給 Dashboard / Execution / Lab 直接顯示 adapter、credential boolean 與證據缺口；operator UI 會先 humanize backend error（例如 `unsupported venue` → `不支援的交易場館`），避免 raw venue error 洩漏到操作員畫面",
         "- **Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）**",
         "  - 前端快捷：`manual_buy=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間只暫停買入 / 加倉與啟用自動模式，減碼 / 賣出風險降低、等待 / 觀望、切到手動模式、查看阻塞原因與重新整理仍可用。`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷時 8s default 把可用 payload 誤報成 `API timeout`。後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留等待 / 觀望與減倉 / 賣出風險降低路徑；`data/live_predict_probe.json` 同步輸出 `api_trade_guardrail_active / api_trade_buy_guardrail / api_trade_allowed_risk_off_sides` 作為 machine-readable proof",
         "- **Dashboard 啟動連續性 guardrail 已納入 feature deferred truth**",
@@ -4052,6 +4245,7 @@ def overwrite_current_state_docs(
             q15_support_audit=q15_support_audit,
             circuit_breaker_audit=circuit_breaker_audit,
             leaderboard_candidate_diagnostics=leaderboard_candidate_diagnostics,
+            execution_venue_context=execution_venue_context,
         ):
             issues_lines.append(f"- {line}")
         issues_lines.append(f"- 下一步：{_issue_action_text(issue)}")
@@ -4191,7 +4385,7 @@ def overwrite_current_state_docs(
         *candidate_refresh_goal_lines,
         f"- top source blockers：{top_source_blockers_line}",
         f"- fin_netflow：{fin_line}",
-        "- venue blockers：`adapter_unsupported / live exchange credential / order ack lifecycle / fill lifecycle` 仍未驗證；API/UI 已把 per-venue adapter_supported、proof state 與下一步驗證欄位掛到 metadata smoke venue rows，且 operator-facing venue error copy 會 humanize backend error，不直接顯示 raw `unsupported venue` 字串",
+        f"- venue blockers：{execution_venue_line}；metadata smoke venue rows 已帶 adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next；runtime_ready=true 且 blockers 清空前仍禁止 canary/live-ready 文案",
         "- docs automation：markdown docs 不再允許落後 live artifacts",
         "**成功標準**",
         "- Strategy Lab 不回退 placeholder-only；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。",
@@ -4271,7 +4465,7 @@ def overwrite_current_state_docs(
         f"- latest recent-window diagnostics：{pathology_line}。",
         *([f"- current blocking pathological pocket：{blocking_pathology_line}。"] if blocking_pathology_line else []),
         f"- leaderboard / governance：{leaderboard_line}。",
-        f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；top source blockers={top_source_blockers_line}；fin_netflow={fin_line}；venue proof 仍缺 adapter_supported / credential / order ack / fill lifecycle；metadata smoke venue rows 已帶 adapter_supported / proof_state / blockers / operator_next_action / verify_next。",
+        f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；top source blockers={top_source_blockers_line}；fin_netflow={fin_line}；venue={execution_venue_line}；metadata smoke venue rows 已帶 adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next。",
         *high_conviction_shadow_orid_lines,
         *range_chop_orid_lines,
         *m5_readiness_orid_lines,
