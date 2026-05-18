@@ -108,7 +108,9 @@ def test_use_api_cancels_superseded_requests_and_ignores_stale_timeouts():
 def test_execution_workspace_endpoints_have_longer_first_load_timeout():
     source = _read("hooks/useApi.ts")
     required_snippets = [
+        'const STATUS_REQUEST_TIMEOUT_MS = 20000;',
         'const EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS = 20000;',
+        'if (endpoint.startsWith("/api/status")) return STATUS_REQUEST_TIMEOUT_MS;',
         'if (endpoint.startsWith("/api/execution/overview")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;',
         'if (endpoint.startsWith("/api/execution/runs")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;',
     ]
@@ -2589,6 +2591,7 @@ def test_use_api_supports_local_backend_timeout_fallback_for_dev_runtime():
         'const DEV_API_DISCOVERY_TIMEOUT_MS = 1200;',
         'const DEV_API_STATUS_DISCOVERY_TIMEOUT_MS = 2000;',
         'const LEADERBOARD_REQUEST_TIMEOUT_MS = 20000;',
+        'const STATUS_REQUEST_TIMEOUT_MS = 20000;',
         'let prewarmActiveApiBasePromise: Promise<void> | null = null;',
         'type ApiBaseHealthProbe = {',
         'window.localStorage.setItem(ACTIVE_API_BASE_STORAGE_KEY, base);',
@@ -2614,6 +2617,7 @@ def test_use_api_supports_local_backend_timeout_fallback_for_dev_runtime():
         'await prewarmDevApiBase();',
         'const requestCandidates = getApiRequestCandidates();',
         'const timeoutMs = getRequestTimeoutMs(endpoint);',
+        'if (endpoint.startsWith("/api/status")) return STATUS_REQUEST_TIMEOUT_MS;',
         'if (endpoint.startsWith("/api/strategies/leaderboard")) return LEADERBOARD_REQUEST_TIMEOUT_MS;',
         'if (endpoint.startsWith("/api/models/leaderboard")) return LEADERBOARD_REQUEST_TIMEOUT_MS;',
         'export async function fetchApiResponse(endpoint: string, options?: RequestInit): Promise<Response> {',
