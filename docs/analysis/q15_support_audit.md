@@ -1,16 +1,16 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-18 04:05:13.163327**
+- generated_at: **2026-05-18 05:07:13.042098**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
-- signal: **HOLD**
+- signal: **CIRCUIT_BREAKER**
 - regime / gate / label: **bear / CAUTION / C**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q00**
 - current_live_structure_bucket_rows: **0**
-- allowed_layers: **0** (unsupported_exact_live_structure_bucket)
-- execution_guardrail_reason: **unsupported_exact_live_structure_bucket**
+- allowed_layers: **0** (decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active)
+- execution_guardrail_reason: **decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active**
 
 ## Scope applicability
 - status: **current_live_not_q15_lane**
@@ -36,7 +36,7 @@
 - support_progress.current_rows / minimum: **0 / 50**
 - support_progress.previous_rows: **0**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **3**
+- support_progress.stagnant_run_count: **4**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
 - support_identity.path: **bear / CAUTION / C**
@@ -49,31 +49,31 @@
 - support_progress.reason: current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 190/50（heartbeat 1202），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。
 
 ## Floor-cross legality
-- verdict: **floor_crossed_but_support_not_ready**
+- verdict: **runtime_blocker_preempts_floor_analysis**
 - legal_to_relax_runtime_gate: **False**
 - remaining_gap_to_floor: **0.0**
 - best_single_component: **None**
 - best_single_component_required_score_delta: **None**
 - best_single_component_can_cross_floor: **False**
-- reason: 即使 entry floor 已跨過，exact q15 support 仍未達標，不能把 proxy/neighbor 當 deployment 放行證據。
+- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 26.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
-- verdict: **reference_only_current_live_not_q15_and_support_not_ready**
+- verdict: **runtime_blocker_preempts_component_experiment**
 - feature: **None**
-- mode: **reference_only_non_current_live_scope**
+- mode: **None**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.6232**
+- current_entry_quality: **0.616**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.0732**
+- current_trade_floor_gap: **0.066**
 - current_entry_quality_ge_0_55: **True**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
-- preserves_positive_discrimination: **None** (not_applicable_current_live_not_q15_lane)
-- reason: current live row 目前停在 CAUTION|base_caution_regime_or_bias|q00，不在 q15 target lane CAUTION|structure_quality_caution|q15；本 artifact 只能描述非 current-live 的 q15/reference route，不得當成 current-live deployment closure。
-- verify_next: 先處理 current-live bucket CAUTION|base_caution_regime_or_bias|q00 的 exact-support / runtime blocker；只有 live row 回到 q15 lane 且 exact support deployable 時，q15 component experiment 才可進入 deployment verify。
+- preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
+- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 26.00% < 30%），q15 component experiment 只能保留為背景研究。
+- verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Active repair plan
 - phase: **current_bucket_first**
@@ -81,9 +81,9 @@
 - component_verify_ready: **False**
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
-- current_signal / layers / guardrail: **HOLD / 0 / unsupported_exact_live_structure_bucket**
+- current_signal / layers / guardrail: **CIRCUIT_BREAKER / 0 / decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active**
 - support rows / minimum / gap: **0 / 50 / 50**
-- stagnant_run_count: **3**
+- stagnant_run_count: **4**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**
