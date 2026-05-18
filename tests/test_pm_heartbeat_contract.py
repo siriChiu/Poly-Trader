@@ -98,8 +98,8 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     assert "YELLOW_shadow_or_paper_usable" in text
     assert "circuit_breaker_active" in text
     assert "release_ready=false" in text
-    assert "10/50" in text
-    assert "additional_recent_window_wins_needed=5" in text
+    assert "6/50" in text
+    assert "additional_recent_window_wins_needed=9" in text
     assert "unsupported_exact_live_structure_bucket" in text
     assert "0/50" in text
     assert "gap=50" in text
