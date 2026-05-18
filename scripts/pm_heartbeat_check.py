@@ -224,10 +224,14 @@ def _check_pm_status_current_state() -> list[CheckResult]:
     text = status_path.read_text(encoding="utf-8")
     required = [
         "YELLOW_shadow_or_paper_usable",
-        "unsupported_exact_live_structure_bucket",
-        "0/50",
-        "insufficient_support_everywhere",
-        "exact_live_lane_proxy_available",
+        "circuit_breaker_active",
+        "release_ready=false",
+        "10/50",
+        "additional_recent_window_wins_needed=5",
+        "exact_bucket_present_but_below_minimum",
+        "exact_live_bucket_present_but_below_minimum",
+        "44/50",
+        "gap=6",
         "Strategy Lab",
         "Execution Console",
         "客戶成功",
