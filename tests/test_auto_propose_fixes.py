@@ -2574,10 +2574,14 @@ def test_sync_current_state_governance_issues_resolves_stale_q15_issue_when_circ
     assert ("resolve", "P0_q15_patch_active_but_execution_blocked") in events
     assert ("resolve", "#H_AUTO_CURRENT_BUCKET_SUPPORT") in events
     breaker_add = next(event for event in events if event[0] == "add" and event[1] == "#H_AUTO_CIRCUIT_BREAKER")
-    assert "5/15" in breaker_add[2]
+    assert "目前 5/50 勝" in breaker_add[2]
+    assert "解除至少需要 15 勝" in breaker_add[2]
+    assert "5/15" not in breaker_add[2]
     assert "最近 50" in breaker_add[2]
     assert "recent 50" not in breaker_add[2]
     assert "還差 10 勝" in breaker_add[3]
+    assert "目前 5/50 勝" in breaker_add[3]
+    assert "解除至少需要 15 勝" in breaker_add[3]
     assert not any(event[0] == "add" and event[1] == "#H_AUTO_CURRENT_BUCKET_SUPPORT" for event in events)
 
 
@@ -3197,8 +3201,9 @@ def test_sync_current_state_governance_issues_prefers_live_support_route_and_ref
     assert q15_issue["summary"]["gap_to_minimum"] == 50
 
     breaker_issue = next(issue for issue in tracker.issues if issue["id"] == "#H_AUTO_CIRCUIT_BREAKER")
-    assert breaker_issue["title"] == "熔斷解除條件未達（最近 50 筆 0/15 勝）"
+    assert breaker_issue["title"] == "熔斷解除條件未達（最近 50 筆目前 0/50 勝，解除至少需要 15 勝）"
     assert "即時部署阻塞語義切回熔斷解除條件" in breaker_issue["action"]
+    assert "最近 50 筆目前 0/50 勝，解除至少需要 15 勝" in breaker_issue["action"]
     assert "canonical circuit breaker" not in breaker_issue["title"]
     assert "current-live blocker" not in breaker_issue["action"]
     assert breaker_issue["summary"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q15"
