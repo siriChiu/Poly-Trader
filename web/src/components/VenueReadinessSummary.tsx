@@ -78,6 +78,9 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
           .map((entry) => humanizeExecutionReason(entry))
           .join(" · ");
         const proofStateLabel = humanizeLifecycleDiagnosticLabel(item.proof_state || item.readiness_state || item.readiness_scope || "unknown");
+        const runtimeEvidenceSummary = isRuntimeReady(item)
+          ? "實單證據完成 · 委託確認 / 成交生命週期已驗證"
+          : `待補實單證據 · ${blockerSummary}`;
         const operatorNextAction = item.operator_next_action ? humanizeExecutionReason(item.operator_next_action) : null;
         const verifyNext = item.verify_next ? humanizeExecutionReason(item.verify_next) : null;
         const venueErrorSummary = item.error ? humanizeExecutionReason(item.error) : null;
@@ -100,7 +103,7 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
               <div className="opacity-90">
                 數量步進 {item.contract?.step_size ?? "—"} · 價格刻度 {item.contract?.tick_size ?? "—"} · 最小數量 {formatScalar(item.contract?.min_qty)}
               </div>
-              <div className="opacity-90">待補實單證據 · {blockerSummary}</div>
+              <div className="opacity-90">{runtimeEvidenceSummary}</div>
               <div className="opacity-90">證據狀態 {proofStateLabel}</div>
               {operatorNextAction ? <div className="opacity-90">下一步 {operatorNextAction}</div> : null}
               {verifyNext ? <div className="opacity-90">驗證 {verifyNext}</div> : null}
@@ -124,7 +127,7 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
             <div className="opacity-90">元資料契約 {item.ok ? "正常" : "失敗"}</div>
             <div className="opacity-90">數量步進 {item.contract?.step_size ?? "—"} · 價格刻度 {item.contract?.tick_size ?? "—"}</div>
             <div className="opacity-90">最小數量 {formatScalar(item.contract?.min_qty)} · 最小成本 {formatScalar(item.contract?.min_cost)}</div>
-            <div className="mt-2 opacity-90">待補實單證據 · {blockerSummary}</div>
+            <div className="mt-2 opacity-90">{runtimeEvidenceSummary}</div>
             <div className="opacity-90">證據狀態 {proofStateLabel}</div>
             {operatorNextAction ? <div className="opacity-90">下一步 {operatorNextAction}</div> : null}
             {verifyNext ? <div className="opacity-90">驗證 {verifyNext}</div> : null}

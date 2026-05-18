@@ -2220,6 +2220,9 @@ def test_venue_readiness_summary_component_surfaces_per_venue_contract():
         'return "停用";',
         'const blockerSummary = (item.blockers?.length ? item.blockers : defaultProofSummary)',
         '.map((entry) => humanizeExecutionReason(entry))',
+        'const runtimeEvidenceSummary = isRuntimeReady(item)',
+        '? "實單證據完成 · 委託確認 / 成交生命週期已驗證"',
+        ': `待補實單證據 · ${blockerSummary}`;',
         'adapter {item.adapter_supported === false ? "未接入" : "已接入"} · 設定 {item.enabled_in_config ? "啟用" : "停用"}',
         '憑證 {item.credentials_configured ? "已配置" : "僅公開資料"}',
         '元資料契約 {item.ok ? "正常" : "失敗"}',
@@ -2235,7 +2238,9 @@ def test_venue_readiness_summary_supports_compact_operator_summary_mode():
     source = _read("components/VenueReadinessSummary.tsx")
     required_snippets = [
         'if (compact) {',
-        '待補實單證據 · {blockerSummary}',
+        '{runtimeEvidenceSummary}',
+        ': `待補實單證據 · ${blockerSummary}`;',
+        '"實單證據完成 · 委託確認 / 成交生命週期已驗證"',
         'adapter {item.adapter_supported === false ? "未接入" : "已接入"} · 設定 {item.enabled_in_config ? "啟用" : "停用"} · 憑證 {item.credentials_configured ? "已配置" : "僅公開資料"} · 元資料 {item.ok ? "正常" : "失敗"}',
     ]
     for snippet in required_snippets:
@@ -2388,7 +2393,8 @@ def test_execution_status_reuses_shared_venue_readiness_component_and_explains_p
         assert snippet in component_source
     assert '{item.error}</div>' not in component_source
     assert 'item.ok ? "OK" : "FAIL"' not in source
-    assert '待補實單證據 · {blockerSummary}' in component_source
+    assert ': `待補實單證據 · ${blockerSummary}`;' in component_source
+    assert '"實單證據完成 · 委託確認 / 成交生命週期已驗證"' in component_source
 
 
 def test_venue_readiness_summary_humanizes_backend_error_copy():
