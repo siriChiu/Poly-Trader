@@ -228,7 +228,7 @@ def _check_pm_status_current_state() -> list[CheckResult]:
         "release_ready=false",
         "4/50",
         "additional_recent_window_wins_needed=11",
-        "exact_bucket_unsupported_block",
+        "insufficient_support_everywhere",
         "exact_live_lane_proxy_available",
         "0/50",
         "gap=50",

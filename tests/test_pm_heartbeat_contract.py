@@ -100,7 +100,7 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     assert "release_ready=false" in text
     assert "4/50" in text
     assert "additional_recent_window_wins_needed=11" in text
-    assert "exact_bucket_unsupported_block" in text
+    assert "insufficient_support_everywhere" in text
     assert "0/50" in text
     assert "gap=50" in text
     assert "exact_live_lane_proxy_available" in text
