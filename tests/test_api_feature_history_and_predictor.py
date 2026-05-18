@@ -429,6 +429,47 @@ def test_infer_deployment_blocker_flags_under_minimum_exact_live_structure_bucke
     assert guarded["execution_guardrail_reason"] == "under_minimum_exact_live_structure_bucket"
 
 
+def test_infer_deployment_blocker_canonicalizes_zero_row_stale_support_mode():
+    decision_quality_contract = {
+        "decision_quality_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+        "decision_quality_structure_bucket_guardrail_applied": True,
+        "decision_quality_structure_bucket_support_rows": 0,
+        "decision_quality_exact_live_structure_bucket_support_rows": 0,
+        # Stale broader-scope mode from an older lane: zero exact-live rows must not
+        # be described as merely present-but-below-minimum.
+        "decision_quality_structure_bucket_support_mode": "exact_bucket_present_but_below_minimum",
+        "decision_quality_structure_bucket_guardrail_reason": "chosen scope support is missing",
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+                "current_live_structure_bucket_rows": 0,
+                "alerts": ["no_rows"],
+            },
+        },
+    }
+
+    summary = predictor_module._summarize_structure_bucket_support_route(decision_quality_contract)
+    blocker = predictor_module._infer_deployment_blocker(
+        {
+            "regime_label": "bear",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+        },
+        decision_quality_contract,
+    )
+
+    assert summary["verdict"] == "exact_bucket_unsupported_block"
+    assert summary["support_governance_route"] == "no_support_proxy"
+    assert summary["support_progress"]["current_rows"] == 0
+    assert blocker is not None
+    assert blocker["type"] == "unsupported_exact_live_structure_bucket"
+    assert blocker["support_mode"] == "exact_bucket_unsupported_block"
+    assert blocker["support_route_verdict"] == "exact_bucket_unsupported_block"
+    assert blocker["support_governance_route"] == "no_support_proxy"
+    assert blocker["current_live_structure_bucket_rows"] == 0
+    assert blocker["current_live_structure_bucket_gap_to_minimum"] == 50
+
+
 def test_infer_deployment_blocker_flags_exact_supported_q15_live_trade_floor_blocker(tmp_path, monkeypatch):
     q15_path = tmp_path / "q15_support_audit.json"
     q15_path.write_text(

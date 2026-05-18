@@ -1445,11 +1445,13 @@ def _summarize_structure_bucket_support_route(
         verdict = "exact_bucket_supported"
     elif 0 < current_rows < minimum_rows:
         verdict = "exact_bucket_present_but_below_minimum"
-    elif support_mode == "exact_bucket_unsupported_block":
+    elif support_mode == "exact_bucket_unsupported_block" or (
+        support_mode == "exact_bucket_present_but_below_minimum" and current_rows <= 0
+    ):
         verdict = "exact_bucket_unsupported_block"
     elif support_mode == "exact_bucket_present_but_below_minimum":
         verdict = "exact_bucket_present_but_below_minimum"
-    elif support_mode.startswith("exact_bucket_supported"):
+    elif support_mode.startswith("exact_bucket_supported") and current_rows >= minimum_rows:
         verdict = "exact_bucket_supported"
     else:
         verdict = None
@@ -1457,12 +1459,21 @@ def _summarize_structure_bucket_support_route(
     if verdict is None:
         return {}
 
+    # Guard against stale broader DQ support-mode strings when the fresh exact-live
+    # lane has *zero* rows.  A zero-row current bucket is unsupported, not merely
+    # "present but below minimum".  Keeping this canonicalized prevents probe/API/docs
+    # from exposing a mixed contract such as verdict=unsupported with
+    # support_mode=present_but_below_minimum.
+    route_support_mode = support_mode
+    if verdict == "exact_bucket_unsupported_block" and current_rows <= 0:
+        route_support_mode = "exact_bucket_unsupported_block"
+
     return {
         "verdict": verdict,
         "deployable": verdict == "exact_bucket_supported",
         "support_governance_route": _support_governance_route(
             verdict=verdict,
-            support_mode=support_mode,
+            support_mode=route_support_mode,
             support_rows=support_rows or exact_scope_rows,
             exact_support_rows=exact_support_rows or exact_scope_rows,
             supported_neighbor_buckets=supported_neighbor_buckets,
@@ -1609,6 +1620,13 @@ def _infer_deployment_blocker(
     if support_mode == "exact_bucket_unsupported_block" or (
         structure_guardrail_applied and exact_support_rows <= 0
     ) or missing_exact_scope_support:
+        blocker_support_mode = support_mode or "exact_bucket_unsupported_block"
+        if current_live_structure_bucket_rows <= 0:
+            # A fresh exact-live scope with zero rows is absent support.  Do not let a
+            # stale broader DQ mode (for example `exact_bucket_present_but_below_minimum`)
+            # leak into the deployment blocker and make operator surfaces think the
+            # current bucket is accumulating when it has no exact rows at all.
+            blocker_support_mode = "exact_bucket_unsupported_block"
         generic_blocker = {
             "type": "unsupported_exact_live_structure_bucket",
             "reason": (
@@ -1617,12 +1635,12 @@ def _infer_deployment_blocker(
             ),
             "source": "decision_quality_contract",
             "structure_bucket": structure_bucket,
-            "support_mode": support_mode or "exact_bucket_unsupported_block",
+            "support_mode": blocker_support_mode,
             "support_route_verdict": "exact_bucket_unsupported_block",
             "support_route_deployable": False,
             "support_governance_route": _support_governance_route(
                 verdict="exact_bucket_unsupported_block",
-                support_mode=support_mode or "exact_bucket_unsupported_block",
+                support_mode=blocker_support_mode,
                 support_rows=support_rows,
                 exact_support_rows=exact_support_rows,
                 supported_neighbor_buckets=supported_neighbor_buckets,

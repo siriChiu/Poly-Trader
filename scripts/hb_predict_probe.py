@@ -975,7 +975,10 @@ def _build_probe_payload(
             f"{decision_quality_copy}；目前維持不可部署治理。"
         )
         deployment_blocker_details["reason"] = support_truth_reason
-        deployment_blocker_details["support_mode"] = "exact_bucket_present_but_below_minimum"
+        if progress_rows_value <= 0 and support_route_verdict == "exact_bucket_unsupported_block":
+            deployment_blocker_details["support_mode"] = "exact_bucket_unsupported_block"
+        else:
+            deployment_blocker_details["support_mode"] = "exact_bucket_present_but_below_minimum"
         runtime_result["deployment_blocker_reason"] = support_truth_reason
         runtime_result["deployment_blocker_details"] = deployment_blocker_details
     q35_scaling_audit = _load_q35_scaling_audit_summary(current_live_structure_bucket)

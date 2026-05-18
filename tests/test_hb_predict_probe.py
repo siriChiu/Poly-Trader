@@ -253,6 +253,7 @@ def test_build_probe_payload_canonicalizes_zero_row_non_q15_support_overlay(monk
     assert payload["current_live_structure_bucket_gap_to_minimum"] == 50
     assert payload["deployment_blocker_details"]["support_route_verdict"] == "exact_bucket_unsupported_block"
     assert payload["deployment_blocker_details"]["support_governance_route"] == "no_support_proxy"
+    assert payload["deployment_blocker_details"]["support_mode"] == "exact_bucket_unsupported_block"
 
 
 def test_build_probe_payload_promotes_current_bucket_root_cause(monkeypatch, tmp_path):
