@@ -54,7 +54,7 @@
 完整問題見 [`heartbeat-qa.md`](heartbeat-qa.md)。最短版本：
 
 1. **我現在在哪裡？** → repo / branch / dirty files / graphify 狀態。
-2. **我要解哪個 P0/P1？** → 從 `ISSUES.md`、artifacts、runtime truth 選一個 blocker。
+2. **上一輪 PM heartbeat 決定了什麼？我要解哪個 P0/P1？** → 先承接 PM handoff，再從 `ISSUES.md`、artifacts、runtime truth 選一個 blocker。
 3. **這是產品 blocker、研究 blocker、還是 harness blocker？** → 不混淆部署閉合與參考 patch。
 4. **缺的是能力、證據、還是文件地圖？** → 若代理無法自驗，先補 harness。
 5. **最小 patch 是什麼？** → 小步、可測、可回滾，真實交易 fail-closed。

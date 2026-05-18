@@ -21,8 +21,9 @@
 - 已讀 `AGENTS.md`、`HEARTBEAT.md`、`AI_AGENT_ROLE.md`。
 - 若 `graphify-out/` 存在，先讀 `graphify-out/GRAPH_REPORT.md` 與 wiki index，或用 `graphify query` 定位。
 - 清楚知道本輪會碰哪些檔案，以及哪些 dirty files 不能覆蓋。
+- 工程 heartbeat 必須已取得上一輪 PM heartbeat 的結論與決定（cron `context_from` 或 PM current-state docs），並把它列為本輪輸入。
 
-**證據：** `git status --short --branch`、相關 docs 路徑、必要 graphify query。
+**證據：** `git status --short --branch`、相關 docs 路徑、必要 graphify query、上一輪 PM heartbeat handoff。
 
 **若失敗：** 停止改碼，先補入口地圖或縮小任務範圍。
 
@@ -35,10 +36,11 @@
 
 **答題規則：**
 - 用一句話寫出目標。
+- 先寫明本輪承接哪一條 PM heartbeat 結論 / 決定，再從工程事實選 P0/P1。
 - 明確說出不做什麼：不追交易頻率、不降低 gates、不把 reference patch 當 deployment closure。
 - 若目標含真實交易，buy/add exposure 一律 fail-closed 直到 runtime proof 充足。
 
-**證據：** 使用者要求、`ISSUES.md` current priority、`ROADMAP.md` next gate。
+**證據：** 使用者要求、上一輪 PM heartbeat 結論 / 決定、`ISSUES.md` current priority、`ROADMAP.md` next gate。
 
 **若失敗：** 只做 facts collection，不做 risky patch。
 

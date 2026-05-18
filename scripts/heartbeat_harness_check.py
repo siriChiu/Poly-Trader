@@ -37,6 +37,7 @@ REQUIRED_DOC_REFERENCES = {
     "HEARTBEAT.md": [
         "docs/harness/README.md",
         "docs/harness/heartbeat-qa.md",
+        "PM heartbeat",
         "scripts/heartbeat_harness_check.py",
     ],
     "ARCHITECTURE.md": ["docs/harness", "scripts/heartbeat_harness_check.py"],
@@ -179,6 +180,34 @@ def _check_question_gates(contract: dict[str, Any]) -> list[CheckResult]:
     ]
 
 
+def _check_pm_handoff_contract(contract: dict[str, Any]) -> list[CheckResult]:
+    qa_text = QA_PATH.read_text(encoding="utf-8") if QA_PATH.exists() else ""
+    heartbeat_text = (PROJECT_ROOT / "HEARTBEAT.md").read_text(encoding="utf-8")
+    readme_text = (PROJECT_ROOT / "docs" / "harness" / "README.md").read_text(encoding="utf-8")
+    signals = contract.get("agent_readable_signals", [])
+    signal_names = {
+        item.get("name")
+        for item in signals
+        if isinstance(item, dict) and isinstance(item.get("name"), str)
+    }
+    snippets = [
+        ("HEARTBEAT.md", heartbeat_text, "上一輪 PM heartbeat"),
+        ("docs/harness/heartbeat-qa.md", qa_text, "上一輪 PM heartbeat"),
+        ("docs/harness/README.md", readme_text, "PM handoff"),
+    ]
+    missing = [path for path, text, snippet in snippets if snippet not in text]
+    if "previous_pm_heartbeat_handoff" not in signal_names:
+        missing.append("contract signal previous_pm_heartbeat_handoff")
+    return [
+        CheckResult(
+            "pm_handoff_required",
+            "Engineering heartbeat requires previous PM heartbeat handoff?",
+            not missing,
+            "ok" if not missing else ", ".join(missing),
+        )
+    ]
+
+
 def _check_doc_references() -> list[CheckResult]:
     results: list[CheckResult] = []
     for rel_path, required_snippets in REQUIRED_DOC_REFERENCES.items():
@@ -212,6 +241,7 @@ def run_checks() -> dict[str, Any]:
         results.extend(_check_required_docs(contract))
         results.extend(_check_entrypoints(contract))
         results.extend(_check_question_gates(contract))
+        results.extend(_check_pm_handoff_contract(contract))
         results.extend(_check_doc_references())
 
     ok = all(result.ok for result in results)

@@ -36,6 +36,7 @@ Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 
    - `git status --short --branch`
    - `python scripts/heartbeat_harness_check.py --format text`（確認 harness map / Q&A gate / doc references 未腐爛）
    - 確認是否已有未提交變更，避免覆蓋使用者工作。
+   - 讀取上一輪 PM heartbeat 結論與決定（cron `context_from` 注入或 PM current-state docs），並在本輪明確寫出要承接的 PM handoff；工程 heartbeat 的 P0/P1 選擇必須先對齊這個 PM handoff。
    - 讀取 `ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md` 與最新 machine artifacts。
 
 2. **Facts collection**
@@ -47,6 +48,7 @@ Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 
 
 3. **Decision framing**
    - P0/P1 blocker-first。
+   - 先說明「上一輪 PM heartbeat 要求 / 決定」如何影響本輪工程取捨；若 PM 決定與 runtime 事實衝突，先用 artifacts/tests/browser/API 驗證後再裁決。
    - 先分清 current-live blocker、venue blocker、research blocker。
    - 不把 reference-only patch 寫成 deployment closure。
 

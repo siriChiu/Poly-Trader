@@ -57,12 +57,12 @@
     {
       "id": "HQ0_context_map",
       "question": "Do I have the shortest usable repo map and dirty-file boundary?",
-      "required_evidence": ["git status", "AGENTS.md", "HEARTBEAT.md", "graphify when present"]
+      "required_evidence": ["git status", "AGENTS.md", "HEARTBEAT.md", "previous PM heartbeat handoff", "graphify when present"]
     },
     {
       "id": "HQ1_goal_and_boundary",
       "question": "What is this run's human intent and what must not be changed?",
-      "required_evidence": ["user request", "ISSUES.md current priority", "ROADMAP.md next gate"]
+      "required_evidence": ["user request", "previous PM heartbeat decision", "ISSUES.md current priority", "ROADMAP.md next gate"]
     },
     {
       "id": "HQ2_current_truth",
@@ -101,6 +101,11 @@
     }
   ],
   "agent_readable_signals": [
+    {
+      "name": "previous_pm_heartbeat_handoff",
+      "paths": ["cron context_from poly-trader-pm-heartbeat-1h", "PM_HEARTBEAT.md", "docs/pm/pm-status.md"],
+      "purpose": "PM heartbeat conclusions and decisions that must be carried into the next engineering heartbeat before choosing P0/P1 work"
+    },
     {
       "name": "current_live_truth",
       "paths": ["data/live_predict_probe.json", "data/live_decision_quality_drilldown.json"],

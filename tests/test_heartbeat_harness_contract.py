@@ -42,6 +42,12 @@ def test_heartbeat_harness_contract_is_machine_readable() -> None:
 
     gate_ids = {gate["id"] for gate in payload["question_gates"]}
     assert gate_ids == set(REQUIRED_GATE_IDS)
+    signals = {signal["name"] for signal in payload["agent_readable_signals"]}
+    assert "previous_pm_heartbeat_handoff" in signals
+    hq0 = next(gate for gate in payload["question_gates"] if gate["id"] == "HQ0_context_map")
+    hq1 = next(gate for gate in payload["question_gates"] if gate["id"] == "HQ1_goal_and_boundary")
+    assert "previous PM heartbeat handoff" in hq0["required_evidence"]
+    assert "previous PM heartbeat decision" in hq1["required_evidence"]
 
     qa_text = QA_PATH.read_text(encoding="utf-8")
     for gate_id in REQUIRED_GATE_IDS:
@@ -64,6 +70,7 @@ def test_heartbeat_harness_checker_passes() -> None:
         "required_docs_exist",
         "entrypoints_exist",
         "qa_gates_complete",
+        "pm_handoff_required",
         "AGENTS.md:references",
         "HEARTBEAT.md:references",
         "README.md:references",
