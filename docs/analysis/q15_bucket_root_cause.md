@@ -1,6 +1,6 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-18 10:02:19.836904**
+- generated_at: **2026-05-18 11:02:10.159135**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q00 bucket**
 - verdict: **runtime_blocker_preempts_bucket_root_cause**
@@ -12,18 +12,18 @@
 ## Current live
 - live path: **bear / CAUTION / C**
 - structure_bucket: `CAUTION|base_caution_regime_or_bias|q00`
-- structure_quality: **0.0962**
-- gap_to_q35_boundary: **0.2538**
+- structure_quality: **0.0593**
+- gap_to_q35_boundary: **0.2907**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
 - support rows/minimum/gap: **0 / 50 / 50**
 
 ## Exact live lane
-- rows: **77**
-- bucket_counts: `{'CAUTION|structure_quality_caution|q15': 77}`
-- dominant_neighbor_bucket: **CAUTION|structure_quality_caution|q15** (77 rows)
-- near_boundary_window: `{'lower': 0.0962, 'upper': 0.35}`
-- near_boundary_rows: **77**
+- rows: **80**
+- bucket_counts: `{'CAUTION|structure_quality_caution|q15': 80}`
+- dominant_neighbor_bucket: **CAUTION|structure_quality_caution|q15** (80 rows)
+- near_boundary_window: `{'lower': 0.0593, 'upper': 0.35}`
+- near_boundary_rows: **80**
 
 ## Decision
 - reason: 目前 live runtime 已先被 circuit breaker 擋下；current-live q00 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。
@@ -31,9 +31,9 @@
 - verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.2161 / norm=0.2161 / Δto_cross_q35=0.7465 / target_p25=0.3744 / target_median=0.421
-- `feat_4h_dist_bb_lower`: current=0.55 / norm=0.0688 / Δto_cross_q35=6.1527 / target_p25=0.9367 / target_median=1.0492
-- `feat_4h_dist_swing_low`: current=-0.9425 / norm=0.0 / Δto_cross_q35=8.6334 / target_p25=-0.6898 / target_median=0.1532
+- `feat_4h_bb_pct_b`: current=0.133 / norm=0.133 / Δto_cross_q35=0.855 / target_p25=0.3745 / target_median=0.4227
+- `feat_4h_dist_bb_lower`: current=0.341 / norm=0.0426 / Δto_cross_q35=7.0473 / target_p25=0.9367 / target_median=1.0864
+- `feat_4h_dist_swing_low`: current=-1.2093 / norm=0.0 / Δto_cross_q35=10.0184 / target_p25=-0.6889 / target_median=0.1994
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。

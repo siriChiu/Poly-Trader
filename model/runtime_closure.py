@@ -340,6 +340,10 @@ def _append_scope_summary(summary: str, scope_pathology_summary: Mapping[str, An
 def _humanize_runtime_text(value: Any) -> str:
     text = _humanize_structure_bucket_tokens(str(value or ""))
     replacements = [
+        ("CIRCUIT_BREAKER", "風控熔斷"),
+        ("HOLD", "觀望"),
+        ("BUY", "買入"),
+        ("SELL", "賣出"),
         ("Consecutive loss streak:", "連續虧損筆數："),
         ("Consecutive loss streak", "連續虧損筆數"),
         ("Recent 50-sample win rate", "最近 50 筆勝率"),
@@ -351,8 +355,12 @@ def _humanize_runtime_text(value: Any) -> str:
         ("floor_crossed_but_support_not_ready", "已跨越門檻但精準樣本未就緒"),
         ("runtime_blocker_preempts_floor_analysis", "執行期阻塞優先於跨門檻分析"),
         ("runtime_blocker_preempts_runtime_sizing", "執行期阻塞優先於層數配置"),
+        ("runtime_blocker_preempts_bucket_root_cause", "執行期阻塞優先於分桶根因分析"),
+        ("current_live_bucket_semantic_rebaseline_under_minimum", "目前即時分桶語義重訂後樣本不足"),
+        ("same_lane_neighbor_bucket_dominates", "同路徑鄰近分桶更穩健"),
         ("regime_gate_block", "市場閘門阻塞"),
         ("circuit_breaker_active", "風控熔斷啟用中"),
+        ("circuit_breaker", "風控熔斷"),
         ("runtime gate/support", "執行期 gate/樣本支持"),
         ("scoring floor", "評分門檻"),
         ("score-only", "僅限評分"),

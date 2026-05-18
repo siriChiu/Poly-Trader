@@ -770,7 +770,7 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
     assert "verdict: **no exact lane sub bucket split**" in markdown
     assert "精準即時路徑 沒有可比較的非 current bucket 子 bucket。" in markdown
     assert "建議修補方案: **core_plus_macro**" in markdown
-    assert "current-bucket root cause: verdict=current_live_bucket_semantic_rebaseline_under_minimum" in markdown
+    assert "current-bucket root cause: verdict=目前即時分桶語義重訂後樣本不足" in markdown
     assert "feature=feat_4h_bb_pct_b" in markdown
     assert "neighbor=觀察｜結構品質觀察｜q15" in markdown
     assert "狀態：非目前即時範圍，僅供治理參考" in markdown
@@ -781,10 +781,16 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
     assert "bull|CAUTION" not in operator_header
     assert "bull|BLOCK" not in operator_header
     assert "structure_quality" not in operator_header
+    assert "current_live_bucket_semantic_rebaseline_under_minimum" not in operator_header
+    assert "same_lane_neighbor_bucket_dominates" not in operator_header
     assert "regime_gate_block" not in operator_header
     assert "decision_quality_below_trade_floor" not in operator_header
     assert "unsupported_exact_live_structure_bucket_blocks_trade" not in operator_header
     assert "circuit_breaker_active" not in operator_header
+    assert "signal: **風控熔斷**" in markdown
+    assert "signal: **CIRCUIT_BREAKER**" not in operator_header
+    assert "runtime_blocker: circuit_breaker" not in operator_header
+    assert "runtime_blocker: 風控熔斷" in operator_header
     assert "floor_crossed_but_support_not_ready" not in operator_header
     assert "reference_only_non_current_live_scope" not in operator_header
     assert "結構品質" in operator_header

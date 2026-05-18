@@ -909,7 +909,7 @@ def main() -> None:
         f"- feature_timestamp: **{report['generated_at']}**",
         f"- target: `{report['target_col']}`",
         f"- live path: **{_humanize_runtime_text(report['regime_label'])} / {_humanize_runtime_text(report['regime_gate'])} / {report['entry_quality_label']}**",
-        f"- signal: **{report['signal']}** @ confidence **{report['confidence']:.4f}**",
+        f"- signal: **{_humanize_runtime_text(report['signal'])}** @ confidence **{report['confidence']:.4f}**",
         f"- layers: **{report['allowed_layers_raw']} → {report['allowed_layers']}**",
         f"- allowed_layers_raw_reason: {allowed_layers_raw_reason_text}",
         f"- allowed_layers_reason: {allowed_layers_reason_text}",
