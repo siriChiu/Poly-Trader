@@ -33,6 +33,7 @@ from server.live_pathology_summary import build_live_pathology_scope_surface
 DB_URL = f"sqlite:///{PROJECT_ROOT / 'poly_trader.db'}"
 OUT_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 Q15_SUPPORT_AUDIT_PATH = PROJECT_ROOT / "data" / "q15_support_audit.json"
+Q15_BUCKET_ROOT_CAUSE_PATH = PROJECT_ROOT / "data" / "q15_bucket_root_cause.json"
 Q35_SCALING_AUDIT_PATH = PROJECT_ROOT / "data" / "q35_scaling_audit.json"
 BULL_4H_POCKET_ABLATION_PATH = PROJECT_ROOT / "data" / "bull_4h_pocket_ablation.json"
 NO_DEPLOY_RUNTIME_CLOSURE_STATES = {
@@ -286,6 +287,71 @@ def _load_q15_support_audit(current_live_structure_bucket: str | None) -> dict |
     ):
         return payload
     return None
+
+
+def _load_q15_bucket_root_cause_summary(current_live_structure_bucket: str | None) -> dict | None:
+    """Load the current-bucket root-cause artifact for probe/runtime surfaces.
+
+    The artifact name is historical (q15), but the report now describes the
+    *current live bucket* (q00/q15/q35).  Keep the summary compact and require
+    the artifact bucket to match the freshly computed probe bucket so a stale
+    q15 root-cause report cannot leak into a q00/q35 live row.
+    """
+    if not Q15_BUCKET_ROOT_CAUSE_PATH.exists():
+        return None
+    try:
+        payload = json.loads(Q15_BUCKET_ROOT_CAUSE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    current_live = payload.get("current_live") if isinstance(payload.get("current_live"), dict) else {}
+    exact_live_lane = payload.get("exact_live_lane") if isinstance(payload.get("exact_live_lane"), dict) else {}
+    candidate_patch = payload.get("candidate_patch") if isinstance(payload.get("candidate_patch"), dict) else {}
+    floor_gap = payload.get("floor_gap_attribution") if isinstance(payload.get("floor_gap_attribution"), dict) else {}
+    artifact_context = (
+        payload.get("artifact_context_freshness")
+        if isinstance(payload.get("artifact_context_freshness"), dict)
+        else {}
+    )
+
+    bucket = current_live.get("structure_bucket") or current_live.get("current_live_structure_bucket")
+    if current_live_structure_bucket and bucket and str(bucket) != str(current_live_structure_bucket):
+        return None
+
+    return {
+        "generated_at": payload.get("generated_at"),
+        "current_live_structure_bucket": bucket or current_live_structure_bucket,
+        "bucket_scope_label": payload.get("bucket_scope_label"),
+        "verdict": payload.get("verdict"),
+        "candidate_patch_type": payload.get("candidate_patch_type"),
+        "candidate_patch_feature": payload.get("candidate_patch_feature"),
+        "reason": payload.get("reason"),
+        "verify_next": payload.get("verify_next"),
+        "structure_quality": current_live.get("structure_quality"),
+        "q15_threshold": current_live.get("q15_threshold"),
+        "q35_threshold": current_live.get("q35_threshold"),
+        "support_status": current_live.get("support_status"),
+        "support_route_verdict": current_live.get("support_route_verdict"),
+        "support_current_rows": current_live.get("support_current_rows"),
+        "support_minimum_rows": current_live.get("support_minimum_rows"),
+        "support_gap_to_minimum": current_live.get("support_gap_to_minimum"),
+        "gap_to_q35_boundary": current_live.get("gap_to_q35_boundary"),
+        "dominant_neighbor_bucket": exact_live_lane.get("dominant_neighbor_bucket"),
+        "dominant_neighbor_rows": exact_live_lane.get("dominant_neighbor_rows"),
+        "near_boundary_rows": exact_live_lane.get("near_boundary_rows"),
+        "candidate_patch": candidate_patch or None,
+        "trade_floor": floor_gap.get("trade_floor"),
+        "entry_quality": floor_gap.get("entry_quality"),
+        "remaining_gap_to_floor": floor_gap.get("remaining_gap_to_floor"),
+        "best_single_component": floor_gap.get("best_single_component"),
+        "single_component_floor_crossers": floor_gap.get("single_component_floor_crossers") or [],
+        "artifact_context_freshness_verdict": artifact_context.get("verdict"),
+        "artifact_context_freshness_mismatched_fields": artifact_context.get("mismatched_fields") or [],
+        "reference_mismatched_fields": artifact_context.get("reference_mismatched_fields") or [],
+        "reference_artifact_warning": artifact_context.get("reference_artifact_warning"),
+    }
 
 
 def _load_q35_scaling_audit_summary(current_live_structure_bucket: str | None) -> dict | None:
@@ -913,6 +979,17 @@ def _build_probe_payload(
         runtime_result["deployment_blocker_reason"] = support_truth_reason
         runtime_result["deployment_blocker_details"] = deployment_blocker_details
     q35_scaling_audit = _load_q35_scaling_audit_summary(current_live_structure_bucket)
+    q15_bucket_root_cause = _load_q15_bucket_root_cause_summary(
+        str(current_live_structure_bucket) if current_live_structure_bucket is not None else None
+    )
+    current_bucket_root_cause = q15_bucket_root_cause or (
+        result.get("current_bucket_root_cause") if isinstance(result.get("current_bucket_root_cause"), dict) else None
+    )
+    if q15_bucket_root_cause:
+        deployment_blocker_details["q15_bucket_root_cause"] = q15_bucket_root_cause
+        deployment_blocker_details["current_bucket_root_cause"] = current_bucket_root_cause
+        runtime_result["q15_bucket_root_cause"] = q15_bucket_root_cause
+        runtime_result["current_bucket_root_cause"] = current_bucket_root_cause
     recommended_patch_summary = (
         scope_pathology_summary.get("recommended_patch")
         if isinstance(scope_pathology_summary, dict)
@@ -969,7 +1046,8 @@ def _build_probe_payload(
     )
     api_trade_guardrail = _api_trade_guardrail_surface(runtime_result, runtime_closure_state)
     return {
-        "db_url": DB_URL,
+        # Do not persist local connection strings into runtime artifacts.
+        "db_url": "[REDACTED]",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "feature_timestamp": str(latest.get("timestamp")),
         "target_col": target_col,
@@ -1052,6 +1130,8 @@ def _build_probe_payload(
         **api_trade_guardrail,
         "q15_support_audit": q15_support_audit,
         "q15_support_audit_identity_mismatch": q15_support_identity_mismatch,
+        "q15_bucket_root_cause": q15_bucket_root_cause,
+        "current_bucket_root_cause": current_bucket_root_cause,
         "q35_scaling_audit": q35_scaling_audit,
         "q35_overall_verdict": q35_scaling_audit.get("overall_verdict") if isinstance(q35_scaling_audit, dict) else None,
         "q35_redesign_verdict": q35_scaling_audit.get("redesign_verdict") if isinstance(q35_scaling_audit, dict) else None,

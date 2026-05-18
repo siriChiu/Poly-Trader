@@ -255,6 +255,101 @@ def test_build_probe_payload_canonicalizes_zero_row_non_q15_support_overlay(monk
     assert payload["deployment_blocker_details"]["support_governance_route"] == "no_support_proxy"
 
 
+def test_build_probe_payload_promotes_current_bucket_root_cause(monkeypatch, tmp_path):
+    monkeypatch.setattr(hb_predict_probe, "build_live_pathology_scope_surface", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(hb_predict_probe, "_load_q35_scaling_audit_summary", lambda _bucket: {})
+    root_cause_path = tmp_path / "q15_bucket_root_cause.json"
+    monkeypatch.setattr(hb_predict_probe, "Q15_BUCKET_ROOT_CAUSE_PATH", root_cause_path)
+    root_cause_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-18T00:01:30Z",
+                "bucket_scope_label": "current-live q00 bucket",
+                "verdict": "current_live_bucket_semantic_rebaseline_under_minimum",
+                "candidate_patch_type": "same_lane_neighbor_bucket_dominates",
+                "candidate_patch_feature": "feat_4h_bb_pct_b",
+                "reason": "current live q00 exact bucket has no deployable support",
+                "verify_next": ["hb_predict_probe.py", "/api/status", "Dashboard"],
+                "current_live": {
+                    "structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+                    "structure_quality": 0.1009,
+                    "q15_threshold": 0.15,
+                    "q35_threshold": 0.35,
+                    "support_status": "semantic_rebaseline_under_minimum",
+                    "support_route_verdict": "exact_bucket_unsupported_block",
+                    "support_current_rows": 0,
+                    "support_minimum_rows": 50,
+                    "support_gap_to_minimum": 50,
+                    "gap_to_q35_boundary": 0.2491,
+                },
+                "exact_live_lane": {
+                    "dominant_neighbor_bucket": "CAUTION|structure_quality_caution|q15",
+                    "dominant_neighbor_rows": 57,
+                    "near_boundary_rows": 57,
+                },
+                "candidate_patch": {"feature": "feat_4h_bb_pct_b", "status": "reference_only"},
+                "floor_gap_attribution": {
+                    "trade_floor": 0.55,
+                    "entry_quality": 0.6281,
+                    "remaining_gap_to_floor": 0.0,
+                    "single_component_floor_crossers": [],
+                },
+                "artifact_context_freshness": {"verdict": "current_context"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = hb_predict_probe._build_probe_payload(
+        latest={"timestamp": "2026-05-18T00:01:01+00:00", "regime_label": "bear"},
+        result={
+            "target_col": "simulated_pyramid_win",
+            "used_model": "regime_bear_ensemble",
+            "model_type": "RegimeAwarePredictor",
+            "signal": "HOLD",
+            "confidence": 0.302127,
+            "should_trade": False,
+            "regime_label": "bear",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+            "entry_quality": 0.6281,
+            "entry_quality_label": "C",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "unsupported_exact_live_structure_bucket_blocks_trade",
+            "execution_guardrail_reason": "unsupported_exact_live_structure_bucket_blocks_trade",
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "deployment_blocker_source": "decision_quality_contract",
+            "deployment_blocker_details": {
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 50,
+                "support_route_verdict": "exact_bucket_unsupported_block",
+                "support_route_deployable": False,
+            },
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_route_deployable": False,
+            "decision_quality_scope_diagnostics": {},
+        },
+        target_col="simulated_pyramid_win",
+        used_model="regime_bear_ensemble",
+        current_live_structure_bucket="CAUTION|base_caution_regime_or_bias|q00",
+        current_live_structure_bucket_rows=0,
+        q15_support_audit={},
+        four_h_non_null={},
+        lag_non_null={},
+    )
+
+    assert payload["q15_bucket_root_cause"]["current_live_structure_bucket"] == "CAUTION|base_caution_regime_or_bias|q00"
+    assert payload["current_bucket_root_cause"]["candidate_patch_type"] == "same_lane_neighbor_bucket_dominates"
+    assert payload["current_bucket_root_cause"]["candidate_patch_feature"] == "feat_4h_bb_pct_b"
+    assert payload["current_bucket_root_cause"]["support_current_rows"] == 0
+    assert payload["current_bucket_root_cause"]["dominant_neighbor_bucket"] == "CAUTION|structure_quality_caution|q15"
+    assert payload["deployment_blocker_details"]["current_bucket_root_cause"]["support_gap_to_minimum"] == 50
+
+    stale = hb_predict_probe._load_q15_bucket_root_cause_summary("CAUTION|structure_quality_caution|q15")
+    assert stale is None
+
+
 def test_hb_predict_probe_emits_q35_runtime_and_structure_fields(monkeypatch, capsys, tmp_path):
     session = DummySession()
     out_path = tmp_path / "live_predict_probe.json"
@@ -2289,6 +2384,7 @@ def test_hb_predict_probe_surfaces_reference_patch_summary_for_non_bull_live_row
     hb_predict_probe.main()
     payload = json.loads(capsys.readouterr().out)
 
+    assert payload["db_url"] == "[REDACTED]"
     summary = payload["decision_quality_scope_pathology_summary"]
     patch = summary["recommended_patch"]
     assert summary["spillover"]["worst_extra_regime_gate"]["regime_gate"] == "bull|BLOCK"

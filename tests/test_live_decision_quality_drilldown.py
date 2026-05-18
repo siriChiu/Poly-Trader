@@ -590,6 +590,24 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
         "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
         "floor_cross_verdict": "runtime_blocker_preempts_floor_analysis",
         "current_live_structure_bucket": "BLOCK|bull_q15_bias50_overextended_block|q15",
+        "current_bucket_root_cause": {
+            "verdict": "current_live_bucket_semantic_rebaseline_under_minimum",
+            "candidate_patch_type": "same_lane_neighbor_bucket_dominates",
+            "candidate_patch_feature": "feat_4h_bb_pct_b",
+            "support_current_rows": 0,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 50,
+            "dominant_neighbor_bucket": "CAUTION|structure_quality_caution|q15",
+        },
+        "q15_bucket_root_cause": {
+            "verdict": "current_live_bucket_semantic_rebaseline_under_minimum",
+            "candidate_patch_type": "same_lane_neighbor_bucket_dominates",
+            "candidate_patch_feature": "feat_4h_bb_pct_b",
+            "support_current_rows": 0,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 50,
+            "dominant_neighbor_bucket": "CAUTION|structure_quality_caution|q15",
+        },
         "decision_quality_exact_live_lane_bucket_diagnostics": {
             "bucket_count": 1,
             "buckets": {
@@ -741,6 +759,9 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
     assert payload["support_route_deployable"] is False
     assert payload["support_progress"]["status"] == "stalled_under_minimum"
     assert payload["support_progress"]["gap_to_minimum"] == 50
+    assert payload["current_bucket_root_cause"]["candidate_patch_type"] == "same_lane_neighbor_bucket_dominates"
+    assert payload["current_bucket_root_cause"]["candidate_patch_feature"] == "feat_4h_bb_pct_b"
+    assert payload["q15_bucket_root_cause"]["support_gap_to_minimum"] == 50
     assert payload["decision_quality_exact_live_lane_bucket_diagnostics"]["bucket_count"] == 1
     assert payload["decision_quality_exact_live_lane_bucket_verdict"] == "no_exact_lane_sub_bucket_split"
     assert payload["decision_quality_exact_live_lane_bucket_reason"] == "exact live lane 沒有可比較的非 current bucket 子 bucket。"
@@ -749,6 +770,9 @@ def test_live_decision_quality_drilldown_surfaces_recommended_patch_summary(tmp_
     assert "verdict: **no exact lane sub bucket split**" in markdown
     assert "精準即時路徑 沒有可比較的非 current bucket 子 bucket。" in markdown
     assert "建議修補方案: **core_plus_macro**" in markdown
+    assert "current-bucket root cause: verdict=current_live_bucket_semantic_rebaseline_under_minimum" in markdown
+    assert "feature=feat_4h_bb_pct_b" in markdown
+    assert "neighbor=觀察｜結構品質觀察｜q15" in markdown
     assert "狀態：非目前即時範圍，僅供治理參考" in markdown
     assert "適用範圍 牛市｜觀察" in markdown
     assert "來源 牛市 4H 口袋消融 / 牛市崩落 q35" in markdown

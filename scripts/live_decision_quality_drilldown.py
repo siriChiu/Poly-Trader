@@ -656,6 +656,12 @@ def main() -> None:
     current_live_structure_bucket = payload.get("current_live_structure_bucket") or payload.get("structure_bucket")
     q35_counterfactuals = _load_q35_audit_counterfactuals()
     q35_audit_summary = _load_q35_audit_summary(current_live_structure_bucket)
+    current_bucket_root_cause = payload.get("current_bucket_root_cause") or blocker_details.get("current_bucket_root_cause")
+    if not isinstance(current_bucket_root_cause, dict):
+        current_bucket_root_cause = None
+    q15_bucket_root_cause = payload.get("q15_bucket_root_cause") or blocker_details.get("q15_bucket_root_cause")
+    if not isinstance(q15_bucket_root_cause, dict):
+        q15_bucket_root_cause = None
     exact_lane_bucket_diagnostics = payload.get("decision_quality_exact_live_lane_bucket_diagnostics")
     if not isinstance(exact_lane_bucket_diagnostics, dict):
         exact_lane_bucket_diagnostics = {}
@@ -696,6 +702,8 @@ def main() -> None:
         "runtime_blocker": runtime_blocker,
         "deployment_blocker": deployment_blocker,
         "support_blocker_summary": support_blocker,
+        "current_bucket_root_cause": current_bucket_root_cause,
+        "q15_bucket_root_cause": q15_bucket_root_cause,
         # Promote the current-live exact-support contract to top-level fields so
         # API probes, docs sync, and operator surfaces do not have to infer the
         # deployment blocker by digging through nested summaries.
@@ -889,6 +897,11 @@ def main() -> None:
     q15_patch_state_text = "啟用" if report["q15_exact_supported_component_patch_applied"] else "未啟用"
     support_route_verdict_text = _humanize_runtime_text(report.get("support_route_verdict") or "None")
     floor_cross_verdict_text = _humanize_runtime_text(report.get("floor_cross_verdict") or "None")
+    current_root_cause = report.get("current_bucket_root_cause") or {}
+    current_root_cause_verdict_text = _humanize_runtime_text(current_root_cause.get("verdict") or "None")
+    current_root_cause_patch_text = _humanize_runtime_text(current_root_cause.get("candidate_patch_type") or "None")
+    current_root_cause_feature_text = _humanize_runtime_text(current_root_cause.get("candidate_patch_feature") or "None")
+    current_root_cause_neighbor_text = _humanize_runtime_text(current_root_cause.get("dominant_neighbor_bucket") or "None")
 
     lines = [
         "# Live Decision-Quality Drilldown",
@@ -905,6 +918,7 @@ def main() -> None:
         f"- deployment_blocker: {deployment_blocker_type_text} | reason: {deployment_blocker_reason_text}",
         f"- support blocker summary: **{support_operator_summary}**",
         f"- support next action: {support_operator_next_action}",
+        f"- current-bucket root cause: verdict={current_root_cause_verdict_text} / patch={current_root_cause_patch_text} / feature={current_root_cause_feature_text} / exact_support={current_root_cause.get('support_current_rows')}/{current_root_cause.get('support_minimum_rows')} / gap={current_root_cause.get('support_gap_to_minimum')} / neighbor={current_root_cause_neighbor_text}",
         f"- 精準樣本修補: **{q15_patch_state_text}** | 支持路徑 **{support_route_verdict_text}** | 跨越門檻 **{floor_cross_verdict_text}**",
         f"- runtime closure summary: **{runtime_closure_summary}**",
         f"- q35 scaling audit: overall={q35_overall_verdict_text} / redesign={q35_redesign_verdict_text} / runtime_gap={q35_runtime_gap} / mode={q35_recommended_mode_text} / next_patch={q35_next_patch_target_text}",
@@ -975,6 +989,8 @@ def main() -> None:
         "deployment_blocker": (deployment_blocker or {}).get("type"),
         "deployment_blocker_reason": deployment_blocker_reason_text,
         "support_blocker_summary": support_blocker_summary,
+        "current_bucket_root_cause": current_root_cause or None,
+        "q15_bucket_root_cause": report.get("q15_bucket_root_cause"),
         "support_operator_summary": support_operator_summary,
         "support_operator_next_action": support_operator_next_action,
         "q15_exact_supported_component_patch_applied": report.get("q15_exact_supported_component_patch_applied"),
