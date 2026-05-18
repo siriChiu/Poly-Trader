@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-05-18 23:34:38 CST_
+_最後更新：2026-05-19 00:42:31 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; update only when PM classification, blocker interpretation, customer-usable lane, engineering ask, or next gate changes.
 
@@ -12,11 +12,11 @@ _最後更新：2026-05-18 23:34:38 CST_
 
 PM 判定：PM 站在**客戶成功**一側。最新 machine-readable artifacts 仍明確禁止 live buy/add、真實買入 / 加倉、自動送單與小額 live canary；但產品不是停工，客戶現在可安全使用 Strategy Lab、Dashboard、Execution Console、paper/shadow selective sleeve、Shadow Trade Ledger、venue readiness checklist、range-chop playbook 與 canary rehearsal 做研究、影子觀察、減風險與證據累積。
 
-最新 `data/live_predict_probe.json`（`2026-05-18T15:01:11.754639Z`）與 `data/high_conviction_topk_oos_matrix.json`（`2026-05-18T15:01:51.551224+00:00`）顯示：`target_col=simulated_pyramid_win`、`signal=CIRCUIT_BREAKER`、`should_trade=false`、`deployment_blocker=circuit_breaker_active`、`runtime_closure_state=circuit_breaker_active`、`release_ready=false`。熔斷 release math 仍是 `9/50`：目前最近 50 筆 `current_recent_window_wins=9/50`、`current_recent_window_win_rate=18.0%`，需至少 `15/50` 與 `>=30%`，因此 `additional_recent_window_wins_needed=6`；`current_streak=5` 仍低於 `<50` 的連敗上限。
+最新 `data/live_predict_probe.json`（`2026-05-18T16:35:54.597322Z`）與 `data/high_conviction_topk_oos_matrix.json`（`2026-05-18T16:19:50.212068+00:00`）顯示：`target_col=simulated_pyramid_win`、`signal=CIRCUIT_BREAKER`、`should_trade=false`、`deployment_blocker=circuit_breaker_active`、`runtime_closure_state=circuit_breaker_active`、`release_ready=false`。熔斷 release math 惡化為 `5/50`：目前最近 50 筆 `current_recent_window_wins=5/50`、`current_recent_window_win_rate=10.0%`，需至少 `15/50` 與 `>=30%`，因此 `additional_recent_window_wins_needed=10`；`current_streak=9` 仍低於 `<50` 的連敗上限，但 recent-win-rate gate 未通過。
 
-同一 runtime truth 顯示 current-live support 仍 fail-closed，且目前治理路徑為 `support_governance_route=exact_live_lane_proxy_available`。這只是 governance/reference lane availability，不是部署證明；它不能覆蓋 `support_route_verdict=exact_bucket_unsupported_block`、`support_route_deployable=false`、`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q00`、`current_live_structure_bucket_rows=0/50`、`gap=50`、`allowed_layers_raw=2` 但 final `allowed_layers=0`、以及 `allowed_layers_reason=decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active` 的 fail-closed truth。`support_progress.status=semantic_rebaseline_under_minimum`、`support_delta_vs_previous=0`、`previous_rows=0`、`support_rows_needed=50`、`stagnant_run_count=5`、`stalled_support_accumulation=false`、`escalate_to_blocker=true`；legacy `190/50@1202` 仍只能當 reference-only，因為 current support identity 與 legacy reference 的 `calibration_window`、`entry_quality_label`、`regime_label` 不一致。
+同一 runtime truth 顯示 current-live support 仍 fail-closed，且治理路徑為 `support_governance_route=exact_live_lane_proxy_available`。這只是 governance/reference lane availability，不是部署證明；它不能覆蓋 `support_route_verdict=exact_bucket_unsupported_block`、`support_route_deployable=false`、`current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q00`、`current_live_structure_bucket_rows=0/50`、`gap=50`、`allowed_layers_raw=1` 但 final `allowed_layers=0`、以及 `allowed_layers_reason=decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active` 的 fail-closed truth。`support_progress.status=semantic_rebaseline_under_minimum`、`support_delta_vs_previous=0`、`previous_rows=0`、`support_rows_needed=50`、`stagnant_run_count=5`、`stalled_support_accumulation=false`、`escalate_to_blocker=true`；legacy `190/50@1202` 仍只能當 reference-only，因為 current support identity 與 legacy reference 的 `calibration_window`、`entry_quality_label`、`regime_label` 不一致。
 
-本輪不升級為 `ORANGE_framework_capture_risk`：熔斷、exact support、venue proof 這些 gate 都有 artifact proof，且 governance route 前進已同步成 PM 狀態而不是被舊文件框住。PM 仍把 `release_ready=false`（還差 6 勝）、support `0/50 gap=50`、recent last-100 blocking window `win_rate=27.0%` / `bear=100%`、venue runtime proof missing、以及 2 個 P0 + 8 個 P1 開放議題列為 customer-value 壓力點：工程 heartbeat 下輪不得只說等待，必須交付 breaker release movement、q00 exact-row movement/root-cause falsification、venue proof、paper/shadow UI/API proof，或 recent drift falsification test 之一。
+本輪不升級為 `ORANGE_framework_capture_risk`：熔斷、exact support、venue proof 這些 gate 都有 artifact proof，且 safe customer lanes 已產品化成 Strategy Lab / Execution Console / Dashboard / paper-shadow / dry-run readiness，而不是只有「等」。PM 仍把 `release_ready=false`（還差 10 勝）、support `0/50 gap=50`、recent last-100 blocking window `win_rate=27.0%` / `bear=100%`、venue runtime proof missing、以及 2 個 P0 + 7 個 P1 開放議題列為 customer-value 壓力點：工程 heartbeat 下輪不得只說等待，必須交付 breaker release movement、q00 exact-row movement/root-cause falsification、venue proof、paper/shadow UI/API proof，或 recent drift falsification test 之一。
 
 ---
 
@@ -24,11 +24,11 @@ PM 判定：PM 站在**客戶成功**一側。最新 machine-readable artifacts 
 
 ### Current-live blocker
 
-- `data/live_predict_probe.json` generated at `2026-05-18T15:01:11.754639Z`; high-conviction overlay source `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-18T15:01:51.551224+00:00` and is `artifact_freshness_status=fresh` at generation time.
+- `data/live_predict_probe.json` generated at `2026-05-18T16:35:54.597322Z`; high-conviction overlay source `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-18T16:19:50.212068+00:00` and is `artifact_freshness_status=fresh` at generation time.
 - Canonical target: `simulated_pyramid_win`.
 - `signal=CIRCUIT_BREAKER` / `should_trade=false`.
 - Primary blocker: `deployment_blocker=circuit_breaker_active` / `runtime_closure_state=circuit_breaker_active`.
-- Release condition: `release_ready=false`; recent-window gate is `9/50` wins, needs `15/50`, so `additional_recent_window_wins_needed=6`; current streak is `5`, below the `<50` streak ceiling.
+- Release condition: `release_ready=false`; recent-window gate is `5/50` wins, needs `15/50`, so `additional_recent_window_wins_needed=10`; current streak is `9`, below the `<50` streak ceiling.
 - Support boundary is not deployable proof: `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q00`, `support_route_verdict=exact_bucket_unsupported_block`, `support_governance_route=exact_live_lane_proxy_available`, `support_route_deployable=false`, `current_live_structure_bucket_rows=0`, `minimum_support_rows=50`, `gap=50`.
 - Support progress: `status=semantic_rebaseline_under_minimum`, `current_rows=0`, `previous_rows=0`, `delta_vs_previous=0`, `minimum_support_rows=50`, `gap_to_minimum=50`, `support_rows_needed=50`, `stagnant_run_count=5`, `stalled_support_accumulation=false`, `escalate_to_blocker=true`; legacy `190/50@1202` remains reference-only because `calibration_window / entry_quality_label / regime_label` mismatch current identity.
 - `/api/trade` guardrail is active: `api_trade_guardrail_active=true`; buy/add risk-on path returns `current_live_deployment_blocker_409`; allowed risk-off sides are `reduce / sell`, with wait / diagnostics / mode toggle still available.
@@ -37,16 +37,16 @@ PM 判定：PM 站在**客戶成功**一側。最新 machine-readable artifacts 
 
 ### Research-to-delivery candidates
 
-- `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-18T15:01:51.551224+00:00`; `artifact_freshness_status=fresh`, `target_col=simulated_pyramid_win`.
+- `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-18T16:19:50.212068+00:00`; `artifact_freshness_status=fresh`, `target_col=simulated_pyramid_win`.
 - Matrix status: `samples=24555`, `row_count=24`, `deployable_rows=0`, `risk_qualified_rows=6`, `runtime_blocked_candidate_rows=6`.
-- Runtime overlay is synced to live truth: `deployment_blocker=circuit_breaker_active`, `release_ready=false`, `recent_window_wins=9/50`, `additional_recent_window_wins_needed=6`, `support_route_verdict=exact_bucket_unsupported_block`, `support_governance_route=exact_live_lane_proxy_available`, bucket rows `0/50`, `gap=50`, source live probe `2026-05-18T15:01:11.754639Z`.
+- Runtime overlay is synced to live truth: `deployment_blocker=circuit_breaker_active`, `release_ready=false`, `recent_window_wins=5/50`, `additional_recent_window_wins_needed=10`, `support_route_verdict=exact_bucket_unsupported_block`, `support_governance_route=exact_live_lane_proxy_available`, bucket rows `0/50`, `gap=50`, source live probe `2026-05-18T16:35:54.597322Z`.
 - Nearest deployable candidate remains a research / paper-shadow candidate only: `logistic_regression / current_full / all / top_2pct`, `oos_roi=0.9324`, `win_rate=0.8621`, `profit_factor=19.8864`, `max_drawdown=0.022`, `worst_fold=0.2068`, `trade_count=58`, `tier=runtime_blocked_oos_pass`; verdict remains `not_deployable` because live gate failures are `support_route_not_deployable`, `deployment_blocker_active`, and `breaker_release_not_ready`.
 
 **PM verdict：可展示「最接近部署候選」並用於 research / paper / shadow；不可標成 live deployable。**
 
 ### Venue readiness
 
-- `data/execution_metadata_smoke.json` generated at `2026-05-18T15:02:00.963262Z`.
+- `data/execution_metadata_smoke.json` generated at `2026-05-18T16:36:40.778761Z`.
 - `runtime_ready=false` / `runtime_ready_count=0` / `readiness_state=blocked_until_runtime_lifecycle_proof`.
 - Runtime blockers: fill lifecycle 尚未驗證、live exchange credential 尚未驗證、order ack lifecycle 尚未驗證、元資料契約尚未通過、場館 adapter 尚未接入、場館設定停用。
 - OKX: `adapter_supported=true`, `enabled_in_config=true`, `credentials_configured=false`, `proof_state=public_metadata_only`; missing live exchange credential, order ack lifecycle, and fill lifecycle.
@@ -56,19 +56,19 @@ PM 判定：PM 站在**客戶成功**一側。最新 machine-readable artifacts 
 
 ### Recent market/model risk
 
-- `data/recent_drift_report.json` generated at `2026-05-18T15:01:07.561020+00:00`.
+- `data/recent_drift_report.json` generated at `2026-05-18T16:35:51.058899+00:00`.
 - Target: `simulated_pyramid_win`; blocking window: last 100 rows.
 - Blocking window truth: `win_rate=27.0%`, wins/losses `27/73`, dominant regime `bear=100.0%`.
-- Quality metrics: `avg_simulated_pnl=-0.0060`, `avg_simulated_quality=-0.0521`, `avg_drawdown_penalty=0.1983`.
-- Alerts: `regime_concentration`, `regime_shift`; tail streak `5` losses; adverse streak `36` losses; top shift features include `feat_4h_rsi14`, `feat_nq_return_24h`, `feat_4h_ma_order`, `feat_4h_bias20`, `feat_tunnel_distance`.
+- Quality metrics: `avg_simulated_pnl=-0.0056`, `avg_simulated_quality=-0.0464`, `avg_drawdown_penalty=0.1982`.
+- Alerts: `regime_concentration`, `regime_shift`; notable compressed / sparse features include `feat_4h_ma_order`, `feat_body`, `feat_dxy`, `feat_vix`, `feat_scales_ssr`, `feat_claw`, `feat_claw_intensity`, `feat_nest_pred`.
 
 **PM verdict：近期品質惡化支持 fail-closed；也要求工程把 safe customer lane 做成可操作產品，而不是只說等待。**
 
 ### Issue tracker
 
-- `issues.json` has 10 open issues: 2 P0 and 8 P1.
+- `issues.json` has 9 open issues: 2 P0 and 7 P1.
 - Open P0s: `P0_current_live_deployment_blocker`, `P0_high_conviction_topk_roi_gate`.
-- PM-relevant P1s: train-CV gap, live DQ pathology, model stability, regime drift, venue readiness, fin_netflow auth blocker, leaderboard recent-window contract, nest_pred TLS verification, q00/q15/q35 exact-support evidence boundaries.
+- PM-relevant P1s: train-CV gap, model stability, regime drift, venue readiness, fin_netflow auth blocker, leaderboard recent-window contract, nest_pred TLS verification.
 
 ---
 
@@ -103,12 +103,12 @@ PM 保留 framework-capture 檢查：如果 Poly-Trader 自訂 skills、文件�
 
 工程 heartbeat 下次不得只輸出「等待更多資料 / gate 未過」。PM 站在客戶側，要求至少交付或驗證下列其中一項：
 
-1. **Breaker release lane**：刷新 live probe / circuit-breaker audit，直接顯示最近 50 筆是否從 `9/50` 往 `15/50` 前進；若仍停住，提出 recent-window loss root-cause falsification test。
+1. **Breaker release lane**：刷新 live probe / circuit-breaker audit，直接顯示最近 50 筆是否從 `5/50` 往 `15/50` 前進；若仍停住，提出 recent-window loss root-cause falsification test。
 2. **Support evidence lane**：刷新 current q00 bucket support audit，顯示 current rows 是否從 `0/50` 往 `50/50` 前進、rows needed、delta vs previous、stagnant count、`exact_live_lane_proxy_available` governance lane 能提供什麼 reference evidence；若 `0/50` 停住，明確證明原因並提出可測修法。
 3. **Customer-usable lane**：確認 `/execution` 的 paper/shadow selective sleeve、Shadow Trade Ledger、range-chop playbook 或 dry-run readiness 可操作，並以 route/API/test/browser proof 支撐。
 4. **Venue proof lane**：產出 OKX sandbox/dry-run 或 metadata-to-runtime proof checklist；credential present 只可顯示布林，不可洩漏 secret。
 5. **Strategy Lab lane**：把 nearest-deployable Top-K 候選的「OOS 已過、live gate 未過、可 paper/shadow、不可 live」狀態用操作員繁中 copy 顯示清楚。
-6. **Recent drift lane**：針對 last-100 win_rate 27%、bear 100%、losses 73/100、tail streak 5、adverse streak 36、regime concentration / regime shift 的 canonical pathology，下一輪給出一個可測的 blocker root-cause patch 或 falsification test。
+6. **Recent drift lane**：針對 last-100 win_rate 27%、bear 100%、losses 73/100、regime concentration / regime shift 的 canonical pathology，下一輪給出一個可測的 blocker root-cause patch 或 falsification test。
 
 ---
 
