@@ -119,6 +119,14 @@ python scripts/heartbeat_harness_check.py --format text
 python -m pytest tests/test_heartbeat_harness_contract.py -q
 ```
 
+**Runtime API compact probes（需要本地 API 服務已啟動）：**
+
+```bash
+curl -fsS http://127.0.0.1:8000/api/status | python scripts/hb_compact_status_probe.py
+curl -fsS http://127.0.0.1:8000/api/models/leaderboard | python scripts/hb_compact_leaderboard_probe.py
+curl -fsS http://127.0.0.1:8000/api/execution/overview | python scripts/hb_compact_execution_overview_probe.py
+```
+
 **若失敗：** 先修 root cause，不用敘事蓋過紅燈。
 
 ---
