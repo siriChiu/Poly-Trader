@@ -242,6 +242,129 @@ def _infer_support_governance_route(
 
 
 
+def _support_governance_reference_evidence(
+    *,
+    support_governance_route: str | None,
+    support_route_verdict: str | None,
+    support_route_deployable: bool | None,
+    support_route: dict | None,
+    support_progress: dict | None,
+    recommended_patch: dict | None,
+    current_live_structure_bucket: str | None,
+    current_rows: int | None,
+    minimum_rows: int | None,
+    gap_to_minimum: int | None,
+) -> dict | None:
+    """Explain which governance/proxy support evidence is reference-only.
+
+    PM heartbeat handoff asks engineering to state what the governance lane can
+    prove.  Keep that answer machine-readable so API/docs/UI can preserve the
+    proxy evidence while still failing closed on exact support.
+    """
+
+    route = str(support_governance_route or "").strip()
+    verdict = str(support_route_verdict or "").strip()
+    support_route = support_route if isinstance(support_route, dict) else {}
+    support_progress = support_progress if isinstance(support_progress, dict) else {}
+    recommended_patch = recommended_patch if isinstance(recommended_patch, dict) else {}
+
+    if not any((route, verdict, support_route, support_progress, recommended_patch)):
+        return None
+
+    def _first_present(*values):
+        for value in values:
+            if value is not None and value != "":
+                return value
+        return None
+
+    evidence = {
+        "support_governance_route": route or None,
+        "support_route_verdict": verdict or None,
+        "support_route_deployable": support_route_deployable,
+        "current_live_structure_bucket": current_live_structure_bucket,
+        "current_rows": current_rows,
+        "minimum_support_rows": minimum_rows,
+        "gap_to_minimum": gap_to_minimum,
+        "reference_only": True,
+        "deployment_closure_allowed": False,
+    }
+
+    scalar_sources = {
+        "exact_bucket_proxy_rows": ("exact_bucket_proxy_rows", "bull_exact_live_bucket_proxy_rows"),
+        "exact_live_lane_proxy_rows": ("exact_live_lane_proxy_rows", "bull_exact_live_lane_proxy_rows"),
+        "supported_neighbor_rows": ("supported_neighbor_rows", "bull_support_neighbor_rows"),
+        "preferred_support_cohort": ("preferred_support_cohort",),
+        "exact_bucket_root_cause": ("exact_bucket_root_cause",),
+        "route_hint": ("route_hint",),
+        "governance_reference_only": ("governance_reference_only",),
+    }
+    for output_key, input_keys in scalar_sources.items():
+        value = _first_present(
+            *(support_route.get(key) for key in input_keys),
+            *(support_progress.get(key) for key in input_keys),
+            *(recommended_patch.get(key) for key in input_keys),
+        )
+        if value is not None:
+            evidence[output_key] = value
+
+    reference_scope = _first_present(
+        recommended_patch.get("reference_patch_scope"),
+        recommended_patch.get("reference_scope"),
+        support_route.get("reference_scope"),
+    )
+    if reference_scope is not None:
+        evidence["reference_scope"] = reference_scope
+    reference_source = _first_present(recommended_patch.get("reference_source"), support_route.get("reference_source"))
+    if reference_source is not None:
+        evidence["reference_source"] = reference_source
+
+    legacy_reference = support_progress.get("legacy_supported_reference")
+    if isinstance(legacy_reference, dict) and legacy_reference:
+        evidence["legacy_supported_reference"] = {
+            key: legacy_reference.get(key)
+            for key in (
+                "heartbeat",
+                "live_current_structure_bucket_rows",
+                "minimum_support_rows",
+                "support_route_verdict",
+                "support_governance_route",
+            )
+            if legacy_reference.get(key) is not None
+        }
+
+    if support_route_deployable is True and (gap_to_minimum in (None, 0)):
+        evidence["reference_only"] = False
+        evidence["deployment_closure_allowed"] = True
+        evidence["reference_only_reason"] = "exact_support_closed"
+    elif route in {
+        "exact_live_lane_proxy_available",
+        "exact_live_bucket_proxy_available",
+        "exact_live_bucket_present_but_below_minimum",
+    }:
+        evidence["reference_only_reason"] = "proxy_or_under_minimum_support_not_deployment_closure"
+    elif verdict:
+        evidence["reference_only_reason"] = "support_route_not_deployable"
+    else:
+        evidence["reference_only_reason"] = "support_governance_route_observed"
+
+    proxy_rows = evidence.get("exact_live_lane_proxy_rows")
+    if proxy_rows is not None:
+        evidence["operator_summary"] = (
+            f"governance lane {route or '—'} 提供 exact-live-lane proxy rows={proxy_rows} 作為參考；"
+            f"current exact support={current_rows if current_rows is not None else '—'}/{minimum_rows if minimum_rows is not None else '—'}，"
+            "不可視為部署閉環。"
+        )
+    else:
+        evidence["operator_summary"] = (
+            f"governance lane {route or '—'} 僅提供 reference evidence；"
+            f"current exact support={current_rows if current_rows is not None else '—'}/{minimum_rows if minimum_rows is not None else '—'}，"
+            "不可視為部署閉環。"
+        )
+
+    return {key: value for key, value in evidence.items() if value is not None}
+
+
+
 def _load_q15_support_audit(current_live_structure_bucket: str | None) -> dict | None:
     if not current_live_structure_bucket:
         return None
@@ -1027,6 +1150,44 @@ def _build_probe_payload(
     recommended_patch_minimum_rows = result.get("recommended_patch_minimum_support_rows")
     if recommended_patch_minimum_rows is None and recommended_patch_summary is not None:
         recommended_patch_minimum_rows = recommended_patch_summary.get("minimum_support_rows")
+    support_reference_current_rows = _nonnegative_int_or_none(
+        support_progress.get("current_rows") if isinstance(support_progress, dict) else None
+    )
+    if support_reference_current_rows is None:
+        support_reference_current_rows = _nonnegative_int_or_none(current_live_structure_bucket_rows)
+    support_reference_minimum_rows = _nonnegative_int_or_none(
+        support_progress.get("minimum_support_rows") if isinstance(support_progress, dict) else None
+    )
+    if support_reference_minimum_rows is None:
+        support_reference_minimum_rows = _nonnegative_int_or_none(deployment_blocker_details.get("minimum_support_rows"))
+    support_reference_gap = _nonnegative_int_or_none(
+        support_progress.get("gap_to_minimum") if isinstance(support_progress, dict) else None
+    )
+    if support_reference_gap is None:
+        support_reference_gap = _nonnegative_int_or_none(
+            deployment_blocker_details.get("current_live_structure_bucket_gap_to_minimum")
+        )
+    if (
+        support_reference_gap is None
+        and support_reference_current_rows is not None
+        and support_reference_minimum_rows is not None
+    ):
+        support_reference_gap = max(support_reference_minimum_rows - support_reference_current_rows, 0)
+    support_governance_reference_evidence = _support_governance_reference_evidence(
+        support_governance_route=support_governance_route,
+        support_route_verdict=support_route.get("verdict") if isinstance(support_route, dict) else None,
+        support_route_deployable=support_route.get("deployable") if isinstance(support_route, dict) else None,
+        support_route=support_route,
+        support_progress=support_progress,
+        recommended_patch=recommended_patch_summary,
+        current_live_structure_bucket=current_live_structure_bucket,
+        current_rows=support_reference_current_rows,
+        minimum_rows=support_reference_minimum_rows,
+        gap_to_minimum=support_reference_gap,
+    )
+    if support_governance_reference_evidence:
+        deployment_blocker_details["support_governance_reference_evidence"] = support_governance_reference_evidence
+        runtime_result["support_governance_reference_evidence"] = support_governance_reference_evidence
     breaker_release = deployment_blocker_details.get("release_condition") if isinstance(deployment_blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = deployment_blocker_details.get("recent_window") if isinstance(deployment_blocker_details.get("recent_window"), dict) else {}
     circuit_breaker_release_surface = shared_circuit_breaker_release_surface(runtime_result)
@@ -1094,6 +1255,7 @@ def _build_probe_payload(
         "support_route_verdict": support_route.get("verdict"),
         "support_route_deployable": support_route.get("deployable"),
         "support_governance_route": support_governance_route,
+        "support_governance_reference_evidence": support_governance_reference_evidence,
         "support_identity": support_identity,
         "artifact_context_freshness": artifact_context_freshness,
         "support_progress": support_progress or None,

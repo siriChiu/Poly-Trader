@@ -1481,6 +1481,11 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
     support_governance_route = payload.get("support_governance_route")
     if support_governance_route is None:
         support_governance_route = blocker_details.get("support_governance_route")
+    support_governance_reference_evidence = payload.get("support_governance_reference_evidence")
+    if not isinstance(support_governance_reference_evidence, dict):
+        support_governance_reference_evidence = blocker_details.get("support_governance_reference_evidence")
+    if not isinstance(support_governance_reference_evidence, dict):
+        support_governance_reference_evidence = None
     scope_pathology_summary = _build_live_pathology_scope_summary(scope_diagnostics)
     spillover_patch_summary = _build_live_pathology_patch_summary(payload, scope_pathology_summary)
     if isinstance(scope_pathology_summary, dict) and isinstance(spillover_patch_summary, dict):
@@ -1602,6 +1607,7 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "current_live_structure_bucket_gap_to_minimum": gap_to_minimum,
         "support_route_deployable": support_route_deployable,
         "support_governance_route": support_governance_route,
+        "support_governance_reference_evidence": support_governance_reference_evidence,
     }
     if support_progress:
         runtime_payload["support_progress"] = support_progress
@@ -1692,6 +1698,7 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "support_route_verdict": payload.get("support_route_verdict"),
         "support_route_deployable": support_route_deployable,
         "support_governance_route": support_governance_route,
+        "support_governance_reference_evidence": support_governance_reference_evidence,
         "support_progress": support_progress or None,
         "support_rows_text": f"{current_rows} / {minimum_rows}" if current_rows is not None and minimum_rows is not None else None,
         "runtime_exact_support_rows": current_rows,
@@ -3981,6 +3988,7 @@ def _high_conviction_support_context_has_live_gate(support_context: Dict[str, An
             "support_route_verdict",
             "support_route",
             "support_route_deployable",
+            "support_governance_reference_evidence",
             "deployment_blocker",
             "runtime_closure_state",
             "release_condition",
@@ -4026,6 +4034,7 @@ def _apply_high_conviction_support_overlay_to_row(
     for row_key, context_key in (
         ("support_route", "support_route_verdict"),
         ("support_governance_route", "support_governance_route"),
+        ("support_governance_reference_evidence", "support_governance_reference_evidence"),
         ("support_route_deployable", "support_route_deployable"),
         ("deployment_blocker", "deployment_blocker"),
         ("runtime_closure_state", "runtime_closure_state"),
@@ -4158,6 +4167,7 @@ def _compact_high_conviction_topk_row(
         "trade_count": _coerce_int_or_none(row.get("trade_count")),
         "support_route": _support_value("support_route", "support_route_verdict"),
         "support_governance_route": _support_value("support_governance_route"),
+        "support_governance_reference_evidence": _support_value("support_governance_reference_evidence"),
         "deployment_blocker": _support_value("deployment_blocker"),
         "runtime_closure_state": _support_value("runtime_closure_state"),
         "current_live_structure_bucket": _support_value("current_live_structure_bucket"),
@@ -4238,6 +4248,11 @@ def _load_high_conviction_live_support_overlay(path: Optional[Path] = None) -> O
 
     support_route = payload.get("support_route_verdict") or blocker_details.get("support_route_verdict")
     support_governance_route = payload.get("support_governance_route") or blocker_details.get("support_governance_route")
+    support_governance_reference_evidence = payload.get("support_governance_reference_evidence")
+    if not isinstance(support_governance_reference_evidence, dict):
+        support_governance_reference_evidence = blocker_details.get("support_governance_reference_evidence")
+    if not isinstance(support_governance_reference_evidence, dict):
+        support_governance_reference_evidence = None
     deployment_blocker = payload.get("deployment_blocker") or blocker_details.get("deployment_blocker")
     runtime_closure_state = payload.get("runtime_closure_state") or blocker_details.get("runtime_closure_state")
     if (
@@ -4322,6 +4337,7 @@ def _load_high_conviction_live_support_overlay(path: Optional[Path] = None) -> O
         "current_live_structure_bucket_gap_to_minimum": gap_to_minimum,
         "support_route_verdict": support_route,
         "support_governance_route": support_governance_route,
+        "support_governance_reference_evidence": support_governance_reference_evidence,
         "support_route_deployable": support_route_deployable,
         "deployment_blocker": deployment_blocker,
         "runtime_closure_state": runtime_closure_state,
@@ -4375,6 +4391,7 @@ def _overlay_high_conviction_support_context(
         "current_live_structure_bucket_gap_to_minimum",
         "support_route_verdict",
         "support_governance_route",
+        "support_governance_reference_evidence",
         "support_route_deployable",
         "deployment_blocker",
         "runtime_closure_state",
@@ -4931,6 +4948,12 @@ def _load_leaderboard_live_truth_overlay(path: Optional[Path] = None) -> Optiona
         except (TypeError, ValueError):
             gap_to_minimum = None
 
+    support_governance_reference_evidence = payload.get("support_governance_reference_evidence")
+    if not isinstance(support_governance_reference_evidence, dict):
+        support_governance_reference_evidence = blocker_details.get("support_governance_reference_evidence")
+    if not isinstance(support_governance_reference_evidence, dict):
+        support_governance_reference_evidence = None
+
     if current_bucket is None and current_rows is None and minimum_rows is None and not support_progress:
         return None
 
@@ -4943,6 +4966,7 @@ def _load_leaderboard_live_truth_overlay(path: Optional[Path] = None) -> Optiona
         "live_current_structure_bucket_gap_to_minimum": gap_to_minimum,
         "support_route_verdict": payload.get("support_route_verdict") or blocker_details.get("support_route_verdict"),
         "support_governance_route": payload.get("support_governance_route") or blocker_details.get("support_governance_route"),
+        "support_governance_reference_evidence": support_governance_reference_evidence,
         "support_progress": support_progress or None,
         "support_identity": support_identity if isinstance(support_identity, dict) else None,
         "live_regime_gate": payload.get("regime_gate"),
@@ -4961,6 +4985,20 @@ def _overlay_leaderboard_governance_live_truth(
     if live_truth_dt is None:
         return governance
     if governance_dt is not None and live_truth_dt < governance_dt:
+        evidence = live_truth.get("support_governance_reference_evidence")
+        if isinstance(evidence, dict) and "support_governance_reference_evidence" not in governance:
+            merged = dict(governance)
+            merged["support_governance_reference_evidence"] = evidence
+            governance_contract = dict(merged.get("governance_contract") or {})
+            governance_contract["support_governance_reference_evidence"] = evidence
+            if live_truth.get("support_governance_route") is not None:
+                governance_contract["support_governance_route"] = live_truth.get("support_governance_route")
+                merged.setdefault("support_governance_route", live_truth.get("support_governance_route"))
+            merged["live_truth_reference_evidence_overlay_applied"] = True
+            merged["live_truth_reference_evidence_generated_at"] = live_truth.get("generated_at")
+            merged["live_truth_reference_evidence_source_artifact"] = live_truth.get("source_artifact")
+            merged["governance_contract"] = governance_contract
+            return merged
         return governance
 
     merged = dict(governance)
@@ -4971,6 +5009,7 @@ def _overlay_leaderboard_governance_live_truth(
         "live_current_structure_bucket_gap_to_minimum",
         "support_route_verdict",
         "support_governance_route",
+        "support_governance_reference_evidence",
         "support_progress",
         "support_identity",
         "live_regime_gate",
@@ -4984,6 +5023,8 @@ def _overlay_leaderboard_governance_live_truth(
     governance_contract = dict(merged.get("governance_contract") or {})
     if live_truth.get("support_governance_route") is not None:
         governance_contract["support_governance_route"] = live_truth.get("support_governance_route")
+    if isinstance(live_truth.get("support_governance_reference_evidence"), dict):
+        governance_contract["support_governance_reference_evidence"] = live_truth.get("support_governance_reference_evidence")
     if live_truth.get("live_current_structure_bucket_rows") is not None:
         governance_contract["live_current_structure_bucket_rows"] = live_truth.get("live_current_structure_bucket_rows")
     if live_truth.get("minimum_support_rows") is not None:

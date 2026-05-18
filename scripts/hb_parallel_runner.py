@@ -558,12 +558,17 @@ def _support_truth_context(
         "gap_to_minimum": live_predictor_diagnostics.get("current_live_structure_bucket_gap_to_minimum"),
         "support_route_verdict": live_predictor_diagnostics.get("support_route_verdict"),
         "support_governance_route": live_predictor_diagnostics.get("support_governance_route"),
+        "support_governance_reference_evidence": live_predictor_diagnostics.get("support_governance_reference_evidence"),
         "source": "live_predictor",
     }
 
     deployment_details = live_predictor_diagnostics.get("deployment_blocker_details") or {}
     if not isinstance(deployment_details, dict):
         deployment_details = {}
+    if not isinstance(context.get("support_governance_reference_evidence"), dict):
+        reference_evidence = deployment_details.get("support_governance_reference_evidence")
+        if isinstance(reference_evidence, dict):
+            context["support_governance_reference_evidence"] = reference_evidence
     live_support_progress = (
         live_predictor_diagnostics.get("support_progress")
         or deployment_details.get("support_progress")
@@ -802,6 +807,9 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
     legacy_evidence_promotable = support_context.get("legacy_semantic_evidence_promotable_to_same_identity_history")
     legacy_evidence_mismatched = support_context.get("legacy_semantic_evidence_mismatched_fields") or []
     legacy_evidence_missing = support_context.get("legacy_semantic_evidence_missing_fields") or []
+    governance_reference_evidence = support_context.get("support_governance_reference_evidence")
+    if not isinstance(governance_reference_evidence, dict):
+        governance_reference_evidence = {}
     has_active_repair = any(
         item not in (None, "", [])
         for item in (
@@ -834,6 +842,7 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
         and stagnant_run_count is None
         and stalled_support_accumulation is None
         and escalate_to_blocker is None
+        and not governance_reference_evidence
         and not has_active_repair
     ):
         return ""
@@ -856,6 +865,15 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
         parts.append(f"`stalled_support_accumulation={stalled_support_accumulation}`")
     if escalate_to_blocker is not None:
         parts.append(f"`escalate_to_blocker={escalate_to_blocker}`")
+    if governance_reference_evidence:
+        evidence_route = governance_reference_evidence.get("support_governance_route") or support_context.get("support_governance_route")
+        evidence_proxy_rows = governance_reference_evidence.get("exact_live_lane_proxy_rows")
+        evidence_reference_only = governance_reference_evidence.get("reference_only")
+        parts.append(f"`governance_reference_route={evidence_route or '—'}`")
+        if evidence_proxy_rows is not None:
+            parts.append(f"`exact_live_lane_proxy_rows={evidence_proxy_rows}`")
+        if evidence_reference_only is not None:
+            parts.append(f"`governance_reference_only={evidence_reference_only}`")
     line = "support progress：" + " / ".join(parts)
     if has_active_repair:
         repair_parts = []
@@ -1181,6 +1199,8 @@ def _current_live_blocker_issue_summary(live_predictor_diagnostics: Dict[str, An
         or details.get("support_route_verdict"),
         "support_governance_route": live_predictor_diagnostics.get("support_governance_route")
         or details.get("support_governance_route"),
+        "support_governance_reference_evidence": live_predictor_diagnostics.get("support_governance_reference_evidence")
+        or details.get("support_governance_reference_evidence"),
         "support_route_deployable": live_predictor_diagnostics.get("support_route_deployable")
         if live_predictor_diagnostics.get("support_route_deployable") is not None
         else details.get("support_route_deployable"),
@@ -1418,6 +1438,7 @@ def _compact_high_conviction_topk_matrix_summary(
         "blocked_only_by_live_guardrails",
         "support_route",
         "support_governance_route",
+        "support_governance_reference_evidence",
         "deployment_blocker",
         "runtime_closure_state",
         "current_live_structure_bucket",
@@ -1471,6 +1492,7 @@ def _compact_high_conviction_topk_matrix_summary(
         support_fallback_keys = {
             "support_route": "support_route_verdict",
             "support_governance_route": "support_governance_route",
+            "support_governance_reference_evidence": "support_governance_reference_evidence",
             "deployment_blocker": "deployment_blocker",
             "runtime_closure_state": "runtime_closure_state",
             "current_live_structure_bucket": "current_live_structure_bucket",
@@ -1551,6 +1573,7 @@ def _compact_high_conviction_topk_matrix_summary(
         "runtime_blocked_candidate_rows": sum(1 for row in matrix_rows if _row_gate_parts(row)[4]),
         "support_route": _support_value("support_route_verdict"),
         "support_governance_route": _support_value("support_governance_route"),
+        "support_governance_reference_evidence": _support_value("support_governance_reference_evidence"),
         "support_route_deployable": _support_value("support_route_deployable"),
         "deployment_blocker": _support_value("deployment_blocker"),
         "runtime_closure_state": _support_value("runtime_closure_state"),
@@ -1601,6 +1624,7 @@ def _compact_high_conviction_topk_matrix_summary(
 _HIGH_CONVICTION_LIVE_SUPPORT_KEYS = (
     "support_route_verdict",
     "support_governance_route",
+    "support_governance_reference_evidence",
     "support_route_deployable",
     "deployment_blocker",
     "runtime_closure_state",

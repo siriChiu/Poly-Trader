@@ -119,6 +119,7 @@ def _load_support_context() -> dict:
     keys = [
         "support_route_verdict",
         "support_governance_route",
+        "support_governance_reference_evidence",
         "support_route_deployable",
         "deployment_blocker",
         "runtime_closure_state",
@@ -218,6 +219,7 @@ def _load_support_context() -> dict:
 TOP_LEVEL_LIVE_GATE_SUMMARY_KEYS = (
     "support_route_verdict",
     "support_governance_route",
+    "support_governance_reference_evidence",
     "support_route_deployable",
     "deployment_blocker",
     "runtime_closure_state",

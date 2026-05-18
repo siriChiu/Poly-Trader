@@ -542,6 +542,14 @@ def sync_current_state_governance_issues(
         governance.get("support_governance_route"),
         support_progress.get("support_governance_route"),
     )
+    support_governance_reference_evidence = _first_non_null(
+        (live_predict_probe or {}).get("support_governance_reference_evidence"),
+        live_blocker_details.get("support_governance_reference_evidence"),
+        governance.get("support_governance_reference_evidence"),
+        support_progress.get("support_governance_reference_evidence"),
+    )
+    if not isinstance(support_governance_reference_evidence, dict):
+        support_governance_reference_evidence = None
     live_bucket_blocked = (
         "unsupported_exact_live_structure_bucket" in live_support_reason
         or "under_minimum_exact_live_structure_bucket" in live_support_reason
@@ -863,6 +871,7 @@ def sync_current_state_governance_issues(
             "gap_to_minimum": max(int(minimum_rows or 0) - int(current_rows or 0), 0),
             "support_route_verdict": support_route_verdict,
             "support_governance_route": support_governance_route,
+            "support_governance_reference_evidence": support_governance_reference_evidence,
             "runtime_closure_state": runtime_closure_state,
             "api_trade_buy_guardrail": "current_live_deployment_blocker_409",
             "api_trade_allowed_risk_off_sides": ["reduce", "sell"],

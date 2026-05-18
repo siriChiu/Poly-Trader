@@ -194,6 +194,13 @@ def test_api_model_leaderboard_overlays_fresher_live_support_truth_into_governan
                 "current_live_structure_bucket_rows": 19,
                 "support_route_verdict": "exact_bucket_present_but_below_minimum",
                 "support_governance_route": "exact_live_lane_proxy_available",
+                "support_governance_reference_evidence": {
+                    "support_governance_route": "exact_live_lane_proxy_available",
+                    "exact_live_lane_proxy_rows": 8,
+                    "current_rows": 19,
+                    "minimum_support_rows": 50,
+                    "reference_only": True,
+                },
                 "regime_gate": "CAUTION",
                 "entry_quality_label": "D",
                 "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
@@ -229,6 +236,8 @@ def test_api_model_leaderboard_overlays_fresher_live_support_truth_into_governan
     assert governance["minimum_support_rows"] == 50
     assert governance["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
     assert governance["support_governance_route"] == "exact_live_lane_proxy_available"
+    assert governance["support_governance_reference_evidence"]["exact_live_lane_proxy_rows"] == 8
+    assert governance["support_governance_reference_evidence"]["reference_only"] is True
     assert governance["governance_contract"]["live_current_structure_bucket_rows"] == 19
     assert governance["governance_contract"]["support_progress"]["current_rows"] == 19
     assert governance["live_truth_overlay_applied"] is True

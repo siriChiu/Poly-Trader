@@ -1196,6 +1196,27 @@ def test_support_truth_context_preserves_non_q15_live_support_progress():
     assert "previous_rows=0" in doc_line
 
 
+def test_support_progress_docs_line_surfaces_governance_reference_evidence():
+    support_context = {
+        "support_progress_status": "stalled_under_minimum",
+        "current_rows": 0,
+        "minimum_rows": 50,
+        "gap_to_minimum": 50,
+        "support_governance_route": "exact_live_lane_proxy_available",
+        "support_governance_reference_evidence": {
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "exact_live_lane_proxy_rows": 8,
+            "reference_only": True,
+        },
+    }
+
+    doc_line = hb_parallel_runner._support_progress_docs_line(support_context)
+
+    assert "governance_reference_route=exact_live_lane_proxy_available" in doc_line
+    assert "exact_live_lane_proxy_rows=8" in doc_line
+    assert "governance_reference_only=True" in doc_line
+
+
 def test_support_truth_context_surfaces_q15_support_stagnation_metadata():
     live_predictor_diagnostics = {
         "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",

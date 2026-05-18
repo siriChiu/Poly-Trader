@@ -1,12 +1,12 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-18 14:01:51.894454**
+- generated_at: **2026-05-18 16:35:39.972885**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
 - signal: **CIRCUIT_BREAKER**
-- regime / gate / label: **bear / CAUTION / B**
+- regime / gate / label: **bear / CAUTION / C**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q00**
 - current_live_structure_bucket_rows: **0**
 - allowed_layers: **0** (decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active)
@@ -39,7 +39,7 @@
 - support_progress.stagnant_run_count: **5**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
-- support_identity.path: **bear / CAUTION / B**
+- support_identity.path: **bear / CAUTION / C**
 - support_identity.bucket/window/signature: **CAUTION|base_caution_regime_or_bias|q00 / 200 / live_structure_bucket:q15_support_identity:v2**
 - legacy_supported_reference: **reference-only; not deployment closure**
 - legacy reference heartbeat/rows/minimum: **1202 / 190 / 50**
@@ -55,7 +55,7 @@
 - best_single_component: **None**
 - best_single_component_required_score_delta: **None**
 - best_single_component_can_cross_floor: **False**
-- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 18.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
+- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 10.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
@@ -65,14 +65,14 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.6935**
+- current_entry_quality: **0.6208**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.1435**
+- current_trade_floor_gap: **0.0708**
 - current_entry_quality_ge_0_55: **True**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
-- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 18.00% < 30%），q15 component experiment 只能保留為背景研究。
+- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 10.00% < 30%），q15 component experiment 只能保留為背景研究。
 - verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Active repair plan

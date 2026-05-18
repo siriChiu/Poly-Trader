@@ -952,6 +952,7 @@ def test_hb_predict_probe_infers_support_governance_route_from_reference_patch(m
                 "gap_to_minimum": 50,
                 "current_live_structure_bucket_rows": 0,
                 "minimum_support_rows": 50,
+                "exact_live_lane_proxy_rows": 8,
             },
         },
     )
@@ -970,6 +971,15 @@ def test_hb_predict_probe_infers_support_governance_route_from_reference_patch(m
     assert payload["recommended_patch_gap_to_minimum"] == 50
     assert payload["recommended_patch_current_live_structure_bucket_rows"] == 0
     assert payload["recommended_patch_minimum_support_rows"] == 50
+    reference_evidence = payload["support_governance_reference_evidence"]
+    assert reference_evidence["support_governance_route"] == "exact_live_lane_proxy_available"
+    assert reference_evidence["exact_live_lane_proxy_rows"] == 8
+    assert reference_evidence["current_rows"] == 0
+    assert reference_evidence["minimum_support_rows"] == 50
+    assert reference_evidence["reference_only"] is True
+    assert reference_evidence["deployment_closure_allowed"] is False
+    assert reference_evidence["reference_only_reason"] == "proxy_or_under_minimum_support_not_deployment_closure"
+    assert payload["deployment_blocker_details"]["support_governance_reference_evidence"] == reference_evidence
 
 
 def test_hb_predict_probe_treats_live_exact_lane_bucket_proxy_as_bucket_proxy_route(monkeypatch, capsys, tmp_path):
