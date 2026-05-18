@@ -1622,3 +1622,8 @@ def test_build_report_includes_canonical_tail_root_cause_loss_path_breakdown(tmp
     assert root_cause["feature_shift"]["loss_vs_recent_wins"]["feat_4h_bb_pct_b"]["loss_mean"] > root_cause["feature_shift"]["loss_vs_recent_wins"]["feat_4h_bb_pct_b"]["win_mean"]
     assert "feat_4h_bias200" in root_cause["top_4h_shift_features"]
     assert root_cause["key_findings"]
+    tests_by_id = {row["id"]: row for row in root_cause["falsification_tests"]}
+    assert tests_by_id["tp_miss_not_stop_loss"]["priority"] == "P0"
+    assert "release floor" in tests_by_id["tp_miss_not_stop_loss"]["pass_condition"]
+    assert tests_by_id["dominant_regime_pocket"]["priority"] == "P0"
+    assert tests_by_id["top_4h_shift_guardrail"]["current_evidence"]["lead_feature"] in root_cause["top_4h_shift_features"]

@@ -1910,6 +1910,9 @@ def main():
         drift_feature_diag = pathology_drift_summary.get("feature_diagnostics") or {}
         drift_target_path = pathology_drift_summary.get("target_path_diagnostics") or {}
         drift_reference_comparison = pathology_drift_summary.get("reference_window_comparison") or {}
+        tail_root_cause = recent_drift.get("canonical_tail_root_cause") if isinstance(recent_drift, dict) else {}
+        falsification_tests = tail_root_cause.get("falsification_tests") if isinstance(tail_root_cause, dict) else []
+        first_falsification_test = falsification_tests[0] if isinstance(falsification_tests, list) and falsification_tests else None
         tail_streak = drift_target_path.get("tail_target_streak") or {}
         adverse_streak = _select_adverse_target_streak(drift_target_path)
         top_shift_source = (
@@ -1963,6 +1966,13 @@ def main():
                 if active
             ],
         }
+        if isinstance(first_falsification_test, dict):
+            pathology_summary["next_falsification_test"] = {
+                "id": first_falsification_test.get("id"),
+                "priority": first_falsification_test.get("priority"),
+                "hypothesis": first_falsification_test.get("hypothesis"),
+                "pass_condition": first_falsification_test.get("pass_condition"),
+            }
         if pathology_is_current_live_scope:
             upsert_issue(
                 tracker,

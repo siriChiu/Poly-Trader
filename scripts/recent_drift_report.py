@@ -1227,6 +1227,102 @@ def _feature_shift_for_tail_root_cause(
     }
 
 
+def _build_tail_falsification_tests(
+    *,
+    window: int,
+    loss_rows: list[sqlite3.Row],
+    win_rows: list[sqlite3.Row],
+    path_breakdown: dict[str, Any],
+    regime_breakdown: dict[str, dict[str, Any]],
+    dominant_loss_regime: str | None,
+    top_features: list[str],
+    feature_shift: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Turn canonical-tail evidence into bounded next-run falsification tests."""
+    total_losses = len(loss_rows)
+    if not total_losses:
+        return [
+            {
+                "id": "no_negative_tail_to_falsify",
+                "priority": "P2",
+                "hypothesis": "canonical tail has no loss rows in the current window",
+                "current_evidence": f"window={window}, losses=0, wins={len(win_rows)}",
+                "metric": "Keep monitoring recent_drift_report windows; do not open a breaker-release experiment from this artifact alone.",
+                "pass_condition": "A future negative tail window produces losses > 0 and a concrete path/regime/feature hypothesis.",
+                "fail_condition": "No loss rows remain; this tail artifact is not the active blocker.",
+            }
+        ]
+
+    tests: list[dict[str, Any]] = []
+    tp_miss_share = _safe_float(path_breakdown.get("tp_miss_share")) or 0.0
+    dd_breach_share = _safe_float(path_breakdown.get("dd_breach_share")) or 0.0
+    high_underwater_share = _safe_float(path_breakdown.get("high_underwater_share")) or 0.0
+    dominant_loss_share = None
+    if dominant_loss_regime:
+        dominant_loss_share = _safe_float((regime_breakdown.get(dominant_loss_regime) or {}).get("share_of_losses"))
+
+    if tp_miss_share >= 0.70:
+        tests.append(
+            {
+                "id": "tp_miss_not_stop_loss",
+                "priority": "P0",
+                "hypothesis": "recent canonical losses are primarily profit-target misses, not stop-loss/drawdown breaches",
+                "current_evidence": (
+                    f"tp_miss={path_breakdown.get('tp_miss_count')}/{total_losses} "
+                    f"({tp_miss_share:.2%}), dd_breach={path_breakdown.get('dd_breach_count')}/{total_losses} "
+                    f"({dd_breach_share:.2%}), high_underwater={path_breakdown.get('high_underwater_count')}/{total_losses} "
+                    f"({high_underwater_share:.2%})"
+                ),
+                "metric": "Replay the recent canonical window with a no-new-risk gate for rows whose forward max-runup stays below the canonical TP while time-underwater is high.",
+                "pass_condition": "loss_rate falls and recent_window_wins moves toward the breaker release floor without increasing dd_breach_share.",
+                "fail_condition": "loss_rate remains high or dd_breach_share becomes the dominant loss path after the TP-miss gate.",
+                "operator_next_action": "keep circuit breaker active; only shadow/paper the gate until release_condition.current_recent_window_wins reaches the floor.",
+            }
+        )
+
+    if dominant_loss_regime and dominant_loss_share is not None and dominant_loss_share >= 0.60:
+        tests.append(
+            {
+                "id": "dominant_regime_pocket",
+                "priority": "P0",
+                "hypothesis": f"the negative tail is concentrated in the {dominant_loss_regime} regime pocket",
+                "current_evidence": (
+                    f"dominant_loss_regime={dominant_loss_regime}, share_of_losses={dominant_loss_share:.2%}, "
+                    f"window={window}, losses={total_losses}, wins={len(win_rows)}"
+                ),
+                "metric": "Compare recent-window win_rate / avg_quality with and without the dominant-loss-regime rows, then require same-regime support before any deployment closure.",
+                "pass_condition": "Excluding or risk-off gating the dominant regime improves recent win_rate by >= 10pp and keeps avg_quality above 0.",
+                "fail_condition": "The negative quality persists outside the dominant regime, meaning regime concentration is descriptive rather than causal.",
+                "operator_next_action": "do not loosen regime gate or support route until this pocket clears in live_probe and recent_drift_report.",
+            }
+        )
+
+    if top_features:
+        reference_rows = feature_shift.get("loss_vs_reference") or {}
+        first_feature = str(top_features[0])
+        first_stats = reference_rows.get(first_feature) or {}
+        tests.append(
+            {
+                "id": "top_4h_shift_guardrail",
+                "priority": "P1",
+                "hypothesis": "recent loss rows occupy a shifted 4H structure pocket compared with the sibling/reference window",
+                "current_evidence": {
+                    "top_4h_shift_features": top_features[:5],
+                    "lead_feature": first_feature,
+                    "lead_feature_current_loss_mean": first_stats.get("current_loss_mean"),
+                    "lead_feature_reference_mean": first_stats.get("reference_mean"),
+                    "lead_feature_delta_vs_reference_std": first_stats.get("delta_vs_reference_std"),
+                },
+                "metric": "Split recent rows by the lead shifted 4H feature quantile and compare simulated_pyramid_win / quality against the sibling window.",
+                "pass_condition": "The shifted quantile explains most recent losses and can be encoded as a fail-closed filter without reducing supported rows below minimum.",
+                "fail_condition": "Losses are not concentrated in the shifted quantile, so the feature shift remains correlation-only.",
+                "operator_next_action": "keep shifted-feature logic reference-only until exact current bucket support and breaker release are both satisfied.",
+            }
+        )
+
+    return tests
+
+
 def _build_canonical_tail_root_cause(
     rows: list[sqlite3.Row],
     feature_cols: list[str],
@@ -1263,6 +1359,17 @@ def _build_canonical_tail_root_cause(
     if top_features:
         key_findings.append(f"4H feature shift 以 {' / '.join(top_features[:3])} 最明顯。")
 
+    falsification_tests = _build_tail_falsification_tests(
+        window=window,
+        loss_rows=loss_rows,
+        win_rows=win_rows,
+        path_breakdown=path_breakdown,
+        regime_breakdown=regime_breakdown,
+        dominant_loss_regime=dominant_loss_regime,
+        top_features=top_features,
+        feature_shift=feature_shift,
+    )
+
     examples = [
         {
             "timestamp": row["timestamp"],
@@ -1298,6 +1405,7 @@ def _build_canonical_tail_root_cause(
         },
         "top_4h_shift_features": top_features,
         "key_findings": key_findings,
+        "falsification_tests": falsification_tests,
         "recent_loss_examples": examples,
     }
 
