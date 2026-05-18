@@ -68,28 +68,41 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
     return null;
   }
 
+  const metadataOkCount = venues.filter((item) => item.ok).length;
+  const runtimeReadyCount = venues.filter(isRuntimeReady).length;
+  const venueReadinessSummaryTone = runtimeReadyCount === venues.length
+    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+    : "border-amber-500/30 bg-amber-500/10 text-amber-100";
+  const venueReadinessSummaryLine = runtimeReadyCount === venues.length
+    ? `場館前提摘要：元資料 ${metadataOkCount}/${venues.length} 通過，實單生命週期 ${runtimeReadyCount}/${venues.length} 可交易。`
+    : `場館前提摘要：元資料 ${metadataOkCount}/${venues.length} 通過，實單生命週期 ${runtimeReadyCount}/${venues.length} 可交易；metadata 正常只代表觀測層，未完成憑證 / 委託確認 / 成交證據前不可 canary/live。`;
+
   return (
-    <div className={`grid gap-2 ${compact ? "grid-cols-1" : "md:grid-cols-2"} ${className}`.trim()}>
-      {venues.map((item) => {
-        const defaultProofSummary = item.credentials_configured
-          ? ["order ack lifecycle", "fill lifecycle"]
-          : ["live exchange credential", "order ack lifecycle", "fill lifecycle"];
-        const blockerSummary = (item.blockers?.length ? item.blockers : defaultProofSummary)
-          .map((entry) => humanizeExecutionReason(entry))
-          .join(" · ");
-        const proofStateLabel = humanizeLifecycleDiagnosticLabel(item.proof_state || item.readiness_state || item.readiness_scope || "unknown");
-        const runtimeEvidenceSummary = isRuntimeReady(item)
-          ? "實單證據完成 · 委託確認 / 成交生命週期已驗證"
-          : `待補實單證據 · ${blockerSummary}`;
-        const operatorNextAction = item.operator_next_action ? humanizeExecutionReason(item.operator_next_action) : null;
-        const verifyNext = item.verify_next ? humanizeExecutionReason(item.verify_next) : null;
-        const venueErrorSummary = item.error ? humanizeExecutionReason(item.error) : null;
-        if (compact) {
-          return (
-            <div
-              key={item.venue || "unknown"}
-              className={`app-surface-muted px-3 py-2 text-[11px] leading-5 ${readinessTone(item)}`}
-            >
+    <div className={`space-y-2 ${className}`.trim()}>
+      <div className={`rounded-[20px] border px-3 py-2 text-[11px] leading-5 ${venueReadinessSummaryTone}`}>
+        {venueReadinessSummaryLine}
+      </div>
+      <div className={`grid gap-2 ${compact ? "grid-cols-1" : "md:grid-cols-2"}`}>
+        {venues.map((item) => {
+          const defaultProofSummary = item.credentials_configured
+            ? ["order ack lifecycle", "fill lifecycle"]
+            : ["live exchange credential", "order ack lifecycle", "fill lifecycle"];
+          const blockerSummary = (item.blockers?.length ? item.blockers : defaultProofSummary)
+            .map((entry) => humanizeExecutionReason(entry))
+            .join(" · ");
+          const proofStateLabel = humanizeLifecycleDiagnosticLabel(item.proof_state || item.readiness_state || item.readiness_scope || "unknown");
+          const runtimeEvidenceSummary = isRuntimeReady(item)
+            ? "實單證據完成 · 委託確認 / 成交生命週期已驗證"
+            : `待補實單證據 · ${blockerSummary}`;
+          const operatorNextAction = item.operator_next_action ? humanizeExecutionReason(item.operator_next_action) : null;
+          const verifyNext = item.verify_next ? humanizeExecutionReason(item.verify_next) : null;
+          const venueErrorSummary = item.error ? humanizeExecutionReason(item.error) : null;
+          if (compact) {
+            return (
+              <div
+                key={item.venue || "unknown"}
+                className={`app-surface-muted px-3 py-2 text-[11px] leading-5 ${readinessTone(item)}`}
+              >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-semibold uppercase tracking-wide">{item.venue || "unknown"}</div>
@@ -134,7 +147,8 @@ export default function VenueReadinessSummary({ venues, className = "", compact 
             {venueErrorSummary ? <div className="mt-1 opacity-90">{venueErrorSummary}</div> : null}
           </div>
         );
-      })}
+        })}
+      </div>
     </div>
   );
 }
