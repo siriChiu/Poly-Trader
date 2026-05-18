@@ -229,7 +229,7 @@ def _check_pm_status_current_state() -> list[CheckResult]:
         "9/50",
         "additional_recent_window_wins_needed=6",
         "exact_bucket_unsupported_block",
-        "no_support_proxy",
+        "exact_live_lane_proxy_available",
         "0/50",
         "gap=50",
         "Strategy Lab",
