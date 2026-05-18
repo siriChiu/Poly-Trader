@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-18 22:15:30.981967**
+- generated_at: **2026-05-18 23:01:46.245141**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -65,9 +65,9 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5832**
+- current_entry_quality: **0.5955**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.0332**
+- current_trade_floor_gap: **0.0455**
 - current_entry_quality_ge_0_55: **True**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
