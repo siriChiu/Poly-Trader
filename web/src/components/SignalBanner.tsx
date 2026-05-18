@@ -105,7 +105,7 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
     : null;
 
   const showShortcutBlockedMessage = () => {
-    setStatusMsg(`⛔ 買入 / 加倉已暫停：${runtimeShortcutBlockerLabel}。減倉 / 賣出風險降低路徑仍允許；請到執行狀態頁確認完整阻塞點。`);
+    setStatusMsg(`⛔ 買入 / 加倉已暫停：${runtimeShortcutBlockerLabel}。等待 / 觀望不送單；減倉 / 賣出風險降低路徑仍允許；請到執行狀態頁確認完整阻塞點。`);
     setTimeout(() => setStatusMsg(null), 5000);
   };
 
@@ -147,13 +147,18 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
         body: JSON.stringify({ side: side.toLowerCase(), symbol: "BTCUSDT" }),
       });
       const data = await resp.json();
+      const actionLabel = side.toUpperCase() === "BUY"
+        ? "買入"
+        : (side.toUpperCase() === "WAIT" ? "等待 / 觀望" : "賣出 / 減倉");
       const orderId = data.order_id || data.order?.order_id || null;
       setStatusMsg(
         data.error
           ? `❌ ${humanizeRuntimeDetailText(data.error)}`
-          : orderId
-            ? `✅ ${side} 訂單已提交：${orderId}`
-            : "✅ 模擬委託已記錄；請回執行狀態頁確認保護欄與委託回放。"
+          : data.no_order_submitted
+            ? `✅ ${data.operator_message || "已切到等待 / 觀望：沒有送出 OKX 委託。"}`
+            : orderId
+              ? `✅ ${actionLabel} 訂單已提交：${orderId}`
+              : "✅ 模擬委託已記錄；請回執行狀態頁確認保護欄與委託回放。"
       );
     } catch (e: any) {
       setStatusMsg(`❌ ${e.message}`);
@@ -234,7 +239,7 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
                     ? "目前精準樣本已就緒且修補方案已套用；即使訊號仍是 HOLD，也只代表執行期已開出 1 層可部署容量，不等於自動買入。"
                     : "目前支援修補方案已經作用在當前即時資料列，但執行期仍被阻塞點 / 保護欄壓回 0 層；這代表修補方案已套用，但執行仍被阻擋。")
                 : runtimeShortcutBlocked
-                  ? `買入 / 加倉已暫停：${runtimeShortcutBlockerLabel}；減倉 / 賣出風險降低路徑仍允許，請改看執行狀態頁確認完整即時真相。`
+                  ? `買入 / 加倉已暫停：${runtimeShortcutBlockerLabel}；等待 / 觀望不送單，減倉 / 賣出風險降低路徑仍允許，請改看執行狀態頁確認完整即時真相。`
                   : "目前未偵測到阻塞點；仍以執行狀態頁的完整治理與委託回放為準。"}
           </div>
         </div>
@@ -263,11 +268,17 @@ export default function SignalBanner({ confidence, signal, timestamp }: Props) {
         >
           {runtimeShortcutBlocked ? "減倉 / 賣出仍允許" : "賣出"}
         </button>
+        <button
+          onClick={() => handleTrade("WAIT")}
+          className="flex-1 rounded-lg border border-sky-500/40 bg-sky-900/40 px-3 py-2 font-medium text-sky-100 transition-colors hover:bg-sky-800/50"
+        >
+          等待 / 觀望
+        </button>
       </div>
 
       {runtimeShortcutBlocked && (
         <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
-          買入 / 加倉暫停：{runtimeShortcutBlockerLabel}。減倉 / 賣出風險降低路徑仍允許；請到執行狀態頁確認完整阻塞點、樣本支持與委託回放。
+          買入 / 加倉暫停：{runtimeShortcutBlockerLabel}。等待 / 觀望不送單；減倉 / 賣出風險降低路徑仍允許；請到執行狀態頁確認完整阻塞點、樣本支持與委託回放。
         </div>
       )}
 

@@ -38,7 +38,7 @@ def test_execution_console_exposes_natural_language_operator_input_and_progressi
     source = _read("pages/ExecutionConsole.tsx")
     required_snippets = [
         "自然語句操作",
-        "例如：買 0.001 BTC / 減碼 0.001 / 切到自動 / 查看阻塞原因",
+        "例如：買 0.001 BTC / 減碼 0.001 / 等待觀望 / 切到自動 / 查看阻塞原因",
         "handleNaturalLanguageAction",
         "自然語句會優先幫你判斷是交易、模式切換還是前往診斷",
         "進階營運細節（需要時再展開）",

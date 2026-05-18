@@ -7318,6 +7318,10 @@ _NO_DEPLOY_RUNTIME_CLOSURE_STATES = {
     "exact_live_lane_toxic_allow_lane",
 }
 
+_API_TRADE_RISK_OFF_SIDES = ["reduce", "sell"]
+_API_TRADE_WAIT_SIDES = {"wait", "hold"}
+_API_TRADE_BLOCKED_ALLOWED_ACTIONS = ["wait", "reduce", "sell", "diagnostics", "mode_toggle"]
+
 
 def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Return a structured reject payload when current-live truth forbids adding exposure."""
@@ -7356,12 +7360,12 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
         "blocked_side": "buy",
         "reason": "manual_buy_blocked_by_current_live_blocker",
         "runtime_blocker": deployment_blocker or runtime_closure_state or execution_guardrail_reason or allowed_layers_reason,
-        "allowed_actions": ["reduce", "sell", "diagnostics", "mode_toggle"],
+        "allowed_actions": list(_API_TRADE_BLOCKED_ALLOWED_ACTIONS),
         "code": "current_live_deployment_blocker",
-        "message": "目前即時部署阻塞啟用：買入 / 加倉已暫停；減倉 / 賣出風險降低路徑仍允許。",
+        "message": "目前即時部署阻塞啟用：買入 / 加倉已暫停；等待 / 觀望、減倉 / 賣出風險降低路徑仍允許。",
         "context": {
             "blocked_side": "buy",
-            "allowed_sides": ["reduce", "sell"],
+            "allowed_sides": list(_API_TRADE_RISK_OFF_SIDES),
             "reduce_only_allowed": True,
             "deployment_blocker": deployment_blocker,
             "deployment_blocker_reason": deployment_blocker_reason,
@@ -7376,7 +7380,7 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
             "minimum_support_rows": payload.get("minimum_support_rows"),
             "support_route_verdict": payload.get("support_route_verdict"),
             "release_condition": blocker_details.get("release_condition"),
-            "operator_action": "前往 /execution/status，確認熔斷解除條件與即時部署阻塞點已解除後，再重試買入 / 加倉。",
+            "operator_action": "可先等待 / 觀望或減倉 / 賣出降低風險；若要買入 / 加倉，請前往 /execution/status 確認熔斷解除條件與即時部署阻塞點已解除後再重試。",
             "reason": blocker_reason,
         },
     }
@@ -7385,7 +7389,7 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
 def _current_live_trade_blocker(live_runtime_truth: Dict[str, Any], side: str) -> Optional[Dict[str, Any]]:
     """Return a structured blocker only for add-exposure trade sides."""
     normalized_side = str(side or "").lower().strip()
-    if normalized_side in {"reduce", "sell"}:
+    if normalized_side in set(_API_TRADE_RISK_OFF_SIDES) or normalized_side in _API_TRADE_WAIT_SIDES:
         return None
     return _current_live_buy_reject_payload(live_runtime_truth)
 
@@ -7402,15 +7406,15 @@ async def _load_current_live_buy_reject_payload() -> Optional[Dict[str, Any]]:
             "blocked_side": "buy",
             "reason": "manual_buy_blocked_by_current_live_guardrail_unavailable",
             "runtime_blocker": "current_live_guardrail_unavailable",
-            "allowed_actions": ["reduce", "sell", "diagnostics", "mode_toggle"],
+            "allowed_actions": list(_API_TRADE_BLOCKED_ALLOWED_ACTIONS),
             "code": "current_live_guardrail_unavailable",
-            "message": "目前即時風控無法取得：買入 / 加倉以失敗關閉暫停；減倉 / 賣出風險降低路徑仍允許。",
+            "message": "目前即時風控無法取得：買入 / 加倉以失敗關閉暫停；等待 / 觀望、減倉 / 賣出風險降低路徑仍允許。",
             "context": {
                 "blocked_side": "buy",
-                "allowed_sides": ["reduce", "sell"],
+                "allowed_sides": list(_API_TRADE_RISK_OFF_SIDES),
                 "reduce_only_allowed": True,
                 "error": str(exc),
-                "operator_action": "重新整理 /execution/status 並恢復 /predict/confidence 後，再重試買入 / 加倉。",
+                "operator_action": "可先等待 / 觀望或減倉 / 賣出降低風險；若要買入 / 加倉，請重新整理 /execution/status 並恢復 /predict/confidence 後再重試。",
             },
         }
     return _current_live_trade_blocker(live_runtime_truth, "buy")
@@ -7420,8 +7424,27 @@ async def _load_current_live_buy_reject_payload() -> Optional[Dict[str, Any]]:
 async def api_trade(req: "TradeRequest", request: Request = None) -> Dict[str, Any]:
     _assert_local_operator_request(request)
     side = (req.side or "").lower().strip()
-    if side not in {"buy", "reduce", "sell"}:
-        raise HTTPException(status_code=400, detail="side must be one of: buy, reduce, sell")
+    if side not in {"buy", "reduce", "sell", "wait", "hold"}:
+        raise HTTPException(status_code=400, detail="side must be one of: buy, reduce, sell, wait")
+
+    cfg = get_config() or {}
+    if side in _API_TRADE_WAIT_SIDES:
+        return {
+            "success": True,
+            "action": "wait",
+            "side": "wait",
+            "symbol": req.symbol,
+            "qty": 0,
+            "no_order_submitted": True,
+            "dry_run": True,
+            "order_id": None,
+            "order": None,
+            "venue": ((cfg.get("execution") or {}).get("venue")) or ((cfg.get("trading") or {}).get("venue")) or "okx",
+            "mode": ((cfg.get("execution") or {}).get("mode")) or ("paper" if ((cfg.get("trading") or {}).get("dry_run", True)) else "live"),
+            "guardrails": {},
+            "operator_message": "已切到等待 / 觀望：沒有送出 OKX 委託；請持續看 /execution/status 的阻塞點、樣本支持與熔斷解除條件。",
+            "allowed_actions": list(_API_TRADE_BLOCKED_ALLOWED_ACTIONS),
+        }
 
     submit_side = "buy" if side == "buy" else "sell"
     reduce_only = side in {"reduce", "sell"}
@@ -7430,7 +7453,6 @@ async def api_trade(req: "TradeRequest", request: Request = None) -> Dict[str, A
         if buy_reject is not None:
             raise HTTPException(status_code=409, detail=buy_reject)
 
-    cfg = get_config() or {}
     db = get_db()
     try:
         service = ExecutionService(cfg, db_session=db)

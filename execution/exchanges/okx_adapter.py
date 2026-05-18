@@ -145,7 +145,8 @@ class OKXAdapter(BaseExchangeAdapter):
         params = dict(request.params or {})
         if request.client_order_id:
             params.setdefault("clOrdId", request.client_order_id)
-        if request.reduce_only:
+        default_type = str(self.config.get("default_type") or "spot").strip().lower()
+        if request.reduce_only and default_type not in {"spot", "cash"}:
             params.setdefault("reduceOnly", True)
         order_type = request.order_type.lower()
         if order_type == "limit":

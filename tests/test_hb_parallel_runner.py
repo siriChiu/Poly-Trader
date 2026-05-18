@@ -2376,18 +2376,18 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "Execution Status / Bot 營運 已顯示熔斷解除條件" in roadmap_md
     assert "初次同步前或部署阻塞存在時" in roadmap_md
     assert "買入 / 加倉與啟用自動模式快捷操作顯示暫停" in roadmap_md
-    assert "減碼 / 賣出風險降低、切到手動模式、查看阻塞原因與重新整理仍可用" in roadmap_md
+    assert "減碼 / 賣出風險降低、等待 / 觀望、切到手動模式、查看阻塞原因與重新整理仍可用" in roadmap_md
     assert "`/execution` 在 `/api/status` 初次同步前也不得開放買入 / 啟用自動模式" in roadmap_md
-    assert "阻塞期間只暫停買入 / 加倉與啟用自動模式，減碼 / 賣出風險降低路徑仍可用" in roadmap_md
-    assert "browser `/execution`（含初次同步時買入 / 啟用自動模式暫停、減碼可用）" in roadmap_md
-    assert "`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，減碼保留" in orid_md
+    assert "阻塞期間只暫停買入 / 加倉與啟用自動模式，等待 / 觀望與減碼 / 賣出風險降低路徑仍可用" in roadmap_md
+    assert "browser `/execution`（含初次同步時買入 / 啟用自動模式暫停、等待 / 觀望與減碼可用）" in roadmap_md
+    assert "`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，等待 / 觀望與減碼保留" in orid_md
     assert "Bot 營運 payload 誤報成 `API timeout`" in orid_md
     assert "`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停" in orid_md
     assert "Dashboard 啟動連續性卡會把 feature deferred / repair_deferred 顯示成警示與心跳維護收斂文案" in orid_md
     assert "直接 API 買入 / 加倉也必須 409 暫停" in orid_md
     assert "`/execution/status` 與 `/execution` 已顯示熔斷解除條件卡" in orid_md
-    assert "買入 / 加倉與啟用自動模式 fail-closed，減碼保留" in orid_md
-    assert "browser `/execution`（買入 / 啟用自動模式 fail-closed、減碼可用）" in orid_md
+    assert "買入 / 加倉與啟用自動模式 fail-closed，等待 / 觀望與減碼保留" in orid_md
+    assert "browser `/execution`（買入 / 啟用自動模式 fail-closed、等待 / 觀望與減碼可用）" in orid_md
     combined_docs = "\n".join([issues_md, roadmap_md, orid_md])
     assert "buy/add-exposure" not in combined_docs
     assert "current-live blocker" not in combined_docs

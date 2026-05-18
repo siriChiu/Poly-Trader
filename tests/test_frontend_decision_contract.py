@@ -161,6 +161,7 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         'fetchApi<{ automation?: boolean; message?: string }>("/api/automation/toggle", {',
         '買入 0.001 BTC',
         '減碼 0.001 BTC',
+        '等待 / 觀望',
         '切到手動模式',
         '切到自動模式',
         '啟動 / 恢復',
@@ -294,10 +295,13 @@ def test_execution_console_blocks_only_add_exposure_while_syncing_or_blocked_and
         'const operatorQuickCommands = [',
         '{ label: manualBuyBlocked ? "買入暫停" : "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualBuyBlocked },',
         '{ label: "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" },',
+        '{ label: "等待 / 觀望", disabled: operatorActionState.tone === "pending" },',
         '{ label: automationEnableBlocked ? "自動模式暫停" : (automationEnabled ? "切到手動模式" : "切到自動模式"), disabled: operatorActionState.tone === "pending" || automationEnableBlocked },',
         'if (side === "buy" && manualBuyBlocked) {',
         'message: manualBuyBlockedMessage || "目前即時阻塞點啟動中：買入指令暫停；減碼 / 賣出風險降低路徑 / 模式切換 / 查看阻塞原因仍可使用。",',
         'if (enabled && automationEnableBlocked) {',
+        'if (/(等待|觀望|先等|wait|hold)/i.test(command)) {',
+        'await handleOperatorTrade("wait");',
         '{operatorShortcutBlockedMessage && (',
         '{operatorQuickCommands.map((command) => (',
         'disabled={command.disabled}',
@@ -1291,10 +1295,13 @@ def test_signal_banner_declares_dashboard_as_canonical_execution_route_until_upg
         '這代表修補方案已套用，但執行仍被阻擋。',
         'const runtimeBuyShortcutBlocked = runtimeShortcutBlocked;',
         'disabled={runtimeBuyShortcutBlocked}',
-        '買入 / 加倉已暫停：${runtimeShortcutBlockerLabel}；減倉 / 賣出風險降低路徑仍允許',
-        '買入 / 加倉暫停：{runtimeShortcutBlockerLabel}。減倉 / 賣出風險降低路徑仍允許',
+        '買入 / 加倉已暫停：${runtimeShortcutBlockerLabel}；等待 / 觀望不送單，減倉 / 賣出風險降低路徑仍允許',
+        '買入 / 加倉暫停：{runtimeShortcutBlockerLabel}。等待 / 觀望不送單；減倉 / 賣出風險降低路徑仍允許',
         '買入暫停',
         '減倉 / 賣出仍允許',
+        'onClick={() => handleTrade("WAIT")}',
+        '等待 / 觀望',
+        'data.no_order_submitted',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -1680,8 +1687,10 @@ def test_signal_banner_keeps_reduce_path_available_when_add_exposure_blocked():
         'onClick={() => runtimeBuyShortcutBlocked ? showShortcutBlockedMessage() : setConfirmBuy(true)}',
         'disabled={runtimeBuyShortcutBlocked}',
         'onClick={() => setConfirmSell(true)}',
+        'onClick={() => handleTrade("WAIT")}',
         '減倉 / 賣出仍允許',
-        '買入 / 加倉暫停：{runtimeShortcutBlockerLabel}。減倉 / 賣出風險降低路徑仍允許',
+        '等待 / 觀望',
+        '買入 / 加倉暫停：{runtimeShortcutBlockerLabel}。等待 / 觀望不送單；減倉 / 賣出風險降低路徑仍允許',
     ]
     for snippet in required_snippets:
         assert snippet in source

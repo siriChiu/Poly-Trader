@@ -866,7 +866,8 @@ def sync_current_state_governance_issues(
             "runtime_closure_state": runtime_closure_state,
             "api_trade_buy_guardrail": "current_live_deployment_blocker_409",
             "api_trade_allowed_risk_off_sides": ["reduce", "sell"],
-            "api_trade_guardrail_context": "買入 / 加倉會在 ExecutionService.submit_order 前先檢查即時部署阻塞點",
+            "api_trade_allowed_actions": ["wait", "reduce", "sell", "diagnostics", "mode_toggle"],
+            "api_trade_guardrail_context": "買入 / 加倉會在 ExecutionService.submit_order 前先檢查即時部署阻塞點；阻塞期間等待 / 觀望不送單，減倉 / 賣出可作風險降低路徑",
         }
         upsert_issue(
             tracker,

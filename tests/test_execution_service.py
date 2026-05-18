@@ -4,6 +4,7 @@ from database.models import OrderLifecycleEvent, TradeHistory
 from execution.account_sync import AccountSyncService
 from execution.config import resolve_trading_config
 from execution.execution_service import ExecutionService
+from execution.exchanges.base import OrderRequest
 from execution.exchanges.okx_adapter import OKXAdapter
 
 
@@ -306,3 +307,60 @@ def test_okx_market_rules_include_step_and_tick_sizes(monkeypatch):
     assert rules["step_size"] == "0.0001"
     assert rules["tick_size"] == "0.1"
     assert rules["price_contract"]["tick_size"] == "0.1"
+
+
+def test_okx_adapter_omits_reduce_only_for_spot_sell_orders():
+    captured = {}
+
+    class FakeExchange:
+        def create_market_order(self, symbol, side, qty, params):
+            captured["symbol"] = symbol
+            captured["side"] = side
+            captured["qty"] = qty
+            captured["params"] = params
+            return {"id": "spot-sell-1", "status": "closed", "timestamp": 123, "clientOrderId": params.get("clOrdId")}
+
+    adapter = OKXAdapter({"default_type": "spot"}, dry_run=False)
+    adapter.exchange = FakeExchange()
+    result = adapter.place_order(OrderRequest(
+        symbol="BTCUSDT",
+        side="sell",
+        order_type="market",
+        qty=0.001,
+        reduce_only=True,
+        client_order_id="cid-spot",
+    ))
+
+    assert result.dry_run is False
+    assert result.order_id == "spot-sell-1"
+    assert captured["symbol"] == "BTC/USDT"
+    assert captured["side"] == "sell"
+    assert captured["qty"] == 0.001
+    assert captured["params"]["clOrdId"] == "cid-spot"
+    assert "reduceOnly" not in captured["params"]
+
+
+def test_okx_adapter_preserves_reduce_only_for_derivative_reduce_orders():
+    captured = {}
+
+    class FakeExchange:
+        def create_market_order(self, symbol, side, qty, params):
+            captured["symbol"] = symbol
+            captured["params"] = params
+            return {"id": "swap-sell-1", "status": "open", "timestamp": 456, "clientOrderId": params.get("clOrdId")}
+
+    adapter = OKXAdapter({"default_type": "swap"}, dry_run=False)
+    adapter.exchange = FakeExchange()
+    result = adapter.place_order(OrderRequest(
+        symbol="BTCUSDT",
+        side="sell",
+        order_type="market",
+        qty=0.001,
+        reduce_only=True,
+        client_order_id="cid-swap",
+    ))
+
+    assert result.order_id == "swap-sell-1"
+    assert captured["symbol"] == "BTC/USDT"
+    assert captured["params"]["clOrdId"] == "cid-swap"
+    assert captured["params"]["reduceOnly"] is True

@@ -45,6 +45,7 @@ NO_DEPLOY_RUNTIME_CLOSURE_STATES = {
     "under_minimum_exact_live_structure_bucket",
 }
 API_TRADE_RISK_OFF_SIDES = ["reduce", "sell"]
+API_TRADE_BLOCKED_ALLOWED_ACTIONS = ["wait", "reduce", "sell", "diagnostics", "mode_toggle"]
 SUPPORT_ROUTE_OPERATOR_LABELS = {
     "exact_bucket_supported": "精準樣本已就緒",
     "exact_bucket_present_but_below_minimum": "精準樣本未達最小門檻",
@@ -707,7 +708,7 @@ def _api_trade_guardrail_surface(runtime_result: dict, runtime_closure_state: st
     The route-level guardrail is the production contract, but heartbeat artifacts
     are the machine-readable governance source.  Keep the same decision inputs
     here so Dashboard / Strategy Lab / docs can prove buy/add exposure is paused
-    while reduce/sell risk-off actions remain available.
+    while wait/observe and reduce/sell risk-off actions remain available.
     """
     payload = runtime_result if isinstance(runtime_result, dict) else {}
     deployment_blocker = payload.get("deployment_blocker")
@@ -737,8 +738,8 @@ def _api_trade_guardrail_surface(runtime_result: dict, runtime_closure_state: st
             "api_trade_guardrail_code": None,
             "api_trade_guardrail_runtime_blocker": runtime_blocker,
             "api_trade_allowed_risk_off_sides": API_TRADE_RISK_OFF_SIDES,
-            "api_trade_allowed_actions": ["buy", "reduce", "sell", "diagnostics", "mode_toggle"],
-            "api_trade_guardrail_context": "即時部署阻塞未啟用；/api/trade 可送出買入，risk-off sides 仍維持 reduce/sell。",
+            "api_trade_allowed_actions": ["buy", *API_TRADE_BLOCKED_ALLOWED_ACTIONS],
+            "api_trade_guardrail_context": "即時部署阻塞未啟用；/api/trade 可送出買入，也可等待 / 觀望或減倉 / 賣出降低風險。",
         }
 
     return {
@@ -748,8 +749,8 @@ def _api_trade_guardrail_surface(runtime_result: dict, runtime_closure_state: st
         "api_trade_guardrail_code": "current_live_deployment_blocker",
         "api_trade_guardrail_runtime_blocker": runtime_blocker,
         "api_trade_allowed_risk_off_sides": API_TRADE_RISK_OFF_SIDES,
-        "api_trade_allowed_actions": ["reduce", "sell", "diagnostics", "mode_toggle"],
-        "api_trade_guardrail_context": "買入 / 加倉會在 ExecutionService.submit_order 前先檢查即時部署阻塞點；阻塞時 /api/trade 回 409 current_live_deployment_blocker，只保留 reduce/sell 風險降低路徑。",
+        "api_trade_allowed_actions": list(API_TRADE_BLOCKED_ALLOWED_ACTIONS),
+        "api_trade_guardrail_context": "買入 / 加倉會在 ExecutionService.submit_order 前先檢查即時部署阻塞點；阻塞時 /api/trade 回 409 current_live_deployment_blocker，只保留等待 / 觀望與減倉 / 賣出風險降低路徑。",
     }
 
 
