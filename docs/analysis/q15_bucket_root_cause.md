@@ -1,39 +1,39 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-18 00:01:01.662721**
+- generated_at: **2026-05-18 01:01:56.289119**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q00 bucket**
-- verdict: **same_lane_neighbor_bucket_dominates**
-- candidate_patch_type: **structure_component_scoring**
+- verdict: **no_exact_live_lane_rows**
+- candidate_patch_type: **scope_generation**
 - candidate_patch_feature: **feat_4h_bb_pct_b**
 - artifact_context_freshness: **current_context** (`[]`)
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q00', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q00', 'regime_label': 'bear', 'regime_gate': 'CAUTION', 'entry_quality_label': 'B', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 
 ## Current live
-- live path: **bear / CAUTION / C**
+- live path: **bear / CAUTION / B**
 - structure_bucket: `CAUTION|base_caution_regime_or_bias|q00`
-- structure_quality: **0.1009**
-- gap_to_q35_boundary: **0.2491**
+- structure_quality: **0.0565**
+- gap_to_q35_boundary: **0.2935**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `unsupported_exact_live_structure_bucket`
 - support rows/minimum/gap: **0 / 50 / 50**
 
 ## Exact live lane
-- rows: **57**
-- bucket_counts: `{'CAUTION|structure_quality_caution|q15': 57}`
-- dominant_neighbor_bucket: **CAUTION|structure_quality_caution|q15** (57 rows)
-- near_boundary_window: `{'lower': 0.1009, 'upper': 0.35}`
-- near_boundary_rows: **57**
+- rows: **0**
+- bucket_counts: `{}`
+- dominant_neighbor_bucket: **None** (0 rows)
+- near_boundary_window: `None`
+- near_boundary_rows: **0**
 
 ## Decision
-- reason: same exact lane 有明顯鄰近 bucket 樣本，current row 與 q35 support 的差距主要來自結構 component，不是 generic breaker / q35 總體治理。
-- candidate_patch: `{'type': 'structure_component_scoring', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.227, 'current_normalized': 0.227, 'needed_raw_delta_to_cross_q35': 0.7326, 'target_bucket_p25': 0.3653, 'target_bucket_median': 0.4042, 'needed_raw_delta_to_target_p25': 0.1383, 'needed_raw_delta_to_target_median': 0.1772}`
-- verify_next: 比較 current row 與 dominant neighbor bucket 的 4H component 差值，再做最小 counterfactual。
+- reason: 連 exact live lane 都沒有資料，先補 same regime/gate/entry-quality lane，而不是只修 bucket 邊界。
+- candidate_patch: `{'type': 'scope_generation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.1268, 'current_normalized': 0.1268, 'needed_raw_delta_to_cross_q35': 0.8632, 'target_bucket_p25': None, 'target_bucket_median': None, 'needed_raw_delta_to_target_p25': None, 'needed_raw_delta_to_target_median': None}`
+- verify_next: 重跑 bull_4h_pocket_ablation.py，確認 exact_scope_rows > 0。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.227 / norm=0.227 / Δto_cross_q35=0.7326 / target_p25=0.3653 / target_median=0.4042
-- `feat_4h_dist_bb_lower`: current=0.5752 / norm=0.0719 / Δto_cross_q35=6.0388 / target_p25=0.8927 / target_median=1.0291
-- `feat_4h_dist_swing_low`: current=-0.3065 / norm=0.0 / Δto_cross_q35=7.855 / target_p25=-0.737 / target_median=-0.5624
+- `feat_4h_bb_pct_b`: current=0.1268 / norm=0.1268 / Δto_cross_q35=0.8632 / target_p25=None / target_median=None
+- `feat_4h_dist_bb_lower`: current=0.3246 / norm=0.0406 / Δto_cross_q35=7.1152 / target_p25=None / target_median=None
+- `feat_4h_dist_swing_low`: current=-0.6266 / norm=0.0 / Δto_cross_q35=9.5205 / target_p25=None / target_median=None
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。

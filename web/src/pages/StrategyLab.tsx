@@ -817,8 +817,12 @@ interface HighConvictionTopKSummary {
   support_context?: Record<string, any>;
   row_count?: number | null;
   deployable_count?: number | null;
+  deployable_rows?: number | null;
   risk_qualified_count?: number | null;
+  risk_qualified_rows?: number | null;
   runtime_blocked_candidate_count?: number | null;
+  runtime_blocked_candidate_rows?: number | null;
+  runtime_blocked_candidates?: number | null;
   status?: string | null;
   best_rows?: HighConvictionTopKRow[];
   nearest_deployable_rows?: HighConvictionTopKRow[];
@@ -984,6 +988,16 @@ const LEADERBOARD_BACKTEST_POLICY_LABEL = "排行榜回測固定使用最近兩�
 const WORKSPACE_BACKTEST_WINDOW_HINT = `工作區預設沿用 ${LEADERBOARD_BACKTEST_WINDOW_DAYS} 天固定視窗；切換其他快速區間後，需重新執行回測才會刷新 ROI / 交易數。`;
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+const firstFiniteNumber = (...values: unknown[]): number | null => {
+  for (const value of values) {
+    if (isFiniteNumber(value)) return value;
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return null;
+};
 const formatDateTimeLocal = (date: Date) => {
   const pad = (part: number) => String(part).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -1917,7 +1931,23 @@ export default function StrategyLab() {
   const highConvictionGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.gate_failures) ? row.gate_failures : []))).slice(0, 6);
   const highConvictionModelGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.model_gate_failures) ? row.model_gate_failures : []))).slice(0, 6);
   const highConvictionLiveGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.live_gate_failures) ? row.live_gate_failures : []))).slice(0, 6);
-  const highConvictionDeployable = (highConvictionTopK?.deployable_count ?? 0) > 0;
+  const highConvictionDeployableCount = firstFiniteNumber(
+    highConvictionTopK?.deployable_count,
+    highConvictionTopK?.deployable_rows,
+    highConvictionRows.filter((row) => row.deployable_verdict === "deployable" || row.support_route_deployable === true).length,
+  ) ?? 0;
+  const highConvictionRuntimeBlockedCount = firstFiniteNumber(
+    highConvictionTopK?.runtime_blocked_candidate_count,
+    highConvictionTopK?.runtime_blocked_candidate_rows,
+    highConvictionTopK?.runtime_blocked_candidates,
+    highConvictionRows.filter((row) => row.blocked_only_by_live_guardrails).length,
+  ) ?? 0;
+  const highConvictionRiskQualifiedCount = firstFiniteNumber(
+    highConvictionTopK?.risk_qualified_count,
+    highConvictionTopK?.risk_qualified_rows,
+    highConvictionRows.filter((row) => row.oos_gate_passed).length,
+  ) ?? 0;
+  const highConvictionDeployable = highConvictionDeployableCount > 0;
   const highConvictionFreshnessStatus = highConvictionTopK?.freshness?.status ?? highConvictionTopK?.freshness_status ?? "unavailable";
   const highConvictionArtifactAgeMinutes = highConvictionTopK?.freshness?.age_minutes ?? highConvictionTopK?.artifact_age_minutes ?? null;
   const highConvictionStaleAfterMinutes = highConvictionTopK?.freshness?.stale_after_minutes ?? highConvictionTopK?.stale_after_minutes ?? null;
@@ -1926,8 +1956,6 @@ export default function StrategyLab() {
   const highConvictionArtifactAgeLabel = isFiniteNumber(highConvictionArtifactAgeMinutes) ? `距今 ${formatDecimal(highConvictionArtifactAgeMinutes, 1)} 分鐘` : "距今 —";
   const highConvictionStaleAfterLabel = isFiniteNumber(highConvictionStaleAfterMinutes) ? `政策 ${formatDecimal(highConvictionStaleAfterMinutes, 0)} 分鐘` : "政策 —";
   const highConvictionDeploymentReadinessLabel = humanizeRuntimeDetailText(highConvictionTopK?.deployment_readiness_status || highConvictionTopK?.status || "paper_shadow_only");
-  const highConvictionRuntimeBlockedCount = highConvictionTopK?.runtime_blocked_candidate_count ?? highConvictionRows.filter((row) => row.blocked_only_by_live_guardrails).length;
-  const highConvictionRiskQualifiedCount = highConvictionTopK?.risk_qualified_count ?? highConvictionRows.filter((row) => row.oos_gate_passed).length;
   const highConvictionRuntimeBlocked = !highConvictionFreshnessBlocking && !highConvictionDeployable && highConvictionRuntimeBlockedCount > 0;
   const highConvictionStatusLabel = highConvictionFreshnessBlocking ? "矩陣過期 / 僅影子觀察" : (highConvictionDeployable ? "已有候選，但仍需人工灰度確認" : (highConvictionRuntimeBlocked ? "離線通過，但即時部署阻塞 / 影子觀察" : "研究觀察 / 影子驗證"));
   const highConvictionCardTone = highConvictionFreshnessBlocking ? "border-amber-500/30 bg-amber-500/10 text-amber-50" : (highConvictionDeployable ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-50" : (highConvictionRuntimeBlocked ? "border-rose-500/30 bg-rose-500/10 text-rose-50" : "border-violet-500/30 bg-violet-500/10 text-violet-50"));
@@ -3757,7 +3785,7 @@ export default function StrategyLab() {
                       {highConvictionRuntimeBlocked && (
                         <div className="rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-[11px] leading-5 text-rose-50">
                           <div className="font-semibold text-rose-100">OOS 候選已過門檻，但即時部署仍阻塞</div>
-                          <div className="mt-1">離線驗證 / 風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} 筆；可部署 {formatDecimal(highConvictionTopK.deployable_count, 0)} 筆。{highConvictionRuntimeBlockerSummary} · 支持樣本 {highConvictionSupportRowsLabel} · {highConvictionSupportGateNextAction} · {highConvictionSupportProgressLabel} · {highConvictionCircuitBreakerReleaseLabel}。請先補齊當前分桶支持樣本 / 解除執行保護，再把候選視為灰度部署對象。</div>
+                          <div className="mt-1">離線驗證 / 風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} 筆；可部署 {formatDecimal(highConvictionDeployableCount, 0)} 筆。{highConvictionRuntimeBlockerSummary} · 支持樣本 {highConvictionSupportRowsLabel} · {highConvictionSupportGateNextAction} · {highConvictionSupportProgressLabel} · {highConvictionCircuitBreakerReleaseLabel}。請先補齊當前分桶支持樣本 / 解除執行保護，再把候選視為灰度部署對象。</div>
                         </div>
                       )}
                       <div className="rounded-lg border border-violet-300/20 bg-slate-950/20 px-3 py-2 text-[11px] text-violet-50">
@@ -3779,7 +3807,7 @@ export default function StrategyLab() {
                         </div>
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                           <div className="text-[11px] text-slate-300">部署樣本</div>
-                          <div className="mt-1 font-medium text-slate-100">{formatDecimal(highConvictionTopK.row_count, 0)} 筆 · 可部署 {formatDecimal(highConvictionTopK.deployable_count, 0)}</div>
+                          <div className="mt-1 font-medium text-slate-100">{formatDecimal(highConvictionTopK.row_count, 0)} 筆 · 可部署 {formatDecimal(highConvictionDeployableCount, 0)}</div>
                           <div className="mt-1 text-[10px] text-violet-100/70">離線驗證 / 風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} · 只剩即時阻塞 {formatDecimal(highConvictionRuntimeBlockedCount, 0)}</div>
                         </div>
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
