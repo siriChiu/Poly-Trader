@@ -226,7 +226,7 @@ def _check_pm_status_current_state() -> list[CheckResult]:
         "YELLOW_shadow_or_paper_usable",
         "unsupported_exact_live_structure_bucket",
         "0/50",
-        "exact_bucket_unsupported_block",
+        "insufficient_support_everywhere",
         "exact_live_lane_proxy_available",
         "Strategy Lab",
         "Execution Console",
