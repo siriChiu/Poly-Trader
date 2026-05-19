@@ -1,6 +1,6 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-19 10:11:54.961057**
+- generated_at: **2026-05-19 11:02:07.606268**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q15 bucket**
 - verdict: **runtime_blocker_preempts_bucket_root_cause**
@@ -12,18 +12,18 @@
 ## Current live
 - live path: **bear / CAUTION / C**
 - structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
-- structure_quality: **0.2178**
-- gap_to_q35_boundary: **0.1322**
+- structure_quality: **0.273**
+- gap_to_q35_boundary: **0.077**
 - non_null_4h_feature_count: **10**
-- execution_guardrail_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
-- support rows/minimum/gap: **0 / 50 / 50**
+- execution_guardrail_reason: `decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade; unsupported_live_structure_bucket_blocks_trade; circuit_breaker_active`
+- support rows/minimum/gap: **1 / 50 / 49**
 
 ## Exact live lane
-- rows: **132**
-- bucket_counts: `{'CAUTION|structure_quality_caution|q15': 107, 'CAUTION|base_caution_regime_or_bias|q00': 25}`
+- rows: **133**
+- bucket_counts: `{'CAUTION|structure_quality_caution|q15': 107, 'CAUTION|base_caution_regime_or_bias|q00': 25, 'CAUTION|base_caution_regime_or_bias|q15': 1}`
 - dominant_neighbor_bucket: **CAUTION|structure_quality_caution|q15** (107 rows)
-- near_boundary_window: `{'lower': 0.2178, 'upper': 0.35}`
-- near_boundary_rows: **56**
+- near_boundary_window: `{'lower': 0.273, 'upper': 0.35}`
+- near_boundary_rows: **9**
 
 ## Decision
 - reason: 目前 live runtime 已先被 circuit breaker 擋下；current-live q15 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。
@@ -31,9 +31,9 @@
 - verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.4172 / norm=0.4172 / Δto_cross_q35=0.3888 / target_p25=0.3911 / target_median=0.4545
-- `feat_4h_dist_bb_lower`: current=1.0683 / norm=0.1335 / Δto_cross_q35=3.2048 / target_p25=0.9982 / target_median=1.1268
-- `feat_4h_dist_swing_low`: current=0.9671 / norm=0.0967 / Δto_cross_q35=4.0061 / target_p25=-0.5897 / target_median=0.5321
+- `feat_4h_bb_pct_b`: current=0.5177 / norm=0.5177 / Δto_cross_q35=0.2265 / target_p25=0.3911 / target_median=0.4545
+- `feat_4h_dist_bb_lower`: current=1.3281 / norm=0.166 / Δto_cross_q35=1.8667 / target_p25=0.9982 / target_median=1.1268
+- `feat_4h_dist_swing_low`: current=1.2779 / norm=0.1278 / Δto_cross_q35=2.3333 / target_p25=-0.5897 / target_median=0.5321
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
