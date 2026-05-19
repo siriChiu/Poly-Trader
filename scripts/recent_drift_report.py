@@ -1157,6 +1157,215 @@ def _count_loss_path_flags(loss_rows: list[sqlite3.Row]) -> dict[str, Any]:
     }
 
 
+def _summarize_replay_rows(rows: list[sqlite3.Row]) -> dict[str, Any]:
+    """Compact target/quality summary for a shadow-only counterfactual slice."""
+    wins = sum(1 for row in rows if _row_target(row) == 1)
+    losses = sum(1 for row in rows if _row_target(row) == 0)
+    loss_rows = [row for row in rows if _row_target(row) == 0]
+    return {
+        "rows": len(rows),
+        "wins": wins,
+        "losses": losses,
+        "win_rate": _pct(wins, len(rows)),
+        "loss_rate": _pct(losses, len(rows)),
+        "avg_simulated_pnl": _mean_for_rows(rows, "simulated_pyramid_pnl"),
+        "avg_simulated_quality": _mean_for_rows(rows, "simulated_pyramid_quality"),
+        "avg_drawdown_penalty": _mean_for_rows(rows, "simulated_pyramid_drawdown_penalty"),
+        "avg_time_underwater": _mean_for_rows(rows, "simulated_pyramid_time_underwater"),
+        "loss_path_breakdown": _count_loss_path_flags(loss_rows),
+    }
+
+
+def _split_rows_by_gate(rows: list[sqlite3.Row], predicate) -> tuple[list[sqlite3.Row], list[sqlite3.Row]]:
+    gated: list[sqlite3.Row] = []
+    kept: list[sqlite3.Row] = []
+    for row in rows:
+        if predicate(row):
+            gated.append(row)
+        else:
+            kept.append(row)
+    return gated, kept
+
+
+def _shadow_replay_gate_summary(
+    *,
+    gate_id: str,
+    description: str,
+    recent_rows: list[sqlite3.Row],
+    predicate,
+    uses_future_outcome_fields: bool,
+    runtime_fields: list[str] | None = None,
+    threshold: dict[str, Any] | None = None,
+    priority: str = "P0",
+) -> dict[str, Any]:
+    baseline = _summarize_replay_rows(recent_rows)
+    gated_rows, kept_rows = _split_rows_by_gate(recent_rows, predicate)
+    gated = _summarize_replay_rows(gated_rows)
+    kept = _summarize_replay_rows(kept_rows)
+    baseline_win_rate = _safe_float(baseline.get("win_rate")) or 0.0
+    kept_win_rate = _safe_float(kept.get("win_rate"))
+    win_rate_delta = _round(kept_win_rate - baseline_win_rate) if kept_win_rate is not None else None
+    loss_capture_share = _pct(gated.get("losses", 0), baseline.get("losses", 0))
+    win_cost_share = _pct(gated.get("wins", 0), baseline.get("wins", 0))
+    if not kept.get("rows"):
+        falsification_verdict = "inconclusive_all_rows_blocked"
+    elif win_rate_delta is not None and win_rate_delta >= 0.10 and (loss_capture_share or 0.0) >= 0.50 and (win_cost_share or 0.0) <= 0.25:
+        falsification_verdict = "passes_shadow_metric_future_only" if uses_future_outcome_fields else "passes_shadow_metric"
+    else:
+        falsification_verdict = "fails_shadow_metric_future_only" if uses_future_outcome_fields else "fails_shadow_metric"
+    return {
+        "id": gate_id,
+        "priority": priority,
+        "description": description,
+        "mode": "shadow_only_no_new_risk_replay",
+        "shadow_only": True,
+        "risk_on_order_enabled": False,
+        "order_submission_enabled": False,
+        "live_exposure_allowed": False,
+        "deployable": False,
+        "uses_future_outcome_fields": uses_future_outcome_fields,
+        "runtime_candidate": not uses_future_outcome_fields,
+        "runtime_fields": runtime_fields or [],
+        "threshold": threshold or {},
+        "falsification_verdict": falsification_verdict,
+        "blocked_rows": gated.get("rows", 0),
+        "blocked_losses": gated.get("losses", 0),
+        "blocked_wins": gated.get("wins", 0),
+        "loss_capture_share": loss_capture_share,
+        "win_cost_share": win_cost_share,
+        "kept_rows": kept.get("rows", 0),
+        "kept_wins": kept.get("wins", 0),
+        "kept_losses": kept.get("losses", 0),
+        "kept_win_rate": kept.get("win_rate"),
+        "kept_avg_simulated_quality": kept.get("avg_simulated_quality"),
+        "kept_avg_simulated_pnl": kept.get("avg_simulated_pnl"),
+        "win_rate_delta_vs_baseline": win_rate_delta,
+        "blocked_slice": gated,
+        "kept_slice": kept,
+    }
+
+
+def _build_tail_shadow_replay(
+    *,
+    recent_rows: list[sqlite3.Row],
+    dominant_loss_regime: str | None,
+    top_features: list[str],
+    feature_shift: dict[str, Any],
+) -> dict[str, Any]:
+    """Produce a no-new-risk, shadow-only replay artifact for PM/engineering falsification."""
+    baseline = _summarize_replay_rows(recent_rows)
+    gates: list[dict[str, Any]] = []
+
+    gates.append(
+        _shadow_replay_gate_summary(
+            gate_id="outcome_tp_miss_high_underwater",
+            description=(
+                "Falsification-only outcome replay: block rows that later failed to reach "
+                "the canonical TP and spent too much time underwater."
+            ),
+            recent_rows=recent_rows,
+            predicate=lambda row: (
+                (_safe_float(row["future_max_runup"]) is not None)
+                and (_safe_float(row["future_max_runup"]) < DEFAULT_LONG_TP_PCT)
+                and (_safe_float(row["simulated_pyramid_time_underwater"]) is not None)
+                and (_safe_float(row["simulated_pyramid_time_underwater"]) >= HIGH_UNDERWATER_RATIO_THRESHOLD)
+            ),
+            uses_future_outcome_fields=True,
+            runtime_fields=[],
+            threshold={
+                "future_max_runup_lt": DEFAULT_LONG_TP_PCT,
+                "time_underwater_gte": HIGH_UNDERWATER_RATIO_THRESHOLD,
+            },
+        )
+    )
+
+    if dominant_loss_regime:
+        gates.append(
+            _shadow_replay_gate_summary(
+                gate_id="dominant_regime_shadow_gate",
+                description=f"Observable regime-pocket replay: keep {dominant_loss_regime} risk-on exposure shadow-only.",
+                recent_rows=recent_rows,
+                predicate=lambda row, regime=dominant_loss_regime: str(row["regime"] or "unknown") == regime,
+                uses_future_outcome_fields=False,
+                runtime_fields=["regime"],
+                threshold={"regime": dominant_loss_regime},
+            )
+        )
+
+    if top_features:
+        lead_feature = str(top_features[0])
+        win_stats = (feature_shift.get("loss_vs_recent_wins") or {}).get(lead_feature) or {}
+        ref_stats = (feature_shift.get("loss_vs_reference") or {}).get(lead_feature) or {}
+        loss_mean = _safe_float(win_stats.get("loss_mean"))
+        comparator_mean = _safe_float(win_stats.get("win_mean"))
+        comparator_source = "recent_wins"
+        if comparator_mean is None:
+            comparator_mean = _safe_float(ref_stats.get("reference_mean"))
+            comparator_source = "reference_window"
+        if loss_mean is not None and comparator_mean is not None and loss_mean != comparator_mean:
+            threshold_value = _round((loss_mean + comparator_mean) / 2.0)
+            direction = "at_or_above" if loss_mean > comparator_mean else "at_or_below"
+
+            def _feature_gate(row, feature=lead_feature, gate_direction=direction, gate_threshold=threshold_value):
+                value = _safe_float(row[feature]) if feature in row.keys() else None
+                if value is None:
+                    return False
+                if gate_direction == "at_or_above":
+                    return value >= float(gate_threshold)
+                return value <= float(gate_threshold)
+
+            gates.append(
+                _shadow_replay_gate_summary(
+                    gate_id="observable_4h_shift_shadow_gate",
+                    description=(
+                        "Observable 4H-shift replay: use the lead shifted feature to mark the "
+                        "current tail as paper/shadow-only, not live deployable."
+                    ),
+                    recent_rows=recent_rows,
+                    predicate=_feature_gate,
+                    uses_future_outcome_fields=False,
+                    runtime_fields=[lead_feature],
+                    threshold={
+                        "feature": lead_feature,
+                        "direction": direction,
+                        "value": threshold_value,
+                        "loss_mean": _round(loss_mean),
+                        "comparison_mean": _round(comparator_mean),
+                        "comparison_source": comparator_source,
+                    },
+                )
+            )
+
+    observable_gates = [gate for gate in gates if not gate.get("uses_future_outcome_fields")]
+    best_observable = None
+    if observable_gates:
+        best_observable = max(
+            observable_gates,
+            key=lambda gate: (
+                _safe_float(gate.get("win_rate_delta_vs_baseline")) or 0.0,
+                _safe_float(gate.get("loss_capture_share")) or 0.0,
+                -(_safe_float(gate.get("win_cost_share")) or 0.0),
+            ),
+        ).get("id")
+
+    return {
+        "mode": "shadow_only_no_new_risk_falsification",
+        "shadow_only": True,
+        "risk_on_order_enabled": False,
+        "order_submission_enabled": False,
+        "live_exposure_allowed": False,
+        "deployable": False,
+        "deployment_verdict": "not_deployable_shadow_only_runtime_blocked",
+        "baseline": baseline,
+        "gates": gates,
+        "best_observable_gate": best_observable,
+        "operator_next_action": (
+            "Use this only as a paper/shadow falsification artifact. Keep circuit breaker, current-bucket support, "
+            "and venue lifecycle gates fail-closed before any live buy/add exposure."
+        ),
+    }
+
+
 def _regime_loss_breakdown(rows: list[sqlite3.Row]) -> dict[str, dict[str, Any]]:
     buckets: dict[str, dict[str, Any]] = {}
     total_rows = len(rows)
@@ -1369,6 +1578,12 @@ def _build_canonical_tail_root_cause(
         top_features=top_features,
         feature_shift=feature_shift,
     )
+    no_new_risk_shadow_replay = _build_tail_shadow_replay(
+        recent_rows=recent_rows,
+        dominant_loss_regime=dominant_loss_regime,
+        top_features=top_features,
+        feature_shift=feature_shift,
+    )
 
     examples = [
         {
@@ -1406,6 +1621,7 @@ def _build_canonical_tail_root_cause(
         "top_4h_shift_features": top_features,
         "key_findings": key_findings,
         "falsification_tests": falsification_tests,
+        "no_new_risk_shadow_replay": no_new_risk_shadow_replay,
         "recent_loss_examples": examples,
     }
 

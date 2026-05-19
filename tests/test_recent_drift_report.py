@@ -1627,3 +1627,22 @@ def test_build_report_includes_canonical_tail_root_cause_loss_path_breakdown(tmp
     assert "release floor" in tests_by_id["tp_miss_not_stop_loss"]["pass_condition"]
     assert tests_by_id["dominant_regime_pocket"]["priority"] == "P0"
     assert tests_by_id["top_4h_shift_guardrail"]["current_evidence"]["lead_feature"] in root_cause["top_4h_shift_features"]
+
+    replay = root_cause["no_new_risk_shadow_replay"]
+    assert replay["mode"] == "shadow_only_no_new_risk_falsification"
+    assert replay["risk_on_order_enabled"] is False
+    assert replay["order_submission_enabled"] is False
+    assert replay["deployable"] is False
+    assert replay["baseline"]["win_rate"] == 0.2
+    replay_gates = {row["id"]: row for row in replay["gates"]}
+    assert replay_gates["outcome_tp_miss_high_underwater"]["uses_future_outcome_fields"] is True
+    assert replay_gates["outcome_tp_miss_high_underwater"]["blocked_losses"] == 45
+    assert replay_gates["dominant_regime_shadow_gate"]["uses_future_outcome_fields"] is False
+    assert replay_gates["dominant_regime_shadow_gate"]["blocked_losses"] == 50
+    assert replay_gates["observable_4h_shift_shadow_gate"]["uses_future_outcome_fields"] is False
+    assert replay_gates["observable_4h_shift_shadow_gate"]["runtime_fields"][0] in root_cause["top_4h_shift_features"]
+    assert replay_gates["observable_4h_shift_shadow_gate"]["blocked_losses"] == 80
+    assert replay_gates["observable_4h_shift_shadow_gate"]["blocked_wins"] == 0
+    assert replay_gates["observable_4h_shift_shadow_gate"]["kept_win_rate"] == 1.0
+    assert replay_gates["observable_4h_shift_shadow_gate"]["falsification_verdict"] == "passes_shadow_metric"
+    assert replay["best_observable_gate"] == "observable_4h_shift_shadow_gate"
