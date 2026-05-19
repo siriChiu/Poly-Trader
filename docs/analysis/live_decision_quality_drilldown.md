@@ -1,41 +1,41 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-19 22:21:13.359547**
+- feature_timestamp: **2026-05-19 23:13:03.475840**
 - target: `simulated_pyramid_win`
 - live path: **熊市 / 觀察 / C**
-- signal: **觀望** @ confidence **0.3684**
+- signal: **觀望** @ confidence **0.3729**
 - layers: **1 → 0**
 - allowed_layers_raw_reason: 進場品質_C_single_layer
 - allowed_layers_reason: 精準樣本未達最小門檻
 - execution_guardrail_reason: 精準樣本未達最小門檻
 - runtime_blocker: None | reason: None
-- deployment_blocker: 精準樣本未達最小門檻 | reason: 當前即時結構分桶 `觀察｜基線觀察（市場狀態 / 偏離）｜q15` 的精準支持樣本仍停在 13/50（缺 37），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 D / 品質分數 -0.0694；目前維持不可部署治理。
-- support blocker summary: **精準樣本 13/50（缺口 37） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1250 173/50僅能當歷史參考，因校準視窗、進場品質、市場狀態不吻合目前支持語義，不可宣稱同一語義已閉環。**
+- deployment_blocker: 精準樣本未達最小門檻 | reason: 當前即時結構分桶 `觀察｜基線觀察（市場狀態 / 偏離）｜q15` 的精準支持樣本仍停在 14/50（缺 36），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 D / 品質分數 -0.0779；目前維持不可部署治理。
+- support blocker summary: **精準樣本 14/50（缺口 36） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1250 173/50僅能當歷史參考，因校準視窗、進場品質、市場狀態不吻合目前支持語義，不可宣稱同一語義已閉環。**
 - support next action: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。
-- current-bucket root cause: verdict=current_exact_support_under_minimum / patch=support_accumulation_or_semantic_rebaseline / feature=None / exact_support=13/50 / gap=37 / neighbor=觀察｜結構品質觀察｜q15
+- current-bucket root cause: verdict=current_exact_support_under_minimum / patch=support_accumulation_or_semantic_rebaseline / feature=None / exact_support=14/50 / gap=36 / neighbor=觀察｜結構品質觀察｜q15
 - 精準樣本修補: **未啟用** | 支持路徑 **精準樣本未達最小門檻** | 跨越門檻 **已跨越門檻但精準樣本未就緒**
-- runtime closure summary: **當前即時分桶 觀察｜基線觀察（市場狀態 / 偏離）｜q15 的精準樣本仍未就緒（13/50，路徑=精準樣本未達最小門檻 / 治理=目前即時分桶精準樣本未達最小門檻）；較寬範圍 / 近似樣本 目前都只屬僅供治理參考，不可視為部署閉環。 阻塞點=當前即時結構分桶 `觀察｜基線觀察（市場狀態 / 偏離）｜q15` 的精準支持樣本仍停在 13/50（缺 37），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 D / 品質分數 -0.0694；目前維持不可部署治理。 精準路徑與外溢對照：同 regime 寬範圍出現 熊市｜阻塞 外溢，82 筆 / 勝率 25.4% / 品質 -0.057，明顯劣於 精準即時路徑 勝率 23.7% / 品質 -0.062。**
+- runtime closure summary: **當前即時分桶 觀察｜基線觀察（市場狀態 / 偏離）｜q15 的精準樣本仍未就緒（14/50，路徑=精準樣本未達最小門檻 / 治理=目前即時分桶精準樣本未達最小門檻）；較寬範圍 / 近似樣本 目前都只屬僅供治理參考，不可視為部署閉環。 阻塞點=當前即時結構分桶 `觀察｜基線觀察（市場狀態 / 偏離）｜q15` 的精準支持樣本仍停在 14/50（缺 36），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 D / 品質分數 -0.0779；目前維持不可部署治理。 精準路徑與外溢對照：同 regime 寬範圍出現 熊市｜阻塞 外溢，81 筆 / 勝率 25.7% / 品質 -0.054，明顯劣於 精準即時路徑 勝率 23.5% / 品質 -0.063。**
 - q35 scaling audit: overall=None / redesign=None / runtime_gap=None / mode=None / next_patch=None
 - q35 runtime truth: redesign_entry_quality=None / redesign_layers_after=None / runtime_layers=None / blocker=None / exact_support=None/None / support_gap=None
 - q35 audit action: None
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=None
 - 建議修補方案: **None** — 狀態：None；精準樣本缺口 `None`；適用範圍 None；來源 None
 - 建議修補特徵: None
-- 建議修補說明: 精準樣本 13/50（缺口 37） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1250 173/50僅能當歷史參考，因校準視窗、進場品質、市場狀態不吻合目前支持語義，不可宣稱同一語義已閉環。
+- 建議修補說明: 精準樣本 14/50（缺口 36） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1250 173/50僅能當歷史參考，因校準視窗、進場品質、市場狀態不吻合目前支持語義，不可宣稱同一語義已閉環。
 - 下一步: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.6543** / trade_floor **0.55** / gap **0.1043**
-- 基礎品質: **0.7919** × 權重 **0.75**
-- 結構品質: **0.2413** × 權重 **0.25**
-- base components: feat_4h_bias50=1.0 (w=0.4, contrib=0.4), feat_nose=0.6469 (w=0.18, contrib=0.1164), feat_pulse=0.4724 (w=0.27, contrib=0.1276), feat_ear=0.986 (w=0.15, contrib=0.1479)
-- structure components: feat_4h_bb_pct_b=0.4734 (w=0.34, contrib=0.161), feat_4h_dist_bb_lower=0.1519 (w=0.33, contrib=0.0501), feat_4h_dist_swing_low=0.0914 (w=0.33, contrib=0.0302)
+- final entry_quality: **0.6565** / trade_floor **0.55** / gap **0.1065**
+- 基礎品質: **0.7894** × 權重 **0.75**
+- 結構品質: **0.2578** × 權重 **0.25**
+- base components: feat_4h_bias50=1.0 (w=0.4, contrib=0.4), feat_nose=0.4792 (w=0.18, contrib=0.0863), feat_pulse=0.5709 (w=0.27, contrib=0.1541), feat_ear=0.9932 (w=0.15, contrib=0.149)
+- structure components: feat_4h_bb_pct_b=0.5034 (w=0.34, contrib=0.1712), feat_4h_dist_bb_lower=0.1616 (w=0.33, contrib=0.0533), feat_4h_dist_swing_low=0.1008 (w=0.33, contrib=0.0333)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
 - remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.1561** | structure_group_max_entry_gain: **0.1898**
+- base_group_max_entry_gain: **0.158** | structure_group_max_entry_gain: **0.1856**
 - best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
 - single-component floor crossers: None
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
@@ -45,10 +45,10 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label+regime_gate+entry_quality_label` | 118 | 0.2373 | -0.0619 | 0.2289 | 0.6499 | 13 | False |
-| exact `regime_label+regime_gate+entry_quality_label` | 118 | 0.2373 | -0.0619 | 0.2289 | 0.6499 | 13 | False |
-| narrow `regime_label+entry_quality_label` | 171 | 0.2573 | -0.0481 | 0.2105 | 0.6411 | 13 | False |
-| broad `regime_gate+entry_quality_label` | 118 | 0.2373 | -0.0619 | 0.2289 | 0.6499 | 13 | False |
+| chosen `regime_label+regime_gate+entry_quality_label` | 119 | 0.2353 | -0.063 | 0.2285 | 0.6524 | 14 | False |
+| exact `regime_label+regime_gate+entry_quality_label` | 119 | 0.2353 | -0.063 | 0.2285 | 0.6524 | 14 | False |
+| narrow `regime_label+entry_quality_label` | 172 | 0.2558 | -0.049 | 0.2103 | 0.6429 | 14 | False |
+| broad `regime_gate+entry_quality_label` | 119 | 0.2353 | -0.063 | 0.2285 | 0.6524 | 14 | False |
 
 ## Exact live-lane bucket diagnostic
 
