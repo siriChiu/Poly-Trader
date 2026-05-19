@@ -1,6 +1,6 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-19 04:11:05.860613**
+- feature_timestamp: **2026-05-19 05:23:03.932294**
 - target: `simulated_pyramid_win`
 - live path: **熊市 / 觀察 / C**
 - signal: **風控熔斷** @ confidence **0.5000**
@@ -8,13 +8,13 @@
 - allowed_layers_raw_reason: 進場品質_C_single_layer
 - allowed_layers_reason: 決策品質低於交易門檻; 精準樣本尚未建立，阻止交易; 風控熔斷啟用中
 - execution_guardrail_reason: 決策品質低於交易門檻; 精準樣本尚未建立，阻止交易; 風控熔斷啟用中
-- runtime_blocker: 風控熔斷 | reason: 最近 50 筆勝率: 18.00% < 30%
-- deployment_blocker: 風控熔斷啟用中 | reason: 最近 50 筆勝率: 18.00% < 30%
+- runtime_blocker: 風控熔斷 | reason: 最近 50 筆勝率: 16.00% < 30%
+- deployment_blocker: 風控熔斷啟用中 | reason: 最近 50 筆勝率: 16.00% < 30%
 - support blocker summary: **精準樣本 0/50（缺口 50） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1250 173/50僅能當歷史參考，因校準視窗、進場品質、市場狀態不吻合目前支持語義，不可宣稱同一語義已閉環。**
 - support next action: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。
 - current-bucket root cause: verdict=執行期阻塞優先於分桶根因分析 / patch=None / feature=None / exact_support=0/50 / gap=50 / neighbor=觀察｜結構品質觀察｜q15
 - 精準樣本修補: **未啟用** | 支持路徑 **insufficient_support_everywhere** | 跨越門檻 **執行期阻塞優先於跨門檻分析**
-- runtime closure summary: **風控熔斷啟用中：最近 50 筆勝率: 18.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 9/50，至少還差 6 勝。 同時近期病態=近期範圍切片 78 筆 顯示 分佈病態 警示=['標籤失衡'] win_rate=0.141 avg_pnl=-0.0066 avg_品質=-0.1462 window=2026-05-16 16:18:34.442258->2026-05-18 05:07:13.042098 adverse_連續虧損筆數=28x0 (2026-05-16 23:02:20.327320->2026-05-17 12:01:57.351618)。 精準路徑與外溢對照：同 gate 寬範圍出現 盤整｜觀察 外溢，34 筆 / 勝率 0.0% / 品質 -0.348，明顯劣於 精準即時路徑 勝率 14.1% / 品質 -0.146。**
+- runtime closure summary: **風控熔斷啟用中：最近 50 筆勝率: 16.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 8/50，至少還差 7 勝。 同時近期病態=近期範圍切片 81 筆 顯示 分佈病態 警示=['標籤失衡'] win_rate=0.1358 avg_pnl=-0.0064 avg_品質=-0.1441 window=2026-05-16 16:18:34.442258->2026-05-18 06:09:34.890085 adverse_連續虧損筆數=28x0 (2026-05-16 23:02:20.327320->2026-05-17 12:01:57.351618)。 精準路徑與外溢對照：同 gate 寬範圍出現 盤整｜觀察 外溢，31 筆 / 勝率 0.0% / 品質 -0.359，明顯劣於 精準即時路徑 勝率 13.6% / 品質 -0.144。**
 - q35 scaling audit: overall=None / redesign=None / runtime_gap=None / mode=None / next_patch=None
 - q35 runtime truth: redesign_entry_quality=None / redesign_layers_after=None / runtime_layers=None / blocker=None / exact_support=None/None / support_gap=None
 - q35 audit action: None
@@ -26,16 +26,16 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.6273** / trade_floor **0.55** / gap **0.0773**
-- 基礎品質: **0.766** × 權重 **0.75**
-- 結構品質: **0.2112** × 權重 **0.25**
-- base components: feat_4h_bias50=1.0 (w=0.4, contrib=0.4), feat_nose=0.6133 (w=0.18, contrib=0.1104), feat_pulse=0.3945 (w=0.27, contrib=0.1065), feat_ear=0.9939 (w=0.15, contrib=0.1491)
-- structure components: feat_4h_bb_pct_b=0.4727 (w=0.34, contrib=0.1607), feat_4h_dist_bb_lower=0.1531 (w=0.33, contrib=0.0505), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
+- final entry_quality: **0.679** / trade_floor **0.55** / gap **0.129**
+- 基礎品質: **0.8447** × 權重 **0.75**
+- 結構品質: **0.1819** × 權重 **0.25**
+- base components: feat_4h_bias50=1.0 (w=0.4, contrib=0.4), feat_nose=0.6339 (w=0.18, contrib=0.1141), feat_pulse=0.6728 (w=0.27, contrib=0.1817), feat_ear=0.9926 (w=0.15, contrib=0.1489)
+- structure components: feat_4h_bb_pct_b=0.4073 (w=0.34, contrib=0.1385), feat_4h_dist_bb_lower=0.1317 (w=0.33, contrib=0.0434), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
 - remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.1755** | structure_group_max_entry_gain: **0.1972**
+- base_group_max_entry_gain: **0.1165** | structure_group_max_entry_gain: **0.2045**
 - best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
 - single-component floor crossers: None
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
@@ -45,10 +45,10 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label+regime_gate+entry_quality_label` | 78 | 0.141 | -0.1462 | 0.2743 | 0.718 | 0 | True |
-| exact `regime_label+regime_gate+entry_quality_label` | 78 | 0.141 | -0.1462 | 0.2743 | 0.718 | 0 | True |
-| narrow `regime_label+entry_quality_label` | 136 | 0.1985 | -0.1019 | 0.2352 | 0.678 | 0 | True |
-| broad `regime_gate+entry_quality_label` | 79 | 0.1392 | -0.1474 | 0.2752 | 0.7206 | 1 | True |
+| chosen `regime_label+regime_gate+entry_quality_label` | 81 | 0.1358 | -0.1441 | 0.2698 | 0.7117 | 0 | True |
+| exact `regime_label+regime_gate+entry_quality_label` | 81 | 0.1358 | -0.1441 | 0.2698 | 0.7117 | 0 | True |
+| narrow `regime_label+entry_quality_label` | 139 | 0.1942 | -0.1016 | 0.2334 | 0.6752 | 0 | True |
+| broad `regime_gate+entry_quality_label` | 82 | 0.1341 | -0.1453 | 0.2706 | 0.7143 | 1 | True |
 
 ## Exact live-lane bucket diagnostic
 
@@ -59,7 +59,7 @@
 ## Shared shifts
 
 - feat_4h_dist_bb_lower (x2), feat_4h_bb_pct_b (x2), feat_4h_dist_swing_low (x2)
-- worst_pathology_scope: **entry_quality_label** rows=137 win_rate=0.1971 quality=-0.1029
+- worst_pathology_scope: **entry_quality_label** rows=140 win_rate=0.1929 quality=-0.1026
 
 ## Interpretation
 

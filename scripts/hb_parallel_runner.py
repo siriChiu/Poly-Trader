@@ -3033,6 +3033,85 @@ def _format_target_tail_streak_for_docs(summary: Dict[str, Any] | None) -> str:
     return f"{count}x{target}"
 
 
+def _compact_no_new_risk_shadow_replay(tail_root_cause: Dict[str, Any] | None) -> Dict[str, Any]:
+    """Extract the operator-safe no-new-risk shadow replay summary.
+
+    ``recent_drift_report.json`` keeps a full falsification matrix under
+    ``canonical_tail_root_cause.no_new_risk_shadow_replay``. Current-state docs
+    only need the fail-closed deployment truth plus the best *observable* gate;
+    keeping that compact view in the heartbeat summary prevents PM/customer
+    handoff from reading the artifact as a live-trading release candidate.
+    """
+
+    if not isinstance(tail_root_cause, dict):
+        return {}
+    replay = tail_root_cause.get("no_new_risk_shadow_replay")
+    if not isinstance(replay, dict):
+        return {}
+
+    gates = replay.get("gates") or []
+    if not isinstance(gates, list):
+        gates = []
+    best_gate_id = replay.get("best_observable_gate")
+    best_gate: Dict[str, Any] = {}
+    for gate in gates:
+        if isinstance(gate, dict) and best_gate_id and gate.get("id") == best_gate_id:
+            best_gate = gate
+            break
+    if not best_gate:
+        for gate in gates:
+            if not isinstance(gate, dict):
+                continue
+            if gate.get("runtime_candidate") and gate.get("uses_future_outcome_fields") is not True:
+                best_gate = gate
+                break
+    if not best_gate:
+        best_gate = next((gate for gate in gates if isinstance(gate, dict)), {})
+
+    baseline = replay.get("baseline") if isinstance(replay.get("baseline"), dict) else {}
+    compact = {
+        "mode": replay.get("mode"),
+        "shadow_only": replay.get("shadow_only"),
+        "deployable": replay.get("deployable"),
+        "live_exposure_allowed": replay.get("live_exposure_allowed"),
+        "risk_on_order_enabled": replay.get("risk_on_order_enabled"),
+        "order_submission_enabled": replay.get("order_submission_enabled"),
+        "deployment_verdict": replay.get("deployment_verdict"),
+        "baseline_rows": baseline.get("rows"),
+        "baseline_win_rate": baseline.get("win_rate"),
+        "baseline_avg_quality": baseline.get("avg_simulated_quality"),
+        "best_observable_gate": best_gate.get("id") or best_gate_id,
+        "best_gate_verdict": best_gate.get("falsification_verdict"),
+        "best_gate_runtime_candidate": best_gate.get("runtime_candidate"),
+        "best_gate_uses_future_outcome_fields": best_gate.get("uses_future_outcome_fields"),
+        "kept_rows": best_gate.get("kept_rows"),
+        "kept_win_rate": best_gate.get("kept_win_rate"),
+        "win_rate_delta_vs_baseline": best_gate.get("win_rate_delta_vs_baseline"),
+        "loss_capture_share": best_gate.get("loss_capture_share"),
+        "win_cost_share": best_gate.get("win_cost_share"),
+        "operator_next_action": replay.get("operator_next_action"),
+    }
+    return {key: value for key, value in compact.items() if value not in (None, "", [], {}, ())}
+
+
+def _format_no_new_risk_shadow_replay_docs_line(summary: Dict[str, Any] | None) -> str | None:
+    if not isinstance(summary, dict) or not summary:
+        return None
+    return (
+        "shadow-only falsification："
+        f"`mode={summary.get('mode') or 'no_new_risk_shadow_replay'}` / "
+        f"`deployable={_format_bool_for_docs(summary.get('deployable'))}` / "
+        f"`risk_on_order_enabled={_format_bool_for_docs(summary.get('risk_on_order_enabled'))}` / "
+        f"`order_submission_enabled={_format_bool_for_docs(summary.get('order_submission_enabled'))}` / "
+        f"`baseline_win_rate={_format_pct_for_docs(summary.get('baseline_win_rate'), 1)}` / "
+        f"`best_gate={summary.get('best_observable_gate') or '—'}` / "
+        f"`kept_rows={summary.get('kept_rows', '—')}` / "
+        f"`kept_win_rate={_format_pct_for_docs(summary.get('kept_win_rate'), 1)}` / "
+        f"`loss_capture={_format_pct_for_docs(summary.get('loss_capture_share'), 1)}` / "
+        "`operator=僅限 paper/shadow；熔斷、support 與 venue gate 仍 fail-closed`"
+    )
+
+
 def _issue_current_lines(
     issue: Dict[str, Any],
     *,
@@ -3121,7 +3200,7 @@ def _issue_current_lines(
             "runtime/API guardrail：`POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時回 409 `current_live_deployment_blocker`，只保留等待 / 觀望與減倉 / 賣出風險降低路徑。",
         ]
 
-    if issue_id == "P0_recent_distribution_pathology":
+    if issue_id in {"P0_recent_distribution_pathology", "#H_AUTO_RECENT_PATHOLOGY"}:
         latest_summary = drift_diagnostics.get("primary_summary") or {}
         latest_window = drift_diagnostics.get("primary_window") or latest_summary.get("window") or "—"
         latest_alerts = drift_diagnostics.get("primary_alerts") or []
@@ -3197,6 +3276,10 @@ def _issue_current_lines(
             f"`top_shift={blocker_top_shift_text or '—'}` / "
             f"`new_compressed={blocker_summary.get('new_compressed_feature', '—')}`"
         )
+        shadow_replay = drift_diagnostics.get("no_new_risk_shadow_replay") or issue_summary.get("no_new_risk_shadow_replay")
+        shadow_replay_line = _format_no_new_risk_shadow_replay_docs_line(shadow_replay)
+        if shadow_replay_line:
+            lines.append(shadow_replay_line)
         return lines
 
     if issue_id == "P0_high_conviction_topk_roi_gate":
@@ -3967,6 +4050,9 @@ def overwrite_current_state_docs(
         avg_pnl=primary_summary.get("avg_pnl"),
         alerts=primary_alerts,
     )
+    shadow_replay_line = _format_no_new_risk_shadow_replay_docs_line(
+        drift_diagnostics.get("no_new_risk_shadow_replay")
+    )
     blocking_pathology_line = None
     recent_pathology_issue = _find_open_issue(issues, "P0_recent_distribution_pathology")
     drift_blocking_summary = drift_diagnostics.get("blocking_summary") or {}
@@ -4224,6 +4310,7 @@ def overwrite_current_state_docs(
         *[f"  - {line}" for line in support_progress_doc_lines],
         "- **recent canonical diagnostics 已刷新**",
         f"  - {pathology_line}",
+        *([f"  - {shadow_replay_line}"] if shadow_replay_line else []),
         *([f"  - {blocking_pathology_line}"] if blocking_pathology_line else []),
         leaderboard_fact_heading,
         f"  - {leaderboard_line}",
@@ -4347,6 +4434,7 @@ def overwrite_current_state_docs(
         f"  - 歷史覆蓋確認：{history_line}",
         f"  - {blocker_line}",
         f"  - {pathology_line}",
+        *([f"  - {shadow_replay_line}"] if shadow_replay_line else []),
         *([f"  - {blocking_pathology_line}"] if blocking_pathology_line else []),
         "- **current-state docs overwrite sync 已自動化**",
         "  - heartbeat runner 會在 `auto_propose_fixes.py` 後直接覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
@@ -4384,6 +4472,7 @@ def overwrite_current_state_docs(
         "### 目標 B：持續把 recent canonical blocker pocket 當成 current blocker 根因來鑽",
         "**目前真相**",
         f"- {pathology_line}",
+        *([f"- {shadow_replay_line}"] if shadow_replay_line else []),
         *([f"- {blocking_pathology_line}"] if blocking_pathology_line else []),
         "**成功標準**",
         "- drift / probe / docs 能同時指出 latest recent-window diagnostics 與 current blocker pocket，而不是退回 generic leaderboard / venue 摘要。",
@@ -6180,6 +6269,8 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
         return {}
     primary = payload.get("primary_window") or {}
     summary = primary.get("summary") or {}
+    tail_root_cause = payload.get("canonical_tail_root_cause") or {}
+    no_new_risk_shadow_replay = _compact_no_new_risk_shadow_replay(tail_root_cause)
     quality_metrics = summary.get("quality_metrics") or {}
     target_path = summary.get("target_path_diagnostics") or {}
     tail_streak = target_path.get("tail_target_streak") or {}
@@ -6237,6 +6328,7 @@ def collect_recent_drift_diagnostics() -> Dict[str, Any]:
         "target_col": payload.get("target_col"),
         "horizon_minutes": payload.get("horizon_minutes"),
         "full_sample": payload.get("full_sample") or {},
+        "no_new_risk_shadow_replay": no_new_risk_shadow_replay,
         "primary_window": primary.get("window"),
         "primary_alerts": primary.get("alerts") or [],
         "primary_summary": {

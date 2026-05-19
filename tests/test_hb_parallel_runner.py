@@ -3476,6 +3476,76 @@ def test_overwrite_current_state_docs_flattens_drift_target_path_tail_streak(tmp
     assert "`tail_streak=—`" not in issues_md
 
 
+def test_overwrite_current_state_docs_surfaces_shadow_only_falsification_gate(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps(
+            {
+                "issues": [
+                    {
+                        "id": "#H_AUTO_RECENT_PATHOLOGY",
+                        "priority": "P0",
+                        "status": "open",
+                        "title": "recent canonical window 100 rows = distribution_pathology",
+                        "action": "keep no-new-risk shadow replay evidence visible",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    shadow_replay = {
+        "mode": "shadow_only_no_new_risk_falsification",
+        "deployable": False,
+        "risk_on_order_enabled": False,
+        "order_submission_enabled": False,
+        "baseline_win_rate": 0.15,
+        "best_observable_gate": "observable_4h_shift_shadow_gate",
+        "kept_rows": 61,
+        "kept_win_rate": 0.164,
+        "loss_capture_share": 0.612,
+    }
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260519shadow",
+        {},
+        {},
+        {
+            "primary_window": "100",
+            "primary_alerts": ["label_imbalance", "regime_concentration"],
+            "no_new_risk_shadow_replay": shadow_replay,
+            "primary_summary": {
+                "window": "100",
+                "win_rate": 0.15,
+                "dominant_regime": "bear",
+                "dominant_regime_share": 1.0,
+                "avg_quality": -0.1305,
+                "avg_pnl": -0.0063,
+            },
+        },
+        {"deployment_blocker_details": {"release_condition": {}}},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    assert "shadow-only falsification" in issues_md
+    assert "`deployable=false`" in issues_md
+    assert "`risk_on_order_enabled=false`" in issues_md
+    assert "`order_submission_enabled=false`" in issues_md
+    assert "`best_gate=observable_4h_shift_shadow_gate`" in issues_md
+    assert "僅限 paper/shadow" in issues_md
+    assert "shadow-only falsification" in roadmap_md
+    assert "`deployable=false`" in roadmap_md
+
+
 def test_overwrite_current_state_docs_uses_dynamic_support_ratio_in_success_criteria(tmp_path, monkeypatch):
 
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
@@ -4691,6 +4761,35 @@ def test_collect_recent_drift_diagnostics_reads_primary_window(tmp_path, monkeyp
                 "target_col": "simulated_pyramid_win",
                 "horizon_minutes": 1440,
                 "full_sample": {"rows": 11134, "win_rate": 0.6459},
+                "canonical_tail_root_cause": {
+                    "no_new_risk_shadow_replay": {
+                        "mode": "shadow_only_no_new_risk_falsification",
+                        "shadow_only": True,
+                        "deployable": False,
+                        "risk_on_order_enabled": False,
+                        "order_submission_enabled": False,
+                        "baseline": {"rows": 100, "win_rate": 0.15, "avg_simulated_quality": -0.1305},
+                        "best_observable_gate": "observable_4h_shift_shadow_gate",
+                        "gates": [
+                            {
+                                "id": "oracle_gate_uses_future_outcome",
+                                "runtime_candidate": False,
+                                "uses_future_outcome_fields": True,
+                                "kept_rows": 2,
+                                "kept_win_rate": 1.0,
+                            },
+                            {
+                                "id": "observable_4h_shift_shadow_gate",
+                                "runtime_candidate": True,
+                                "uses_future_outcome_fields": False,
+                                "falsification_verdict": "partial_loss_filter_shadow_only",
+                                "kept_rows": 61,
+                                "kept_win_rate": 0.164,
+                                "loss_capture_share": 0.612,
+                            },
+                        ],
+                    }
+                },
                 "primary_window": {
                     "window": "100",
                     "alerts": ["regime_concentration"],
@@ -4737,6 +4836,13 @@ def test_collect_recent_drift_diagnostics_reads_primary_window(tmp_path, monkeyp
     assert diag["primary_summary"]["feature_diagnostics"]["low_variance_count"] == 4
     assert diag["primary_summary"]["target_path_diagnostics"]["tail_target_streak"]["count"] == 14
     assert diag["primary_summary"]["target_path_diagnostics"]["recent_examples"][0]["timestamp"] == "2026-04-13 03:00:00"
+    shadow = diag["no_new_risk_shadow_replay"]
+    assert shadow["deployable"] is False
+    assert shadow["risk_on_order_enabled"] is False
+    assert shadow["order_submission_enabled"] is False
+    assert shadow["baseline_win_rate"] == 0.15
+    assert shadow["best_observable_gate"] == "observable_4h_shift_shadow_gate"
+    assert shadow["kept_win_rate"] == 0.164
 
 
 def test_collect_recent_drift_diagnostics_drops_empty_blocking_placeholder(tmp_path, monkeypatch):
