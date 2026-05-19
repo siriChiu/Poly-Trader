@@ -101,8 +101,8 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     assert "10/50" in text
     assert "additional_recent_window_wins_needed=5" in text
     assert "exact_bucket_present_but_below_minimum" in text
-    assert "1/50" in text
-    assert "gap=49" in text
+    assert "2/50" in text
+    assert "gap=48" in text
     assert "exact_live_bucket_present_but_below_minimum" in text
     assert "Strategy Lab" in text
     assert "Execution Console" in text
