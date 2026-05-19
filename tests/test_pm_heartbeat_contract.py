@@ -100,10 +100,10 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     assert "release_ready=false" in text
     assert "10/50" in text
     assert "additional_recent_window_wins_needed=5" in text
-    assert "insufficient_support_everywhere" in text
-    assert "0/50" in text
-    assert "gap=50" in text
-    assert "exact_live_lane_proxy_available" in text
+    assert "exact_bucket_present_but_below_minimum" in text
+    assert "1/50" in text
+    assert "gap=49" in text
+    assert "exact_live_bucket_present_but_below_minimum" in text
     assert "Strategy Lab" in text
     assert "Execution Console" in text
     assert "客戶成功" in text
