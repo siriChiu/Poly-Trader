@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-19 20:12:09.261478**
+- generated_at: **2026-05-19 20:41:51.762186**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -36,7 +36,7 @@
 - support_progress.current_rows / minimum: **7 / 50**
 - support_progress.previous_rows: **7**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **2**
+- support_progress.stagnant_run_count: **3**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
 - support_identity.path: **bear / CAUTION / C**
@@ -65,9 +65,9 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5828**
+- current_entry_quality: **0.5927**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.0328**
+- current_trade_floor_gap: **0.0427**
 - current_entry_quality_ge_0_55: **True**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
@@ -83,7 +83,7 @@
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **HOLD / 0 / under_minimum_exact_live_structure_bucket**
 - support rows / minimum / gap: **7 / 50 / 43**
-- stagnant_run_count: **2**
+- stagnant_run_count: **3**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**
