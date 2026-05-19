@@ -7,7 +7,7 @@
 ## Usage
 
 - Run `python scripts/pm_heartbeat_check.py --format text` at the start of PM heartbeat work.
-- The final customer report can be short, but the run must internally answer PMHQ0-PMHQ8.
+- The final customer report can be short, but the run must internally answer PMHQ0-PMHQ9.
 - If any answer lacks evidence, the PM action should be to request/produce evidence, not to invent certainty.
 - If the process itself blocks customer progress, mark `framework-capture` risk and propose a smaller safe deliverable or framework patch.
 
@@ -40,6 +40,7 @@
 - Separate “use product now” from “send real buy/add orders now”.
 - Identify at least one safe immediate usage lane when live trading is blocked.
 - If no lane is visible, challenge the framework/engineering plan before telling the customer to wait.
+- If the proposed proof path looks weeks/months long or has unknown time-to-evidence, trigger an `alternative-solution` review immediately.
 
 **Evidence:** user request, PM status, UI/API surfaces, current ROADMAP gate.
 
@@ -115,7 +116,7 @@ For each important engineering claim, record:
 **Question:** What can be delivered or used in the next hour?
 
 **Answer rules:**
-Start from customer value and choose the highest safe ladder rung, not the lowest process-comfort rung:
+Start from customer value and choose the highest safe ladder rung, not the lowest process-comfort rung. State the time-to-evidence for the selected rung; if the proof path is weeks/months/unknown, select a parallel `alternative-solution` track too:
 
 1. Diagnostics/visibility only.
 2. Research/Strategy Lab usage.
@@ -160,6 +161,7 @@ Every PM run must leave a concrete action contract:
 - Same blocker three times with no movement → classify missing capability: Map / Tool / Signal / Constraint / Review.
 - Same failed patch path three times → ask for an alternative architecture or product lane.
 - Same docs/skills/framework loop twice → mark `ORANGE_framework_capture_risk` and patch/simplify the constraining framework.
+- Same blocker path projects weeks/months before customer value → mark `ORANGE_alternative_solution_required` and start a parallel option search instead of echoing engineering delay.
 
 **Evidence:** PM status, issue ID, prior gates, repeated blocker fields.
 
@@ -167,7 +169,25 @@ Every PM run must leave a concrete action contract:
 
 ---
 
-## Phase 8 — Customer report
+## Phase 8 — Alternative solution review
+
+### PMHQ9_alternative_solution_review
+**Question:** If engineering validation takes weeks/months or stays stuck, what other solution should start now?
+
+**Answer rules:**
+- Estimate time-to-evidence: next heartbeat / same day / within week / weeks-months / unknown.
+- If the answer is weeks-months or unknown, do not follow the engineering heartbeat into passive waiting; open an `alternative-solution` track now.
+- Alternative tracks may include: simpler strategy scope, different data/source/provider, external tool, manual/paper workflow, narrower market/asset scope, alternate model/architecture, UI-only decision support, or explicit stop/pivot recommendation.
+- Preserve non-negotiable live-trading proof gates; the alternative cannot be “lower thresholds until it trades”.
+- State the first artifact, route, test, or decision memo that proves whether the alternative is worth continuing.
+
+**Evidence:** time-to-evidence estimate, option list, selected option, proof artifact, rejection reason for unsafe shortcuts.
+
+**If fail:** Classify as `ORANGE_alternative_solution_required` and do not let the PM report sound like engineering delay is the only plan.
+
+---
+
+## Phase 9 — Customer report
 
 ### PMHQ8_customer_report
 **Question:** Can the customer understand the state in 30 seconds?
@@ -203,6 +223,9 @@ A: <safe ladder rung + artifact>
 
 Q: 是否有 framework-capture 風險？
 A: <none / constraining doc-skill-rule + patch or bypass>
+
+Q: time-to-evidence 是否太長？替代解法是什麼？
+A: <next-hour/same-day/within-week/weeks-months/unknown + alternative-solution track>
 
 Q: 若又卡住怎麼辦？
 A: <deadlock escape>

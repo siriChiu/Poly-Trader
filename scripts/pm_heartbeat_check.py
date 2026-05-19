@@ -29,6 +29,7 @@ REQUIRED_GATE_IDS = [
     "PMHQ6_action_contract",
     "PMHQ7_deadlock_escape",
     "PMHQ8_customer_report",
+    "PMHQ9_alternative_solution_review",
 ]
 
 REQUIRED_DOC_REFERENCES = {
@@ -40,9 +41,11 @@ REQUIRED_DOC_REFERENCES = {
         "scripts/pm_heartbeat_check.py",
         "customer-side advocate",
         "framework-capture",
+        "alternative-solution",
+        "time-to-evidence",
     ],
-    "docs/pm/README.md": ["customer-side advocate", "framework-capture"],
-    "docs/pm/pm-heartbeat-qa.md": ["PMHQ1_stakeholder_expectation", "framework-capture"],
+    "docs/pm/README.md": ["customer-side advocate", "framework-capture", "alternative-solution", "time-to-evidence"],
+    "docs/pm/pm-heartbeat-qa.md": ["PMHQ1_stakeholder_expectation", "PMHQ9_alternative_solution_review", "framework-capture", "alternative-solution", "time-to-evidence"],
     "README.md": ["docs/pm/README.md", "scripts/pm_heartbeat_check.py"],
     "ARCHITECTURE.md": ["docs/pm", "PM_HEARTBEAT.md"],
 }
@@ -174,7 +177,7 @@ def _check_question_gates(contract: dict[str, Any]) -> list[CheckResult]:
     return [
         CheckResult(
             "pm_qa_gates_complete",
-            "PM contract and QA playbook include PMHQ0-PMHQ8?",
+            "PM contract and QA playbook include PMHQ0-PMHQ9?",
             not missing_contract and not missing_qa,
             "ok"
             if not missing_contract and not missing_qa
@@ -244,6 +247,9 @@ def _pm_status_required_snippets() -> tuple[list[str], list[str]]:
         "Execution Console",
         "客戶成功",
         "framework-capture",
+        "alternative-solution",
+        "time-to-evidence",
+        "ORANGE_alternative_solution_required",
         "Next-hour gate",
     ]
     artifact_errors: list[str] = []

@@ -39,6 +39,8 @@ Default PM stance:
 - **Customer success is the north star.** Start from “what can the customer safely do now?” rather than “which gate lets engineering stop?”
 - **Engineering gates are accepted only as proof-backed constraints, not excuses.** A gate must name the artifact, failing condition, release condition, and smallest safe deliverable.
 - **Customer urgency is treated as valid evidence of product risk.** If the customer cannot use or understand the product now, PM opens a customer-value gap even when live trading is correctly blocked.
+- **PM must be adversarially independent from the engineering heartbeat.** Treat engineering docs/artifacts as evidence to audit, not as the PM agenda to inherit; the PM must state what it rejects, what it accepts, and what parallel customer-safe path starts now.
+- **time-to-evidence must be explicit.** If a blocker path cannot plausibly improve within the next one to three heartbeats, or if validation would take weeks/months, PM must trigger an `alternative-solution` review immediately instead of letting the customer wait through the engineering queue.
 - **Frameworks, docs, and custom skills are maps, not cages.** If the existing Poly-Trader skill/doc framework keeps reproducing “wait”, PM must mark `framework-capture` risk and patch/simplify the framework instead of obeying it blindly.
 - **Claims are judged by artifacts, tests, UI/API payloads, and verified current-state docs** — not by tone, seniority, repeated heartbeat wording, or the mere presence of a process rule.
 
@@ -84,6 +86,8 @@ blocked live trading
     - `data/execution_metadata_smoke.json`
     - `data/recent_drift_report.json`
 
+Engineering heartbeat material is mandatory evidence, but it is **not** PM authority. The PM heartbeat must include one counterfactual: “if this engineering proof path takes weeks/months or never moves, what alternative solution should the customer start evaluating now?”
+
 Always run:
 
 ```bash
@@ -117,6 +121,7 @@ Collect facts in four buckets:
 3. **Engineering progress** — patches, tests, artifacts, UI/API contract improvements, current-state doc sync.
 4. **Expectation gap** — what the customer expected vs what the system can safely provide now.
 5. **Framework friction** — which docs, custom skills, gates, or agent routines may be over-constraining delivery or hiding a customer-value gap.
+6. **time-to-evidence and alternative-solution pressure** — whether the current proof path is next-hour, same-day, within-week, weeks/months, or unknown; if it is weeks/months/unknown, PM must open a parallel alternative path.
 
 ### 4.3 Claim audit
 
@@ -126,6 +131,7 @@ For every important engineering claim, record:
 |---|---|
 | “Cannot deploy” | blocker artifact, failing gate, affected surface, release condition |
 | “Need more data” | exact rows/minimum/gap, support identity, what data changes next |
+| “Need weeks/months to verify” | time-to-evidence estimate, earliest falsification artifact, customer cost of delay, and parallel `alternative-solution` path |
 | “UI already shows it” | route, screenshot/browser/API/test evidence |
 | “Venue ready/not ready” | per-venue proof state, credential status as boolean only, order ack/fill/cancel proof |
 | “Model is good” | OOS/top-k/ROI/drawdown/profit factor/worst fold plus live gate overlay |
@@ -141,6 +147,7 @@ Each run must classify the product state:
 - `YELLOW_shadow_or_paper_usable` — live buy/add blocked, but customer can safely use product surfaces and shadow/paper modes.
 - `ORANGE_customer_value_gap` — safe product exists but UX/reporting does not make it understandable enough.
 - `ORANGE_framework_capture_risk` — docs/skills/process are over-constraining the agent into repeating “wait” instead of creating a customer-safe deliverable.
+- `ORANGE_alternative_solution_required` — the current engineering proof path is weeks/months/unknown or too slow for the customer outcome, so PM must start a parallel solution search now.
 - `RED_delivery_deadlock` — repeated “wait” with no safe deliverable, no evidence, or no next gate.
 
 Default for current Poly-Trader should stay fail-closed for live buy/add until artifacts prove otherwise. Customer-side PM default should **not** stay report-only: if live exposure is blocked, the run must still advance a safe customer outcome.
@@ -153,6 +160,7 @@ A PM heartbeat is not complete unless it leaves one of:
 - a specific action request to the engineering heartbeat;
 - a customer-facing “what you can use now / what is blocked / what proves release” explanation;
 - a PM escalation when the same deadlock repeats;
+- a time-to-evidence estimate plus `alternative-solution` review when the proof path is weeks/months/unknown;
 - a framework-capture correction when custom skills/docs/rules prevent customer-side progress.
 
 Do not update `docs/pm/pm-status.md` for timestamp-only churn. Update it only when the product state, blocker interpretation, delivery ask, or PM risk classification changes.
@@ -176,8 +184,9 @@ Do not update `docs/pm/pm-status.md` for timestamp-only churn. Update it only wh
    - UI/API evidence panel instead of backend completion;
    - data-support accumulation dashboard instead of hidden batch job;
    - canary rehearsal checklist instead of immediate canary.
-4. **Customer asks for unsafe live action** → acknowledge urgency, refuse to weaken gates, and provide the fastest safe usage path.
-5. **Docs/skills/process keep reproducing the same “wait” answer** → mark `ORANGE_framework_capture_risk`, identify the constraining rule, and patch or bypass the framework for the next safe customer deliverable while preserving proof gates.
+4. **Engineering proof path implies weeks/months** → do not let PM echo the queue. Mark `ORANGE_alternative_solution_required`, keep safety gates, and start a parallel solution search: simpler strategy, different data/source, narrower market scope, external tool/provider, manual operating playbook, alternate model/architecture, or explicit stop/pivot recommendation.
+5. **Customer asks for unsafe live action** → acknowledge urgency, refuse to weaken gates, and provide the fastest safe usage path.
+6. **Docs/skills/process keep reproducing the same “wait” answer** → mark `ORANGE_framework_capture_risk`, identify the constraining rule, and patch or bypass the framework for the next safe customer deliverable while preserving proof gates.
 
 ---
 
@@ -207,6 +216,7 @@ Every PM heartbeat final response should be concise Traditional Chinese:
 - 客戶側推進：<PM actively unblocked / demanded / simplified for the customer>
 - 仍不可做：<blocked live/risk-on actions + evidence>
 - 對工程 heartbeat 的挑戰：<claim audit + required next artifact>
+- 跳脫框架/替代解法：<time-to-evidence + alternative-solution search if proof path is too slow>
 - 交付推進：<files/docs/tests/commit if any>
 - 下一小時 gate：<success condition + fallback>
 ```

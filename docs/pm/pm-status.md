@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-05-20 07:16 CST_
+_最後更新：2026-05-20 07:32 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; update only when PM classification, blocker interpretation, customer-usable lane, engineering ask, or next gate changes.
 
@@ -8,11 +8,11 @@ _最後更新：2026-05-20 07:16 CST_
 
 ## 1. PM decision
 
-**State：`YELLOW_shadow_or_paper_usable`**
+**State：`ORANGE_framework_capture_risk` governance overlay；safe lane remains `YELLOW_shadow_or_paper_usable`**
 
-PM 判定：維持 **YELLOW**；PM 仍站在**客戶成功**一側。最新 machine-readable artifacts（engineering refreshed at `2026-05-19T23:13Z`）證明：Dashboard、Strategy Lab、Execution Console、paper/shadow selective sleeve、Shadow Trade Ledger、venue readiness checklist、range-chop playbook 與 canary rehearsal 仍是客戶可安全使用的產品價值；但 **live buy/add / 真實買入 / 加倉 / 自動送單 / 小額 live canary 仍不可放行**。
+PM 判定：接受使用者修正，PM heartbeat 不可只是 engineering heartbeat 的下游同步或「跟著工程一起等」；PM 仍以**客戶成功**為北極星。客戶可安全使用的產品 lane 仍是 **YELLOW**：Dashboard、Strategy Lab、Execution Console、paper/shadow selective sleeve、Shadow Trade Ledger、venue readiness checklist、range-chop playbook 與 canary rehearsal；但 **live buy/add / 真實買入 / 加倉 / 自動送單 / 小額 live canary 仍不可放行**。
 
-本輪 PM overwrite sync 的語義變更：engineering heartbeat 已完成 fast artifact refresh + collect/backfill；相較上個 PM handoff 的 `13/50`，current exact q15 support 目前是 `14/50`（`gap=36`）。最終 intra-heartbeat resync 後，machine-readable `support_progress` 以本輪第一個 `14/50` snapshot 作 previous，故現在顯示 `delta_vs_previous=0`、`previous_rows=14`、`stagnant_run_count=2`。PM 接受「breaker_clear 但 live buy/add 仍 fail-closed」：這代表 support accumulation 有過一次 movement，但當前仍未達部署閉環。下一小時工程 challenge 是繼續交付 support movement、recent-tail falsification、Top-K freshness proof、paper/shadow 操作 proof、venue dry-run proof，或明確證明缺口屬於 Map / Tool / Signal / Constraint / Review 哪一類能力。
+本輪 PM governance 語義變更：engineering heartbeat 已完成 fast artifact refresh + collect/backfill；相較上個 PM handoff 的 `13/50`，current exact q15 support 目前是 `14/50`（`gap=36`）。最終 intra-heartbeat resync 後，machine-readable `support_progress` 以本輪第一個 `14/50` snapshot 作 previous，故現在顯示 `delta_vs_previous=0`、`previous_rows=14`、`stagnant_run_count=2`。PM 接受「breaker_clear 但 live buy/add 仍 fail-closed」，但不接受把這條工程驗證路徑當成唯一方案。下一小時除了 support movement、recent-tail falsification、Top-K freshness proof、paper/shadow 操作 proof、venue dry-run proof，也必須交付 **time-to-evidence** 估計；若 exact-support closure 看起來是 weeks/months 或 unknown，立即進入 `ORANGE_alternative_solution_required` 的 `alternative-solution` 搜尋，而不是讓客戶等幾個月。
 
 ---
 
@@ -84,11 +84,11 @@ PM 判定：維持 **YELLOW**；PM 仍站在**客戶成功**一側。最新 mach
 
 ---
 
-## 4. framework-capture guard
+## 4. framework-capture / alternative-solution guard
 
-本輪 **不升級為 `ORANGE_framework_capture_risk`**，因為 fresh artifacts 有實際刷新與 customer-usable proof：collect/backfill 已執行，live probe、q15 audit、Top-K、breaker audit、recent drift 與 venue smoke 均已刷新；相較上個 PM handoff 的 q15 exact support `13/50`，目前 current support 是 `14/50`。但最終 `support_progress` 已回到 `delta_vs_previous=0`，所以它仍是 watch item，不是部署閉環。Execution Console / Strategy Lab / Dashboard 仍提供 safe customer lanes。
+本輪升級為 **`ORANGE_framework_capture_risk` governance overlay**，原因不是 live gate 被否定，而是 PM 必須防止自己被工程 heartbeat 的 blocker 敘事捕獲。Fresh artifacts 有實際刷新與 customer-usable proof：collect/backfill 已執行，live probe、q15 audit、Top-K、breaker audit、recent drift 與 venue smoke 均已刷新；目前 current support 是 `14/50`、`gap=36`，safe lane 仍是 `YELLOW_shadow_or_paper_usable`。但 `support_progress` 已回到 `delta_vs_previous=0`，所以 PM 不能只跟著工程說「等支持樣本累積」。
 
-但 PM 維持 **framework-capture watch**：q15 exact support 仍只有 `14/50`、離 minimum 還缺 `36`；recent window `100` win rate 仍為 `28.0%`；venue runtime proof 仍未完成。若後續 Poly-Trader skills / docs / harness rules 只重複 fail-closed，而沒有交付 support movement、可操作 paper/shadow proof、Top-K stale/fresh labeling、venue dry-run proof、recent-tail falsification 或框架簡化，PM 將升級為 `ORANGE_customer_value_gap` 或 `ORANGE_framework_capture_risk`。若連續三輪沒有 artifact movement 或 safe product proof，升級為 `RED_delivery_deadlock`。
+PM 現在要求每輪都產出 **time-to-evidence**：q15 exact support 何時可能從 `14/50` 往 `50/50` 前進？近期品質 `win_rate=28.0%` 何時能被 no-new-risk / shadow-only artifact 證偽？venue runtime proof 何時能從 metadata 走到 dry-run？若答案是 weeks/months 或 unknown，PM 必須標記 `ORANGE_alternative_solution_required` 並提出 `alternative-solution` portfolio：縮小策略/市場範圍、換資料源或外部工具、改走 manual/paper decision-support、替代模型/架構、或明確 stop/pivot recommendation；不可只把工程 heartbeat 的下一步轉述給客戶。
 
 ---
 
@@ -102,11 +102,12 @@ PM 判定：維持 **YELLOW**；PM 仍站在**客戶成功**一側。最新 mach
 4. **Customer-usable lane**：用 route/API/test/browser proof 證明 `/execution` paper/shadow selective sleeve、Shadow Trade Ledger、range-chop playbook 或 dry-run readiness 可操作。
 5. **Venue proof lane**：產出 OKX sandbox/dry-run 或 metadata-to-runtime proof checklist；credential present 只可顯示布林，不可洩漏 secret。
 6. **PM drift harness lane**：維持 `scripts/pm_heartbeat_check.py` 以 current runtime artifacts 驗證 `docs/pm/pm-status.md`，避免 stale literals 誤通過。
+7. **Alternative-solution lane**：若 exact support closure / recent-tail falsification / venue proof 的 time-to-evidence 超過一週、落入 weeks/months、或工程無法估計，PM 必須在同一輪提出至少三個替代解法並選一個可於下輪驗證的 artifact；安全 gate 不可放鬆，但產品路線不可被單一路徑綁死。
 
 ---
 
 ## 6. Next-hour gate
 
-**Next-hour gate / Success gate：** 下次 PM heartbeat 應能回答：客戶此刻可以打開哪個頁面或模式、做什麼安全操作、看到什麼證據；engineering heartbeat 提供的不是「等」，而是一個 artifact / route / test / UI proof。最低可接受證據是：q15 exact support rows 從目前 `14/50` 有 movement，或明確證明 stagnation 的 missing capability；recent drift no-new-risk / shadow-only falsification artifact clearly labels `deployable=false`；Top-K matrix 保持 fresh 或 Strategy Lab / `/api/models/leaderboard` stale label；`/execution` paper/shadow 或 dry-run readiness 可操作 proof；或 venue dry-run proof。
+**Next-hour gate / Success gate：** 下次 PM heartbeat 應能回答：客戶此刻可以打開哪個頁面或模式、做什麼安全操作、看到什麼證據；engineering heartbeat 提供的不是「等」，而是一個 artifact / route / test / UI proof。最低可接受證據是：q15 exact support rows 從目前 `14/50` 有 movement，或明確證明 stagnation 的 missing capability；recent drift no-new-risk / shadow-only falsification artifact clearly labels `deployable=false`；Top-K matrix 保持 fresh 或 Strategy Lab / `/api/models/leaderboard` stale label；`/execution` paper/shadow 或 dry-run readiness 可操作 proof；或 venue dry-run proof。除此之外，PM 必須交付 time-to-evidence bucket（next heartbeat / same day / within week / weeks-months / unknown）與 `alternative-solution` 候選；若主路徑落入 weeks/months/unknown，選出一個下輪可驗證的替代 artifact。
 
-**Fallback：** 若下次仍只有「wait」且沒有 safe deliverable，PM 將升級為 `ORANGE_customer_value_gap`；若原因來自文件/skills/harness 過度限制，升級為 `ORANGE_framework_capture_risk`；若連續三次沒有 artifact movement 或 safe product proof，升級為 `RED_delivery_deadlock` 並要求 engineering heartbeat 先修 harness gap。
+**Fallback：** 若下次仍只有「wait」且沒有 safe deliverable，PM 維持 `ORANGE_framework_capture_risk` 並升級 `ORANGE_alternative_solution_required`；若原因來自文件/skills/harness 過度限制，直接 patch/simplify/bypass 該框架；若連續三次沒有 artifact movement、safe product proof 或替代解法驗證，升級為 `RED_delivery_deadlock` 並要求 engineering heartbeat 暫停同一路徑敘事，先提出替代架構/產品線/資料源比較。

@@ -14,6 +14,7 @@ The PM heartbeat is a repo-native harness for product management:
 4. **Preserve safety as customer protection** — live buy/add exposure remains fail-closed until support, model, and venue proof pass.
 5. **Find usable value now** — Strategy Lab, Dashboard, Execution diagnostics, paper/shadow, dry-run, and canary rehearsal.
 6. **Break deadlocks and framework-capture loops** — repeated “wait” must become a smaller safe deliverable, a harness repair, a framework simplification, or a clear escalation.
+7. **Challenge slow proof paths** — every major blocker needs a time-to-evidence estimate; weeks/months/unknown validation triggers a parallel `alternative-solution` review instead of making the customer wait.
 
 ---
 
@@ -43,6 +44,7 @@ The PM heartbeat is a **customer-side advocate with evidence discipline**:
 - To the customer: urgency is valid and becomes PM evidence of a product-value gap. The PM must actively find what the customer can use, understand, test, or rehearse now.
 - To engineering: safety is valid only when backed by artifacts and release conditions. “Wait” is not a deliverable; provide a safe lane, proof, UX, or a precise release condition.
 - To the framework: docs, custom skills, and harness rules are useful maps, not final authority. If they create a loop where the agent only repeats blockers, PM marks `framework-capture` risk and proposes a simplification or override that still preserves safety proof.
+- To the roadmap: engineering heartbeat priorities are evidence, not PM destiny. If the validated path is too slow for the customer outcome, PM must open an `alternative-solution` track with a clear time-to-evidence threshold.
 
 Accepted PM outcome examples:
 
@@ -50,6 +52,7 @@ Accepted PM outcome examples:
 - “Venue live proof is missing, but OKX public metadata is valid; the next one-hour deliverable is dry-run proof and a checklist panel.”
 - “Engineering says impossible; PM rejects that wording. The smaller deliverable is an artifact that proves which gate is missing and what changes it.”
 - “The current skill/doc framework is causing report-only loops; PM patches the harness so the next run must ship a customer-safe lane.”
+- “The current engineering proof path looks weeks/months long; PM preserves fail-closed live safety but starts an alternative-solution review now: simpler scope, external data/tooling, paper/manual workflow, alternate model/architecture, or stop/pivot.”
 
 Rejected PM outcome examples:
 
@@ -58,6 +61,7 @@ Rejected PM outcome examples:
 - “The model looks good” without OOS, drawdown, support, and live gate overlay.
 - “Customer can trade now” while buy/add exposure is fail-closed.
 - “The docs/skills say no” without explaining whether that rule protects customer capital or merely blocks customer value.
+- “We may need months to verify” without a parallel alternative-solution search and a near-term customer-safe deliverable.
 
 ---
 
@@ -100,6 +104,7 @@ git diff --check -- PM_HEARTBEAT.md docs/pm scripts/pm_heartbeat_check.py tests/
 - customer-usable safe lane;
 - engineering action request;
 - deadlock/escalation state;
-- next-hour gate.
+- next-hour gate;
+- time-to-evidence threshold or alternative-solution pressure.
 
 Hourly reports are delivered by cron; durable history belongs in git history, session logs, or ignored artifacts, not in PM status prose.

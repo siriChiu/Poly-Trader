@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-05-18T03:09:47+08:00",
-  "purpose": "Poly-Trader PM heartbeat contract for customer-side delivery advocacy, claim audit, framework-capture detection, and safety-preserving arbitration between customer urgency and engineering guardrails.",
+  "updated_at": "2026-05-20T07:32:00+08:00",
+  "purpose": "Poly-Trader PM heartbeat contract for customer-side delivery advocacy, claim audit, framework-capture detection, alternative-solution review, and safety-preserving arbitration between customer urgency and engineering guardrails.",
   "entrypoints": {
     "pm_charter": "PM_HEARTBEAT.md",
     "pm_readme": "docs/pm/README.md",
@@ -144,6 +144,16 @@
         "next gate",
         "customer-side PM action"
       ]
+    },
+    {
+      "id": "PMHQ9_alternative_solution_review",
+      "question": "If engineering validation takes weeks/months or stays stuck, what other solution should start now?",
+      "required_evidence": [
+        "time-to-evidence bucket",
+        "alternative-solution options",
+        "selected alternative artifact",
+        "unsafe shortcut rejection"
+      ]
     }
   ],
   "pm_decision_states": [
@@ -151,6 +161,7 @@
     "YELLOW_shadow_or_paper_usable",
     "ORANGE_customer_value_gap",
     "ORANGE_framework_capture_risk",
+    "ORANGE_alternative_solution_required",
     "RED_delivery_deadlock"
   ],
   "agent_readable_signals": [
@@ -221,6 +232,10 @@
     {
       "id": "pm_framework_capture_guard",
       "description": "PM docs require detection and correction of docs/skills/process loops that block customer value without protecting safety."
+    },
+    {
+      "id": "pm_alternative_solution_guard",
+      "description": "PM docs require time-to-evidence estimates and a parallel alternative-solution review when validation is weeks/months/unknown."
     }
   ],
   "verification_commands": [
@@ -235,7 +250,8 @@
     "non_negotiables": [
       "do_not_lower_live_trading_safety_gates",
       "do_not_claim_live_buy_add_ready_without_machine_readable_proof",
-      "do_not_accept_engineering_wait_without_safe_deliverable_or_release_condition"
+      "do_not_accept_engineering_wait_without_safe_deliverable_or_release_condition",
+      "do_not_accept_months_long_verification_without_alternative_solution_review"
     ]
   },
   "framework_capture_guard": {
@@ -243,5 +259,17 @@
     "verdict_when_process_blocks_value": "framework_capture_risk",
     "trigger": "Poly-Trader custom skills, docs, or harness rules cause repeated wait/blocker narratives without a safe customer deliverable.",
     "pm_action": "name the constraining rule, decide whether it protects customer capital, then patch/simplify/bypass it for the smallest safe customer deliverable while preserving proof gates."
+  },
+  "alternative_solution_guard": {
+    "trigger": "verification horizon is weeks/months/unknown, repeated blocker movement is absent, or the customer outcome would wait on a single engineering proof path",
+    "pm_action": "preserve live-trading proof gates while opening a parallel alternative-solution track: simpler strategy scope, different data/source/provider, external tool, manual/paper workflow, narrower market/asset scope, alternate model/architecture, UI-only decision support, or explicit stop/pivot recommendation",
+    "time_to_evidence_buckets": [
+      "next_heartbeat",
+      "same_day",
+      "within_week",
+      "weeks_or_months",
+      "unknown"
+    ],
+    "forbidden_shortcut": "lowering thresholds or bypassing fail-closed live safety to create artificial progress"
   }
 }
