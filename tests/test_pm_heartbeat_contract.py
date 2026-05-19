@@ -94,16 +94,47 @@ def test_pm_checker_text_mode_is_question_answer_style() -> None:
 
 def test_pm_status_preserves_current_delivery_truth() -> None:
     text = STATUS_PATH.read_text(encoding="utf-8")
+    probe = json.loads((PROJECT_ROOT / "data/live_predict_probe.json").read_text(encoding="utf-8"))
+    breaker = json.loads((PROJECT_ROOT / "data/circuit_breaker_audit.json").read_text(encoding="utf-8"))
+    topk = json.loads((PROJECT_ROOT / "data/high_conviction_topk_oos_matrix.json").read_text(encoding="utf-8"))
+    execution = json.loads((PROJECT_ROOT / "data/execution_metadata_smoke.json").read_text(encoding="utf-8"))
+
+    details = probe.get("deployment_blocker_details") or {}
+    rows = probe.get("current_live_structure_bucket_rows") or details.get("current_live_structure_bucket_rows")
+    minimum = probe.get("minimum_support_rows") or details.get("minimum_support_rows")
+    gap = probe.get("current_live_structure_bucket_gap_to_minimum") or details.get("current_live_structure_bucket_gap_to_minimum")
+    support_route = probe.get("support_route_verdict") or details.get("support_route_verdict")
+    support_governance_route = probe.get("support_governance_route") or details.get("support_governance_route")
+    release = breaker["release_condition"]
+    matrix_rows = topk.get("rows") if isinstance(topk.get("rows"), list) else []
+    runtime_blocked_rows = [
+        row
+        for row in matrix_rows
+        if row.get("deployment_candidate_tier") == "runtime_blocked_oos_pass"
+    ]
 
     assert "YELLOW_shadow_or_paper_usable" in text
-    assert "circuit_breaker_active" in text
-    assert "release_ready=false" in text
-    assert "14/50" in text
-    assert "additional_recent_window_wins_needed=1" in text
-    assert "exact_bucket_present_but_below_minimum" in text
-    assert "28/50" in text
-    assert "gap=22" in text
-    assert "exact_live_bucket_present_but_below_minimum" in text
+    assert str(probe["deployment_blocker"]) in text
+    assert str(probe["allowed_layers_reason"]) in text
+    assert str(probe["current_live_structure_bucket"]) in text
+    assert str(support_route) in text
+    assert str(support_governance_route) in text
+    assert f"{rows}/{minimum}" in text
+    assert f"gap={gap}" in text
+    assert f"allowed_layers_raw={probe['allowed_layers_raw']}" in text
+    assert f"allowed_layers={probe['allowed_layers']}" in text
+    assert str(breaker["verdict"]) in text
+    assert f"release_ready={str(release['release_ready']).lower()}" in text
+    assert f"{release['current_recent_window_wins']}/{release['recent_window']}" in text
+    assert f"additional_recent_window_wins_needed={release['additional_recent_window_wins_needed']}" in text
+    assert "Top-K" in text
+    assert f"artifact_freshness_status={topk['artifact_freshness_status']}" in text
+    assert f"samples={topk['samples']}" in text
+    assert f"row_count={len(matrix_rows)}" in text
+    assert f"runtime_blocked_candidate_rows={len(runtime_blocked_rows)}" in text
+    assert f"runtime_ready={str(execution['runtime_ready']).lower()}" in text
+    assert f"runtime_ready_count={execution['runtime_ready_count']}" in text
+    assert f"venues_checked={execution['venues_checked']}" in text
     assert "Strategy Lab" in text
     assert "Execution Console" in text
     assert "客戶成功" in text

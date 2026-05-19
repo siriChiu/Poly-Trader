@@ -210,6 +210,129 @@ def _check_doc_references() -> list[CheckResult]:
     return results
 
 
+def _load_json_artifact(rel_path: str) -> tuple[dict[str, Any] | None, str | None]:
+    path = PROJECT_ROOT / rel_path
+    if not path.exists():
+        return None, f"{rel_path} missing"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return None, f"{rel_path} invalid JSON at line {exc.lineno} column {exc.colno}"
+    if not isinstance(payload, dict):
+        return None, f"{rel_path} root is not an object"
+    return payload, None
+
+
+def _bool_snippet(name: str, value: Any) -> str | None:
+    if isinstance(value, bool):
+        return f"{name}={'true' if value else 'false'}"
+    return None
+
+
+def _pm_status_required_snippets() -> tuple[list[str], list[str]]:
+    """Build PM status checks from current runtime artifacts, not stale literals.
+
+    The PM heartbeat can legitimately change from q00/circuit-breaker to
+    q15/support-under-minimum (or the reverse).  Hard-coding one historical
+    blocker lets PM status pass while contradicting the live probe.  These
+    snippets make the checker a current-state guardrail.
+    """
+
+    required = [
+        "YELLOW_shadow_or_paper_usable",
+        "Strategy Lab",
+        "Execution Console",
+        "客戶成功",
+        "framework-capture",
+        "Next-hour gate",
+    ]
+    artifact_errors: list[str] = []
+
+    probe, error = _load_json_artifact("data/live_predict_probe.json")
+    if error:
+        artifact_errors.append(error)
+    elif probe is not None:
+        details = probe.get("deployment_blocker_details") or {}
+        required.extend(
+            snippet
+            for snippet in [
+                str(probe.get("deployment_blocker")),
+                str(probe.get("allowed_layers_reason")),
+                str(probe.get("execution_guardrail_reason")),
+                str(probe.get("current_live_structure_bucket")),
+                str(probe.get("support_route_verdict") or details.get("support_route_verdict")),
+                str(probe.get("support_governance_route") or details.get("support_governance_route")),
+                f"allowed_layers_raw={probe.get('allowed_layers_raw')}",
+                f"allowed_layers={probe.get('allowed_layers')}",
+            ]
+            if snippet and snippet != "None"
+        )
+        rows = probe.get("current_live_structure_bucket_rows") or details.get(
+            "current_live_structure_bucket_rows"
+        )
+        minimum = probe.get("minimum_support_rows") or details.get("minimum_support_rows")
+        gap = probe.get("current_live_structure_bucket_gap_to_minimum") or details.get(
+            "current_live_structure_bucket_gap_to_minimum"
+        )
+        if rows is not None and minimum is not None:
+            required.append(f"{rows}/{minimum}")
+        if gap is not None:
+            required.append(f"gap={gap}")
+
+    breaker, error = _load_json_artifact("data/circuit_breaker_audit.json")
+    if error:
+        artifact_errors.append(error)
+    elif breaker is not None:
+        required.append(str(breaker.get("verdict")))
+        release_condition = breaker.get("release_condition") or {}
+        release_ready = _bool_snippet("release_ready", release_condition.get("release_ready"))
+        if release_ready:
+            required.append(release_ready)
+        wins = release_condition.get("current_recent_window_wins")
+        window = release_condition.get("recent_window")
+        additional = release_condition.get("additional_recent_window_wins_needed")
+        if wins is not None and window is not None:
+            required.append(f"{wins}/{window}")
+        if additional is not None:
+            required.append(f"additional_recent_window_wins_needed={additional}")
+
+    topk, error = _load_json_artifact("data/high_conviction_topk_oos_matrix.json")
+    if error:
+        artifact_errors.append(error)
+    elif topk is not None:
+        rows = topk.get("rows") if isinstance(topk.get("rows"), list) else []
+        runtime_blocked = [
+            row
+            for row in rows
+            if isinstance(row, dict)
+            and row.get("deployment_candidate_tier") == "runtime_blocked_oos_pass"
+        ]
+        required.extend(
+            snippet
+            for snippet in [
+                "Top-K",
+                f"artifact_freshness_status={topk.get('artifact_freshness_status')}",
+                f"samples={topk.get('samples')}",
+                f"row_count={len(rows)}",
+                f"runtime_blocked_candidate_rows={len(runtime_blocked)}",
+            ]
+            if snippet and "None" not in snippet
+        )
+
+    execution, error = _load_json_artifact("data/execution_metadata_smoke.json")
+    if error:
+        artifact_errors.append(error)
+    elif execution is not None:
+        runtime_ready = _bool_snippet("runtime_ready", execution.get("runtime_ready"))
+        if runtime_ready:
+            required.append(runtime_ready)
+        for key in ("runtime_ready_count", "venues_checked", "ok_count"):
+            if execution.get(key) is not None:
+                required.append(f"{key}={execution[key]}")
+
+    return required, artifact_errors
+
+
 def _check_pm_status_current_state() -> list[CheckResult]:
     status_path = PROJECT_ROOT / "docs" / "pm" / "pm-status.md"
     if not status_path.exists():
@@ -222,29 +345,19 @@ def _check_pm_status_current_state() -> list[CheckResult]:
             )
         ]
     text = status_path.read_text(encoding="utf-8")
-    required = [
-        "YELLOW_shadow_or_paper_usable",
-        "circuit_breaker_active",
-        "release_ready=false",
-        "14/50",
-        "additional_recent_window_wins_needed=1",
-        "exact_bucket_present_but_below_minimum",
-        "exact_live_bucket_present_but_below_minimum",
-        "28/50",
-        "gap=22",
-        "Strategy Lab",
-        "Execution Console",
-        "客戶成功",
-        "framework-capture",
-        "Next-hour gate",
-    ]
+    required, artifact_errors = _pm_status_required_snippets()
     missing = [snippet for snippet in required if snippet not in text]
+    detail_parts = []
+    if missing:
+        detail_parts.append("missing=" + ", ".join(missing))
+    if artifact_errors:
+        detail_parts.append("artifact_errors=" + ", ".join(artifact_errors))
     return [
         CheckResult(
             "pm_status_current_state_fields",
-            "PM status contains decision, blocker, usable lanes, and next gate?",
-            not missing,
-            "ok" if not missing else ", ".join(missing),
+            "PM status matches current live artifacts, decision, usable lanes, and next gate?",
+            not missing and not artifact_errors,
+            "ok" if not missing and not artifact_errors else "; ".join(detail_parts),
         )
     ]
 
