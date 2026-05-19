@@ -1,12 +1,12 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-19 03:18:04.941511**
+- generated_at: **2026-05-19 04:11:05.860613**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
 - signal: **CIRCUIT_BREAKER**
-- regime / gate / label: **bear / CAUTION / B**
+- regime / gate / label: **bear / CAUTION / C**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q15**
 - current_live_structure_bucket_rows: **0**
 - allowed_layers: **0** (decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active)
@@ -36,10 +36,10 @@
 - support_progress.current_rows / minimum: **0 / 50**
 - support_progress.previous_rows: **0**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **2**
+- support_progress.stagnant_run_count: **5**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
-- support_identity.path: **bear / CAUTION / B**
+- support_identity.path: **bear / CAUTION / C**
 - support_identity.bucket/window/signature: **CAUTION|base_caution_regime_or_bias|q15 / 200 / live_structure_bucket:q15_support_identity:v2**
 - legacy_supported_reference: **reference-only; not deployment closure**
 - legacy reference heartbeat/rows/minimum: **1250 / 173 / 50**
@@ -65,9 +65,9 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.6894**
+- current_entry_quality: **0.6273**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.1394**
+- current_trade_floor_gap: **0.0773**
 - current_entry_quality_ge_0_55: **True**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
@@ -83,7 +83,7 @@
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **CIRCUIT_BREAKER / 0 / decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active**
 - support rows / minimum / gap: **0 / 50 / 50**
-- stagnant_run_count: **2**
+- stagnant_run_count: **5**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**
