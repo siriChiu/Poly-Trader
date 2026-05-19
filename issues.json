@@ -7,7 +7,7 @@
       "action": "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆目前 9/50 勝，解除至少需要 15 勝，還差 6 勝；同時連續虧損必須 < 50。",
       "status": "open",
       "created_at": "2026-05-15T13:02:43.811715",
-      "updated_at": "2026-05-19T00:14:33.029918",
+      "updated_at": "2026-05-19T01:09:35.991769",
       "hb_detected": null,
       "next_action": "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。 最近 50 筆目前 9/50 勝，解除至少需要 15 勝，還差 6 勝；同時連續虧損必須 < 50。",
       "summary": {
@@ -17,7 +17,7 @@
         "current_recent_window_wins": 9,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 6,
-        "streak": 4,
+        "streak": 6,
         "streak_must_be_below": 50,
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
         "current_live_structure_bucket_rows": 0,
@@ -175,7 +175,7 @@
             },
             "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields"
           },
-          "comparable_history_count": 6,
+          "comparable_history_count": 8,
           "legacy_reference_history_count": 141,
           "stagnant_run_count": 5,
           "stalled_support_accumulation": false,
@@ -321,7 +321,7 @@
       "action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "status": "open",
       "created_at": "2026-04-29T18:00:00+08:00",
-      "updated_at": "2026-05-19T00:14:33.046912",
+      "updated_at": "2026-05-19T01:09:36.008601",
       "hb_detected": null,
       "next_action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "summary": {
@@ -369,14 +369,14 @@
         "strategy_lab_contract": "Strategy Lab 必須優先顯示 nearest_deployable_rows，並把離線驗證 / 模型門檻失敗與即時分桶 / 支持阻塞分開呈現；此研究 gate 不暴露 live automation 按鈕。",
         "execution_contract": "current-live blocker / unsupported support route keeps buy/add exposure fail-closed; reduce/sell diagnostics remain available",
         "latest_matrix": {
-          "generated_at": "2026-05-19T00:10:44.779362+00:00",
+          "generated_at": "2026-05-19T01:08:29.435059+00:00",
           "artifact_freshness_status": "fresh",
           "artifact_freshness_reason": "artifact_within_policy",
-          "artifact_age_minutes": 3.8044566166666667,
+          "artifact_age_minutes": 1.1095568,
           "artifact_stale_after_minutes": 60.0,
           "artifact_deployment_blocking": false,
           "artifact": "data/high_conviction_topk_oos_matrix.json",
-          "samples": 24580,
+          "samples": 24584,
           "rows": 24,
           "evaluated_models": [
             "logistic_regression",
@@ -421,7 +421,7 @@
           "minimum_support_rows": 50,
           "current_live_structure_bucket_gap_to_minimum": 50,
           "release_ready": false,
-          "current_streak": 4,
+          "current_streak": 6,
           "recent_window": 50,
           "current_recent_window_win_rate": 0.18,
           "current_recent_window_wins": 9,
@@ -506,7 +506,7 @@
               "streak_release_ready": true,
               "recent_win_rate_release_ready": false,
               "streak_must_be_below": 50,
-              "current_streak": 4,
+              "current_streak": 6,
               "recent_window": 50,
               "recent_win_rate_must_be_at_least": 0.3,
               "current_recent_window_win_rate": 0.18,
@@ -515,7 +515,7 @@
               "additional_recent_window_wins_needed": 6
             },
             "release_ready": false,
-            "current_streak": 4,
+            "current_streak": 6,
             "recent_window": 50,
             "current_recent_window_win_rate": 0.18,
             "current_recent_window_wins": 9,
@@ -631,7 +631,7 @@
               "streak_release_ready": true,
               "recent_win_rate_release_ready": false,
               "streak_must_be_below": 50,
-              "current_streak": 4,
+              "current_streak": 6,
               "recent_window": 50,
               "recent_win_rate_must_be_at_least": 0.3,
               "current_recent_window_win_rate": 0.18,
@@ -640,7 +640,7 @@
               "additional_recent_window_wins_needed": 6
             },
             "release_ready": false,
-            "current_streak": 4,
+            "current_streak": 6,
             "recent_window": 50,
             "current_recent_window_win_rate": 0.18,
             "current_recent_window_wins": 9,
@@ -751,7 +751,7 @@
               "streak_release_ready": true,
               "recent_win_rate_release_ready": false,
               "streak_must_be_below": 50,
-              "current_streak": 4,
+              "current_streak": 6,
               "recent_window": 50,
               "recent_win_rate_must_be_at_least": 0.3,
               "current_recent_window_win_rate": 0.18,
@@ -760,7 +760,7 @@
               "additional_recent_window_wins_needed": 6
             },
             "release_ready": false,
-            "current_streak": 4,
+            "current_streak": 6,
             "recent_window": 50,
             "current_recent_window_win_rate": 0.18,
             "current_recent_window_wins": 9,
@@ -876,7 +876,7 @@
       "action": "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數",
       "status": "open",
       "created_at": "2026-05-18T10:03:34.597479",
-      "updated_at": "2026-05-19T00:14:32.071756",
+      "updated_at": "2026-05-19T01:09:35.030059",
       "hb_detected": null,
       "next_action": "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數"
     },
@@ -887,7 +887,7 @@
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-05-19T00:14:32.071720",
+      "updated_at": "2026-05-19T01:09:35.030028",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
@@ -921,7 +921,7 @@
         ],
         "api_ui_contract": "execution_metadata_smoke top-level and venues[] expose runtime_ready/readiness_state/proof_state/blockers/operator_next_action/verify_next/readiness_scope for OKX proof-gap rendering and Binance unsupported/disabled blocker visibility; metadata OK does not imply live-ready",
         "execution_metadata_smoke": {
-          "generated_at": "2026-05-19T00:14:31.276747Z",
+          "generated_at": "2026-05-19T01:09:34.148604Z",
           "venues_checked": 2,
           "ok_count": 1,
           "runtime_ready": false,
@@ -981,7 +981,7 @@
         "PYTHONPATH=. /home/kazuha/Poly-Trader/venv/bin/python -m pytest tests/test_execution_metadata_smoke.py tests/test_server_startup.py -k 'execution_metadata_smoke or venue_runtime_proof' tests/test_frontend_decision_contract.py -k 'venue_readiness or runtime_copy_humanizes_execution_governance' -q",
         "cd web && npm run build"
       ],
-      "updated_at": "2026-05-19T00:14:33.046933",
+      "updated_at": "2026-05-19T01:09:36.008619",
       "action": "Keep OKX runtime-proof blockers and Binance unsupported/disabled blockers explicitly visible on Dashboard, /lab, and /execution/status until credentials, order ack lifecycle, and fill lifecycle each have runtime-backed proof; unsupported venues must stay fail-closed; any readiness UI must require runtime_ready=true plus no blockers."
     },
     {
@@ -993,7 +993,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 4229,
+        "forward_archive_rows": 4232,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure [REDACTED], then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -1001,7 +1001,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-05-19T00:14:33.029873",
+      "updated_at": "2026-05-19T01:09:35.991719",
       "action": "Configure [REDACTED], then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -1020,8 +1020,8 @@
         "current_closure": "global_ranking_vs_support_aware_production_split",
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": false,
-        "leaderboard_payload_cache_age_sec": 1,
-        "leaderboard_payload_updated_at": "2026-05-19T00:14:24.982760Z",
+        "leaderboard_payload_cache_age_sec": 294,
+        "leaderboard_payload_updated_at": "2026-05-19T01:04:34.346350Z",
         "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
@@ -1030,7 +1030,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-05-19T00:14:32.071713",
+      "updated_at": "2026-05-19T01:09:35.030023",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -1065,7 +1065,7 @@
       "action": "Treat legacy supported rows as reference-only: keep support_identity/regression_basis/legacy_supported_reference visible in probe/API/UI/docs, keep the current-live exact-support blocker open, and do not describe this as same-identity support regression unless the semantic signature matches.",
       "status": "open",
       "created_at": "2026-05-18T20:04:26.434558",
-      "updated_at": "2026-05-19T00:14:32.071669",
+      "updated_at": "2026-05-19T01:09:35.029984",
       "hb_detected": null,
       "next_action": "Treat legacy supported rows as reference-only: keep support_identity/regression_basis/legacy_supported_reference visible in probe/API/UI/docs, keep the current-live exact-support blocker open, and do not describe this as same-identity support regression unless the semantic signature matches.",
       "summary": {
