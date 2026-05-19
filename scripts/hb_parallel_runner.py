@@ -6496,6 +6496,8 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "non_null_4h_lag_count": payload.get("non_null_4h_lag_count"),
         "decision_quality_recent_pathology_summary": payload.get("decision_quality_recent_pathology_summary") or {},
         "decision_quality_pathology_consensus": ((payload.get("decision_quality_scope_diagnostics") or {}).get("pathology_consensus") or {}),
+        "current_bucket_root_cause": payload.get("current_bucket_root_cause") or {},
+        "q15_bucket_root_cause": payload.get("q15_bucket_root_cause") or {},
     }
 
 
@@ -6617,6 +6619,79 @@ def _needs_q15_post_audit_runtime_resync(
     ) is not None
 
 
+def _q15_root_cause_mismatch(
+    live_root_cause: Dict[str, Any] | None,
+    q15_bucket_root_cause_summary: Dict[str, Any] | None,
+) -> bool:
+    """Return True when a live probe embedded q15 root-cause is stale.
+
+    hb_parallel_runner generates hb_predict_probe before hb_q15_bucket_root_cause.
+    If the bucket-root-cause artifact refreshes support rows afterward, browser/API
+    surfaces can show mixed truth (for example top-level support=13/50 but root
+    cause copy still says 9/50).  Compare only stable machine fields so copy-only
+    timestamp differences do not force a resync.
+    """
+    live_root_cause = live_root_cause or {}
+    q15_bucket_root_cause_summary = q15_bucket_root_cause_summary or {}
+    expected = q15_bucket_root_cause_summary.get("current_live") or {}
+    if not expected:
+        return False
+    if not live_root_cause:
+        return True
+
+    comparisons = (
+        ("structure_bucket", "current_live_structure_bucket"),
+        ("support_route_verdict", "support_route_verdict"),
+        ("support_current_rows", "support_current_rows"),
+        ("support_minimum_rows", "support_minimum_rows"),
+        ("support_gap_to_minimum", "support_gap_to_minimum"),
+    )
+    for expected_key, live_key in comparisons:
+        expected_value = expected.get(expected_key)
+        if expected_value is None:
+            continue
+        live_value = live_root_cause.get(live_key)
+        if live_value is None and live_key == "current_live_structure_bucket":
+            live_value = live_root_cause.get("structure_bucket")
+        if live_value != expected_value:
+            return True
+    return False
+
+
+def _q15_post_root_cause_runtime_resync_reason(
+    live_predictor_diagnostics: Dict[str, Any] | None,
+    q15_bucket_root_cause_summary: Dict[str, Any] | None,
+) -> str | None:
+    live_predictor_diagnostics = live_predictor_diagnostics or {}
+    q15_bucket_root_cause_summary = q15_bucket_root_cause_summary or {}
+    if not live_predictor_diagnostics or not q15_bucket_root_cause_summary:
+        return None
+
+    current_bucket = str(live_predictor_diagnostics.get("current_live_structure_bucket") or "")
+    expected = q15_bucket_root_cause_summary.get("current_live") or {}
+    expected_bucket = str(expected.get("structure_bucket") or "")
+    if "q15" not in current_bucket or (expected_bucket and expected_bucket != current_bucket):
+        return None
+
+    for root_key in ("q15_bucket_root_cause", "current_bucket_root_cause"):
+        if _q15_root_cause_mismatch(
+            live_predictor_diagnostics.get(root_key) or {},
+            q15_bucket_root_cause_summary,
+        ):
+            return "q15_root_cause_truth_changed_after_probe"
+    return None
+
+
+def _needs_q15_post_root_cause_runtime_resync(
+    live_predictor_diagnostics: Dict[str, Any] | None,
+    q15_bucket_root_cause_summary: Dict[str, Any] | None,
+) -> bool:
+    return _q15_post_root_cause_runtime_resync_reason(
+        live_predictor_diagnostics,
+        q15_bucket_root_cause_summary,
+    ) is not None
+
+
 def _format_q15_governance_console_line(q15_support_summary: Dict[str, Any] | None) -> str:
     q15_support_summary = q15_support_summary or {}
     scope = q15_support_summary.get("scope_applicability") or {}
@@ -6653,6 +6728,11 @@ def _format_q15_post_audit_runtime_resync_message(reason: str | None) -> str:
         return (
             "🔄 Q15 runtime resync：support audit 已確認 patch-ready，但先前 live probe 尚未套用；"
             "重跑 probe + drilldown 以鎖定最終 current-live truth。"
+        )
+    if reason == "q15_root_cause_truth_changed_after_probe":
+        return (
+            "🔄 Q15 runtime resync：bucket root-cause artifact 已在 live probe 後更新；"
+            "重跑 probe + drilldown 以避免 API / UI 顯示混合的新舊 support rows。"
         )
     return "🔄 Q15 runtime resync：重跑 probe + drilldown 以鎖定最終 current-live truth。"
 
@@ -8401,6 +8481,52 @@ def main(argv=None):
             f"neighbor={lane.get('dominant_neighbor_bucket')} rows={lane.get('dominant_neighbor_rows')} "
             f"near_boundary_rows={lane.get('near_boundary_rows')}"
         )
+
+    root_resync_reason = _q15_post_root_cause_runtime_resync_reason(
+        live_predictor_diagnostics,
+        q15_bucket_root_cause_summary,
+    )
+    if root_resync_reason:
+        root_resync_message = _format_q15_post_audit_runtime_resync_message(root_resync_reason)
+        previous_reason = q15_runtime_resync.get("reason")
+        q15_runtime_resync = {
+            "triggered": True,
+            "reason": root_resync_reason if not previous_reason else f"{previous_reason}+{root_resync_reason}",
+            "message": root_resync_message,
+        }
+        print(root_resync_message)
+        write_progress(run_label, "q15_root_cause_runtime_resync_probe")
+        predict_probe_result = run_predict_probe()
+        _persist_live_predictor_probe(predict_probe_result.get("stdout", ""))
+        live_predictor_diagnostics = collect_live_predictor_diagnostics(predict_probe_result)
+        print(
+            f"🧪 Q15 root-cause resynced live probe：{'通過' if predict_probe_result['success'] else '失敗'} "
+            f"(rc={predict_probe_result['returncode']})"
+        )
+        if predict_probe_result.get("stdout"):
+            lines = predict_probe_result["stdout"].split("\n")
+            preview = "\n".join(lines[:20])
+            if len(lines) > 20:
+                preview += "\n...\n" + "\n".join(lines[-8:])
+            print(f"\n--- hb_predict_probe (root-cause resynced) ---\n{preview}")
+        if predict_probe_result.get("stderr"):
+            print(f"\n--- hb_predict_probe (root-cause resynced) stderr ---\n{predict_probe_result['stderr']}")
+
+        write_progress(run_label, "q15_root_cause_runtime_resync_drilldown")
+        live_drilldown_result = run_live_decision_quality_drilldown()
+        live_drilldown_summary = collect_live_decision_quality_drilldown_diagnostics(live_drilldown_result)
+        print(
+            f"🧭 Q15 root-cause resynced drilldown：{'通過' if live_drilldown_result['success'] else '失敗'} "
+            f"(rc={live_drilldown_result['returncode']})"
+        )
+        if live_drilldown_result.get("stdout"):
+            lines = live_drilldown_result["stdout"].split("\n")
+            preview = "\n".join(lines[:20])
+            if len(lines) > 20:
+                preview += "\n...\n" + "\n".join(lines[-8:])
+            print(f"\n--- live_decision_quality_drilldown (root-cause resynced) ---\n{preview}")
+        if live_drilldown_result.get("stderr"):
+            print(f"\n--- live_decision_quality_drilldown (root-cause resynced) stderr ---\n{live_drilldown_result['stderr']}")
 
     write_progress(run_label, "q15_boundary_replay")
     q15_boundary_replay_result = run_q15_boundary_replay()

@@ -1661,6 +1661,91 @@ def test_q15_post_audit_runtime_resync_reason_reports_support_truth_drift():
     )
 
 
+def test_q15_post_root_cause_runtime_resync_reason_reports_stale_embedded_root_cause():
+    live_predictor_diagnostics = {
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "q15_bucket_root_cause": {
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 9,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 41,
+        },
+        "current_bucket_root_cause": {
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 9,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 41,
+        },
+    }
+    q15_bucket_root_cause_summary = {
+        "current_live": {
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 13,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 37,
+        }
+    }
+
+    assert (
+        hb_parallel_runner._q15_post_root_cause_runtime_resync_reason(
+            live_predictor_diagnostics,
+            q15_bucket_root_cause_summary,
+        )
+        == "q15_root_cause_truth_changed_after_probe"
+    )
+    assert hb_parallel_runner._needs_q15_post_root_cause_runtime_resync(
+        live_predictor_diagnostics,
+        q15_bucket_root_cause_summary,
+    ) is True
+
+
+def test_q15_post_root_cause_runtime_resync_reason_ignores_aligned_root_cause():
+    live_predictor_diagnostics = {
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "q15_bucket_root_cause": {
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 13,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 37,
+        },
+        "current_bucket_root_cause": {
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 13,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 37,
+        },
+    }
+    q15_bucket_root_cause_summary = {
+        "current_live": {
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 13,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 37,
+        }
+    }
+
+    assert hb_parallel_runner._q15_post_root_cause_runtime_resync_reason(
+        live_predictor_diagnostics,
+        q15_bucket_root_cause_summary,
+    ) is None
+
+
+def test_format_q15_post_audit_runtime_resync_message_distinguishes_root_cause_drift():
+    message = hb_parallel_runner._format_q15_post_audit_runtime_resync_message(
+        "q15_root_cause_truth_changed_after_probe"
+    )
+
+    assert "bucket root-cause artifact" in message
+    assert "混合的新舊 support rows" in message
+
+
+
 def test_format_q15_post_audit_runtime_resync_message_distinguishes_support_truth_drift():
     message = hb_parallel_runner._format_q15_post_audit_runtime_resync_message(
         "support_truth_changed_under_breaker"
