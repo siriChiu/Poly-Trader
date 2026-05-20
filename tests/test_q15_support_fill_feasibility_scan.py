@@ -88,3 +88,61 @@ def test_feasibility_scan_separates_reference_window_rows_from_current_identity(
     assert "semantic_rebaseline_review_required_before_reference_rows_count" in md
     assert "paper_shadow_decision_support_sleeve" in md
     assert "不能把它們直接補成 current deployment support rows" in md
+
+
+def test_recommended_actions_use_current_calibration_window_and_under_minimum_copy():
+    identity = {
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "current_live_structure_bucket": "CAUTION|bull_q15_bias50_watch|q15",
+        "regime_label": "bull",
+        "regime_gate": "CAUTION",
+        "entry_quality_label": "C",
+        "calibration_window": 200,
+        "bucket_semantic_signature": scan.BUCKET_SEMANTIC_SIGNATURE,
+    }
+    exact_rows = [
+        _row(
+            i,
+            regime="bull",
+            gate="CAUTION",
+            label="C",
+            bucket="CAUTION|bull_q15_bias50_watch|q15",
+            win=i % 2,
+        )
+        for i in range(38)
+    ]
+    non_matching_rows = [_row(i + 38, bucket="ALLOW|different|q65") for i in range(220)]
+
+    report = scan.build_feasibility_report(
+        rows=exact_rows + non_matching_rows,
+        support_identity=identity,
+        generated_at="2026-05-05T00:00:00+00:00",
+        windows=(100, 200, 600),
+        minimum_support_rows=50,
+    )
+
+    assert report["verdict"]["classification"] == "true_support_under_minimum"
+    assert report["verdict"]["current_exact_bucket_rows"] == 38
+    actions = {action["id"]: action for action in report["recommended_actions"]}
+    collect_action = actions["collect_forward_exact_current_identity_rows"]
+    assert collect_action["current_calibration_window"] == 200
+    assert "current calibration_window=200" in collect_action["description"]
+    assert "current calibration_window=100" not in collect_action["description"]
+    assert "regime=bull" in collect_action["description"]
+    assert "gate=CAUTION" in collect_action["description"]
+    assert "entry_label=C" in collect_action["description"]
+    assert "bucket=CAUTION|bull_q15_bias50_watch|q15" in collect_action["description"]
+
+    keep_action = actions["keep_deployment_fail_closed"]
+    assert "current support identity exact rows 38/50" in keep_action["description"]
+    assert "unsupported_exact_live_structure_bucket" not in keep_action["description"]
+
+    rebaseline_action = actions["semantic_rebaseline_if_using_older_windows"]
+    assert "足量 rows" not in rebaseline_action["description"]
+    assert rebaseline_action["reference_rows"] == 38
+
+    md = scan.markdown(report)
+    assert "current calibration_window=200" in md
+    assert "current calibration_window=100" not in md
+    assert "足量 rows" not in md

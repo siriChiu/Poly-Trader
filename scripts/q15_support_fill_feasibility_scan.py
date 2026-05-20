@@ -461,28 +461,51 @@ def build_feasibility_report(
         **pm_pressure,
     }
 
+    current_bucket = support_identity.get("current_live_structure_bucket") or "unknown_bucket"
+    current_regime = support_identity.get("regime_label") or "unknown_regime"
+    current_gate = support_identity.get("regime_gate") or "unknown_gate"
+    current_entry_label = support_identity.get("entry_quality_label") or "unknown_entry_quality"
     actions = [
         {
             "id": "keep_deployment_fail_closed",
             "priority": "P0",
-            "description": "維持 unsupported_exact_live_structure_bucket / allowed_layers=0；reference windows 不可直接算作 deployment support。",
+            "description": (
+                "維持 deployable=false / allowed_layers=0；"
+                f"current support identity exact rows {current_rows}/{minimum_support_rows}，"
+                "未達門檻前 reference windows 不可直接算作 deployment support。"
+            ),
             "success_condition": "current support_identity exact rows >= minimum 且 live/execution gates 同步通過。",
+            "current_rows": current_rows,
+            "rows_needed": max(minimum_support_rows - current_rows, 0),
+            "current_calibration_window": calibration_window,
         },
         {
             "id": "collect_forward_exact_current_identity_rows",
             "priority": "P0",
-            "description": "繼續收集與 current calibration_window=100、regime/gate/entry_label/bucket 完全一致的真實 labeled rows。",
+            "description": (
+                f"繼續收集與 current calibration_window={calibration_window}、"
+                f"regime={current_regime}、gate={current_gate}、"
+                f"entry_label={current_entry_label}、bucket={current_bucket} "
+                "完全一致的真實 labeled rows。"
+            ),
             "success_condition": f"current_exact_bucket_rows >= {minimum_support_rows}",
             "current_rows": current_rows,
             "rows_needed": max(minimum_support_rows - current_rows, 0),
+            "current_calibration_window": calibration_window,
         },
         {
             "id": "semantic_rebaseline_if_using_older_windows",
             "priority": "P1",
-            "description": "若要採用 600/all 等舊窗口的足量 rows，必須先改 support_identity / calibration_window policy，重跑 OOS、Top-K、support audit、API/trade guardrail，而不是把舊 rows 直接補進 current identity。",
+            "description": (
+                f"若要採用 reference window={best_reference.get('window_key')} "
+                "的 rows 或改變 calibration_window policy，必須先改 support_identity，"
+                "重跑 OOS、Top-K、support audit、API/trade guardrail，"
+                "而不是把舊 rows 直接補進 current identity。"
+            ),
             "success_condition": "新 identity 全欄位一致且重新驗證後仍 rows>=minimum、risk metrics 合格。",
             "reference_window": best_reference.get("window_key"),
             "reference_rows": best_reference.get("exact_bucket_rows"),
+            "current_calibration_window": calibration_window,
         },
     ]
 
