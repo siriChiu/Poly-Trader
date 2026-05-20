@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-19 23:13:03.475840**
+- generated_at: **2026-05-20 00:12:08.019754**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -8,7 +8,7 @@
 - signal: **HOLD**
 - regime / gate / label: **bear / CAUTION / C**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q15**
-- current_live_structure_bucket_rows: **14**
+- current_live_structure_bucket_rows: **19**
 - allowed_layers: **0** (under_minimum_exact_live_structure_bucket)
 - execution_guardrail_reason: **under_minimum_exact_live_structure_bucket**
 
@@ -25,7 +25,7 @@
 - deployable: **False**
 - governance_reference_only: **True**
 - preferred_support_cohort: **None**
-- current bucket gap to minimum: **36**
+- current bucket gap to minimum: **31**
 - exact-bucket proxy rows: **0**
 - exact-lane proxy rows: **8**
 - supported neighbor rows: **0**
@@ -33,10 +33,10 @@
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
 - support_progress.status: **semantic_rebaseline_under_minimum**
 - support_progress.regression_basis: **legacy_or_different_semantic_signature**
-- support_progress.current_rows / minimum: **14 / 50**
-- support_progress.previous_rows: **14**
-- support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **2**
+- support_progress.current_rows / minimum: **19 / 50**
+- support_progress.previous_rows: **18**
+- support_progress.delta_vs_previous: **1**
+- support_progress.stagnant_run_count: **0**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
 - support_identity.path: **bear / CAUTION / C**
@@ -46,7 +46,7 @@
 - legacy semantic verdict: **reference_only_semantic_mismatch_or_missing_fields**; supports_current_identity=**False**; promotable=**False**
 - legacy semantic mismatch/missing fields: `['calibration_window', 'entry_quality_label', 'regime_label']` / `[]`
 - legacy reference_only_reason: **semantic_evidence_mismatch_or_missing_fields**
-- support_progress.reason: current q15 exact support 目前是 14/50，仍低於 minimum；歷史上同 bucket 曾有 173/50（heartbeat 1250），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。
+- support_progress.reason: current q15 exact support 目前是 19/50，仍低於 minimum；歷史上同 bucket 曾有 173/50（heartbeat 1250），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。
 
 ## Floor-cross legality
 - verdict: **floor_crossed_but_support_not_ready**
@@ -65,9 +65,9 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.6565**
+- current_entry_quality: **0.6384**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.1065**
+- current_trade_floor_gap: **0.0884**
 - current_entry_quality_ge_0_55: **True**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
@@ -82,8 +82,8 @@
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **HOLD / 0 / under_minimum_exact_live_structure_bucket**
-- support rows / minimum / gap: **14 / 50 / 36**
-- stagnant_run_count: **2**
+- support rows / minimum / gap: **19 / 50 / 31**
+- stagnant_run_count: **0**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**

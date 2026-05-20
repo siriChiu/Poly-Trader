@@ -310,6 +310,93 @@ def build_execution_readiness_bundle(
         and str(live_runtime_truth.get("support_route_verdict") or "").strip() in {"exact_bucket_supported", "exact_live_bucket_supported"}
     )
 
+    support_delta = _first_int(
+        support_progress.get("delta_vs_previous"),
+        support_progress.get("support_delta_vs_previous"),
+        topk_support_context.get("support_delta_vs_previous"),
+        topk_support_context.get("delta_vs_previous"),
+    )
+    support_previous_rows = _first_int(
+        support_progress.get("previous_rows"),
+        topk_support_context.get("support_previous_rows"),
+    )
+    stagnant_run_count = _first_int(
+        support_progress.get("stagnant_run_count"),
+        topk_support_context.get("support_progress_stagnant_run_count"),
+        topk_support_context.get("stagnant_run_count"),
+    ) or 0
+    stalled_support = bool(
+        support_progress.get("stalled_support_accumulation")
+        or topk_support_context.get("support_progress_stalled_support_accumulation")
+        or topk_support_context.get("stalled_support_accumulation")
+        or (stagnant_run_count > 0 and (support_delta is None or int(support_delta) <= 0))
+    )
+    estimated_heartbeats_to_support = None
+    estimated_hours_at_hourly_heartbeat = None
+    estimated_days_at_hourly_heartbeat = None
+    if support_gap is not None and int(support_gap) <= 0:
+        time_to_evidence_status = "support_already_met"
+        time_to_evidence_summary = "即時精準支持已達最低樣本；仍需檢查熔斷與場館證據鏈。"
+        estimated_heartbeats_to_support = 0
+        estimated_hours_at_hourly_heartbeat = 0
+        estimated_days_at_hourly_heartbeat = 0.0
+        alternative_solution_required = False
+    elif support_gap is not None and support_delta is not None and int(support_delta) > 0:
+        estimated_heartbeats_to_support = max((int(support_gap) + int(support_delta) - 1) // int(support_delta), 1)
+        estimated_hours_at_hourly_heartbeat = estimated_heartbeats_to_support
+        estimated_days_at_hourly_heartbeat = round(estimated_hours_at_hourly_heartbeat / 24.0, 2)
+        time_to_evidence_status = "estimable_from_recent_delta"
+        time_to_evidence_summary = (
+            f"即時精準支持最近增加 {int(support_delta)} 筆（{support_previous_rows if support_previous_rows is not None else '—'}→"
+            f"{support_rows if support_rows is not None else '—'}），以每輪同速估算還需 {estimated_heartbeats_to_support} 輪；"
+            f"若工程心跳維持約每小時一次，約 {estimated_days_at_hourly_heartbeat} 天。"
+        )
+        alternative_solution_required = bool(estimated_days_at_hourly_heartbeat > 7.0)
+    elif support_gap is not None:
+        time_to_evidence_status = "indeterminate_stalled_support" if stalled_support else "indeterminate_no_positive_delta"
+        time_to_evidence_summary = (
+            f"即時精準支持仍缺 {int(support_gap)} 筆，但最近沒有正向增量；無法給出可靠完成時間，"
+            "本輪必須啟動替代解法評審而不是只等待。"
+        )
+        alternative_solution_required = True
+    else:
+        time_to_evidence_status = "unknown_support_gap"
+        time_to_evidence_summary = "即時精準支持缺口未知；先修復 support artifact，再評估完成時間與替代解法。"
+        alternative_solution_required = True
+
+    time_to_evidence = {
+        "status": time_to_evidence_status,
+        "summary": time_to_evidence_summary,
+        "current_rows": support_rows,
+        "minimum_support_rows": support_minimum,
+        "gap_to_minimum": support_gap,
+        "delta_vs_previous": support_delta,
+        "previous_rows": support_previous_rows,
+        "stagnant_run_count": stagnant_run_count,
+        "stalled_support_accumulation": stalled_support,
+        "estimated_heartbeats_to_support": estimated_heartbeats_to_support,
+        "heartbeat_interval_assumption_hours": 1,
+        "estimated_hours_at_hourly_heartbeat": estimated_hours_at_hourly_heartbeat,
+        "estimated_days_at_hourly_heartbeat": estimated_days_at_hourly_heartbeat,
+        "alternative_solution_required": alternative_solution_required,
+        "operator_message": time_to_evidence_summary,
+    }
+    alternative_solution_review = {
+        "status": "required" if alternative_solution_required else "watch_only",
+        "trigger": "time_to_evidence_over_7_days_or_indeterminate" if alternative_solution_required else "support_eta_within_7_days_under_recent_delta",
+        "primary_alternative": "paper_shadow_reduce_only_with_range_chop_playbook" if alternative_solution_required else "continue_exact_support_accumulation",
+        "live_exposure_allowed": False,
+        "order_submission_enabled": False,
+        "allowed_today": [
+            "啟動 paper-shadow 訊號帳本並追 24h pyramid outcome",
+            "保留減碼 / 取消掛單 / 賣出風險降低路徑",
+            "補 venue dry-run preview、ack、cancel、reconciliation 證據鏈",
+        ],
+        "not_allowed": ["買入 / 加倉", "把寬範圍或舊語義支持包裝成部署閉環"],
+        "next_review_trigger": "每輪 heartbeat 重新計算 support_delta；若 estimated_days_at_hourly_heartbeat > 7 或無正增量，PM/工程需重排替代路線。",
+        "operator_message": "即時支持若無法在可預期時間內補齊，先交付影子觀察、減風險與場館證據鏈，不開買入 / 加倉。",
+    }
+
     release_window = _first_int(release_condition.get("recent_window"), recent_window_details.get("window_size"), 50) or 50
     release_wins = _first_int(release_condition.get("current_recent_window_wins"), recent_window_details.get("wins"))
     release_required_wins = _first_int(release_condition.get("required_recent_window_wins"))
@@ -465,6 +552,8 @@ def build_execution_readiness_bundle(
         "gates": gates,
         "what_can_do_now": what_can_do_now,
         "what_cannot_do_now": what_cannot_do_now,
+        "time_to_evidence": time_to_evidence,
+        "alternative_solution_review": alternative_solution_review,
         "next_release_condition": "exact support ≥ 50/50、recent 50 ≥ 15 勝、venue proof chain 完整，且 live_ready=true。",
     }
 
@@ -541,6 +630,7 @@ def build_execution_readiness_bundle(
 
     distance_to_canary = [
         f"即時支持 gate：{support_summary}",
+        f"time-to-evidence：{time_to_evidence_summary}",
         f"熔斷 gate：{release_summary}",
         "場館 gate：credential present、order preview、ack simulation、cancel simulation、reconciliation check 都必須 runtime-backed。",
     ]
@@ -551,6 +641,8 @@ def build_execution_readiness_bundle(
         "blocked_gate_key": blocking_gate.get("key") if blocking_gate else None,
         "blocking_gate": blocking_gate.get("label") if blocking_gate else "無",
         "blocked_gate_summary": blocking_gate.get("summary") if blocking_gate else "所有 gate 已通過，只允許最小 canary。",
+        "time_to_evidence": time_to_evidence,
+        "alternative_solution_review": alternative_solution_review,
         "first_canary_plan_if_all_gates_pass": {
             "exposure_pct_max": 0.01,
             "pyramid_layer": "20% first layer only",

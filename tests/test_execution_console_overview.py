@@ -270,6 +270,15 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
     assert gates["shadow_observation_gate"]["status"] == "ready"
     assert "買入 / 加倉" in " ".join(readiness["what_cannot_do_now"])
     assert "影子觀察" in " ".join(readiness["what_can_do_now"])
+    assert readiness["time_to_evidence"]["status"] == "indeterminate_stalled_support"
+    assert readiness["time_to_evidence"]["gap_to_minimum"] == 48
+    assert readiness["time_to_evidence"]["estimated_heartbeats_to_support"] is None
+    assert readiness["time_to_evidence"]["alternative_solution_required"] is True
+    assert readiness["alternative_solution_review"]["status"] == "required"
+    assert readiness["alternative_solution_review"]["live_exposure_allowed"] is False
+    assert readiness["alternative_solution_review"]["order_submission_enabled"] is False
+    assert "啟動 paper-shadow" in " ".join(readiness["alternative_solution_review"]["allowed_today"])
+    assert "買入 / 加倉" in " ".join(readiness["alternative_solution_review"]["not_allowed"])
 
     ledger = payload["shadow_trade_ledger"]
     assert ledger["status"] == "recording_ready"
@@ -298,6 +307,9 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
     assert answers["blocking_gate"] == "即時支持 gate"
     assert any("還差 48" in item for item in answers["distance_to_canary"])
     assert any("還差 7" in item for item in answers["distance_to_canary"])
+    assert any("time-to-evidence" in item for item in answers["distance_to_canary"])
+    assert answers["time_to_evidence"]["status"] == "indeterminate_stalled_support"
+    assert answers["alternative_solution_review"]["status"] == "required"
     readiness_text = str(readiness) + str(answers)
     for raw_token in ["broader bucket", "reference support", "risk-on", "live automation", "deployable"]:
         assert raw_token not in readiness_text

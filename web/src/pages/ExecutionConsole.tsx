@@ -97,6 +97,36 @@ type ReadinessGate = {
   blockers?: string[] | null;
 };
 
+type TimeToEvidence = {
+  status?: string | null;
+  summary?: string | null;
+  current_rows?: number | null;
+  minimum_support_rows?: number | null;
+  gap_to_minimum?: number | null;
+  delta_vs_previous?: number | null;
+  previous_rows?: number | null;
+  stagnant_run_count?: number | null;
+  stalled_support_accumulation?: boolean | null;
+  estimated_heartbeats_to_support?: number | null;
+  heartbeat_interval_assumption_hours?: number | null;
+  estimated_hours_at_hourly_heartbeat?: number | null;
+  estimated_days_at_hourly_heartbeat?: number | null;
+  alternative_solution_required?: boolean | null;
+  operator_message?: string | null;
+};
+
+type AlternativeSolutionReview = {
+  status?: string | null;
+  trigger?: string | null;
+  primary_alternative?: string | null;
+  live_exposure_allowed?: boolean | null;
+  order_submission_enabled?: boolean | null;
+  allowed_today?: string[] | null;
+  not_allowed?: string[] | null;
+  next_review_trigger?: string | null;
+  operator_message?: string | null;
+};
+
 type ExecutionReadiness = {
   status?: string | null;
   stage_label?: string | null;
@@ -110,6 +140,8 @@ type ExecutionReadiness = {
   gates?: ReadinessGate[] | null;
   what_can_do_now?: string[] | null;
   what_cannot_do_now?: string[] | null;
+  time_to_evidence?: TimeToEvidence | null;
+  alternative_solution_review?: AlternativeSolutionReview | null;
   next_release_condition?: string | null;
 };
 
@@ -168,6 +200,8 @@ type CanaryGapAnswers = {
   blocked_gate_key?: string | null;
   blocking_gate?: string | null;
   blocked_gate_summary?: string | null;
+  time_to_evidence?: TimeToEvidence | null;
+  alternative_solution_review?: AlternativeSolutionReview | null;
   first_canary_plan_if_all_gates_pass?: {
     exposure_pct_max?: number | null;
     pyramid_layer?: string | null;
@@ -928,6 +962,13 @@ export default function ExecutionConsole() {
   const shadowLedgerEntries = Array.isArray(shadowTradeLedger?.entries) ? shadowTradeLedger.entries : [];
   const firstShadowLedgerEntry = shadowLedgerEntries[0] || null;
   const canaryPlan = canaryGapAnswers?.first_canary_plan_if_all_gates_pass || null;
+  const timeToEvidence = executionReadiness?.time_to_evidence || canaryGapAnswers?.time_to_evidence || null;
+  const alternativeSolutionReview = executionReadiness?.alternative_solution_review || canaryGapAnswers?.alternative_solution_review || null;
+  const alternativeSolutionAllowed = Array.isArray(alternativeSolutionReview?.allowed_today) ? alternativeSolutionReview.allowed_today : [];
+  const alternativeSolutionNotAllowed = Array.isArray(alternativeSolutionReview?.not_allowed) ? alternativeSolutionReview.not_allowed : [];
+  const timeToEvidenceEtaLabel = typeof timeToEvidence?.estimated_heartbeats_to_support === "number"
+    ? `${timeToEvidence.estimated_heartbeats_to_support} 輪 / 約 ${formatNumber(timeToEvidence.estimated_days_at_hourly_heartbeat, 2)} 天`
+    : "無可靠完成時間";
   const venueProofChecks = [
     { label: "credential present", value: venueDryRunProof?.credential_present ? "已確認" : "待 runtime proof" },
     { label: "order preview", value: String(venueDryRunProof?.order_preview?.status || "待演練") },
@@ -1476,6 +1517,30 @@ export default function ExecutionConsole() {
               <ul className="mt-2 list-disc space-y-1 pl-4">
                 {(canaryDistance.length ? canaryDistance : ["等待即時支持、熔斷與場館 gate 全過"]).map((item) => <li key={item}>{humanizeRuntimeDetailText(item)}</li>)}
               </ul>
+            </div>
+            <div className="rounded-xl border border-amber-400/20 bg-amber-400/8 p-3 text-xs text-amber-100">
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-semibold">time-to-evidence / 替代解法評審</div>
+                <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px]">
+                  {alternativeSolutionReview?.status || "watch_only"}
+                </span>
+              </div>
+              <div className="mt-2 text-amber-50">{timeToEvidenceEtaLabel}</div>
+              <div className="mt-1 text-amber-100/80">{humanizeRuntimeDetailText(timeToEvidence?.operator_message || timeToEvidence?.summary || "等待支持增量估算。")}</div>
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <div>
+                  <div className="font-semibold">替代解法今天可前進</div>
+                  <ul className="mt-1 list-disc space-y-1 pl-4">
+                    {(alternativeSolutionAllowed.length ? alternativeSolutionAllowed : ["paper-shadow", "減風險路徑", "venue proof"]).map((item) => <li key={item}>{humanizeRuntimeDetailText(item)}</li>)}
+                  </ul>
+                </div>
+                <div>
+                  <div className="font-semibold">仍然不可做</div>
+                  <ul className="mt-1 list-disc space-y-1 pl-4">
+                    {(alternativeSolutionNotAllowed.length ? alternativeSolutionNotAllowed : ["買入 / 加倉", "把舊語義支持當部署閉環"]).map((item) => <li key={item}>{humanizeRuntimeDetailText(item)}</li>)}
+                  </ul>
+                </div>
+              </div>
             </div>
             <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/8 p-3 text-xs text-cyan-100">
               <div className="font-semibold">今天可以演練什麼</div>
