@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-05-21 01:10 CST_
+_最後更新：2026-05-21 02:11 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; this file is generated from current runtime artifacts by `scripts/sync_pm_status.py` so PM checks fail on real drift, not stale literals.
 
@@ -10,7 +10,7 @@ _最後更新：2026-05-21 01:10 CST_
 
 **State：`ORANGE_framework_capture_risk` governance overlay；safe lane remains `YELLOW_shadow_or_paper_usable`；`ORANGE_alternative_solution_required` remains active.**
 
-PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被 customer urgency 推翻。承接上一輪 PM handoff：維持 current-live exact-support blocker、交付 paper/shadow / dry-run / falsification / support-fill proof，且不可降低 live gate。fresh runtime truth 顯示 current-live bucket 是 `CAUTION|base_caution_regime_or_bias|q15`；PM 決策不變：current exact support 仍是 `0/50`、`gap=50`、`support_route_verdict=insufficient_support_everywhere`，`support_governance_route=exact_live_lane_proxy_available` 只能當治理 / proxy reference，不是部署閉環。
+PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被 customer urgency 推翻。承接上一輪 PM handoff：維持 current-live exact-support blocker、交付 paper/shadow / dry-run / falsification / support-fill proof，且不可降低 live gate。fresh runtime truth 顯示 current-live bucket 是 `CAUTION|base_caution_regime_or_bias|q35`；PM 決策不變：current exact support 仍是 `0/50`、`gap=50`、`support_route_verdict=exact_bucket_unsupported_block`，`support_governance_route=exact_live_lane_proxy_available` 只能當治理 / proxy reference，不是部署閉環。
 
 安全答案：`signal=HOLD` / `should_trade=false` / `deployment_blocker=unsupported_exact_live_structure_bucket` / `runtime_closure_state=patch_inactive_or_blocked` / `allowed_layers_raw=1` / `allowed_layers=0` / `allowed_layers_reason=unsupported_exact_live_structure_bucket` / `execution_guardrail_reason=unsupported_exact_live_structure_bucket` / `api_trade_guardrail_active=true` / `api_trade_buy_guardrail=current_live_deployment_blocker_409`。客戶可以使用 Dashboard、Strategy Lab、Execution Console、paper/shadow decision-support、Shadow Trade Ledger、venue readiness checklist、range-chop playbook 與 canary rehearsal；**真實買入 / 加倉 / live buy/add / 自動送單 / 小額 live canary 仍不可放行**。
 
@@ -20,11 +20,11 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Current-live blocker
 
-- `data/live_predict_probe.json` generated at `2026-05-20T17:10:39.922536Z`；canonical target is `simulated_pyramid_win`。
-- Runtime signal: `signal=HOLD` / `should_trade=false` / confidence `0.643793`；`regime_label=chop` / `regime_gate=CAUTION` / `entry_quality_label=C` / decision quality score `—`。
+- `data/live_predict_probe.json` generated at `2026-05-20T18:11:40.103993Z`；canonical target is `simulated_pyramid_win`。
+- Runtime signal: `signal=HOLD` / `should_trade=false` / confidence `0.604824`；`regime_label=chop` / `regime_gate=CAUTION` / `entry_quality_label=C` / decision quality score `—`。
 - Primary blocker: `deployment_blocker=unsupported_exact_live_structure_bucket` / `runtime_closure_state=patch_inactive_or_blocked`。
 - Guardrail truth: `allowed_layers_raw=1` but `allowed_layers=0`；`allowed_layers_reason=unsupported_exact_live_structure_bucket`；`execution_guardrail_reason=unsupported_exact_live_structure_bucket`。
-- Current-live support: `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15`, `support_route_verdict=insufficient_support_everywhere`, `support_governance_route=exact_live_lane_proxy_available`, rows `0/50`, `gap=50`。
+- Current-live support: `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35`, `support_route_verdict=exact_bucket_unsupported_block`, `support_governance_route=exact_live_lane_proxy_available`, rows `0/50`, `gap=50`。
 - Support progress: `support_progress_status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `previous_rows=0` / `delta_vs_previous=0` / `stagnant_run_count=5` / legacy reference is reference-only because support identity does not close current deployment.
 - Direct action truth: `api_trade_guardrail_active=true`; `api_trade_buy_guardrail=current_live_deployment_blocker_409`; risk-off sides remain `reduce, sell` only。
 
@@ -32,21 +32,21 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Circuit breaker
 
-- Latest artifact `data/circuit_breaker_audit.json` generated at `2026-05-20T17:10:45.449518Z`；verdict `breaker_clear`。
+- Latest artifact `data/circuit_breaker_audit.json` generated at `2026-05-20T18:11:42.098982Z`；verdict `breaker_clear`。
 - Release context: `release_ready=true`, recent-window wins `50/50`, required wins `15/50`, `additional_recent_window_wins_needed=0`。
 - PM interpretation: breaker math can be clear while exact support and venue runtime proof still block live exposure.
 
 ### Research-to-delivery candidates / Top-K
 
-- `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-20T17:03:47.138796+00:00`；`artifact_freshness_status=fresh`, `artifact_deployment_blocking=false`, `samples=24709`, `row_count=24`, `runtime_blocked_candidate_rows=6`。
-- Matrix payload: `deployable_rows=0`, `risk_qualified_rows=6`, `support_route=insufficient_support_everywhere`, `deployment_blocker=unsupported_exact_live_structure_bucket`, `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15`, bucket rows `0/50`, `gap=50`。
+- `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-20T18:03:15.443996+00:00`；`artifact_freshness_status=fresh`, `artifact_deployment_blocking=false`, `samples=24712`, `row_count=24`, `runtime_blocked_candidate_rows=6`。
+- Matrix payload: `deployable_rows=0`, `risk_qualified_rows=6`, `support_route=exact_bucket_unsupported_block`, `deployment_blocker=unsupported_exact_live_structure_bucket`, `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35`, bucket rows `0/50`, `gap=50`。
 - Nearest research candidate: `model=logistic_regression`, `feature_profile=current_full`, `top_k=top_2pct`, `oos_roi=0.9324`, `win_rate=0.8621`, `profit_factor=19.8864`, `max_drawdown=0.0220`, `worst_fold=0.2068`, `trade_count=58`, `deployment_candidate_tier=runtime_blocked_oos_pass`, `deployable_verdict=not_deployable`。
 
 **PM verdict：Top-K remains fresh research / paper-shadow evidence. Strategy Lab 可優先顯示 nearest-deployable research rows，但 `deployable_rows=0` means no risk-on live action.**
 
 ### Venue readiness
 
-- `data/execution_metadata_smoke.json` generated at `2026-05-20T17:10:54.655923Z`。
+- `data/execution_metadata_smoke.json` generated at `2026-05-20T18:11:52.420821Z`。
 - Summary: `runtime_ready=false`, `runtime_ready_count=0`, `venues_checked=2`, `ok_count=1`, `readiness_state=blocked_until_runtime_lifecycle_proof`。
 - okx: adapter_supported=true, enabled_in_config=true, credentials_configured=false, proof_state=public_metadata_only, runtime_ready=false, blockers=live exchange credential 尚未驗證, order ack lifecycle 尚未驗證, fill lifecycle 尚未驗證。
 - binance: adapter_supported=false, enabled_in_config=false, credentials_configured=false, proof_state=adapter_unsupported, runtime_ready=false, blockers=場館 adapter 尚未接入, 元資料契約尚未通過, 場館設定停用, live exchange credential 尚未驗證, order ack lifecycle 尚未驗證, fill lifecycle 尚未驗證。
@@ -54,22 +54,22 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Recent market/model risk
 
-- `data/recent_drift_report.json` generated at `2026-05-20T17:10:36.174811+00:00`。
-- Full sample rows `24571`。
-- Recent canonical window `250`: win_rate `43.6%`, dominant regime `bear(100.0%)`, alerts `regime_concentration, regime_shift`。
+- `data/recent_drift_report.json` generated at `2026-05-20T18:11:30.331306+00:00`。
+- Full sample rows `24576`。
+- Recent canonical window `250`: win_rate `45.6%`, dominant regime `bear(100.0%)`, alerts `regime_concentration, regime_shift`。
 
 **PM verdict：recent drift reinforces paper/shadow-only research and root-cause work. It cannot be packaged as a live deployment patch.**
 
 ### Support-fill feasibility / alternative-solution pressure
 
-- `data/q15_support_fill_feasibility.json` generated at `2026-05-20T17:10:52.355885+00:00`；scanned current support identity bucket is `CAUTION|base_caution_regime_or_bias|q15`。
+- `data/q15_support_fill_feasibility.json` generated at `2026-05-20T18:11:49.886498+00:00`；scanned current support identity bucket is `CAUTION|base_caution_regime_or_bias|q35`。
 - Verdict: `classification=semantic_window_gap_not_raw_backfill_gap`, current calibration window `200`, current exact bucket rows `0/50`, `gap=50`, `time_to_evidence_bucket=semantic_rebaseline_review_required_before_reference_rows_count`, `missing_capability_class=Constraint/Review`, `alternative_solution_required=true`。
-- Reference-only evidence: `best_reference_window=all`, `best_reference_exact_bucket_rows=292`, `best_reference_evidence_role=reference_only_calibration_window_mismatch`；reference rows cannot be counted as deployable support unless support identity is deliberately rebaselined and fully reverified.
+- Reference-only evidence: `best_reference_window=all`, `best_reference_exact_bucket_rows=537`, `best_reference_evidence_role=reference_only_calibration_window_mismatch`；reference rows cannot be counted as deployable support unless support identity is deliberately rebaselined and fully reverified.
 - Selected next safe artifact: `data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy`。
 
 ### Customer-safe alternative proof
 
-- `data/customer_safe_alternative_proof.json` generated at `2026-05-20T17:10:55.622775Z`。
+- `data/customer_safe_alternative_proof.json` generated at `2026-05-20T18:11:53.301421Z`。
 - Live gate: `canary_ready=false`, `live_exposure_allowed=false`, `order_submission_enabled=false`, `risk_on_order_enabled=false`, `support_ready=false`, `topk_deployable=false`, `venue_runtime_ready=false`。
 - Allowed today: paper/shadow decision-support, Shadow Trade Ledger, venue dry-run checklist, reduce-only / wait modes. Not allowed: buy/add live exposure, automatic order submission, canary live order without exact support and runtime venue proof.
 
@@ -80,7 +80,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 客戶想「現在就能用產品」，而不是每小時只收到「等」。PM 把這個需求視為產品風險，但不把它等同於 unsafe live trading。
 
 Customer-usable lanes now:
-1. **Dashboard**：看 current-live blocker、breaker release context、4H context、decision quality、feature/source blockers；主阻塞是 `unsupported_exact_live_structure_bucket`，support 邊界是 `CAUTION|base_caution_regime_or_bias|q15` `0/50 gap=50`。
+1. **Dashboard**：看 current-live blocker、breaker release context、4H context、decision quality、feature/source blockers；主阻塞是 `unsupported_exact_live_structure_bucket`，support 邊界是 `CAUTION|base_caution_regime_or_bias|q35` `0/50 gap=50`。
 2. **Strategy Lab**：看 Top-K / leaderboard 研究候選、OOS ROI、win rate、drawdown、profit factor、worst fold 與 runtime-blocked 原因；`deployable_rows=0` 時只能作 research / paper-shadow evidence。
 3. **Execution Console**：使用 paper/shadow selective sleeve、Shadow Trade Ledger、dry-run readiness、等待 / 觀望、減風險；不可做真實買入 / 加倉。
 4. **Venue readiness checklist**：追 OKX/Binance 還差哪些 proof；credential 只顯示布林 / proof-state，不洩漏 secret。
@@ -89,7 +89,7 @@ Customer-usable lanes now:
 
 ## 4. framework-capture / alternative-solution / anti-equilibrium guard
 
-本輪維持 **`ORANGE_framework_capture_risk` governance overlay** 與 **`ORANGE_alternative_solution_required`**，不是因為安全 gate 可被推翻，而是避免 PM 被工程 blocker 敘事捕獲。`customer-value delta`：PM status 已承認最新 bucket `CAUTION|base_caution_regime_or_bias|q15`、exact support `0/50 gap=50`、breaker `release_ready=true` / `50/50`、Top-K `artifact_freshness_status=fresh` / `samples=24709`，並保留 Execution Console / Strategy Lab 的 paper-shadow lane；但 no live exposure。
+本輪維持 **`ORANGE_framework_capture_risk` governance overlay** 與 **`ORANGE_alternative_solution_required`**，不是因為安全 gate 可被推翻，而是避免 PM 被工程 blocker 敘事捕獲。`customer-value delta`：PM status 已承認最新 bucket `CAUTION|base_caution_regime_or_bias|q35`、exact support `0/50 gap=50`、breaker `release_ready=true` / `50/50`、Top-K `artifact_freshness_status=fresh` / `samples=24712`，並保留 Execution Console / Strategy Lab 的 paper-shadow lane；但 no live exposure。
 
 **time-to-evidence：** `semantic_rebaseline_review_required_before_reference_rows_count` for exact support movement；`same_day` for venue dry-run metadata proof if credentials/config are supplied；`within_week_or_unknown` for true venue lifecycle proof without credentials。PM 不把「治理參考」包裝成 deploy-ready；下輪必須產出 exact-row accumulation proof、missing-capability proof、recent-tail no-new-risk artifact、venue dry-run proof，或一個可驗證的 alternative-solution artifact。
 
@@ -102,7 +102,7 @@ Customer-usable lanes now:
 工程 heartbeat 下次不得只輸出「等待更多資料 / gate 未過」。PM 站在客戶側，要求至少交付或驗證下列其中一項：
 
 1. **Exact current support lane**：刷新 live probe / support audit / support-fill feasibility，直接顯示 current rows 是否從 `0/50` 開始 movement；若仍為 0，必須說明缺的是 Map / Tool / Signal / Constraint / Review 哪一類能力。
-2. **Recent tail root-cause lane**：針對 recent canonical pocket（window `250` win_rate `43.6%`）交付一個 no-new-risk / shadow-only falsification artifact；不可把 shadow-only artifact 誤寫成 release patch。
+2. **Recent tail root-cause lane**：針對 recent canonical pocket（window `250` win_rate `45.6%`）交付一個 no-new-risk / shadow-only falsification artifact；不可把 shadow-only artifact 誤寫成 release patch。
 3. **Top-K freshness lane**：維持 `data/high_conviction_topk_oos_matrix.json` 在 freshness target 內，或讓 `/api/models/leaderboard` / Strategy Lab 明確標示 stale/reference-only。
 4. **Customer-usable lane**：用 route/API/test/browser proof 證明 `/execution` paper/shadow selective sleeve、Shadow Trade Ledger、range-chop playbook 或 dry-run readiness 可操作。
 5. **Venue proof lane**：產出 OKX sandbox/dry-run 或 metadata-to-runtime proof checklist；credential present 只可顯示布林，不可洩漏 secret。

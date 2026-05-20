@@ -1,10 +1,10 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-20T17:10:55.622775Z`
+- generated_at: `2026-05-20T18:11:53.301421Z`
 - current_live_blocker: `unsupported_exact_live_structure_bucket`
-- current_live_structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
+- current_live_structure_bucket: `CAUTION|base_caution_regime_or_bias|q35`
 - exact support: `0/50` (gap `50`)
-- support_route_verdict: `insufficient_support_everywhere`
+- support_route_verdict: `exact_bucket_unsupported_block`
 - canary_ready: **False**
 - live_exposure_allowed: **False**
 - order_submission_enabled: **False**
