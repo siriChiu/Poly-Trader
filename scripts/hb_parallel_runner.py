@@ -58,6 +58,7 @@ FAST_SERIAL_TIMEOUTS = {
     "hb_q15_bucket_root_cause": 20,
     "hb_q15_boundary_replay": 20,
     "execution_metadata_smoke": 30,
+    "customer_safe_alternative_proof": 20,
 }
 FULL_SERIAL_TIMEOUTS = {
     # Candidate-evaluation lanes can become silent for many minutes when the
@@ -69,6 +70,7 @@ FULL_SERIAL_TIMEOUTS = {
     "hb_leaderboard_candidate_probe": 90,
     "topk_walkforward_precision": 120,
     "execution_metadata_smoke": 30,
+    "customer_safe_alternative_proof": 20,
 }
 FAST_PARALLEL_TASK_TIMEOUTS = {
     "full_ic": 90,
@@ -130,6 +132,7 @@ BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
 BULL_4H_POCKET_ABLATION_REFRESH_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py", "--refresh-live-context"]
 LEADERBOARD_CANDIDATE_PROBE_CMD = [PYTHON, "scripts/hb_leaderboard_candidate_probe.py"]
 TOPK_WALKFORWARD_PRECISION_CMD = [PYTHON, "scripts/topk_walkforward_precision.py"]
+CUSTOMER_SAFE_ALTERNATIVE_PROOF_CMD = [PYTHON, "scripts/customer_safe_alternative_proof.py"]
 EXECUTION_METADATA_SMOKE_CMD = [
     PYTHON,
     "scripts/execution_metadata_smoke.py",
@@ -3899,7 +3902,7 @@ def overwrite_current_state_docs(
         ]
         support_fill_next_gate_lines = [
             "4. **依 PM handoff 追 exact support-fill movement 與 alternative-solution proof**",
-            "   - 驗證：`python scripts/q15_support_fill_feasibility_scan.py`、`data/q15_support_fill_feasibility.json`、`docs/analysis/q15_support_fill_feasibility.md`、`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` 是否同步 exact rows / missing capability / alternative solution",
+            "   - 驗證：`python scripts/q15_support_fill_feasibility_scan.py`、`python scripts/customer_safe_alternative_proof.py`、`data/q15_support_fill_feasibility.json`、`data/customer_safe_alternative_proof.json`、`docs/analysis/q15_support_fill_feasibility.md`、`docs/analysis/customer_safe_alternative_proof.md`、`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` 是否同步 exact rows / missing capability / alternative solution",
             "   - 升級 blocker：若 exact rows 仍 0/50 卻沒有 missing_capability / time_to_evidence / alternative_solution artifact，或 reference rows 被包裝成 deployable。",
         ]
         support_fill_success_lines = [
@@ -3955,7 +3958,7 @@ def overwrite_current_state_docs(
         ]
     m5_readiness_fact_lines = [
         "- **M5 實戰準備度總卡已產品化**",
-        "  - `/api/execution/overview` 已輸出 `execution_readiness / shadow_trade_ledger / venue_dry_run_proof / canary_gap_answers`；模型 gate / 即時支持 gate / 熔斷 gate / 場館 gate / 影子觀察 gate 一次顯示。credential present 只顯示布林 / 狀態，不輸出 secret；影子觀察與減風險可前進，買入 / 加倉仍鎖住。",
+        "  - `/api/execution/overview` 已輸出 `execution_readiness / shadow_trade_ledger / venue_dry_run_proof / canary_gap_answers`，且 `data/customer_safe_alternative_proof.json` / `docs/analysis/customer_safe_alternative_proof.md` 會把 PM alternative-solution handoff 濃縮成 customer-safe proof；模型 gate / 即時支持 gate / 熔斷 gate / 場館 gate / 影子觀察 gate 一次顯示。credential present 只顯示布林 / 狀態，不輸出 secret；影子觀察與減風險可前進，買入 / 加倉仍鎖住。",
     ]
     m5_readiness_roadmap_lines = [
         "- **M5 實戰準備度總卡已產品化：Shadow Trade Ledger + Venue dry-run proof + canary gap 答案**",
@@ -5922,6 +5925,17 @@ def run_execution_metadata_smoke() -> Dict[str, Any]:
     or no-proof runtime-readiness snapshot from a previous manual run.
     """
     return _run_serial_command(EXECUTION_METADATA_SMOKE_CMD)
+
+
+def run_customer_safe_alternative_proof() -> Dict[str, Any]:
+    """Refresh PM-safe alternative-solution proof without changing live gates.
+
+    The PM heartbeat requires a customer-usable artifact when exact support is
+    under minimum. This lane consolidates paper/shadow, venue dry-run, Top-K and
+    support-fill facts into `data/customer_safe_alternative_proof.json` while
+    preserving buy/add/order fail-closed semantics.
+    """
+    return _run_serial_command(CUSTOMER_SAFE_ALTERNATIVE_PROOF_CMD)
 
 
 def run_auto_propose(run_label: str | None = None) -> Dict[str, Any]:
@@ -8680,6 +8694,21 @@ def main(argv=None):
     if execution_metadata_smoke_result.get("stderr"):
         print(f"\n--- execution_metadata_smoke stderr ---\n{execution_metadata_smoke_result['stderr']}")
 
+    write_progress(run_label, "customer_safe_alternative_proof")
+    customer_safe_alternative_proof_result = run_customer_safe_alternative_proof()
+    print(
+        f"🧷 Customer-safe alternative proof：{'通過' if customer_safe_alternative_proof_result['success'] else '失敗'} "
+        f"(rc={customer_safe_alternative_proof_result['returncode']})"
+    )
+    if customer_safe_alternative_proof_result.get("stdout"):
+        lines = customer_safe_alternative_proof_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- customer_safe_alternative_proof ---\n{preview}")
+    if customer_safe_alternative_proof_result.get("stderr"):
+        print(f"\n--- customer_safe_alternative_proof stderr ---\n{customer_safe_alternative_proof_result['stderr']}")
+
     write_progress(run_label, "auto_propose")
     auto_propose_result = run_auto_propose(run_label)
     print(
@@ -8763,6 +8792,10 @@ def main(argv=None):
         "execution_metadata_smoke": {
             "result": execution_metadata_smoke_result,
             "artifact_path": Path(PROJECT_ROOT) / "data" / "execution_metadata_smoke.json",
+        },
+        "customer_safe_alternative_proof": {
+            "result": customer_safe_alternative_proof_result,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "customer_safe_alternative_proof.json",
         },
         "auto_propose_fixes": {
             "result": auto_propose_result,
@@ -8863,6 +8896,7 @@ def main(argv=None):
         q15_support_fill_feasibility_result,
         q15_boundary_replay_result,
         execution_metadata_smoke_result,
+        customer_safe_alternative_proof_result,
         auto_propose_result,
     ]
     if not collect_result.get("success", True):

@@ -1,8 +1,8 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-20T13:10:22.170328+00:00`
-- source live probe generated_at: `2026-05-20T13:10:12.284438Z`
-- source q15 audit generated_at: `2026-05-20 13:09:49.229818`
+- generated_at: `2026-05-20T14:30:50.418434+00:00`
+- source live probe generated_at: `2026-05-20T14:30:40.635106Z`
+- source q15 audit generated_at: `2026-05-20 14:30:17.378943`
 - classification: **semantic_window_gap_not_raw_backfill_gap**
 - reason: older calibration windows have enough exact-bucket rows by count, but they mismatch the current support_identity on calibration_window; they are reference-only unless governance deliberately rebaselines the identity.
 - current rows: **0/50**
@@ -25,24 +25,24 @@ This section is the current support identity captured by the source artifacts ab
 
 ## Data coverage
 
-- joined labeled rows: **24427**
+- joined labeled rows: **24430**
 - current calibration window filled: **True**
-- features_normalized: count=24842, range=`2024-04-14 07:00:00.000000` → `2026-05-20 13:09:49.229818`
-- labels: count=67231, range=`2024-04-14 07:00:00.000000` → `2026-05-20 10:01:32.421289`
-- raw_market_data: count=33797, range=`2024-04-13 22:00:00.000000` → `2026-05-20 13:09:49.229818`
+- features_normalized: count=24846, range=`2024-04-14 07:00:00.000000` → `2026-05-20 14:30:17.378943`
+- labels: count=67238, range=`2024-04-14 07:00:00.000000` → `2026-05-20 11:02:04.445018`
+- raw_market_data: count=33802, range=`2024-04-13 22:00:00.000000` → `2026-05-20 14:30:17.378943`
 
 ## PM delivery pressure
 
 - time_to_evidence_bucket: `semantic_rebaseline_review_required_before_reference_rows_count`
 - missing_capability_class: `Constraint/Review`
 - alternative_solution_required: **True**
-- selected_next_alternative_artifact: Execution Console / Strategy Lab paper-shadow proof with deployable=false copy
+- selected_next_alternative_artifact: data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy
 - customer_safe_lane: paper/shadow decision-support; no buy/add live exposure
 - engineering_next_gate: exact current support rows 0/50 must reach minimum; gap=50; reference rows stay non-deployable until identity is deliberately rebaselined and reverified
 
 ### Alternative-solution candidates
 
-- `paper_shadow_decision_support_sleeve` (customer_usable_now): Execution Console / Strategy Lab paper-shadow proof with deployable=false copy / live_exposure_allowed=False
+- `paper_shadow_decision_support_sleeve` (customer_usable_now): data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy / live_exposure_allowed=False
 - `semantic_rebaseline_review` (support_policy_alternative): OOS + Top-K + support audit replay under any proposed new calibration_window identity / live_exposure_allowed=False
 - `venue_dry_run_readiness_proof` (delivery_risk_reduction): OKX/Binance dry-run lifecycle proof checklist with credential state as boolean only / live_exposure_allowed=False
 
@@ -54,7 +54,7 @@ This section is the current support identity captured by the source artifacts ab
 | 200 | 0 | 0 | current_support_identity | False | None | win=None, pnl=None, quality=None |
 | 600 | 54 | 3 | reference_only_calibration_window_mismatch | False | 2026-05-15 03:02:10.622621 | win=0.0, pnl=-0.0114, quality=-0.2942 |
 | 1000 | 93 | 5 | reference_only_calibration_window_mismatch | False | 2026-05-15 03:02:10.622621 | win=0.4, pnl=-0.0023, quality=0.0303 |
-| 5000 | 286 | 14 | reference_only_calibration_window_mismatch | False | 2026-05-15 03:02:10.622621 | win=0.1429, pnl=-0.0079, quality=-0.1682 |
+| 5000 | 283 | 14 | reference_only_calibration_window_mismatch | False | 2026-05-15 03:02:10.622621 | win=0.1429, pnl=-0.0079, quality=-0.1682 |
 | all | 1329 | 537 | reference_only_calibration_window_mismatch | False | 2026-05-15 03:02:10.622621 | win=0.946, pnl=0.0257, quality=0.6693 |
 
 ## Recommended actions

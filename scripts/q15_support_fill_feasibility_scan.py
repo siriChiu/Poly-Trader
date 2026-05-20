@@ -307,7 +307,7 @@ def _pm_delivery_pressure(
         {
             "id": "paper_shadow_decision_support_sleeve",
             "role": "customer_usable_now",
-            "next_artifact": "Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+            "next_artifact": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
             "live_exposure_allowed": False,
         },
         {
