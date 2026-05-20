@@ -1,39 +1,39 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-20 19:40:34.179888**
+- generated_at: **2026-05-20 20:06:55.506863**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q35 bucket**
 - verdict: **current_row_already_above_q35_boundary**
 - candidate_patch_type: **support_accumulation**
 - candidate_patch_feature: **feat_4h_bb_pct_b**
 - artifact_context_freshness: **current_context** (`[]`)
-- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q35', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
+- support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q35', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'D', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
 
 ## Current live
-- live path: **chop / CAUTION / C**
+- live path: **chop / CAUTION / D**
 - structure_bucket: `CAUTION|base_caution_regime_or_bias|q35`
-- structure_quality: **0.3775**
+- structure_quality: **0.3525**
 - gap_to_q35_boundary: **0.0**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `unsupported_exact_live_structure_bucket`
 - support rows/minimum/gap: **0 / 50 / 50**
 
 ## Exact live lane
-- rows: **238**
-- bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q65': 67, 'CAUTION|base_caution_regime_or_bias|q00': 63, 'CAUTION|base_caution_regime_or_bias|q15': 54, 'CAUTION|base_caution_regime_or_bias|q85': 38, 'CAUTION|base_caution_regime_or_bias|q35': 16}`
-- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** (67 rows)
-- near_boundary_window: `{'lower': 0.3775, 'upper': 0.35}`
+- rows: **1834**
+- bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q65': 565, 'CAUTION|base_caution_regime_or_bias|q15': 538, 'CAUTION|base_caution_regime_or_bias|q00': 370, 'CAUTION|base_caution_regime_or_bias|q35': 236, 'CAUTION|base_caution_regime_or_bias|q85': 125}`
+- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** (565 rows)
+- near_boundary_window: `{'lower': 0.3525, 'upper': 0.35}`
 - near_boundary_rows: **0**
 
 ## Decision
 - reason: 目前 live row 已高於 q35 boundary，問題改成 exact support 累積，不是 bucket repair。
-- candidate_patch: `{'type': 'support_accumulation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.7074, 'current_normalized': 0.7074, 'needed_raw_delta_to_cross_q35': 0.0, 'target_bucket_p25': 0.7082, 'target_bucket_median': 0.7643, 'needed_raw_delta_to_target_p25': 0.0008, 'needed_raw_delta_to_target_median': 0.0569}`
+- candidate_patch: `{'type': 'support_accumulation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.6496, 'current_normalized': 0.6496, 'needed_raw_delta_to_cross_q35': 0.0, 'target_bucket_p25': 0.7094, 'target_bucket_median': 0.7496, 'needed_raw_delta_to_target_p25': 0.0598, 'needed_raw_delta_to_target_median': 0.1}`
 - verify_next: 確認 current_live_structure_bucket_rows 是否增加到 minimum_support_rows。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.7074 / norm=0.7074 / Δto_cross_q35=0.0 / target_p25=0.7082 / target_median=0.7643
-- `feat_4h_dist_bb_lower`: current=1.7255 / norm=0.2157 / Δto_cross_q35=0.0 / target_p25=5.5052 / target_median=5.8772
-- `feat_4h_dist_swing_low`: current=1.9952 / norm=0.1995 / Δto_cross_q35=0.0 / target_p25=8.7982 / target_median=9.2352
+- `feat_4h_bb_pct_b`: current=0.6496 / norm=0.6496 / Δto_cross_q35=0.0 / target_p25=0.7094 / target_median=0.7496
+- `feat_4h_dist_bb_lower`: current=1.5838 / norm=0.198 / Δto_cross_q35=0.0 / target_p25=4.1735 / target_median=5.7374
+- `feat_4h_dist_swing_low`: current=2.011 / norm=0.2011 / Δto_cross_q35=0.0 / target_p25=8.0923 / target_median=9.1104
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
