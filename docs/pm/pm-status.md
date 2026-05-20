@@ -37,7 +37,7 @@ PM 結論：客戶成功仍是北極星，但安全 gate 不可被 customer urge
 
 ### Research-to-delivery candidates / Top-K
 
-- `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-20T06:05:55.589037+00:00`；`artifact_freshness_status=fresh`, `artifact_deployment_blocking=false`, `samples=24667`, `row_count=24`, `runtime_blocked_candidate_rows=6`。
+- `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-20T07:10:36.858137+00:00`；`artifact_freshness_status=fresh`, `artifact_deployment_blocking=false`, `samples=24672`, `row_count=24`, `runtime_blocked_candidate_rows=6`。
 - Matrix payload: `deployable_rows=0`, `risk_qualified_rows=6`。
 - Nearest research candidate: `model=logistic_regression`, `feature_profile=current_full`, `top_k=top_2pct`, `oos_roi=0.9324`, `win_rate=0.8621`, `profit_factor=19.8864`, `max_drawdown=0.022`, `worst_fold=0.2068`, `trade_count=58`, `tier=runtime_blocked_oos_pass`, `deployable_verdict=not_deployable`, blockers `support_route_not_deployable` + `deployment_blocker_active` under `unsupported_exact_live_structure_bucket`。
 

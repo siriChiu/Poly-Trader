@@ -1,72 +1,72 @@
 # Q35 Scaling Audit
 
-- generated_at: **2026-05-20 06:12:25.971102**
-- overall_verdict: **broader_bull_cohort_recalibration_candidate**
+- generated_at: **2026-05-20 07:20:31.757441**
+- overall_verdict: **bias50_formula_may_be_too_harsh**
 - structure_scaling_verdict: **q35_structure_caution_not_root_cause**
 - scope_applicability: **current_live_q35_lane_active**
-- reason: exact-lane 仍偏熱，但 current bias50 已回到至少一個更廣 bull cohort 的常見區間；若要主張公式過嚴，下一步應做分段 / 分位數校準，而不是直接放寬 q35 gate 或 trade floor。
+- reason: current bias50 已回到 exact-lane p90 內，但 legacy 公式仍可能把它壓成 0 分；需改做 exact-lane 內的保守分段校準，而不是繼續把它視為 broader bull segmentation 問題。
 - applicability_note: current live row 仍位於 q35 lane；本輪 q35 scaling / bias50 calibration 結論可直接視為 live governance 主路徑。
 
 ## Current live row
 
-- regime/gate/quality: **bear / CAUTION / C**
+- regime/gate/quality: **chop / CAUTION / C**
 - structure_bucket: **CAUTION|base_caution_regime_or_bias|q35**
-- legacy_entry_quality: **0.6127** (raw_reason=`entry_quality_C_single_layer`)
-- calibration_runtime_entry_quality: **0.6127** (raw_reason=`entry_quality_C_single_layer`)
-- deployed_runtime_entry_quality: **0.6127** (raw_reason=`entry_quality_C_single_layer`, effective_reason=`unsupported_exact_live_structure_bucket`)
+- legacy_entry_quality: **0.6239** (raw_reason=`entry_quality_C_single_layer`)
+- calibration_runtime_entry_quality: **0.6239** (raw_reason=`entry_quality_C_single_layer`)
+- deployed_runtime_entry_quality: **0.6239** (raw_reason=`entry_quality_C_single_layer`, effective_reason=`unsupported_exact_live_structure_bucket`)
 - q35_discriminative_redesign_applied: **False**
-- feat_4h_bias50: **-2.0431**
-- structure_quality: **0.3543**
+- feat_4h_bias50: **-1.8732**
+- structure_quality: **0.3854**
 
 ## Exact lane summary
 
-- rows: **0** | win_rate: **None**
-- bias50 distribution: {'min': None, 'p25': None, 'p50': None, 'p75': None, 'p90': None, 'p95': None, 'max': None, 'mean': None}
-- current bias50 percentile in exact lane: **None**
-- winner-only bias50 distribution: {'min': None, 'p25': None, 'p50': None, 'p75': None, 'p90': None, 'p95': None, 'max': None, 'mean': None}
+- rows: **511** | win_rate: **0.9706**
+- bias50 distribution: {'min': -5.5588, 'p25': 0.3188, 'p50': 0.6721, 'p75': 1.0241, 'p90': 1.2568, 'p95': 1.4262, 'max': 1.6604, 'mean': 0.5782}
+- current bias50 percentile in exact lane: **0.0157**
+- winner-only bias50 distribution: {'min': -5.5588, 'p25': 0.3152, 'p50': 0.6598, 'p75': 1.0147, 'p90': 1.2547, 'p95': 1.4412, 'max': 1.6604, 'mean': 0.5846}
 
 ## Broader bull cohorts
 
-- same_gate_same_quality: rows=**187** | win_rate=**0.4064** | bias50_pct=**0.7914** | dist={'min': -4.1725, 'p25': -3.3195, 'p50': -2.6042, 'p75': -2.1713, 'p90': -1.3611, 'p95': -1.0713, 'max': -0.4535, 'mean': -2.6377}
-- same_bucket: rows=**0** | win_rate=**None** | bias50_pct=**None** | dist={'min': None, 'p25': None, 'p50': None, 'p75': None, 'p90': None, 'p95': None, 'max': None, 'mean': None}
-- bull_all: rows=**486** | win_rate=**0.5782** | bias50_pct=**0.5185** | dist={'min': -7.8921, 'p25': -2.9698, 'p50': -2.152, 'p75': -1.2045, 'p90': -1.1476, 'p95': -0.9744, 'max': -0.2201, 'mean': -2.2761}
+- same_gate_same_quality: rows=**1161** | win_rate=**0.8932** | bias50_pct=**0.031** | dist={'min': -6.6008, 'p25': -0.3648, 'p50': 0.6366, 'p75': 2.4842, 'p90': 4.6126, 'p95': 4.8007, 'max': 7.5411, 'mean': 1.0016}
+- same_bucket: rows=**1479** | win_rate=**0.8174** | bias50_pct=**0.0237** | dist={'min': -5.5588, 'p25': 0.5168, 'p50': 0.9912, 'p75': 1.2819, 'p90': 1.551, 'p95': 1.7458, 'max': 4.4265, 'mean': 0.8303}
+- bull_all: rows=**4342** | win_rate=**0.8047** | bias50_pct=**0.0173** | dist={'min': -6.9187, 'p25': 0.1774, 'p50': 1.1508, 'p75': 3.1304, 'p90': 4.1466, 'p95': 4.7009, 'max': 8.0151, 'mean': 1.4988}
 
 ## Segmented calibration
 
-- status: **segmented_calibration_required** | mode: **piecewise_quantile_calibration**
+- status: **formula_review_required** | mode: **exact_lane_formula_review**
 - runtime contract: **piecewise_runtime_not_required** — 本輪 audit 沒有要求 current row 套用 segmented calibration；runtime 可維持既有路徑。
-- exact lane band: **no_data** (pct=None, Δp90=None)
-- same_gate_same_quality band: **elevated_but_within_p90** (pct=0.7914, Δp90=-0.682)
-- same_bucket band: **no_data** (pct=None, Δp90=None)
-- bull_all band: **warm** (pct=0.5185, Δp90=-0.8955)
-- reference cohort: **same_gate_same_quality** / label=同 bull gate + 同 quality lane / pct=0.7914
-- note: exact lane 顯示過熱，但至少一個更廣 bull cohort 仍把 current bias50 視為 p90 內；應改做 bull cohort segmentation / piecewise quantile calibration，而不是直接 relax runtime gate。
-- runtime preview: applied=**False** | score=**0.8886199999999999** | legacy=**0.8886199999999999** | Δ=**0.0** | segment=**None**
+- exact lane band: **core_normal** (pct=0.0157, Δp90=-3.13)
+- same_gate_same_quality band: **core_normal** (pct=0.031, Δp90=-6.4858)
+- same_bucket band: **core_normal** (pct=0.0237, Δp90=-3.4242)
+- bull_all band: **core_normal** (pct=0.0173, Δp90=-6.0198)
+- reference cohort: **same_gate_same_quality** / label=同 bull gate + 同 quality lane / pct=0.031
+- note: current bias50 已回到 exact lane p90 內；下一步應做 exact-lane 內的保守 bias50 校準 / 公式檢查，而不是再走 broader bull segmentation。
+- runtime preview: applied=**False** | score=**0.8546400000000001** | legacy=**0.8546400000000001** | Δ=**0.0** | segment=**None**
 
 ## Deployment-grade component experiment
 
 - verdict: **runtime_patch_crosses_floor_but_execution_blocked**
-- baseline -> calibration runtime entry_quality: **0.6127 → 0.6127** (Δ=**0.0**)
-- baseline -> deployed runtime entry_quality: **0.6127 → 0.6127** (Δ=**0.0**)
+- baseline -> calibration runtime entry_quality: **0.6239 → 0.6239** (Δ=**0.0**)
+- baseline -> deployed runtime entry_quality: **0.6239 → 0.6239** (Δ=**0.0**)
 - baseline -> calibration -> deployed layers: **1 → 1 → 1**
 - machine_read: entry_quality>=0.55=**True** | allowed_layers>0=**False**
 - runtime_source: **live_predict_probe** | q35_discriminative_redesign_applied=**False**
-- runtime gap to floor: **-0.0627**
+- runtime gap to floor: **-0.0739**
 - next patch target: **feat_4h_bias50_formula**
 
 ## Counterfactuals
 
-- gate -> ALLOW only: entry_quality **0.6127**, layers **1**
-- fully relax bias50 penalty: entry_quality **0.6461**, layers **1**
-- required bias50 cap to cross trade floor: **-2.043** (current=-2.0431)
+- gate -> ALLOW only: entry_quality **0.6239**, layers **1**
+- fully relax bias50 penalty: entry_quality **0.6675**, layers **1**
+- required bias50 cap to cross trade floor: **-1.873** (current=-1.8732)
 
 ## Joint component experiment（bias50 runtime patch + feat_4h_dist_swing_low uplift）
 
-- verdict: **joint_component_experiment_no_supportive_target**
-- machine_read: entry_quality>=0.55=**False** | allowed_layers>0=**False**
-- best scenario: **None** → entry_quality **None** / layers **None** / gap **None**
-- required_bias50_cap_after_best_scenario: **None**
-- note: 在 exact-supported q35 lane / winner cohorts 內找不到比 current row 更高的 dist_swing_low 支持目標；本輪無法形成可驗證的 joint component experiment。
+- verdict: **joint_component_experiment_crosses_trade_floor**
+- machine_read: entry_quality>=0.55=**True** | allowed_layers>0=**True**
+- best scenario: **exact_lane_p75** → entry_quality **0.6464** / layers **1** / gap **0.0**
+- required_bias50_cap_after_best_scenario: **-1.873**
+- note: 在維持 runtime bias50 calibration 的前提下，只把 feat_4h_dist_swing_low 拉回 exact-supported q35 lane 的 support target，就足以跨過 trade floor。
 
 ## Exact-supported bias50 component experiment
 
@@ -77,22 +77,22 @@
 
 ## Base-mix component experiment（bias50 + pulse + nose）
 
-- verdict: **base_mix_component_experiment_no_supportive_target**
-- machine_read: entry_quality>=0.55=**False** | allowed_layers>0=**False**
-- best scenario: **None** → entry_quality **None** / layers **None** / gap **None**
-- required_bias50_cap_after_best_scenario: **None**
-- note: 在 exact/winner cohorts 中找不到足以構成 base-mix 驗證的支持目標；本輪無法完成 bias50 + pulse (+ nose) 的可驗證 experiment。
+- verdict: **base_mix_component_experiment_crosses_trade_floor**
+- machine_read: entry_quality>=0.55=**True** | allowed_layers>0=**True**
+- best scenario: **exact_lane_triplet_p75** → entry_quality **0.7137** / layers **2** / gap **0.0**
+- required_bias50_cap_after_best_scenario: **-1.873**
+- note: 在保留 current q35 結構與 runtime bias50 calibration 的前提下，只把 bias50 + pulse (+ nose) 拉回 exact/winner cohort 的支持分位，就足以跨過 trade floor。
 
 ## Base-stack redesign experiment（support-aware discriminative reweight）
 
-- verdict: **base_stack_redesign_no_runtime_exact_lane_rows**
-- machine_read: entry_quality>=0.55=**False** | allowed_layers>0=**False** | positive_gap=**False** | execution_blocked_after_floor_cross=**None**
-- rows / wins / losses: **0 / 0 / 0**
-- best discriminative candidate: weights=**None** → entry_quality **None** / gap **None** / mean_gap **None**
-- best floor candidate: weights=**None** → entry_quality **None** / gap **None** / mean_gap **None**
+- verdict: **base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked**
+- machine_read: entry_quality>=0.55=**True** | allowed_layers>0=**False** | positive_gap=**True** | execution_blocked_after_floor_cross=**True**
+- rows / wins / losses: **511 / 496 / 15**
+- best discriminative candidate: weights=**{'feat_4h_bias50': 0.0, 'feat_nose': 0.0, 'feat_pulse': 1.0, 'feat_ear': 0.0}** → entry_quality **0.6357** / gap **0.0** / mean_gap **0.0071**
+- best floor candidate: weights=**{'feat_4h_bias50': 0.0, 'feat_nose': 0.0, 'feat_pulse': 0.0, 'feat_ear': 1.0}** → entry_quality **0.8224** / gap **0.0** / mean_gap **0.0028**
 - unsafe floor-cross candidate: **None**
-- note: runtime calibrated exact lane 沒有可用 rows，無法做 base-stack redesign grid search。
+- note: 在 runtime exact lane 內，以正向 discrimination 為約束的 base-stack reweight 已讓 entry_quality 跨過 scoring floor；但 runtime gate/support 仍讓 allowed_layers=0，因此只能視為 score-only research closure，不可視為 deployment closure。
 
 ## Recommended action
 
-- 維持 q35=CAUTION；把本輪焦點放在 bias50 正規化是否應改成分段/分位數縮放，只有當 current bias50 落在 exact-lane 常見區間時才放寬。
+- discriminative base-stack redesign 只能讓 entry_quality 跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0；下一輪必須把它治理成 score-only / execution-blocked，不得把 floor-cross 當成 deployment closure。

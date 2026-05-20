@@ -3858,6 +3858,53 @@ def overwrite_current_state_docs(
     support_route_verdict = support_context.get("support_route_verdict") or "—"
     support_progress_line = _support_progress_docs_line(support_context)
     support_progress_doc_lines = [support_progress_line] if support_progress_line else []
+    support_fill_feasibility = collect_q15_support_fill_feasibility_diagnostics()
+    support_fill_doc_lines: list[str] = []
+    support_fill_roadmap_lines: list[str] = []
+    support_fill_orid_lines: list[str] = []
+    support_fill_next_gate_lines: list[str] = []
+    support_fill_success_lines: list[str] = []
+    if support_fill_feasibility:
+        support_fill_identity = support_fill_feasibility.get("support_identity") or {}
+        support_fill_bucket = support_fill_identity.get("current_live_structure_bucket") or live_predictor_diagnostics.get(
+            "current_live_structure_bucket",
+            "—",
+        )
+        support_fill_line = (
+            f"`artifact=data/q15_support_fill_feasibility.json` / "
+            f"`classification={support_fill_feasibility.get('classification') or '—'}` / "
+            f"`bucket={support_fill_bucket}` / "
+            f"`exact_rows={support_fill_feasibility.get('current_exact_bucket_rows', '—')}/"
+            f"{support_fill_feasibility.get('minimum_support_rows', '—')}` / "
+            f"`gap={support_fill_feasibility.get('gap_to_minimum', '—')}` / "
+            f"`time_to_evidence={support_fill_feasibility.get('time_to_evidence_bucket') or '—'}` / "
+            f"`missing_capability={support_fill_feasibility.get('missing_capability_class') or '—'}` / "
+            f"`alternative_solution_required={support_fill_feasibility.get('alternative_solution_required')}`"
+        )
+        support_fill_next_artifact = support_fill_feasibility.get("selected_next_alternative_artifact") or "—"
+        support_fill_artifact_line = (
+            f"{support_fill_line}；next safe artifact：{support_fill_next_artifact}；"
+            "reference windows / governance rows 不可包裝成 deployable support。"
+        )
+        support_fill_doc_lines = [
+            "- **PM handoff support-fill feasibility 已納入 current-state docs**",
+            f"  - {support_fill_artifact_line}",
+        ]
+        support_fill_roadmap_lines = [
+            "- **support-fill feasibility / alternative-solution gate 已納入 current plan**",
+            f"  - {support_fill_artifact_line}",
+        ]
+        support_fill_orid_lines = [
+            f"- support-fill feasibility：{support_fill_artifact_line}"
+        ]
+        support_fill_next_gate_lines = [
+            "4. **依 PM handoff 追 exact support-fill movement 與 alternative-solution proof**",
+            "   - 驗證：`python scripts/q15_support_fill_feasibility_scan.py`、`data/q15_support_fill_feasibility.json`、`docs/analysis/q15_support_fill_feasibility.md`、`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` 是否同步 exact rows / missing capability / alternative solution",
+            "   - 升級 blocker：若 exact rows 仍 0/50 卻沒有 missing_capability / time_to_evidence / alternative_solution artifact，或 reference rows 被包裝成 deployable。",
+        ]
+        support_fill_success_lines = [
+            "- support-fill feasibility 維持 PM-safe：current exact rows / missing capability / time-to-evidence / alternative-solution artifact 可見，且 reference rows 不可升級成 deployable truth",
+        ]
     range_chop_context_text = " ".join(
         str(value)
         for value in [
@@ -4310,6 +4357,7 @@ def overwrite_current_state_docs(
         f"  - {blocker_line}",
         f"  - {support_line}",
         *[f"  - {line}" for line in support_progress_doc_lines],
+        *support_fill_doc_lines,
         "- **recent canonical diagnostics 已刷新**",
         f"  - {pathology_line}",
         *([f"  - {shadow_replay_line}"] if shadow_replay_line else []),
@@ -4338,7 +4386,7 @@ def overwrite_current_state_docs(
         *m5_readiness_fact_lines,
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
-        "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
+        "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/q15_support_fill_feasibility.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
         "",
         "---",
         "",
@@ -4455,7 +4503,8 @@ def overwrite_current_state_docs(
         *range_chop_roadmap_lines,
         *m5_readiness_roadmap_lines,
         "- **本輪 current-state docs 已同步到最新 artifacts**",
-        "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json` 的 current-state truth 已對齊",
+        "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/q15_support_fill_feasibility.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json` 的 current-state truth 已對齊",
+        *support_fill_roadmap_lines,
         *parallel_failure_roadmap_lines,
         "",
         "---",
@@ -4483,6 +4532,7 @@ def overwrite_current_state_docs(
         "**目前真相**",
         f"- {support_line}",
         *[f"- {line}" for line in support_progress_doc_lines],
+        *[f"- {line}" for line in support_fill_roadmap_lines],
         f"- {patch_context['docs_line']}",
         *([f"- {q35_scaling_doc_line}"] if q35_scaling_doc_line else []),
         "**成功標準**",
@@ -4518,9 +4568,10 @@ def overwrite_current_state_docs(
         next_gate_line3,
         "   - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status",
         next_gate_line3_blocker,
+        *support_fill_next_gate_lines,
         *(
             [
-                "4. **建立 high-conviction top-k OOS ROI gate，讓 Strategy Lab winner 先經研究→模擬觀察→影子驗證→小流量分級**",
+                f"{'5' if support_fill_next_gate_lines else '4'}. **建立 high-conviction top-k OOS ROI gate，讓 Strategy Lab winner 先經研究→模擬觀察→影子驗證→小流量分級**",
                 "   - 驗證：`data/high_conviction_topk_oos_matrix.json`、`/api/models/leaderboard.high_conviction_topk`、Strategy Lab 高信心 OOS Top-K 部署門檻面板、`python -m pytest tests/test_model_leaderboard.py tests/test_frontend_decision_contract.py -k high_conviction -q`",
                 "   - 升級 blocker：若 scan winner 未經 OOS top-k / minimum support / drawdown / breaker release gate 就被標成 deployable，或 current-live unsupported 時仍允許 buy/add exposure",
             ]
@@ -4534,6 +4585,7 @@ def overwrite_current_state_docs(
         success_primary_line,
         f"- {support_truth_label} 維持：**{support_truth_ratio} + {support_success_verdict} + {support_success_status}**",
         "- recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋",
+        *support_fill_success_lines,
         f"- {leaderboard_governance_label} 維持；venue/source blockers 持續可見",
         "- heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**",
         "- `/api/trade` 直接 API 不能繞過即時部署阻塞點：買入 / 加倉在 no-deploy 狀態必須 409，減倉 / 賣出仍可用",
@@ -4561,7 +4613,7 @@ def overwrite_current_state_docs(
     live_regime = live_predictor_diagnostics.get("regime_label") or "—"
     live_gate = live_predictor_diagnostics.get("regime_gate") or "—"
     live_bucket = live_predictor_diagnostics.get("current_live_structure_bucket") or "—"
-    docs_sync_line = f"current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown / leaderboard_feature_profile_probe / high_conviction_topk` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，等待 / 觀望與減碼保留；`/api/status` / `/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout` / `載入失敗`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留等待 / 觀望與減倉 / 賣出風險降低路徑；Dashboard 啟動連續性卡會把 feature deferred / repair_deferred 顯示成警示與心跳維護收斂文案；{execution_status_docs_sync_clause}；{runtime_copy_docs_clause}；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口，且 venue error 會先轉成操作員繁中 copy（例如不支援的交易場館）"
+    docs_sync_line = f"current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown / support-fill feasibility / leaderboard_feature_profile_probe / high_conviction_topk` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，等待 / 觀望與減碼保留；`/api/status` / `/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout` / `載入失敗`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留等待 / 觀望與減倉 / 賣出風險降低路徑；Dashboard 啟動連續性卡會把 feature deferred / repair_deferred 顯示成警示與心跳維護收斂文案；{execution_status_docs_sync_clause}；{runtime_copy_docs_clause}；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口，且 venue error 會先轉成操作員繁中 copy（例如不支援的交易場館）"
 
     orid_lines = [
         "# ORID_DECISIONS.md — Current ORID Only",
@@ -4577,6 +4629,7 @@ def overwrite_current_state_docs(
         f"- 即時部署阻塞點：{blocker_line}。",
         f"- {support_scope_label} truth：{support_line}。",
         *[f"- {line}。" for line in support_progress_doc_lines],
+        *support_fill_orid_lines,
         f"- latest recent-window diagnostics：{pathology_line}。",
         *([f"- current blocking pathological pocket：{blocking_pathology_line}。"] if blocking_pathology_line else []),
         f"- leaderboard / governance：{leaderboard_line}。",
@@ -4603,8 +4656,8 @@ def overwrite_current_state_docs(
         "- **Owner**：即時執行治理 lane",
         orid_action_line.rstrip("。") + "；`/execution` 操作入口在同步中 / 已阻塞時只對買入 / 加倉與啟用自動模式 fail-closed，等待 / 觀望與減碼保留；直接 API 買入 / 加倉也必須 409 暫停，等待 / 觀望與減倉 / 賣出保留風險降低路徑。",
         *high_conviction_orid_action_lines,
-        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/leaderboard_feature_profile_probe.json`、`data/high_conviction_topk_oos_matrix.json`、`data/execution_metadata_smoke.json`。",
-        "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、等待 / 觀望與減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx binance`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`。",
+        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/q15_support_fill_feasibility.json`、`docs/analysis/q15_support_fill_feasibility.md`、`data/leaderboard_feature_profile_probe.json`、`data/high_conviction_topk_oos_matrix.json`、`data/execution_metadata_smoke.json`。",
+        "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、等待 / 觀望與減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python scripts/q15_support_fill_feasibility_scan.py`、`python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx binance`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`。",
         orid_fail_line,
         "",
     ]

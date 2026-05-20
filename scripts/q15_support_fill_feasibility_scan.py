@@ -531,7 +531,7 @@ def markdown(report: dict[str, Any]) -> str:
     coverage = report.get("data_coverage") or {}
     source_artifacts = report.get("source_artifacts") or {}
     lines = [
-        "# current support-fill feasibility scan (q15/q35)",
+        "# current support-fill feasibility scan (q15/q35 compatibility)",
         "",
         f"- generated_at: `{report.get('generated_at')}`",
         f"- source live probe generated_at: `{source_artifacts.get('live_predict_probe_generated_at')}`",
@@ -543,9 +543,9 @@ def markdown(report: dict[str, Any]) -> str:
         f"- historical backfill can close current identity: **{verdict.get('can_historical_backfill_close_current_identity')}**",
         f"- reference windows deployable by count alone: **{verdict.get('can_count_reference_windows_as_deployable')}**",
         "",
-        "## Scanned q15 support identity",
+        "## Scanned current support identity",
         "",
-        "This section is the q15 identity captured by the source artifacts above. Re-check `/api/status` before treating it as the latest live bucket.",
+        "This section is the current support identity captured by the source artifacts above. Re-check `/api/status` before treating it as the latest live bucket.",
         "",
     ]
     for key in (

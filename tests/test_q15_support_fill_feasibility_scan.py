@@ -83,6 +83,9 @@ def test_feasibility_scan_separates_reference_window_rows_from_current_identity(
     assert reference_window["deployment_promotable_under_current_identity"] is False
 
     md = scan.markdown(report)
+    assert "current support-fill feasibility scan (q15/q35 compatibility)" in md
+    assert "Scanned current support identity" in md
+    assert "Scanned q15 support identity" not in md
     assert "semantic_window_gap_not_raw_backfill_gap" in md
     assert "PM delivery pressure" in md
     assert "semantic_rebaseline_review_required_before_reference_rows_count" in md

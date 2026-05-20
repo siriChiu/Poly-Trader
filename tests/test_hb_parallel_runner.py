@@ -2648,6 +2648,76 @@ def test_overwrite_current_state_docs_does_not_render_breaker_math_when_exact_su
     assert "Execution Status / Bot 營運 已顯示熔斷解除條件" not in combined_docs
 
 
+def test_overwrite_current_state_docs_surfaces_support_fill_feasibility_pm_pressure(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text('{"issues": []}', encoding="utf-8")
+    (data_dir / "live_predict_probe.json").write_text("{}", encoding="utf-8")
+    (data_dir / "live_decision_quality_drilldown.json").write_text("{}", encoding="utf-8")
+    (data_dir / "q15_support_fill_feasibility.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-20T06:12:57+00:00",
+                "artifact": "q15_support_fill_feasibility",
+                "support_identity": {
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                },
+                "verdict": {
+                    "classification": "no_exact_bucket_history",
+                    "current_exact_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                    "time_to_evidence_bucket": "unknown_until_bucket_map_or_signal_redesign",
+                    "missing_capability_class": "Map/Signal",
+                    "alternative_solution_required": True,
+                    "selected_next_alternative_artifact": "Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260520_support_fill",
+        {"raw_market_data": 10, "features_normalized": 10, "labels": 10, "simulated_pyramid_win_rate": 0.5},
+        {"blocked_count": 0, "counts_by_history_class": {}, "blocked_features": []},
+        {},
+        {
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        },
+        {},
+        {},
+        {"root_cause": {"verdict": "not_circuit_breaker"}},
+        {"leaderboard_count": 1, "governance_contract": {"verdict": "single_role_alignment"}},
+        run_mode="fast",
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+    combined_docs = "\n".join([issues_md, roadmap_md, orid_md])
+
+    assert "PM handoff support-fill feasibility 已納入 current-state docs" in issues_md
+    assert "support-fill feasibility / alternative-solution gate 已納入 current plan" in roadmap_md
+    assert "support-fill feasibility" in orid_md
+    assert "classification=no_exact_bucket_history" in combined_docs
+    assert "bucket=CAUTION|base_caution_regime_or_bias|q35" in combined_docs
+    assert "exact_rows=0/50" in combined_docs
+    assert "time_to_evidence=unknown_until_bucket_map_or_signal_redesign" in combined_docs
+    assert "missing_capability=Map/Signal" in combined_docs
+    assert "alternative_solution_required=True" in combined_docs
+    assert "reference windows / governance rows 不可包裝成 deployable support" in combined_docs
+    assert "data/q15_support_fill_feasibility.json" in combined_docs
+
+
 
 def test_overwrite_current_state_docs_marks_no_collect_verification_runs(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
@@ -5467,6 +5537,47 @@ def test_collect_q15_support_audit_diagnostics_reads_support_and_floor_verdicts(
     assert diag["next_action"] == "先補 exact bucket 真樣本。"
 
 
+def test_collect_q15_support_fill_feasibility_diagnostics_reads_pm_pressure(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "q15_support_fill_feasibility.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-20T06:12:57+00:00",
+                "artifact": "q15_support_fill_feasibility",
+                "support_identity": {
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                    "calibration_window": 200,
+                },
+                "data_coverage": {"joined_labeled_rows": 24400},
+                "verdict": {
+                    "classification": "no_exact_bucket_history",
+                    "current_exact_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                    "time_to_evidence_bucket": "unknown_until_bucket_map_or_signal_redesign",
+                    "missing_capability_class": "Map/Signal",
+                    "alternative_solution_required": True,
+                    "selected_next_alternative_artifact": "Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    diag = hb_parallel_runner.collect_q15_support_fill_feasibility_diagnostics()
+
+    assert diag["classification"] == "no_exact_bucket_history"
+    assert diag["current_exact_bucket_rows"] == 0
+    assert diag["minimum_support_rows"] == 50
+    assert diag["gap_to_minimum"] == 50
+    assert diag["time_to_evidence_bucket"] == "unknown_until_bucket_map_or_signal_redesign"
+    assert diag["missing_capability_class"] == "Map/Signal"
+    assert diag["alternative_solution_required"] is True
+    assert diag["selected_next_alternative_artifact"].startswith("Execution Console")
+
+
 def test_collect_q15_bucket_root_cause_diagnostics_reads_verdict_and_candidate_patch(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
@@ -7201,6 +7312,8 @@ def test_main_writes_final_progress_artifact(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_audit_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_q15_bucket_root_cause", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_bucket_root_cause_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_support_fill_feasibility", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_fill_feasibility_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_q15_boundary_replay", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_boundary_replay_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_execution_metadata_smoke", lambda: _ok('{"runtime_ready": false}'))

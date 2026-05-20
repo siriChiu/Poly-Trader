@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-20T06:05:55.589037+00:00",
+  "generated_at": "2026-05-20T07:10:36.858137+00:00",
   "artifact_freshness_status": "fresh",
   "artifact_freshness_reason": "artifact_within_policy",
-  "artifact_age_minutes": 7.111495966666666,
+  "artifact_age_minutes": 10.531512633333334,
   "artifact_stale_after_minutes": 60.0,
   "artifact_deployment_blocking": false,
-  "artifact_freshness_checked_at": "2026-05-20T06:13:02.278795+00:00",
+  "artifact_freshness_checked_at": "2026-05-20T07:21:08.748895+00:00",
   "target_col": "simulated_pyramid_win",
-  "samples": 24667,
+  "samples": 24672,
   "top_k_grid": [
     "top_1pct",
     "top_2pct",
@@ -38,7 +38,7 @@
       "exact_live_lane_proxy_rows": 8,
       "supported_neighbor_rows": 0,
       "exact_bucket_root_cause": "same_lane_shifted_to_neighbor_bucket",
-      "route_hint": "exact_live_bucket_present_but_below_minimum",
+      "route_hint": "exact_live_lane_proxy_available",
       "governance_reference_only": true,
       "legacy_supported_reference": {
         "heartbeat": "1238",
@@ -61,18 +61,16 @@
     "signal": "HOLD",
     "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
     "support_progress_status": "semantic_rebaseline_under_minimum",
-    "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+    "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
     "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-    "support_progress_stagnant_run_count": 0,
+    "support_progress_stagnant_run_count": 2,
     "support_progress_stalled_support_accumulation": false,
     "support_progress_escalate_to_blocker": true,
-    "support_delta_vs_previous": 2,
-    "support_previous_rows": 38,
     "support_rows_needed": 50,
-    "stagnant_run_count": 0,
+    "stagnant_run_count": 2,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
-    "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+    "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
     "live_truth_source_artifact": "data/live_predict_probe.json",
     "release_condition": {},
     "active_repair_plan": {
@@ -93,7 +91,7 @@
       "current_rows": 0,
       "minimum_support_rows": 50,
       "gap_to_minimum": 50,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "legacy_reference_only": true,
       "legacy_semantic_evidence": {
         "source": "explicit_support_identity",
@@ -125,13 +123,13 @@
           "target_col",
           "horizon_minutes",
           "current_live_structure_bucket",
+          "regime_label",
           "regime_gate",
           "bucket_semantic_signature"
         ],
         "mismatched_fields": [
           "calibration_window",
-          "entry_quality_label",
-          "regime_label"
+          "entry_quality_label"
         ],
         "missing_fields": [],
         "supports_current_identity": false,
@@ -171,8 +169,7 @@
           "supports_current_identity": false,
           "mismatched_fields": [
             "calibration_window",
-            "entry_quality_label",
-            "regime_label"
+            "entry_quality_label"
           ],
           "missing_fields": [],
           "success_condition": "legacy artifact 的 target/horizon/bucket/regime/gate/entry_label/calibration_window/semantic signature 全部吻合 current support_identity，否則明確保留 reference-only。"
@@ -200,11 +197,12 @@
     "legacy_semantic_evidence_promotable_to_same_identity_history": false,
     "legacy_semantic_evidence_mismatched_fields": [
       "calibration_window",
-      "entry_quality_label",
-      "regime_label"
+      "entry_quality_label"
     ],
     "legacy_semantic_evidence_missing_fields": [],
-    "support_context_current_as_of": "2026-05-20T06:12:46.217516Z"
+    "support_context_current_as_of": "2026-05-20T07:20:54.277225Z",
+    "support_delta_vs_previous": 0,
+    "support_previous_rows": 0
   },
   "artifact": "data/high_conviction_topk_oos_matrix.json",
   "rows": [
@@ -246,18 +244,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -303,8 +301,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -346,18 +343,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -401,8 +398,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -444,18 +440,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -501,8 +497,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -544,18 +539,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -601,8 +596,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -644,18 +638,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -701,8 +695,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -744,18 +737,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -799,8 +792,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -842,18 +834,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -899,8 +891,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -942,18 +933,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -999,8 +990,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -1042,18 +1032,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1097,8 +1087,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -1140,18 +1129,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1192,8 +1181,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -1235,18 +1223,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1287,8 +1275,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -1330,18 +1317,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1385,8 +1372,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -1428,18 +1414,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1483,8 +1469,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -1526,18 +1511,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1578,8 +1563,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -1621,18 +1605,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1673,8 +1657,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -1716,18 +1699,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1771,8 +1754,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -1814,18 +1796,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1869,8 +1851,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -1912,18 +1893,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1964,8 +1945,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -2007,18 +1987,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2062,8 +2042,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -2105,18 +2084,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2160,8 +2139,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -2203,18 +2181,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2258,8 +2236,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -2301,18 +2278,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2353,8 +2330,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -2396,18 +2372,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2451,8 +2427,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     },
@@ -2494,18 +2469,18 @@
       "required_recent_window_wins": null,
       "additional_recent_window_wins_needed": null,
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2549,8 +2524,7 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": []
     }
@@ -4472,7 +4446,7 @@
     "exact_live_lane_proxy_rows": 8,
     "supported_neighbor_rows": 0,
     "exact_bucket_root_cause": "same_lane_shifted_to_neighbor_bucket",
-    "route_hint": "exact_live_bucket_present_but_below_minimum",
+    "route_hint": "exact_live_lane_proxy_available",
     "governance_reference_only": true,
     "legacy_supported_reference": {
       "heartbeat": "1238",
@@ -4495,18 +4469,16 @@
   "signal": "HOLD",
   "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
   "support_progress_status": "semantic_rebaseline_under_minimum",
-  "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+  "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
   "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-  "support_progress_stagnant_run_count": 0,
+  "support_progress_stagnant_run_count": 2,
   "support_progress_stalled_support_accumulation": false,
   "support_progress_escalate_to_blocker": true,
-  "stagnant_run_count": 0,
+  "stagnant_run_count": 2,
   "stalled_support_accumulation": false,
   "escalate_to_blocker": true,
-  "support_delta_vs_previous": 2,
-  "support_previous_rows": 38,
   "support_rows_needed": 50,
-  "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+  "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
   "live_truth_source_artifact": "data/live_predict_probe.json",
   "live_gate_summary": {
     "support_route_verdict": "exact_bucket_unsupported_block",
@@ -4524,7 +4496,7 @@
       "exact_live_lane_proxy_rows": 8,
       "supported_neighbor_rows": 0,
       "exact_bucket_root_cause": "same_lane_shifted_to_neighbor_bucket",
-      "route_hint": "exact_live_bucket_present_but_below_minimum",
+      "route_hint": "exact_live_lane_proxy_available",
       "governance_reference_only": true,
       "legacy_supported_reference": {
         "heartbeat": "1238",
@@ -4548,16 +4520,16 @@
     "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
     "release_condition": {},
     "support_progress_status": "semantic_rebaseline_under_minimum",
-    "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+    "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
     "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-    "support_progress_stagnant_run_count": 0,
+    "support_progress_stagnant_run_count": 2,
     "support_progress_stalled_support_accumulation": false,
     "support_progress_escalate_to_blocker": true,
-    "stagnant_run_count": 0,
+    "stagnant_run_count": 2,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
-    "support_delta_vs_previous": 2,
-    "support_previous_rows": 38,
+    "support_delta_vs_previous": 0,
+    "support_previous_rows": 0,
     "support_rows_needed": 50,
     "active_repair_phase": "current_bucket_first",
     "active_repair_component_verify_ready": false,
@@ -4577,12 +4549,11 @@
     "legacy_semantic_evidence_promotable_to_same_identity_history": false,
     "legacy_semantic_evidence_mismatched_fields": [
       "calibration_window",
-      "entry_quality_label",
-      "regime_label"
+      "entry_quality_label"
     ],
     "legacy_semantic_evidence_missing_fields": [],
-    "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
-    "support_context_current_as_of": "2026-05-20T06:12:46.217516Z",
+    "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
+    "support_context_current_as_of": "2026-05-20T07:20:54.277225Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "nearest_deployable_rows": [
@@ -4624,16 +4595,16 @@
       "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
       "release_condition": {},
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
       "active_repair_phase": "current_bucket_first",
       "active_repair_component_verify_ready": false,
@@ -4653,11 +4624,10 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": [],
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -4698,16 +4668,16 @@
       "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
       "release_condition": {},
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
       "active_repair_phase": "current_bucket_first",
       "active_repair_component_verify_ready": false,
@@ -4727,11 +4697,10 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": [],
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -4772,16 +4741,16 @@
       "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
       "release_condition": {},
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
       "active_repair_phase": "current_bucket_first",
       "active_repair_component_verify_ready": false,
@@ -4801,11 +4770,10 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": [],
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -4846,16 +4814,16 @@
       "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
       "release_condition": {},
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
       "active_repair_phase": "current_bucket_first",
       "active_repair_component_verify_ready": false,
@@ -4875,11 +4843,10 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": [],
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -4920,16 +4887,16 @@
       "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
       "release_condition": {},
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
       "active_repair_phase": "current_bucket_first",
       "active_repair_component_verify_ready": false,
@@ -4949,11 +4916,10 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": [],
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -4994,16 +4960,16 @@
       "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
       "release_condition": {},
       "support_progress_status": "semantic_rebaseline_under_minimum",
-      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+      "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 2,
-      "support_previous_rows": 38,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 0,
       "support_rows_needed": 50,
       "active_repair_phase": "current_bucket_first",
       "active_repair_component_verify_ready": false,
@@ -5023,11 +4989,10 @@
       "legacy_semantic_evidence_promotable_to_same_identity_history": false,
       "legacy_semantic_evidence_mismatched_fields": [
         "calibration_window",
-        "entry_quality_label",
-        "regime_label"
+        "entry_quality_label"
       ],
       "legacy_semantic_evidence_missing_fields": [],
-      "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+      "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     }
   ],
@@ -5069,16 +5034,16 @@
     "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
     "release_condition": {},
     "support_progress_status": "semantic_rebaseline_under_minimum",
-    "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+    "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
     "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-    "support_progress_stagnant_run_count": 0,
+    "support_progress_stagnant_run_count": 2,
     "support_progress_stalled_support_accumulation": false,
     "support_progress_escalate_to_blocker": true,
-    "stagnant_run_count": 0,
+    "stagnant_run_count": 2,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
-    "support_delta_vs_previous": 2,
-    "support_previous_rows": 38,
+    "support_delta_vs_previous": 0,
+    "support_previous_rows": 0,
     "support_rows_needed": 50,
     "active_repair_phase": "current_bucket_first",
     "active_repair_component_verify_ready": false,
@@ -5098,11 +5063,10 @@
     "legacy_semantic_evidence_promotable_to_same_identity_history": false,
     "legacy_semantic_evidence_mismatched_fields": [
       "calibration_window",
-      "entry_quality_label",
-      "regime_label"
+      "entry_quality_label"
     ],
     "legacy_semantic_evidence_missing_fields": [],
-    "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+    "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "best_not_deployable": {
@@ -5143,16 +5107,16 @@
     "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
     "release_condition": {},
     "support_progress_status": "semantic_rebaseline_under_minimum",
-    "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+    "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
     "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-    "support_progress_stagnant_run_count": 0,
+    "support_progress_stagnant_run_count": 2,
     "support_progress_stalled_support_accumulation": false,
     "support_progress_escalate_to_blocker": true,
-    "stagnant_run_count": 0,
+    "stagnant_run_count": 2,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
-    "support_delta_vs_previous": 2,
-    "support_previous_rows": 38,
+    "support_delta_vs_previous": 0,
+    "support_previous_rows": 0,
     "support_rows_needed": 50,
     "active_repair_phase": "current_bucket_first",
     "active_repair_component_verify_ready": false,
@@ -5172,11 +5136,10 @@
     "legacy_semantic_evidence_promotable_to_same_identity_history": false,
     "legacy_semantic_evidence_mismatched_fields": [
       "calibration_window",
-      "entry_quality_label",
-      "regime_label"
+      "entry_quality_label"
     ],
     "legacy_semantic_evidence_missing_fields": [],
-    "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+    "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "highest_roi_not_deployable": {
@@ -5222,16 +5185,16 @@
     "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
     "release_condition": {},
     "support_progress_status": "semantic_rebaseline_under_minimum",
-    "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+    "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
     "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-    "support_progress_stagnant_run_count": 0,
+    "support_progress_stagnant_run_count": 2,
     "support_progress_stalled_support_accumulation": false,
     "support_progress_escalate_to_blocker": true,
-    "stagnant_run_count": 0,
+    "stagnant_run_count": 2,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
-    "support_delta_vs_previous": 2,
-    "support_previous_rows": 38,
+    "support_delta_vs_previous": 0,
+    "support_previous_rows": 0,
     "support_rows_needed": 50,
     "active_repair_phase": "current_bucket_first",
     "active_repair_component_verify_ready": false,
@@ -5251,15 +5214,14 @@
     "legacy_semantic_evidence_promotable_to_same_identity_history": false,
     "legacy_semantic_evidence_mismatched_fields": [
       "calibration_window",
-      "entry_quality_label",
-      "regime_label"
+      "entry_quality_label"
     ],
     "legacy_semantic_evidence_missing_fields": [],
-    "source_live_probe_generated_at": "2026-05-20T06:12:46.217516Z",
+    "source_live_probe_generated_at": "2026-05-20T07:20:54.277225Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "support_context_source": "latest_live_predict_probe",
-  "support_context_current_as_of": "2026-05-20T06:12:46.217516Z",
+  "support_context_current_as_of": "2026-05-20T07:20:54.277225Z",
   "release_condition": {},
   "active_repair_phase": "current_bucket_first",
   "active_repair_component_verify_ready": false,
@@ -5279,8 +5241,9 @@
   "legacy_semantic_evidence_promotable_to_same_identity_history": false,
   "legacy_semantic_evidence_mismatched_fields": [
     "calibration_window",
-    "entry_quality_label",
-    "regime_label"
+    "entry_quality_label"
   ],
-  "legacy_semantic_evidence_missing_fields": []
+  "legacy_semantic_evidence_missing_fields": [],
+  "support_delta_vs_previous": 0,
+  "support_previous_rows": 0
 }
