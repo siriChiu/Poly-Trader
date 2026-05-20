@@ -2716,6 +2716,7 @@ def test_overwrite_current_state_docs_surfaces_support_fill_feasibility_pm_press
     assert "alternative_solution_required=True" in combined_docs
     assert "reference windows / governance rows 不可包裝成 deployable support" in combined_docs
     assert "data/q15_support_fill_feasibility.json" in combined_docs
+    assert "- - **support-fill feasibility" not in roadmap_md
 
 
 

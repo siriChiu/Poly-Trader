@@ -4532,7 +4532,7 @@ def overwrite_current_state_docs(
         "**目前真相**",
         f"- {support_line}",
         *[f"- {line}" for line in support_progress_doc_lines],
-        *[f"- {line}" for line in support_fill_roadmap_lines],
+        *support_fill_roadmap_lines,
         f"- {patch_context['docs_line']}",
         *([f"- {q35_scaling_doc_line}"] if q35_scaling_doc_line else []),
         "**成功標準**",
