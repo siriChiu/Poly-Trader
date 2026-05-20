@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-05-20 11:15 CST_
+_最後更新：2026-05-20 11:33 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; update only when PM classification, blocker interpretation, customer-usable lane, engineering ask, or next gate changes.
 
@@ -12,7 +12,7 @@ _最後更新：2026-05-20 11:15 CST_
 
 PM 判定：客戶成功仍是北極星，但安全 gate 不可被 customer urgency 推翻。Fresh engineering artifacts supersede the previous PM handoff numbers：current-live exact q15 support is now `2/50` (`gap=48`)，not the previous `1/50` handoff and not the older stale `24/50`/legacy `173/50` story；`support_route_verdict=exact_bucket_present_but_below_minimum` while `support_governance_route=exact_live_bucket_present_but_below_minimum` remains reference-only. 這不是放寬 gate 的理由，而是把 PM challenge 轉成「證明 exact semantic rows 是否能持續累積，或交付可驗證替代 artifact」。客戶可安全使用 Dashboard、Strategy Lab、Execution Console、paper/shadow selective sleeve、Shadow Trade Ledger、venue readiness checklist、range-chop playbook 與 canary rehearsal；**真實買入 / 加倉 / live buy-add / 自動送單 / 小額 live canary 仍不可放行**。
 
-本輪 current artifacts 顯示 support progress：`current_rows=2`、`previous_rows=1`、`delta_vs_previous=1`、`minimum_support_rows=50`、`gap=48`、`support_rows_needed=48`、`stagnant_run_count=0`、`stalled_support_accumulation=false`、`escalate_to_blocker=true`。time-to-evidence 仍是 `unknown_to_within_week`：已有連續 +1 row movement，但樣本累積速率尚未穩定；若下輪停在 `2/50` 或 `delta_vs_previous=0`，PM 需要求 missing-capability proof 與 alternative-solution artifact 並行。
+本輪 current artifacts 顯示 support progress 已由上一版「+1 row movement」轉為停滯：`current_rows=2`、`previous_rows=2`、`delta_vs_previous=0`、`minimum_support_rows=50`、`gap=48`、`support_rows_needed=48`、`stagnant_run_count=2`、`stalled_support_accumulation=false`、`escalate_to_blocker=true`。time-to-evidence 仍是 `unknown_to_within_week`，但 PM 不再接受「正在累積」的樂觀敘事；下一輪必須交付 support movement、missing-capability proof（Map / Tool / Signal / Constraint / Review）、recent-tail no-new-risk artifact、venue dry-run proof，或一個可驗證的 alternative-solution artifact。
 
 ---
 
@@ -25,7 +25,7 @@ PM 判定：客戶成功仍是北極星，但安全 gate 不可被 customer urge
 - Primary blocker: `deployment_blocker=under_minimum_exact_live_structure_bucket` / `runtime_closure_state=patch_inactive_or_blocked`。
 - Guardrail truth: `allowed_layers_raw=2` but `allowed_layers=0`; `allowed_layers_reason=under_minimum_exact_live_structure_bucket`; `execution_guardrail_reason=under_minimum_exact_live_structure_bucket`。
 - Current-live support: `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15`, `support_route_verdict=exact_bucket_present_but_below_minimum`, `support_governance_route=exact_live_bucket_present_but_below_minimum`, rows `2/50`, `gap=48`。
-- Support progress: `status=semantic_rebaseline_under_minimum`, `current_rows=2`, `previous_rows=1`, `delta_vs_previous=1`, `minimum_support_rows=50`, `gap_to_minimum=48`, `support_rows_needed=48`, `stagnant_run_count=0`, `stalled_support_accumulation=false`, `regression_basis=legacy_or_different_semantic_signature`, `escalate_to_blocker=true`。
+- Support progress: `status=semantic_rebaseline_under_minimum`, `current_rows=2`, `previous_rows=2`, `delta_vs_previous=0`, `minimum_support_rows=50`, `gap_to_minimum=48`, `support_rows_needed=48`, `stagnant_run_count=2`, `stalled_support_accumulation=false`, `regression_basis=legacy_or_different_semantic_signature`, `escalate_to_blocker=true`。
 - Legacy reference: heartbeat `1250` had q15 `173/50`, but semantic identity mismatches `calibration_window / entry_quality_label / regime_label`; it remains reference-only, not deployment closure.
 - Direct action truth: `api_trade_guardrail_active=true`; `api_trade_buy_guardrail=current_live_deployment_blocker_409`; risk-off sides remain `reduce / sell` only。
 
@@ -87,11 +87,11 @@ PM 判定：客戶成功仍是北極星，但安全 gate 不可被 customer urge
 
 ## 4. framework-capture / alternative-solution / anti-equilibrium guard
 
-本輪維持 **`ORANGE_framework_capture_risk` governance overlay**，不是因為安全 gate 可被推翻，而是避免 PM 被工程 heartbeat 的 blocker 敘事捕獲。Fresh artifacts 顯示 q15 semantic identity 漂移後 current exact support 由 `1/50` 移到 `2/50`，`gap=48`；Top-K matrix fresh 且 nearest research row 很強，但仍由 current exact support 與 venue runtime proof fail-closed。
+本輪維持 **`ORANGE_framework_capture_risk` governance overlay**，不是因為安全 gate 可被推翻，而是避免 PM 被工程 heartbeat 的 blocker 敘事捕獲。Fresh artifacts 顯示 q15 semantic identity 漂移後 current exact support 目前仍停在 `2/50`、`gap=48`，且 `previous_rows=2` / `delta_vs_previous=0` / `stagnant_run_count=2`；Top-K matrix fresh 且 nearest research row 很強，但仍由 current exact support 與 venue runtime proof fail-closed。
 
-**time-to-evidence：** 由於 current rows 只有 2，不能把 +1 movement 推估成 same-day closure；目前 bucket=`unknown_to_within_week`（需看下一輪是否維持 +1 row movement 或揭露 missing capability）。PM 不把「unknown」當停工理由；下輪必須產出 exact-row accumulation proof、missing-capability proof、recent-tail no-new-risk artifact、venue dry-run proof，或一個可驗證的替代解法 artifact。
+**time-to-evidence：** 由於 current rows 只有 2 且本輪 `delta_vs_previous=0` / `stagnant_run_count=2`，不能把 support accumulation 包裝成 same-day closure；目前 bucket=`unknown_to_within_week`，但下一輪若仍停在 `2/50`，PM 必須升級為 missing-capability proof 或 alternative-solution artifact，而不是繼續等待。PM 不把「unknown」當停工理由；下輪必須產出 exact-row accumulation proof、missing-capability proof、recent-tail no-new-risk artifact、venue dry-run proof，或一個可驗證的替代解法 artifact。
 
-**anti-equilibrium guard：** `customer-value delta` 是 current blocker 已被重新同步成 exact bucket present-but-below-minimum（2/50，而非 stale 24/50、previous PM 1/50 或 legacy 173/50）、Top-K remains `artifact_freshness_status=fresh`、Execution Console / Strategy Lab 的 paper-shadow lane 仍可用；`anti-repeat` 結果是不能再只重複 q15 gap，下一輪必須交付 support movement、missing-capability proof、venue dry-run proof 或替代 artifact；`cost-of-delay` 是客戶信心、策略可用性與工程焦點繼續被單一路徑消耗；`hypothesis inversion` 是若 exact q15 support 無法累積，最快會由 stagnation counter、recent drift no-new-risk replay、與 venue dry-run proof 暴露；`option portfolio`：60% 主路徑追 exact support + source/data proof，20% 鄰近安全交付推 paper/shadow decision-support 與 stale/fresh labeling，20% 真替代評估縮小策略/市場範圍、外部資料/工具、manual workflow、替代模型/架構或 stop/pivot；`red-team PM` 挑戰：PM 不可為工程延遲辯護，若下輪沒有客戶可見位移，就要求替代解法 artifact，而不是改寫等待文案。
+**anti-equilibrium guard：** `customer-value delta` 是 PM status 已從「+1 row progress」改成 artifact-backed stagnation truth（current exact q15 support `2/50`、`delta_vs_previous=0`、`stagnant_run_count=2`），Top-K remains `artifact_freshness_status=fresh`、Execution Console / Strategy Lab 的 paper-shadow lane 仍可用；`anti-repeat` 結果是不能再只重複 q15 gap，下一輪必須交付 support movement、missing-capability proof、venue dry-run proof 或替代 artifact；`cost-of-delay` 是客戶信心、策略可用性與工程焦點繼續被單一路徑消耗；`hypothesis inversion` 是若 exact q15 support 無法累積，最快會由 stagnation counter、recent drift no-new-risk replay、與 venue dry-run proof 暴露；`option portfolio`：60% 主路徑追 exact support + source/data proof，20% 鄰近安全交付推 paper/shadow decision-support 與 stale/fresh labeling，20% 真替代評估縮小策略/市場範圍、外部資料/工具、manual workflow、替代模型/架構或 stop/pivot；`red-team PM` 挑戰：PM 不可為工程延遲辯護，若下輪沒有客戶可見位移，就要求替代解法 artifact，而不是改寫等待文案。
 
 ---
 
