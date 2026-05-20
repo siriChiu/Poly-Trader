@@ -1,8 +1,8 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-20T20:07:26.332277+00:00`
-- source live probe generated_at: `2026-05-20T20:07:16.171221Z`
-- source q15 audit generated_at: `2026-05-20 20:06:55.506863`
+- generated_at: `2026-05-20T21:11:44.378762+00:00`
+- source live probe generated_at: `2026-05-20T21:11:34.230535Z`
+- source q15 audit generated_at: `2026-05-20 21:11:13.617137`
 - classification: **semantic_window_gap_not_raw_backfill_gap**
 - reason: older calibration windows have enough exact-bucket rows by count, but they mismatch the current support_identity on calibration_window; they are reference-only unless governance deliberately rebaselines the identity.
 - current rows: **0/50**
@@ -25,11 +25,11 @@ This section is the current support identity captured by the source artifacts ab
 
 ## Data coverage
 
-- joined labeled rows: **24454**
+- joined labeled rows: **24456**
 - current calibration window filled: **True**
-- features_normalized: count=24874, range=`2024-04-14 07:00:00.000000` → `2026-05-20 20:06:55.506863`
-- labels: count=67285, range=`2024-04-14 07:00:00.000000` → `2026-05-20 17:02:51.032122`
-- raw_market_data: count=33835, range=`2024-04-13 22:00:00.000000` → `2026-05-20 20:06:55.506863`
+- features_normalized: count=24878, range=`2024-04-14 07:00:00.000000` → `2026-05-20 21:11:13.617137`
+- labels: count=67292, range=`2024-04-14 07:00:00.000000` → `2026-05-20 18:07:16.530583`
+- raw_market_data: count=33840, range=`2024-04-13 22:00:00.000000` → `2026-05-20 21:11:13.617137`
 
 ## PM delivery pressure
 
@@ -52,9 +52,9 @@ This section is the current support identity captured by the source artifacts ab
 | --- | ---: | ---: | --- | --- | --- | --- |
 | 100 | 0 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
 | 200 | 0 | 0 | current_support_identity | False | None | win=None, pnl=None, quality=None |
-| 600 | 195 | 37 | reference_only_calibration_window_mismatch | False | 2026-05-15 04:02:03.008595 | win=0.0, pnl=-0.012, quality=-0.3015 |
-| 1000 | 427 | 87 | reference_only_calibration_window_mismatch | False | 2026-05-15 04:02:03.008595 | win=0.4483, pnl=0.0029, quality=0.1474 |
-| 5000 | 1856 | 243 | reference_only_calibration_window_mismatch | False | 2026-05-15 04:02:03.008595 | win=0.214, pnl=-0.0035, quality=-0.0588 |
+| 600 | 194 | 37 | reference_only_calibration_window_mismatch | False | 2026-05-15 04:02:03.008595 | win=0.0, pnl=-0.012, quality=-0.3015 |
+| 1000 | 425 | 87 | reference_only_calibration_window_mismatch | False | 2026-05-15 04:02:03.008595 | win=0.4483, pnl=0.0029, quality=0.1474 |
+| 5000 | 1855 | 243 | reference_only_calibration_window_mismatch | False | 2026-05-15 04:02:03.008595 | win=0.214, pnl=-0.0035, quality=-0.0588 |
 | all | 9570 | 3262 | reference_only_calibration_window_mismatch | False | 2026-05-15 04:02:03.008595 | win=0.5987, pnl=0.0083, quality=0.2817 |
 
 ## Recommended actions
