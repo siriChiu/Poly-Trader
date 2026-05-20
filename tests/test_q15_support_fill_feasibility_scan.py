@@ -63,6 +63,13 @@ def test_feasibility_scan_separates_reference_window_rows_from_current_identity(
     assert verdict["can_historical_backfill_close_current_identity"] is False
     assert verdict["can_count_reference_windows_as_deployable"] is False
     assert verdict["best_reference_exact_bucket_rows"] == 60
+    assert verdict["time_to_evidence_bucket"] == "semantic_rebaseline_review_required_before_reference_rows_count"
+    assert verdict["missing_capability_class"] == "Constraint/Review"
+    assert verdict["alternative_solution_required"] is True
+    assert verdict["customer_safe_lane"] == "paper/shadow decision-support; no buy/add live exposure"
+    assert len(verdict["alternative_solutions"]) >= 3
+    assert verdict["alternative_solutions"][1]["id"] == "semantic_rebaseline_review"
+    assert verdict["alternative_solutions"][1]["reference_window"] == "200"
 
     current_window = report["window_scan"]["100"]
     assert current_window["evidence_role"] == "current_support_identity"
@@ -77,4 +84,7 @@ def test_feasibility_scan_separates_reference_window_rows_from_current_identity(
 
     md = scan.markdown(report)
     assert "semantic_window_gap_not_raw_backfill_gap" in md
+    assert "PM delivery pressure" in md
+    assert "semantic_rebaseline_review_required_before_reference_rows_count" in md
+    assert "paper_shadow_decision_support_sleeve" in md
     assert "不能把它們直接補成 current deployment support rows" in md

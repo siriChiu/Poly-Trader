@@ -64,6 +64,22 @@ def test_execution_metadata_smoke_lane_uses_explicit_okx_and_binance_venues(monk
     assert calls[0][-5:] == ["--symbol", "BTCUSDT", "--venues", "okx", "binance"]
 
 
+def test_q15_support_fill_feasibility_lane_runs_scan_script(monkeypatch):
+    calls = []
+
+    def fake_run_serial_command(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run_serial_command)
+
+    result = hb_parallel_runner.run_q15_support_fill_feasibility()
+
+    assert result["success"] is True
+    assert calls == [hb_parallel_runner.Q15_SUPPORT_FILL_FEASIBILITY_CMD]
+    assert calls[0][-1] == "scripts/q15_support_fill_feasibility_scan.py"
+
+
 def test_execution_venue_docs_context_preserves_runtime_proof_truth_without_raw_errors():
     context = hb_parallel_runner._execution_venue_docs_context(
         {
@@ -6097,6 +6113,11 @@ def test_full_serial_timeout_caps_expensive_candidate_lanes(monkeypatch):
         hb_parallel_runner.FAST_SERIAL_TIMEOUTS["topk_walkforward_precision"]
         < hb_parallel_runner.FAST_HEARTBEAT_CRON_BUDGET_SECONDS / 2
     )
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/q15_support_fill_feasibility_scan.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["q15_support_fill_feasibility_scan"]
+    assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["q15_support_fill_feasibility_scan"] == 20
 
 
 def test_parallel_task_timeouts_are_bounded_for_full_cron_budget():

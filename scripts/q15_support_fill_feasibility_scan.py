@@ -20,12 +20,15 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 DB_PATH = PROJECT_ROOT / "poly_trader.db"
 PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 Q15_AUDIT_PATH = PROJECT_ROOT / "data" / "q15_support_audit.json"
@@ -246,6 +249,96 @@ def _matches_exact_bucket(row: dict[str, Any], identity: dict[str, Any]) -> bool
     )
 
 
+def _missing_capability_class(classification: str) -> str:
+    """Classify PM-facing missing capability without loosening deployment gates."""
+
+    return {
+        "current_identity_support_ready": "Review",
+        "current_calibration_window_data_gap": "Tool/Data",
+        "semantic_window_gap_not_raw_backfill_gap": "Constraint/Review",
+        "true_support_under_minimum": "Signal/Support",
+        "no_exact_bucket_history": "Map/Signal",
+    }.get(classification, "Review")
+
+
+def _time_to_evidence_bucket(
+    *,
+    classification: str,
+    current_rows: int,
+    minimum_support_rows: int,
+    current_window_filled: bool,
+) -> str:
+    """Produce a PM heartbeat time-to-evidence bucket from measured support facts."""
+
+    gap = max(minimum_support_rows - current_rows, 0)
+    if classification == "current_identity_support_ready":
+        return "ready_for_remaining_live_execution_gates"
+    if classification == "current_calibration_window_data_gap" and not current_window_filled:
+        return "next_heartbeat_after_label_backfill"
+    if classification == "semantic_window_gap_not_raw_backfill_gap":
+        return "semantic_rebaseline_review_required_before_reference_rows_count"
+    if classification == "no_exact_bucket_history":
+        return "unknown_until_bucket_map_or_signal_redesign"
+    if current_rows > 0 and gap <= 20:
+        return "same_day_or_next_heartbeat_if_exact_identity_keeps_accumulating"
+    if current_rows > 0:
+        return "within_week_if_exact_identity_keeps_accumulating"
+    return "unknown_until_exact_identity_rows_start_accumulating"
+
+
+def _pm_delivery_pressure(
+    *,
+    classification: str,
+    current_rows: int,
+    minimum_support_rows: int,
+    current_window_filled: bool,
+    best_reference: dict[str, Any],
+) -> dict[str, Any]:
+    """PM handoff lane: avoid endless wait by naming next proof and alternatives."""
+
+    gap = max(minimum_support_rows - current_rows, 0)
+    time_bucket = _time_to_evidence_bucket(
+        classification=classification,
+        current_rows=current_rows,
+        minimum_support_rows=minimum_support_rows,
+        current_window_filled=current_window_filled,
+    )
+    alternatives = [
+        {
+            "id": "paper_shadow_decision_support_sleeve",
+            "role": "customer_usable_now",
+            "next_artifact": "Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+            "live_exposure_allowed": False,
+        },
+        {
+            "id": "semantic_rebaseline_review",
+            "role": "support_policy_alternative",
+            "next_artifact": "OOS + Top-K + support audit replay under any proposed new calibration_window identity",
+            "live_exposure_allowed": False,
+            "reference_window": best_reference.get("window_key"),
+            "reference_rows": best_reference.get("exact_bucket_rows"),
+        },
+        {
+            "id": "venue_dry_run_readiness_proof",
+            "role": "delivery_risk_reduction",
+            "next_artifact": "OKX/Binance dry-run lifecycle proof checklist with credential state as boolean only",
+            "live_exposure_allowed": False,
+        },
+    ]
+    return {
+        "time_to_evidence_bucket": time_bucket,
+        "missing_capability_class": _missing_capability_class(classification),
+        "alternative_solution_required": classification != "current_identity_support_ready",
+        "selected_next_alternative_artifact": alternatives[0]["next_artifact"],
+        "customer_safe_lane": "paper/shadow decision-support; no buy/add live exposure",
+        "engineering_next_gate": (
+            f"exact current support rows {current_rows}/{minimum_support_rows} must reach minimum; "
+            f"gap={gap}; reference rows stay non-deployable until identity is deliberately rebaselined and reverified"
+        ),
+        "alternative_solutions": alternatives,
+    }
+
+
 def build_feasibility_report(
     *,
     rows: list[dict[str, Any]],
@@ -341,6 +434,13 @@ def build_feasibility_report(
 
     q15_route = q15_audit.get("support_route") if isinstance(q15_audit.get("support_route"), dict) else {}
     active_repair = q15_audit.get("active_repair_plan") if isinstance(q15_audit.get("active_repair_plan"), dict) else {}
+    pm_pressure = _pm_delivery_pressure(
+        classification=classification,
+        current_rows=current_rows,
+        minimum_support_rows=minimum_support_rows,
+        current_window_filled=current_window_filled,
+        best_reference=best_reference,
+    )
     verdict = {
         "classification": classification,
         "reason": reason,
@@ -358,6 +458,7 @@ def build_feasibility_report(
         "q15_active_repair_phase": active_repair.get("phase"),
         "live_exposure_allowed": bool(active_repair.get("live_exposure_allowed", False)),
         "shadow_or_paper_allowed": bool(active_repair.get("shadow_or_paper_allowed", True)),
+        **pm_pressure,
     }
 
     actions = [
@@ -407,7 +508,7 @@ def markdown(report: dict[str, Any]) -> str:
     coverage = report.get("data_coverage") or {}
     source_artifacts = report.get("source_artifacts") or {}
     lines = [
-        "# q15 support-fill feasibility scan",
+        "# current support-fill feasibility scan (q15/q35)",
         "",
         f"- generated_at: `{report.get('generated_at')}`",
         f"- source live probe generated_at: `{source_artifacts.get('live_predict_probe_generated_at')}`",
@@ -447,6 +548,26 @@ def markdown(report: dict[str, Any]) -> str:
     for table, meta in db_meta.items():
         lines.append(
             f"- {table}: count={meta.get('count')}, range=`{meta.get('min_ts')}` → `{meta.get('max_ts')}`"
+        )
+
+    lines.extend([
+        "",
+        "## PM delivery pressure",
+        "",
+        f"- time_to_evidence_bucket: `{verdict.get('time_to_evidence_bucket')}`",
+        f"- missing_capability_class: `{verdict.get('missing_capability_class')}`",
+        f"- alternative_solution_required: **{verdict.get('alternative_solution_required')}**",
+        f"- selected_next_alternative_artifact: {verdict.get('selected_next_alternative_artifact')}",
+        f"- customer_safe_lane: {verdict.get('customer_safe_lane')}",
+        f"- engineering_next_gate: {verdict.get('engineering_next_gate')}",
+        "",
+        "### Alternative-solution candidates",
+        "",
+    ])
+    for item in verdict.get("alternative_solutions") or []:
+        lines.append(
+            f"- `{item.get('id')}` ({item.get('role')}): {item.get('next_artifact')} "
+            f"/ live_exposure_allowed={item.get('live_exposure_allowed')}"
         )
 
     lines.extend([
@@ -514,10 +635,12 @@ def main() -> None:
     OUT_MD.write_text(markdown(report), encoding="utf-8")
     verdict = report["verdict"]
     print(
-        "q15 support-fill feasibility: "
+        "current support-fill feasibility: "
         f"{verdict['classification']} rows={verdict['current_exact_bucket_rows']}/"
         f"{verdict['minimum_support_rows']} best_reference="
-        f"{verdict.get('best_reference_window')}:{verdict.get('best_reference_exact_bucket_rows')}"
+        f"{verdict.get('best_reference_window')}:{verdict.get('best_reference_exact_bucket_rows')} "
+        f"time_to_evidence={verdict.get('time_to_evidence_bucket')} "
+        f"missing_capability={verdict.get('missing_capability_class')}"
     )
 
 

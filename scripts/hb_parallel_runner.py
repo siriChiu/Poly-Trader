@@ -54,6 +54,7 @@ FAST_SERIAL_TIMEOUTS = {
     "hb_leaderboard_candidate_probe": 90,
     "topk_walkforward_precision": 90,
     "hb_q15_support_audit": 20,
+    "q15_support_fill_feasibility_scan": 20,
     "hb_q15_bucket_root_cause": 20,
     "hb_q15_boundary_replay": 20,
     "execution_metadata_smoke": 30,
@@ -120,6 +121,7 @@ PREDICT_PROBE_CMD = [PYTHON, "scripts/hb_predict_probe.py"]
 LIVE_DQ_DRILLDOWN_CMD = [PYTHON, "scripts/live_decision_quality_drilldown.py"]
 Q35_SCALING_AUDIT_CMD = [PYTHON, "scripts/hb_q35_scaling_audit.py"]
 Q15_SUPPORT_AUDIT_CMD = [PYTHON, "scripts/hb_q15_support_audit.py"]
+Q15_SUPPORT_FILL_FEASIBILITY_CMD = [PYTHON, "scripts/q15_support_fill_feasibility_scan.py"]
 Q15_BUCKET_ROOT_CAUSE_CMD = [PYTHON, "scripts/hb_q15_bucket_root_cause.py"]
 Q15_BOUNDARY_REPLAY_CMD = [PYTHON, "scripts/hb_q15_boundary_replay.py"]
 CIRCUIT_BREAKER_AUDIT_CMD = [PYTHON, "scripts/hb_circuit_breaker_audit.py"]
@@ -5791,6 +5793,10 @@ def run_q15_support_audit() -> Dict[str, Any]:
     return _run_serial_command(Q15_SUPPORT_AUDIT_CMD)
 
 
+def run_q15_support_fill_feasibility() -> Dict[str, Any]:
+    return _run_serial_command(Q15_SUPPORT_FILL_FEASIBILITY_CMD)
+
+
 def run_q15_bucket_root_cause() -> Dict[str, Any]:
     return _run_serial_command(Q15_BUCKET_ROOT_CAUSE_CMD)
 
@@ -7004,6 +7010,32 @@ def collect_q15_support_audit_diagnostics() -> Dict[str, Any]:
         "component_experiment": component_experiment,
         "active_repair_plan": active_repair_plan if isinstance(active_repair_plan, dict) else {},
         "next_action": payload.get("next_action"),
+    }
+
+
+def collect_q15_support_fill_feasibility_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "q15_support_fill_feasibility.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    verdict = payload.get("verdict") if isinstance(payload.get("verdict"), dict) else {}
+    return {
+        "generated_at": payload.get("generated_at"),
+        "artifact": payload.get("artifact"),
+        "support_identity": payload.get("support_identity") or {},
+        "data_coverage": payload.get("data_coverage") or {},
+        "verdict": verdict,
+        "classification": verdict.get("classification"),
+        "current_exact_bucket_rows": verdict.get("current_exact_bucket_rows"),
+        "minimum_support_rows": verdict.get("minimum_support_rows"),
+        "gap_to_minimum": verdict.get("gap_to_minimum"),
+        "time_to_evidence_bucket": verdict.get("time_to_evidence_bucket"),
+        "missing_capability_class": verdict.get("missing_capability_class"),
+        "alternative_solution_required": verdict.get("alternative_solution_required"),
+        "selected_next_alternative_artifact": verdict.get("selected_next_alternative_artifact"),
     }
 
 
@@ -8528,6 +8560,31 @@ def main(argv=None):
         if live_drilldown_result.get("stderr"):
             print(f"\n--- live_decision_quality_drilldown (root-cause resynced) stderr ---\n{live_drilldown_result['stderr']}")
 
+    write_progress(run_label, "q15_support_fill_feasibility")
+    q15_support_fill_feasibility_result = run_q15_support_fill_feasibility()
+    q15_support_fill_feasibility_summary = collect_q15_support_fill_feasibility_diagnostics()
+    print(
+        f"🧮 Current support-fill feasibility：{'通過' if q15_support_fill_feasibility_result['success'] else '失敗'} "
+        f"(rc={q15_support_fill_feasibility_result['returncode']})"
+    )
+    if q15_support_fill_feasibility_result.get("stdout"):
+        lines = q15_support_fill_feasibility_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- q15_support_fill_feasibility_scan ---\n{preview}")
+    if q15_support_fill_feasibility_result.get("stderr"):
+        print(f"\n--- q15_support_fill_feasibility_scan stderr ---\n{q15_support_fill_feasibility_result['stderr']}")
+    if q15_support_fill_feasibility_summary:
+        print(
+            "🧮 Current support backfill feasibility："
+            f"classification={q15_support_fill_feasibility_summary.get('classification')} "
+            f"rows={q15_support_fill_feasibility_summary.get('current_exact_bucket_rows')}/"
+            f"{q15_support_fill_feasibility_summary.get('minimum_support_rows')} "
+            f"time_to_evidence={q15_support_fill_feasibility_summary.get('time_to_evidence_bucket')} "
+            f"missing={q15_support_fill_feasibility_summary.get('missing_capability_class')}"
+        )
+
     write_progress(run_label, "q15_boundary_replay")
     q15_boundary_replay_result = run_q15_boundary_replay()
     q15_boundary_replay_summary = collect_q15_boundary_replay_diagnostics()
@@ -8640,6 +8697,11 @@ def main(argv=None):
             "diagnostics": q15_bucket_root_cause_summary,
             "artifact_path": Path(PROJECT_ROOT) / "data" / "q15_bucket_root_cause.json",
         },
+        "q15_support_fill_feasibility": {
+            "result": q15_support_fill_feasibility_result,
+            "diagnostics": q15_support_fill_feasibility_summary,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "q15_support_fill_feasibility.json",
+        },
         "hb_q15_boundary_replay": {
             "result": q15_boundary_replay_result,
             "diagnostics": q15_boundary_replay_summary,
@@ -8745,6 +8807,7 @@ def main(argv=None):
         high_conviction_topk_result,
         q15_support_result,
         q15_bucket_root_cause_result,
+        q15_support_fill_feasibility_result,
         q15_boundary_replay_result,
         execution_metadata_smoke_result,
         auto_propose_result,
