@@ -1,10 +1,10 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-20 16:16:35.147546**
+- generated_at: **2026-05-20 17:10:25.226024**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q15 bucket**
-- verdict: **boundary_sensitivity_candidate**
-- candidate_patch_type: **bucket_boundary_review**
+- verdict: **same_lane_neighbor_bucket_dominates**
+- candidate_patch_type: **structure_component_scoring**
 - candidate_patch_feature: **feat_4h_bb_pct_b**
 - artifact_context_freshness: **current_context** (`[]`)
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q15', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
@@ -12,28 +12,28 @@
 ## Current live
 - live path: **chop / CAUTION / C**
 - structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
-- structure_quality: **0.333**
-- gap_to_q35_boundary: **0.017**
+- structure_quality: **0.3115**
+- gap_to_q35_boundary: **0.0385**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `unsupported_exact_live_structure_bucket`
 - support rows/minimum/gap: **0 / 50 / 50**
 
 ## Exact live lane
-- rows: **252**
-- bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q65': 67, 'CAUTION|base_caution_regime_or_bias|q00': 63, 'CAUTION|base_caution_regime_or_bias|q15': 54, 'CAUTION|base_caution_regime_or_bias|q85': 52, 'CAUTION|base_caution_regime_or_bias|q35': 16}`
+- rows: **250**
+- bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q65': 67, 'CAUTION|base_caution_regime_or_bias|q00': 63, 'CAUTION|base_caution_regime_or_bias|q15': 54, 'CAUTION|base_caution_regime_or_bias|q85': 50, 'CAUTION|base_caution_regime_or_bias|q35': 16}`
 - dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** (67 rows)
-- near_boundary_window: `{'lower': 0.333, 'upper': 0.35}`
-- near_boundary_rows: **1**
+- near_boundary_window: `{'lower': 0.3115, 'upper': 0.35}`
+- near_boundary_rows: **11**
 
 ## Decision
-- reason: current_structure_quality 已貼近 q35 邊界，且 exact-lane 存在 near-boundary rows；可把 current bucket↔q35 分桶公式列入候選，但仍需先做 exact-support legality 驗證。
-- candidate_patch: `{'type': 'bucket_boundary_review', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.624, 'current_normalized': 0.624, 'needed_raw_delta_to_cross_q35': 0.05, 'target_bucket_p25': 0.7082, 'target_bucket_median': 0.7643, 'needed_raw_delta_to_target_p25': 0.0842, 'needed_raw_delta_to_target_median': 0.1403}`
-- verify_next: 以歷史 lane 回放驗證 boundary review 不會把 0-row blocker 假裝成已解。
+- reason: same exact lane 有明顯鄰近 bucket 樣本，current row 與 q35 support 的差距主要來自結構 component，不是 generic breaker / q35 總體治理。
+- candidate_patch: `{'type': 'structure_component_scoring', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.5835, 'current_normalized': 0.5835, 'needed_raw_delta_to_cross_q35': 0.1132, 'target_bucket_p25': 0.7082, 'target_bucket_median': 0.7643, 'needed_raw_delta_to_target_p25': 0.1247, 'needed_raw_delta_to_target_median': 0.1808}`
+- verify_next: 比較 current row 與 dominant neighbor bucket 的 4H component 差值，再做最小 counterfactual。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.624 / norm=0.624 / Δto_cross_q35=0.05 / target_p25=0.7082 / target_median=0.7643
-- `feat_4h_dist_bb_lower`: current=1.5288 / norm=0.1911 / Δto_cross_q35=0.4121 / target_p25=5.5052 / target_median=5.8772
-- `feat_4h_dist_swing_low`: current=1.7517 / norm=0.1752 / Δto_cross_q35=0.5152 / target_p25=8.7982 / target_median=9.2352
+- `feat_4h_bb_pct_b`: current=0.5835 / norm=0.5835 / Δto_cross_q35=0.1132 / target_p25=0.7082 / target_median=0.7643
+- `feat_4h_dist_bb_lower`: current=1.4348 / norm=0.1794 / Δto_cross_q35=0.9333 / target_p25=5.5052 / target_median=5.8772
+- `feat_4h_dist_swing_low`: current=1.6332 / norm=0.1633 / Δto_cross_q35=1.1667 / target_p25=8.7982 / target_median=9.2352
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
