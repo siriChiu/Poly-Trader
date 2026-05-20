@@ -171,6 +171,97 @@ def test_build_probe_payload_promotes_circuit_breaker_release_math_to_top_level(
 
 
 
+def test_build_probe_payload_canonicalizes_zero_row_q15_insufficient_support_mode(monkeypatch):
+    monkeypatch.setattr(hb_predict_probe, "build_live_pathology_scope_surface", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(hb_predict_probe, "_load_q35_scaling_audit_summary", lambda _bucket: {})
+
+    q15_current_overlay = {
+        "artifact_context_freshness": {"verdict": "current_context"},
+        "scope_applicability": {
+            "status": "current_live_q15_lane_active",
+            "active_for_current_live_row": True,
+            "current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        },
+        "support_identity": {
+            "target_col": "simulated_pyramid_win",
+            "horizon_minutes": 1440,
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "regime_label": "bear",
+            "regime_gate": "CAUTION",
+            "entry_quality_label": "B",
+            "calibration_window": 200,
+            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+        },
+        "support_route": {
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "verdict": "insufficient_support_everywhere",
+            "deployable": False,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_progress": {
+                "status": "semantic_rebaseline_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+        },
+    }
+
+    payload = hb_predict_probe._build_probe_payload(
+        latest={"timestamp": "2026-05-20 02:02:38.742259", "regime_label": "bear"},
+        result={
+            "target_col": "simulated_pyramid_win",
+            "used_model": "regime_bear_ensemble",
+            "model_type": "RegimeAwarePredictor",
+            "signal": "HOLD",
+            "confidence": 0.304771,
+            "regime_label": "bear",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "entry_quality": 0.7374,
+            "entry_quality_label": "B",
+            "decision_quality_label": "D",
+            "decision_quality_score": 0.0217,
+            "decision_quality_horizon_minutes": 1440,
+            "decision_quality_calibration_window": 200,
+            "allowed_layers_raw": 2,
+            "allowed_layers_raw_reason": "caution_gate_caps_two_layers",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "unsupported_exact_live_structure_bucket",
+            "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "deployment_blocker_source": "decision_quality_contract",
+            "deployment_blocker_details": {
+                "support_mode": "exact_bucket_present_but_below_minimum",
+                "current_live_structure_bucket_rows": 0,
+                "exact_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 50,
+                "support_route_verdict": "insufficient_support_everywhere",
+                "support_route_deployable": False,
+                "support_governance_route": "exact_live_lane_proxy_available",
+            },
+            "support_route_verdict": "insufficient_support_everywhere",
+            "support_route_deployable": False,
+            "decision_quality_scope_diagnostics": {},
+        },
+        target_col="simulated_pyramid_win",
+        used_model="regime_bear_ensemble",
+        current_live_structure_bucket="CAUTION|base_caution_regime_or_bias|q15",
+        current_live_structure_bucket_rows=0,
+        q15_support_audit=q15_current_overlay,
+        four_h_non_null={},
+        lag_non_null={},
+    )
+
+    assert payload["current_live_structure_bucket_rows"] == 0
+    assert payload["support_route_verdict"] == "insufficient_support_everywhere"
+    assert payload["support_progress"]["current_rows"] == 0
+    assert payload["deployment_blocker_details"]["support_mode"] == "exact_bucket_unsupported_block"
+    assert "0/50" in payload["deployment_blocker_reason"]
+
+
+
 def test_build_probe_payload_canonicalizes_zero_row_non_q15_support_overlay(monkeypatch):
     monkeypatch.setattr(hb_predict_probe, "build_live_pathology_scope_surface", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(hb_predict_probe, "_load_q35_scaling_audit_summary", lambda _bucket: {})

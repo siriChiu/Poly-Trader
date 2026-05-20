@@ -1099,7 +1099,12 @@ def _build_probe_payload(
             f"{decision_quality_copy}；目前維持不可部署治理。"
         )
         deployment_blocker_details["reason"] = support_truth_reason
-        if progress_rows_value <= 0 and support_route_verdict == "exact_bucket_unsupported_block":
+        if progress_rows_value <= 0:
+            # Zero exact current-live rows are absent support, not an accumulating
+            # under-minimum bucket.  q15 semantic-rebaseline overlays may report
+            # `insufficient_support_everywhere` instead of the generic
+            # `exact_bucket_unsupported_block`; keep the machine support_mode
+            # canonical so operator surfaces do not imply samples exist.
             deployment_blocker_details["support_mode"] = "exact_bucket_unsupported_block"
         else:
             deployment_blocker_details["support_mode"] = "exact_bucket_present_but_below_minimum"
