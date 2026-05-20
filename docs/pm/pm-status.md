@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-05-20 18:16 CST_
+_最後更新：2026-05-20 18:32 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; update only when PM classification, blocker interpretation, customer-usable lane, engineering ask, or next gate changes.
 
@@ -25,7 +25,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 - Primary blocker: `deployment_blocker=unsupported_exact_live_structure_bucket` / `runtime_closure_state=patch_inactive_or_blocked`。
 - Guardrail truth: `allowed_layers_raw=1` but `allowed_layers=0`；`allowed_layers_reason=unsupported_exact_live_structure_bucket`；`execution_guardrail_reason=unsupported_exact_live_structure_bucket`。
 - Current-live support: `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35`, `support_route_verdict=exact_bucket_unsupported_block`, `support_governance_route=exact_live_lane_proxy_available`, rows `0/50`, `gap=50`。
-- Support progress: `support_progress_status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `previous_rows=0` / `delta_vs_previous=0` / `stagnant_run_count=3` / exact-live-lane proxy rows `8` reference-only。
+- Support progress: `support_progress_status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `previous_rows=0` / `delta_vs_previous=0` / `stagnant_run_count=4` / exact-live-lane proxy rows `8` reference-only。
 - Direct action truth: `api_trade_guardrail_active=true`; `api_trade_buy_guardrail=current_live_deployment_blocker_409`; risk-off sides remain `reduce / sell` only。
 
 **PM verdict：接受「breaker_clear，但 current exact q35 support 是 0/50、尚未建立同一 support identity 的精準樣本，所以 live buy/add 仍 fail-closed」。不可把 exact-live-lane proxy rows、legacy reference、Top-K OOS pass 或 governance route 包裝成 deployable。**
@@ -40,7 +40,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 - `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-20T10:02:33.641095+00:00`；`artifact_freshness_status=fresh`, `artifact_deployment_blocking=false`, `samples=24681`, `row_count=24`, `runtime_blocked_candidate_rows=6`。
 - Matrix payload: `deployable_rows=0`, `risk_qualified_rows=6`, `support_route=exact_bucket_unsupported_block`, `deployment_blocker=unsupported_exact_live_structure_bucket`, `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35`, bucket rows `0/50`, `gap=50`。
-- Nearest research candidate: `model=random_forest`, `feature_profile=current_full`, `top_k=top_2pct`, `oos_roi=0.6884`, `win_rate=0.8621`, `profit_factor=12.4161`, `max_drawdown=0.027`, `worst_fold=0.0959`, `trade_count=58`, `deployment_candidate_tier=runtime_blocked_oos_pass`, `deployable_verdict=not_deployable`。
+- Nearest research candidate: `model=logistic_regression`, `feature_profile=current_full`, `top_k=top_2pct`, `oos_roi=0.9324`, `win_rate=0.8621`, `profit_factor=19.8864`, `max_drawdown=0.022`, `worst_fold=0.2068`, `trade_count=58`, `deployment_candidate_tier=runtime_blocked_oos_pass`, `deployable_verdict=not_deployable`。
 
 **PM verdict：Top-K remains fresh research / paper-shadow evidence. Strategy Lab 可優先顯示 nearest-deployable research rows，但 `deployable_rows=0` means no risk-on live action.**
 
@@ -97,7 +97,7 @@ Customer-usable lanes now:
 工程 heartbeat 下次不得只輸出「等待更多資料 / gate 未過」。PM 站在客戶側，要求至少交付或驗證下列其中一項：
 
 1. **Exact current support lane**：刷新 live probe / support audit / support-fill feasibility，直接顯示 current rows 是否從 `0/50` 開始 movement；若仍為 0，必須說明缺的是 Map / Tool / Signal / Constraint / Review 哪一類能力。
-2. **Recent tail root-cause lane**：針對 recent bear pocket（window `250` win_rate `32.0%`）交付一個 no-new-risk / shadow-only falsification artifact；不可把 shadow-only artifact 誤寫成 release patch。
+2. **Recent tail root-cause lane**：針對 recent bear pocket（window `250` win_rate `33.2%`）交付一個 no-new-risk / shadow-only falsification artifact；不可把 shadow-only artifact 誤寫成 release patch。
 3. **Top-K freshness lane**：維持 `data/high_conviction_topk_oos_matrix.json` 在 freshness target 內，或讓 `/api/models/leaderboard` / Strategy Lab 明確標示 stale/reference-only。
 4. **Customer-usable lane**：用 route/API/test/browser proof 證明 `/execution` paper/shadow selective sleeve、Shadow Trade Ledger、range-chop playbook 或 dry-run readiness 可操作。
 5. **Venue proof lane**：產出 OKX sandbox/dry-run 或 metadata-to-runtime proof checklist；credential present 只可顯示布林，不可洩漏 secret。
