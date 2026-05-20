@@ -1,8 +1,8 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-20T11:03:18.962111+00:00`
-- source live probe generated_at: `2026-05-20T11:02:30.485714Z`
-- source q15 audit generated_at: `2026-05-20 11:02:04.445018`
+- generated_at: `2026-05-20T12:11:15.606552+00:00`
+- source live probe generated_at: `2026-05-20T12:11:05.699079Z`
+- source q15 audit generated_at: `2026-05-20 12:10:42.519595`
 - classification: **semantic_window_gap_not_raw_backfill_gap**
 - reason: older calibration windows have enough exact-bucket rows by count, but they mismatch the current support_identity on calibration_window; they are reference-only unless governance deliberately rebaselines the identity.
 - current rows: **0/50**
@@ -25,11 +25,11 @@ This section is the current support identity captured by the source artifacts ab
 
 ## Data coverage
 
-- joined labeled rows: **24416**
+- joined labeled rows: **24423**
 - current calibration window filled: **True**
-- features_normalized: count=24834, range=`2024-04-14 07:00:00.000000` → `2026-05-20 11:02:04.445018`
-- labels: count=67210, range=`2024-04-14 07:00:00.000000` → `2026-05-20 08:01:58.664850`
-- raw_market_data: count=33786, range=`2024-04-13 22:00:00.000000` → `2026-05-20 11:02:04.445018`
+- features_normalized: count=24838, range=`2024-04-14 07:00:00.000000` → `2026-05-20 12:10:42.519595`
+- labels: count=67222, range=`2024-04-14 07:00:00.000000` → `2026-05-20 09:03:18.659798`
+- raw_market_data: count=33792, range=`2024-04-13 22:00:00.000000` → `2026-05-20 12:10:42.519595`
 
 ## PM delivery pressure
 
@@ -54,7 +54,7 @@ This section is the current support identity captured by the source artifacts ab
 | 200 | 0 | 0 | current_support_identity | False | None | win=None, pnl=None, quality=None |
 | 600 | 54 | 3 | reference_only_calibration_window_mismatch | False | 2026-05-15 03:02:10.622621 | win=0.0, pnl=-0.0114, quality=-0.2942 |
 | 1000 | 93 | 5 | reference_only_calibration_window_mismatch | False | 2026-05-15 03:02:10.622621 | win=0.4, pnl=-0.0023, quality=0.0303 |
-| 5000 | 294 | 14 | reference_only_calibration_window_mismatch | False | 2026-05-15 03:02:10.622621 | win=0.1429, pnl=-0.0079, quality=-0.1682 |
+| 5000 | 290 | 14 | reference_only_calibration_window_mismatch | False | 2026-05-15 03:02:10.622621 | win=0.1429, pnl=-0.0079, quality=-0.1682 |
 | all | 1329 | 537 | reference_only_calibration_window_mismatch | False | 2026-05-15 03:02:10.622621 | win=0.946, pnl=0.0257, quality=0.6693 |
 
 ## Recommended actions
