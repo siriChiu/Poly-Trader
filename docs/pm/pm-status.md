@@ -84,7 +84,7 @@ Customer-usable lanes now:
 
 ## 4. framework-capture / alternative-solution / anti-equilibrium guard
 
-本輪維持 **`ORANGE_framework_capture_risk` governance overlay** 與 **`ORANGE_alternative_solution_required`**，不是因為安全 gate 可被推翻，而是避免 PM 被工程 blocker 敘事捕獲。`customer-value delta`：PM status 已承認最新 q35 `0/50 gap=50`、breaker `release_ready=true` / `41/50`、Top-K `artifact_freshness_status=fresh` / `samples=24689`，並保留 Execution Console / Strategy Lab 的 paper-shadow lane；但 no live exposure。
+本輪維持 **`ORANGE_framework_capture_risk` governance overlay** 與 **`ORANGE_alternative_solution_required`**，不是因為安全 gate 可被推翻，而是避免 PM 被工程 blocker 敘事捕獲。`customer-value delta`：PM status 已承認最新 q35 `0/50 gap=50`、breaker `release_ready=true` / `41/50`、Top-K `artifact_freshness_status=fresh` / `samples=24694`，並保留 Execution Console / Strategy Lab 的 paper-shadow lane；但 no live exposure。
 
 **time-to-evidence：** `next_heartbeat_or_same_day` for exact q35 support movement if the same support identity keeps accumulating；`same_day` for venue dry-run metadata proof if credentials/config are supplied；`within_week_or_unknown` for true venue lifecycle proof without credentials。PM 不把「治理參考」包裝成 deploy-ready；下輪必須產出 exact-row accumulation proof、missing-capability proof、recent-tail no-new-risk artifact、venue dry-run proof，或一個可驗證的 alternative-solution artifact。
 
@@ -97,7 +97,7 @@ Customer-usable lanes now:
 工程 heartbeat 下次不得只輸出「等待更多資料 / gate 未過」。PM 站在客戶側，要求至少交付或驗證下列其中一項：
 
 1. **Exact current support lane**：刷新 live probe / support audit / support-fill feasibility，直接顯示 current rows 是否從 `0/50` 開始 movement；若仍為 0，必須說明缺的是 Map / Tool / Signal / Constraint / Review 哪一類能力。
-2. **Recent tail root-cause lane**：針對 recent bear pocket（window `250` win_rate `36.8%`）交付一個 no-new-risk / shadow-only falsification artifact；不可把 shadow-only artifact 誤寫成 release patch。
+2. **Recent tail root-cause lane**：針對 recent bear pocket（window `250` win_rate `38.4%`）交付一個 no-new-risk / shadow-only falsification artifact；不可把 shadow-only artifact 誤寫成 release patch。
 3. **Top-K freshness lane**：維持 `data/high_conviction_topk_oos_matrix.json` 在 freshness target 內，或讓 `/api/models/leaderboard` / Strategy Lab 明確標示 stale/reference-only。
 4. **Customer-usable lane**：用 route/API/test/browser proof 證明 `/execution` paper/shadow selective sleeve、Shadow Trade Ledger、range-chop playbook 或 dry-run readiness 可操作。
 5. **Venue proof lane**：產出 OKX sandbox/dry-run 或 metadata-to-runtime proof checklist；credential present 只可顯示布林，不可洩漏 secret。
