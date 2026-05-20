@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-05-20 20:11 CST_
+_最後更新：2026-05-20 20:33 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; update only when PM classification, blocker interpretation, customer-usable lane, engineering ask, or next gate changes.
 
@@ -25,7 +25,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 - Primary blocker: `deployment_blocker=unsupported_exact_live_structure_bucket` / `runtime_closure_state=patch_inactive_or_blocked`。
 - Guardrail truth: `allowed_layers_raw=1` but `allowed_layers=0`；`allowed_layers_reason=unsupported_exact_live_structure_bucket`；`execution_guardrail_reason=unsupported_exact_live_structure_bucket`。
 - Current-live support: `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35`, `support_route_verdict=exact_bucket_unsupported_block`, `support_governance_route=exact_live_lane_proxy_available`, rows `0/50`, `gap=50`。
-- Support progress: `support_progress_status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `previous_rows=0` / `delta_vs_previous=0` / `stagnant_run_count=4` / exact-live-lane proxy rows `8` reference-only。
+- Support progress: `support_progress_status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `previous_rows=0` / `delta_vs_previous=0` / `stagnant_run_count=5` / exact-live-lane proxy rows `8` reference-only。
 - Direct action truth: `api_trade_guardrail_active=true`; `api_trade_buy_guardrail=current_live_deployment_blocker_409`; risk-off sides remain `reduce / sell` only。
 
 **PM verdict：接受「breaker_clear，但 current exact q35 support 是 0/50、尚未建立同一 support identity 的精準樣本，所以 live buy/add 仍 fail-closed」。不可把 exact-live-lane proxy rows、legacy reference、Top-K OOS pass 或 governance route 包裝成 deployable。**
