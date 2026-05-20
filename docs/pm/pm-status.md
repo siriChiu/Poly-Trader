@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-05-20 20:33 CST_
+_最後更新：2026-05-20 21:12 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; update only when PM classification, blocker interpretation, customer-usable lane, engineering ask, or next gate changes.
 
@@ -20,8 +20,8 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Current-live blocker
 
-- `data/live_predict_probe.json` generated at `2026-05-20T12:11:05.699079Z`；canonical target remains `simulated_pyramid_win`。
-- Runtime signal: `signal=HOLD` / `should_trade=false` / confidence `0.603624`；`regime_label=chop` / `regime_gate=CAUTION` / `entry_quality_label=C` / `decision_quality_label=D` / decision quality score `0.0791`。
+- `data/live_predict_probe.json` generated at `2026-05-20T13:10:12.284438Z`；canonical target remains `simulated_pyramid_win`。
+- Runtime signal: `signal=HOLD` / `should_trade=false` / confidence `0.6046`；`regime_label=chop` / `regime_gate=CAUTION` / `entry_quality_label=C` / `decision_quality_label=D` / decision quality score `0.0925`。
 - Primary blocker: `deployment_blocker=unsupported_exact_live_structure_bucket` / `runtime_closure_state=patch_inactive_or_blocked`。
 - Guardrail truth: `allowed_layers_raw=1` but `allowed_layers=0`；`allowed_layers_reason=unsupported_exact_live_structure_bucket`；`execution_guardrail_reason=unsupported_exact_live_structure_bucket`。
 - Current-live support: `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35`, `support_route_verdict=exact_bucket_unsupported_block`, `support_governance_route=exact_live_lane_proxy_available`, rows `0/50`, `gap=50`。
@@ -32,13 +32,13 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Circuit breaker
 
-- Latest artifact `data/circuit_breaker_audit.json` generated at `2026-05-20T12:11:07.962784Z`；verdict `breaker_clear`。
+- Latest artifact `data/circuit_breaker_audit.json` generated at `2026-05-20T13:10:14.542335Z`；verdict `breaker_clear`。
 - Release context: `release_ready=true`, recent-window wins `41/50`, required wins `15/50`, `additional_recent_window_wins_needed=0`。
 - PM interpretation: breaker math is clear, but q35 exact support and venue runtime proof still block live exposure.
 
 ### Research-to-delivery candidates / Top-K
 
-- `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-20T12:02:21.643945+00:00`；`artifact_freshness_status=fresh`, `artifact_deployment_blocking=false`, `samples=24689`, `row_count=24`, `runtime_blocked_candidate_rows=6`。
+- `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-20T13:03:51.538781+00:00`；`artifact_freshness_status=fresh`, `artifact_deployment_blocking=false`, `samples=24694`, `row_count=24`, `runtime_blocked_candidate_rows=6`。
 - Matrix payload: `deployable_rows=0`, `risk_qualified_rows=6`, `support_route=exact_bucket_unsupported_block`, `deployment_blocker=unsupported_exact_live_structure_bucket`, `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35`, bucket rows `0/50`, `gap=50`。
 - Nearest research candidate: `model=logistic_regression`, `feature_profile=current_full`, `top_k=top_2pct`, `oos_roi=0.9324`, `win_rate=0.8621`, `profit_factor=19.8864`, `max_drawdown=0.022`, `worst_fold=0.2068`, `trade_count=58`, `deployment_candidate_tier=runtime_blocked_oos_pass`, `deployable_verdict=not_deployable`。
 
@@ -46,7 +46,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Venue readiness
 
-- `data/execution_metadata_smoke.json` generated at `2026-05-20T12:11:18.261925Z`。
+- `data/execution_metadata_smoke.json` generated at `2026-05-20T13:10:24.792901Z`。
 - Summary: `runtime_ready=false`, `runtime_ready_count=0`, `venues_checked=2`, `ok_count=1`, `readiness_state=blocked_until_runtime_lifecycle_proof`。
 - OKX: adapter supported/enabled, but credentials, order-ack lifecycle, and fill lifecycle proof remain incomplete.
 - Binance: adapter unsupported/config disabled, metadata contract not passed, credentials and lifecycle proof missing.
@@ -54,16 +54,16 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Recent market/model risk
 
-- `data/recent_drift_report.json` generated at `2026-05-20T12:10:56.100563+00:00`。
-- Full sample rows `24554`。
-- Recent canonical window `250`: wins `92`, losses `158`, win_rate `36.8%`, dominant regime `bear(100.0%)`, alerts `regime_concentration, regime_shift`。
-- Window `100`: wins `60`, losses `40`, win_rate `60.0%`, also bear-concentrated。
+- `data/recent_drift_report.json` generated at `2026-05-20T13:10:00.259954+00:00`。
+- Full sample rows `24558`。
+- Recent canonical window `250`: wins `96`, losses `154`, win_rate `38.4%`, dominant regime `bear(100.0%)`, alerts `regime_concentration, regime_shift`。
+- Window `100`: wins `64`, losses `36`, win_rate `64.0%`, also bear-concentrated。
 
 **PM verdict：recent drift reinforces paper/shadow-only research and root-cause work. It cannot be packaged as a live deployment patch.**
 
 ### Support-fill feasibility / alternative-solution pressure
 
-- `data/q15_support_fill_feasibility.json` generated at `2026-05-20T12:11:15.606552+00:00`（artifact name still says q15 for compatibility, but scanned current support identity is q35）。
+- `data/q15_support_fill_feasibility.json` generated at `2026-05-20T13:10:22.170328+00:00`（artifact name still says q15 for compatibility, but scanned current support identity is q35）。
 - Verdict: `classification=semantic_window_gap_not_raw_backfill_gap`, current calibration window `200`, current exact bucket rows `0/50`, `gap=50`, `time_to_evidence_bucket=semantic_rebaseline_review_required_before_reference_rows_count`, `missing_capability_class=Constraint/Review`, `alternative_solution_required=True`。
 - Reference-only evidence: `best_reference_window=all`, `best_reference_exact_bucket_rows=537`, but `best_reference_evidence_role=reference_only_calibration_window_mismatch`; reference rows cannot be counted as deployable support unless support identity is deliberately rebaselined and fully reverified.
 - Selected next safe artifact: Execution Console / Strategy Lab paper-shadow proof with deployable=false copy.
