@@ -8839,9 +8839,38 @@ def main(argv=None):
         serial_results=serial_result_payload,
         parallel_results=results,
     )
+    pm_status_sync: Dict[str, Any] = {"attempted": True}
+    try:
+        pm_status_result = subprocess.run(
+            [PYTHON, str(Path(PROJECT_ROOT) / "scripts" / "sync_pm_status.py")],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        pm_status_sync.update(
+            {
+                "success": pm_status_result.returncode == 0,
+                "returncode": pm_status_result.returncode,
+                "stdout": (pm_status_result.stdout or "").strip(),
+                "stderr": (pm_status_result.stderr or "").strip(),
+            }
+        )
+        if pm_status_result.returncode == 0:
+            print("📝 PM status：已 sync docs/pm/pm-status.md")
+        else:
+            print(
+                "⚠️  PM status sync failed："
+                f"returncode={pm_status_result.returncode} stderr={(pm_status_result.stderr or '').strip()}"
+            )
+    except Exception as exc:
+        pm_status_sync.update({"success": False, "error": str(exc)})
+        print(f"⚠️  PM status sync failed：{exc}")
+
     docs_sync = collect_current_state_docs_sync_status()
     docs_sync["auto_synced"] = docs_sync_write.get("success", False)
     docs_sync["written_docs"] = docs_sync_write.get("written_docs") or []
+    docs_sync["pm_status_sync"] = pm_status_sync
     if docs_sync_write.get("errors"):
         docs_sync["errors"] = docs_sync_write.get("errors")
     if docs_sync_write.get("success"):

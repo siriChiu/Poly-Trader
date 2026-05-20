@@ -1,10 +1,10 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-20 15:09:05.149234**
+- generated_at: **2026-05-20 16:16:35.147546**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q15 bucket**
-- verdict: **structure_scoring_gap_not_boundary**
-- candidate_patch_type: **structure_component_scoring**
+- verdict: **boundary_sensitivity_candidate**
+- candidate_patch_type: **bucket_boundary_review**
 - candidate_patch_feature: **feat_4h_bb_pct_b**
 - artifact_context_freshness: **current_context** (`[]`)
 - support_identity: `{'target_col': 'simulated_pyramid_win', 'horizon_minutes': 1440, 'current_live_structure_bucket': 'CAUTION|base_caution_regime_or_bias|q15', 'regime_label': 'chop', 'regime_gate': 'CAUTION', 'entry_quality_label': 'C', 'calibration_window': 200, 'bucket_semantic_signature': 'live_structure_bucket:q15_support_identity:v2'}`
@@ -12,8 +12,8 @@
 ## Current live
 - live path: **chop / CAUTION / C**
 - structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
-- structure_quality: **0.3488**
-- gap_to_q35_boundary: **0.0012**
+- structure_quality: **0.333**
+- gap_to_q35_boundary: **0.017**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `unsupported_exact_live_structure_bucket`
 - support rows/minimum/gap: **0 / 50 / 50**
@@ -22,18 +22,18 @@
 - rows: **252**
 - bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q65': 67, 'CAUTION|base_caution_regime_or_bias|q00': 63, 'CAUTION|base_caution_regime_or_bias|q15': 54, 'CAUTION|base_caution_regime_or_bias|q85': 52, 'CAUTION|base_caution_regime_or_bias|q35': 16}`
 - dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** (67 rows)
-- near_boundary_window: `{'lower': 0.3488, 'upper': 0.35}`
-- near_boundary_rows: **0**
+- near_boundary_window: `{'lower': 0.333, 'upper': 0.35}`
+- near_boundary_rows: **1**
 
 ## Decision
-- reason: exact live lane 的樣本全部落在鄰近 bucket，且 current_structure_quality 與 q35 邊界之間沒有 exact-lane 緩衝列；這代表單純放寬 current bucket / q35 boundary 不能生成 exact rows，應優先查結構 component scoring。
-- candidate_patch: `{'type': 'structure_component_scoring', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.6612, 'current_normalized': 0.6612, 'needed_raw_delta_to_cross_q35': 0.0035, 'target_bucket_p25': 0.7082, 'target_bucket_median': 0.7643, 'needed_raw_delta_to_target_p25': 0.047, 'needed_raw_delta_to_target_median': 0.1031}`
-- verify_next: 優先用 current-live bucket root-cause artifact 鎖定的 component 做 counterfactual，確認 current row 是否能跨到 q35，且 exact-lane 仍不會因 boundary tweak 產生虛假支持。
+- reason: current_structure_quality 已貼近 q35 邊界，且 exact-lane 存在 near-boundary rows；可把 current bucket↔q35 分桶公式列入候選，但仍需先做 exact-support legality 驗證。
+- candidate_patch: `{'type': 'bucket_boundary_review', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.624, 'current_normalized': 0.624, 'needed_raw_delta_to_cross_q35': 0.05, 'target_bucket_p25': 0.7082, 'target_bucket_median': 0.7643, 'needed_raw_delta_to_target_p25': 0.0842, 'needed_raw_delta_to_target_median': 0.1403}`
+- verify_next: 以歷史 lane 回放驗證 boundary review 不會把 0-row blocker 假裝成已解。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.6612 / norm=0.6612 / Δto_cross_q35=0.0035 / target_p25=0.7082 / target_median=0.7643
-- `feat_4h_dist_bb_lower`: current=1.6348 / norm=0.2044 / Δto_cross_q35=0.0291 / target_p25=5.5052 / target_median=5.8772
-- `feat_4h_dist_swing_low`: current=1.7142 / norm=0.1714 / Δto_cross_q35=0.0364 / target_p25=8.7982 / target_median=9.2352
+- `feat_4h_bb_pct_b`: current=0.624 / norm=0.624 / Δto_cross_q35=0.05 / target_p25=0.7082 / target_median=0.7643
+- `feat_4h_dist_bb_lower`: current=1.5288 / norm=0.1911 / Δto_cross_q35=0.4121 / target_p25=5.5052 / target_median=5.8772
+- `feat_4h_dist_swing_low`: current=1.7517 / norm=0.1752 / Δto_cross_q35=0.5152 / target_p25=8.7982 / target_median=9.2352
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
