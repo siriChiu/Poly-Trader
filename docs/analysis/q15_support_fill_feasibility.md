@@ -1,8 +1,8 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-20T21:11:44.378762+00:00`
-- source live probe generated_at: `2026-05-20T21:11:34.230535Z`
-- source q15 audit generated_at: `2026-05-20 21:11:13.617137`
+- generated_at: `2026-05-20T22:11:57.460311+00:00`
+- source live probe generated_at: `2026-05-20T22:11:48.422120Z`
+- source q15 audit generated_at: `2026-05-20 22:11:32.960610`
 - classification: **semantic_window_gap_not_raw_backfill_gap**
 - reason: older calibration windows have enough exact-bucket rows by count, but they mismatch the current support_identity on calibration_window; they are reference-only unless governance deliberately rebaselines the identity.
 - current rows: **0/50**
@@ -16,20 +16,20 @@ This section is the current support identity captured by the source artifacts ab
 
 - target_col: `simulated_pyramid_win`
 - horizon_minutes: `1440`
-- current_live_structure_bucket: `CAUTION|base_caution_regime_or_bias|q35`
+- current_live_structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
 - regime_label: `chop`
 - regime_gate: `CAUTION`
-- entry_quality_label: `D`
+- entry_quality_label: `C`
 - calibration_window: `200`
 - bucket_semantic_signature: `live_structure_bucket:q15_support_identity:v2`
 
 ## Data coverage
 
-- joined labeled rows: **24456**
+- joined labeled rows: **24461**
 - current calibration window filled: **True**
-- features_normalized: count=24878, range=`2024-04-14 07:00:00.000000` → `2026-05-20 21:11:13.617137`
-- labels: count=67292, range=`2024-04-14 07:00:00.000000` → `2026-05-20 18:07:16.530583`
-- raw_market_data: count=33840, range=`2024-04-13 22:00:00.000000` → `2026-05-20 21:11:13.617137`
+- features_normalized: count=24882, range=`2024-04-14 07:00:00.000000` → `2026-05-20 22:11:32.960610`
+- labels: count=67302, range=`2024-04-14 07:00:00.000000` → `2026-05-20 19:10:28.393393`
+- raw_market_data: count=33845, range=`2024-04-13 22:00:00.000000` → `2026-05-20 22:11:32.960610`
 
 ## PM delivery pressure
 
@@ -52,16 +52,16 @@ This section is the current support identity captured by the source artifacts ab
 | --- | ---: | ---: | --- | --- | --- | --- |
 | 100 | 0 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
 | 200 | 0 | 0 | current_support_identity | False | None | win=None, pnl=None, quality=None |
-| 600 | 194 | 37 | reference_only_calibration_window_mismatch | False | 2026-05-15 04:02:03.008595 | win=0.0, pnl=-0.012, quality=-0.3015 |
-| 1000 | 425 | 87 | reference_only_calibration_window_mismatch | False | 2026-05-15 04:02:03.008595 | win=0.4483, pnl=0.0029, quality=0.1474 |
-| 5000 | 1855 | 243 | reference_only_calibration_window_mismatch | False | 2026-05-15 04:02:03.008595 | win=0.214, pnl=-0.0035, quality=-0.0588 |
-| all | 9570 | 3262 | reference_only_calibration_window_mismatch | False | 2026-05-15 04:02:03.008595 | win=0.5987, pnl=0.0083, quality=0.2817 |
+| 600 | 47 | 2 | reference_only_calibration_window_mismatch | False | 2026-05-15 07:02:23.735185 | win=0.5, pnl=-0.0024, quality=0.0519 |
+| 1000 | 93 | 2 | reference_only_calibration_window_mismatch | False | 2026-05-15 07:02:23.735185 | win=0.5, pnl=-0.0024, quality=0.0519 |
+| 5000 | 281 | 49 | reference_only_calibration_window_mismatch | False | 2026-05-15 07:02:23.735185 | win=0.9796, pnl=0.0183, quality=0.6036 |
+| all | 1329 | 292 | reference_only_calibration_window_mismatch | False | 2026-05-15 07:02:23.735185 | win=0.9726, pnl=0.0215, quality=0.6374 |
 
 ## Recommended actions
 
 - **keep_deployment_fail_closed** (P0): 維持 deployable=false / allowed_layers=0；current support identity exact rows 0/50，未達門檻前 reference windows 不可直接算作 deployment support。
   - success: current support_identity exact rows >= minimum 且 live/execution gates 同步通過。
-- **collect_forward_exact_current_identity_rows** (P0): 繼續收集與 current calibration_window=200、regime=chop、gate=CAUTION、entry_label=D、bucket=CAUTION|base_caution_regime_or_bias|q35 完全一致的真實 labeled rows。
+- **collect_forward_exact_current_identity_rows** (P0): 繼續收集與 current calibration_window=200、regime=chop、gate=CAUTION、entry_label=C、bucket=CAUTION|base_caution_regime_or_bias|q15 完全一致的真實 labeled rows。
   - success: current_exact_bucket_rows >= 50
 - **semantic_rebaseline_if_using_older_windows** (P1): 若要採用 reference window=all 的 rows 或改變 calibration_window policy，必須先改 support_identity，重跑 OOS、Top-K、support audit、API/trade guardrail，而不是把舊 rows 直接補進 current identity。
   - success: 新 identity 全欄位一致且重新驗證後仍 rows>=minimum、risk metrics 合格。
