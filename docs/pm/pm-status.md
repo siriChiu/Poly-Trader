@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-05-20 12:10 CST_
+_最後更新：2026-05-20 12:31 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; update only when PM classification, blocker interpretation, customer-usable lane, engineering ask, or next gate changes.
 
@@ -29,7 +29,7 @@ PM 判定：客戶成功仍是北極星，但安全 gate 不可被 customer urge
 - Legacy reference: heartbeat `1250` had q15 `173/50`, but semantic identity mismatches `calibration_window / entry_quality_label / regime_label`; it remains reference-only, not deployment closure.
 - Direct action truth: `api_trade_guardrail_active=true`; `api_trade_buy_guardrail=current_live_deployment_blocker_409`; risk-off sides remain `reduce / sell` only。
 
-**PM verdict：接受「breaker_clear，但 current exact q15 support 仍只有 33/50、低於 minimum，所以 live buy/add 仍 fail-closed」。不可把 legacy q15 `173/50`、allowed raw layer、Top-K OOS pass、same-bucket movement 或 breaker_clear 包裝成 deployable。**
+**PM verdict：接受「breaker_clear，但 current exact q15 support 仍只有 34/50、低於 minimum，所以 live buy/add 仍 fail-closed」。不可把 legacy q15 `173/50`、allowed raw layer、Top-K OOS pass、same-bucket movement 或 breaker_clear 包裝成 deployable。**
 
 ### Circuit breaker
 
@@ -43,7 +43,7 @@ PM 判定：客戶成功仍是北極星，但安全 gate 不可被 customer urge
 
 - `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-20T04:03:14.632520+00:00`; `artifact_freshness_status=fresh`, `artifact_deployment_blocking=false`, `artifact_stale_after_minutes=60.0`。
 - Matrix payload: `samples=24658`, `row_count=24`, `deployable_rows=0`, `risk_qualified_rows=6`, `runtime_blocked_candidate_rows=6`。
-- Nearest research candidate: `model=random_forest`, `top_k=top_2pct`, `oos_roi=0.6884`, `win_rate=0.8621`, `profit_factor=12.4161`, `max_drawdown=0.027`, `worst_fold=0.0959`, `trade_count=58`, `tier=runtime_blocked_oos_pass`, `verdict=not_deployable`, with `deployment_blocker=under_minimum_exact_live_structure_bucket`。
+- Nearest research candidate: `model=logistic_regression`, `feature_profile=current_full`, `top_k=top_2pct`, `oos_roi=0.9324`, `win_rate=0.8621`, `profit_factor=19.8864`, `max_drawdown=0.022`, `worst_fold=0.2068`, `trade_count=58`, `tier=runtime_blocked_oos_pass`, `deployable_verdict=not_deployable`, with `deployment_blocker=under_minimum_exact_live_structure_bucket`。
 - Support overlay matches current live truth: bucket `CAUTION|base_caution_regime_or_bias|q15`, support `34/50`, `gap=16`, `support_route=exact_bucket_present_but_below_minimum`, `support_governance_route=exact_live_bucket_present_but_below_minimum`。
 
 **PM verdict：Top-K remains fresh research / paper-shadow evidence. Strategy Lab 可優先顯示 nearest-deployable research rows，但 `deployable_rows=0` means no risk-on live action.**
