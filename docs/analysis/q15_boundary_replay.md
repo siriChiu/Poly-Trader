@@ -1,6 +1,6 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-05-20 00:12:08.019754**
+- generated_at: **2026-05-20 01:11:16.917604**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_replay_not_applicable_for_current_context**
 - artifact_context_freshness: **current_context** (`[]`)
@@ -11,28 +11,28 @@
 - signal: **HOLD**
 - regime/gate: **bear / CAUTION**
 - structure bucket: **CAUTION|base_caution_regime_or_bias|q15**
-- structure_quality: **0.2146**
-- entry_quality: **0.6384** (trade_floor_gap=0.0884)
+- structure_quality: **0.2582**
+- entry_quality: **0.6632** (trade_floor_gap=0.1132)
 - support_route: **exact_bucket_present_but_below_minimum**
 - floor_cross_legality: **floor_crossed_but_support_not_ready**
 
 ## Boundary replay
-- legacy bucket rows: **19**
+- legacy bucket rows: **24**
 - replay bucket: **CAUTION|structure_quality_caution|q15**
 - replay bucket rows: **68**
-- generated_rows_via_boundary_only: **75**
-- preexisting_rows_in_replay_bucket: **0**
-- generated_row_share: **1.0**
-- generated_rows_exceed_replay_scope: **True** (excess=7)
+- generated_rows_via_boundary_only: **19**
+- preexisting_rows_in_replay_bucket: **49**
+- generated_row_share: **0.2794**
+- generated_rows_exceed_replay_scope: **False** (excess=0)
 - dominant_neighbor_bucket: **CAUTION|structure_quality_caution|q15** rows=109
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.4252 → None**
-- structure_quality: **0.2146 → 0.35**
+- raw before/after: **0.5041 → None**
+- structure_quality: **0.2582 → 0.35**
 - bucket_after: **CAUTION|structure_quality_caution|q15**
-- entry_quality: **0.6384 → 0.6723**
-- trade_floor_gap_after: **0.1223**
-- allowed_layers_after: **1** (entry_quality_C_single_layer)
+- entry_quality: **0.6632 → 0.6862**
+- trade_floor_gap_after: **0.1362**
+- allowed_layers_after: **2** (regime_gate_caution_caps_two_layers)
 - counterfactual verdict: **counterfactual_not_evaluated**
 - counterfactual reason: boundary replay 不適用於目前 RCA verdict，因此不消費舊 q15 counterfactual。
 
