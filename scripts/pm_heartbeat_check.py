@@ -30,6 +30,7 @@ REQUIRED_GATE_IDS = [
     "PMHQ7_deadlock_escape",
     "PMHQ8_customer_report",
     "PMHQ9_alternative_solution_review",
+    "PMHQ10_anti_equilibrium_review",
 ]
 
 REQUIRED_DOC_REFERENCES = {
@@ -43,9 +44,13 @@ REQUIRED_DOC_REFERENCES = {
         "framework-capture",
         "alternative-solution",
         "time-to-evidence",
+        "anti-equilibrium",
+        "customer-value delta",
+        "cost-of-delay",
+        "red-team PM",
     ],
-    "docs/pm/README.md": ["customer-side advocate", "framework-capture", "alternative-solution", "time-to-evidence"],
-    "docs/pm/pm-heartbeat-qa.md": ["PMHQ1_stakeholder_expectation", "PMHQ9_alternative_solution_review", "framework-capture", "alternative-solution", "time-to-evidence"],
+    "docs/pm/README.md": ["customer-side advocate", "framework-capture", "alternative-solution", "time-to-evidence", "anti-equilibrium", "customer-value delta", "cost-of-delay", "red-team PM"],
+    "docs/pm/pm-heartbeat-qa.md": ["PMHQ1_stakeholder_expectation", "PMHQ9_alternative_solution_review", "PMHQ10_anti_equilibrium_review", "framework-capture", "alternative-solution", "time-to-evidence", "anti-equilibrium", "customer-value delta", "cost-of-delay"],
     "README.md": ["docs/pm/README.md", "scripts/pm_heartbeat_check.py"],
     "ARCHITECTURE.md": ["docs/pm", "PM_HEARTBEAT.md"],
 }
@@ -177,7 +182,7 @@ def _check_question_gates(contract: dict[str, Any]) -> list[CheckResult]:
     return [
         CheckResult(
             "pm_qa_gates_complete",
-            "PM contract and QA playbook include PMHQ0-PMHQ9?",
+            "PM contract and QA playbook include PMHQ0-PMHQ10?",
             not missing_contract and not missing_qa,
             "ok"
             if not missing_contract and not missing_qa
@@ -251,6 +256,13 @@ def _pm_status_required_snippets() -> tuple[list[str], list[str]]:
         "time-to-evidence",
         "ORANGE_alternative_solution_required",
         "Next-hour gate",
+        "anti-equilibrium",
+        "customer-value delta",
+        "anti-repeat",
+        "cost-of-delay",
+        "hypothesis inversion",
+        "option portfolio",
+        "red-team PM",
     ]
     artifact_errors: list[str] = []
 

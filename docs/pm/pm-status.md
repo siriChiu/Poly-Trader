@@ -84,11 +84,13 @@ PM 判定：接受使用者修正，PM heartbeat 不可只是 engineering heartb
 
 ---
 
-## 4. framework-capture / alternative-solution guard
+## 4. framework-capture / alternative-solution / anti-equilibrium guard
 
 本輪升級為 **`ORANGE_framework_capture_risk` governance overlay**，原因不是 live gate 被否定，而是 PM 必須防止自己被工程 heartbeat 的 blocker 敘事捕獲。Fresh artifacts 有實際刷新與 customer-usable proof：collect/backfill 已執行，live probe、q15 audit、Top-K、breaker audit、recent drift 與 venue smoke 均已刷新；目前 current support 是 `19/50`、`gap=31`，safe lane 仍是 `YELLOW_shadow_or_paper_usable`。本輪 `support_progress` 已有 `delta_vs_previous=1`，且工程已把 time-to-evidence 露出到 Execution Console / `/api/execution/overview`，所以 PM 可以用同一組 artifact 跟客戶說明「仍 fail-closed，但不是沒有進度」。
 
 PM 現在要求每輪都產出 **time-to-evidence**：q15 exact support 何時可能從 `19/50` 往 `50/50` 前進？本輪估算為 `31` 輪 / 約 `1.29` 天（以每輪 +1、工程心跳約 hourly 為假設）；近期品質 `win_rate=28.0%` 何時能被 no-new-risk / shadow-only artifact 證偽？venue runtime proof 何時能從 metadata 走到 dry-run？若答案回到 weeks/months 或 unknown，PM 必須標記 `ORANGE_alternative_solution_required` 並提出 `alternative-solution` portfolio：縮小策略/市場範圍、換資料源或外部工具、改走 manual/paper decision-support、替代模型/架構、或明確 stop/pivot recommendation；不可只把工程 heartbeat 的下一步轉述給客戶。
+
+**Anti-equilibrium guard：** 本輪必須把 PM 從「平衡式等待」拉回客戶價值搜尋。`customer-value delta` 目前是：support 從 `18/50` 到 `19/50` 有 artifact movement、Execution Console / `/api/execution/overview` 已露出 time-to-evidence，客戶可以理解「仍 fail-closed，但不是停工」。`anti-repeat` 結果：不可再只重複 q15 gap；下輪若仍是同一 blocker，必須提供新 artifact movement、missing-capability proof、或替代解法驗證。`cost-of-delay`：每多等一輪但沒有支持樣本/venue proof/UI proof 位移，客戶信心與策略可用性下降，且工程焦點會被單一路徑綁住。`hypothesis inversion`：如果 exact q15 support 累積太慢或近期品質無法證偽，最快暴露點是 stagnation counter、no-new-risk shadow artifact、與 venue dry-run proof 是否仍卡住。`option portfolio`：70% 主路徑追 exact support + venue proof，20% 鄰近安全交付推 paper/shadow decision-support 與 stale/fresh labeling，10% 真替代評估縮小策略/市場範圍、外部資料/工具、manual workflow、替代模型/架構或 stop/pivot。`red-team PM` 挑戰：PM 不可為工程延遲辯護；若下輪沒有客戶可見位移，直接把 governance overlay 升到 `ORANGE_alternative_solution_required`。
 
 ---
 

@@ -7,7 +7,7 @@
 ## Usage
 
 - Run `python scripts/pm_heartbeat_check.py --format text` at the start of PM heartbeat work.
-- The final customer report can be short, but the run must internally answer PMHQ0-PMHQ9.
+- The final customer report can be short, but the run must internally answer PMHQ0-PMHQ10.
 - If any answer lacks evidence, the PM action should be to request/produce evidence, not to invent certainty.
 - If the process itself blocks customer progress, mark `framework-capture` risk and propose a smaller safe deliverable or framework patch.
 
@@ -162,6 +162,7 @@ Every PM run must leave a concrete action contract:
 - Same failed patch path three times → ask for an alternative architecture or product lane.
 - Same docs/skills/framework loop twice → mark `ORANGE_framework_capture_risk` and patch/simplify the constraining framework.
 - Same blocker path projects weeks/months before customer value → mark `ORANGE_alternative_solution_required` and start a parallel option search instead of echoing engineering delay.
+- Same PM report has no customer-value delta and repeats prior wording/action → run the anti-equilibrium guard before finalizing.
 
 **Evidence:** PM status, issue ID, prior gates, repeated blocker fields.
 
@@ -187,7 +188,27 @@ Every PM run must leave a concrete action contract:
 
 ---
 
-## Phase 9 — Customer report
+## Phase 9 — Anti-equilibrium review
+
+### PMHQ10_anti_equilibrium_review
+**Question:** Is this PM heartbeat resisting convergence, or did it just rebalance around engineering delay?
+
+**Answer rules:**
+- State the **customer-value delta**: what became more usable, clearer, safer, faster to verify, or more honestly blocked.
+- Run the **anti-repeat** detector: same blocker, same next action, same safe lane, or same wording requires an escalation or a new artifact ask.
+- Estimate **cost-of-delay** for one more heartbeat of waiting: customer value, confidence, opportunity, engineering focus, or capital-safety clarity.
+- Perform **hypothesis inversion**: if the main proof path is wrong or too slow, what evidence exposes it fastest?
+- Maintain an **option portfolio**: main engineering proof path, adjacent safe deliverable, and true alternative/pivot; select which one gets evidence next.
+- Add a **red-team PM** challenge: “am I rationalizing engineering delay, and what would I demand if I represented only customer success?”
+- Preserve non-negotiable live-trading proof gates; anti-equilibrium means changing product route or proof strategy, not lowering thresholds.
+
+**Evidence:** previous PM status, current artifact movement, selected option, escalation state, falsification artifact, safe-lane proof.
+
+**If fail:** Mark `ORANGE_framework_capture_risk` or `ORANGE_alternative_solution_required`; after three no-delta repeats, mark `RED_delivery_deadlock`.
+
+---
+
+## Phase 10 — Customer report
 
 ### PMHQ8_customer_report
 **Question:** Can the customer understand the state in 30 seconds?
@@ -226,6 +247,9 @@ A: <none / constraining doc-skill-rule + patch or bypass>
 
 Q: time-to-evidence 是否太長？替代解法是什麼？
 A: <next-hour/same-day/within-week/weeks-months/unknown + alternative-solution track>
+
+Q: 本輪是否避免趨向平衡？
+A: <customer-value delta + anti-repeat + cost-of-delay + hypothesis inversion + option portfolio + red-team PM>
 
 Q: 若又卡住怎麼辦？
 A: <deadlock escape>

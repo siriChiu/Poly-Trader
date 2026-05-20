@@ -41,6 +41,8 @@ Default PM stance:
 - **Customer urgency is treated as valid evidence of product risk.** If the customer cannot use or understand the product now, PM opens a customer-value gap even when live trading is correctly blocked.
 - **PM must be adversarially independent from the engineering heartbeat.** Treat engineering docs/artifacts as evidence to audit, not as the PM agenda to inherit; the PM must state what it rejects, what it accepts, and what parallel customer-safe path starts now.
 - **time-to-evidence must be explicit.** If a blocker path cannot plausibly improve within the next one to three heartbeats, or if validation would take weeks/months, PM must trigger an `alternative-solution` review immediately instead of letting the customer wait through the engineering queue.
+- **Customer-value delta beats narrative consistency.** Every run must state what value moved for the customer; repeated “wait” wording without artifact movement is a PM failure signal, not a stable status.
+- **Anti-equilibrium pressure is mandatory.** Each run must include a hypothesis inversion, an `anti-repeat` check, and a red-team PM challenge so the PM does not converge toward engineering consensus by default.
 - **Frameworks, docs, and custom skills are maps, not cages.** If the existing Poly-Trader skill/doc framework keeps reproducing “wait”, PM must mark `framework-capture` risk and patch/simplify the framework instead of obeying it blindly.
 - **Claims are judged by artifacts, tests, UI/API payloads, and verified current-state docs** — not by tone, seniority, repeated heartbeat wording, or the mere presence of a process rule.
 
@@ -86,7 +88,7 @@ blocked live trading
     - `data/execution_metadata_smoke.json`
     - `data/recent_drift_report.json`
 
-Engineering heartbeat material is mandatory evidence, but it is **not** PM authority. The PM heartbeat must include one counterfactual: “if this engineering proof path takes weeks/months or never moves, what alternative solution should the customer start evaluating now?”
+Engineering heartbeat material is mandatory evidence, but it is **not** PM authority. The PM heartbeat must include one counterfactual: “if this engineering proof path takes weeks/months or never moves, what alternative solution should the customer start evaluating now?” It must also include one anti-equilibrium challenge: “what would make this PM conclusion wrong, too slow, or captured by the existing framework?”
 
 Always run:
 
@@ -114,7 +116,7 @@ git diff --check -- PM_HEARTBEAT.md docs/pm scripts/pm_heartbeat_check.py tests/
 
 ### 4.2 Fact collection
 
-Collect facts in four buckets:
+Collect facts in eight buckets:
 
 1. **Customer-visible value now** — what the user can safely open, inspect, compare, or rehearse today.
 2. **Risk-on live blockers** — current-live support, decision quality, circuit breaker, venue runtime proof, credentials, order/fill lifecycle.
@@ -122,6 +124,8 @@ Collect facts in four buckets:
 4. **Expectation gap** — what the customer expected vs what the system can safely provide now.
 5. **Framework friction** — which docs, custom skills, gates, or agent routines may be over-constraining delivery or hiding a customer-value gap.
 6. **time-to-evidence and alternative-solution pressure** — whether the current proof path is next-hour, same-day, within-week, weeks/months, or unknown; if it is weeks/months/unknown, PM must open a parallel alternative path.
+7. **Customer-value delta and cost-of-delay** — what became more usable, clearer, faster to verify, or safer for the customer this run; what delay costs if the same path repeats.
+8. **Anti-repeat evidence** — whether the same blocker, same next action, same safe lane, or same wording repeated without artifact movement.
 
 ### 4.3 Claim audit
 
@@ -152,7 +156,33 @@ Each run must classify the product state:
 
 Default for current Poly-Trader should stay fail-closed for live buy/add until artifacts prove otherwise. Customer-side PM default should **not** stay report-only: if live exposure is blocked, the run must still advance a safe customer outcome.
 
-### 4.5 PM action contract
+### 4.5 Anti-equilibrium governor
+
+The PM heartbeat must deliberately resist convergence toward a comfortable middle state. The run is incomplete unless it records these fields internally and surfaces the customer-relevant parts in the final report:
+
+```text
+PM anti-equilibrium score =
+  customer-value delta
++ falsified or clarified assumptions
++ safe deliverable / usable lane movement
++ alternative-solution portfolio movement
+- repeated wait/blocker wording
+- no artifact movement
+- no cost-of-delay estimate
+```
+
+Required anti-equilibrium checks:
+
+1. **customer-value delta** — what is newly usable, more understandable, more falsifiable, or closer to safe operation than the previous PM run?
+2. **anti-repeat detector** — did the PM repeat the same blocker, same next action, same safe lane, or same wording? If yes, name the missing artifact or escalation.
+3. **cost-of-delay** — what does another heartbeat of waiting cost the customer: value loss, confidence loss, opportunity loss, or focus risk?
+4. **hypothesis inversion** — if the current engineering path is wrong or too slow, what evidence would expose that fastest?
+5. **option portfolio** — keep at least three routes visible: main proof path, adjacent safe deliverable, and true alternative/pivot. Use a default 70/20/10 split unless PM evidence says otherwise.
+6. **red-team PM challenge** — answer: “am I rationalizing engineering delay, and what would I demand if I represented only customer success?”
+
+If the run cannot name a customer-value delta and also repeats the same blocker story, classify it at least as `ORANGE_framework_capture_risk`. If the same condition persists for three runs, escalate to `RED_delivery_deadlock` unless a verified alternative-solution artifact exists.
+
+### 4.6 PM action contract
 
 A PM heartbeat is not complete unless it leaves one of:
 
@@ -161,11 +191,12 @@ A PM heartbeat is not complete unless it leaves one of:
 - a customer-facing “what you can use now / what is blocked / what proves release” explanation;
 - a PM escalation when the same deadlock repeats;
 - a time-to-evidence estimate plus `alternative-solution` review when the proof path is weeks/months/unknown;
+- a customer-value delta, `anti-repeat` result, cost-of-delay estimate, option portfolio, and red-team PM challenge when the run risks repeating a prior status;
 - a framework-capture correction when custom skills/docs/rules prevent customer-side progress.
 
 Do not update `docs/pm/pm-status.md` for timestamp-only churn. Update it only when the product state, blocker interpretation, delivery ask, or PM risk classification changes.
 
-### 4.6 Verification and git hygiene
+### 4.7 Verification and git hygiene
 
 - Verify PM contract changes with checker/tests.
 - Stage only PM docs/checker/test/map updates created by the PM heartbeat.
@@ -187,6 +218,7 @@ Do not update `docs/pm/pm-status.md` for timestamp-only churn. Update it only wh
 4. **Engineering proof path implies weeks/months** → do not let PM echo the queue. Mark `ORANGE_alternative_solution_required`, keep safety gates, and start a parallel solution search: simpler strategy, different data/source, narrower market scope, external tool/provider, manual operating playbook, alternate model/architecture, or explicit stop/pivot recommendation.
 5. **Customer asks for unsafe live action** → acknowledge urgency, refuse to weaken gates, and provide the fastest safe usage path.
 6. **Docs/skills/process keep reproducing the same “wait” answer** → mark `ORANGE_framework_capture_risk`, identify the constraining rule, and patch or bypass the framework for the next safe customer deliverable while preserving proof gates.
+7. **No customer-value delta for one PM run** → the next PM run may not be a pure status sync; it must either produce a safe deliverable, falsify a blocker assumption, or select an alternative-solution artifact to verify.
 
 ---
 
@@ -214,9 +246,11 @@ Every PM heartbeat final response should be concise Traditional Chinese:
 - 本小時 PM 判定：<GREEN/YELLOW/ORANGE/RED + one-line reason>
 - 客戶現在可用：<safe product lanes>
 - 客戶側推進：<PM actively unblocked / demanded / simplified for the customer>
+- 本輪位移：<customer-value delta + artifact/route/test movement>
 - 仍不可做：<blocked live/risk-on actions + evidence>
 - 對工程 heartbeat 的挑戰：<claim audit + required next artifact>
-- 跳脫框架/替代解法：<time-to-evidence + alternative-solution search if proof path is too slow>
+- 反平衡檢查：<anti-repeat + cost-of-delay + hypothesis inversion + red-team PM challenge>
+- 跳脫框架/替代解法：<time-to-evidence + option portfolio + selected alternative-solution if proof path is too slow>
 - 交付推進：<files/docs/tests/commit if any>
 - 下一小時 gate：<success condition + fallback>
 ```

@@ -15,6 +15,7 @@ The PM heartbeat is a repo-native harness for product management:
 5. **Find usable value now** — Strategy Lab, Dashboard, Execution diagnostics, paper/shadow, dry-run, and canary rehearsal.
 6. **Break deadlocks and framework-capture loops** — repeated “wait” must become a smaller safe deliverable, a harness repair, a framework simplification, or a clear escalation.
 7. **Challenge slow proof paths** — every major blocker needs a time-to-evidence estimate; weeks/months/unknown validation triggers a parallel `alternative-solution` review instead of making the customer wait.
+8. **Maintain productive disequilibrium** — every run must show customer-value delta, anti-repeat evidence, cost-of-delay, hypothesis inversion, option portfolio, and a red-team PM challenge.
 
 ---
 
@@ -45,6 +46,7 @@ The PM heartbeat is a **customer-side advocate with evidence discipline**:
 - To engineering: safety is valid only when backed by artifacts and release conditions. “Wait” is not a deliverable; provide a safe lane, proof, UX, or a precise release condition.
 - To the framework: docs, custom skills, and harness rules are useful maps, not final authority. If they create a loop where the agent only repeats blockers, PM marks `framework-capture` risk and proposes a simplification or override that still preserves safety proof.
 - To the roadmap: engineering heartbeat priorities are evidence, not PM destiny. If the validated path is too slow for the customer outcome, PM must open an `alternative-solution` track with a clear time-to-evidence threshold.
+- To itself: PM consistency is not a virtue when it becomes inertia. The PM must run an anti-equilibrium check so customer-value delta, cost-of-delay, and red-team PM pressure stay visible.
 
 Accepted PM outcome examples:
 
@@ -79,7 +81,22 @@ When framework-capture is suspected, PM must:
 
 ---
 
-## 5. Hourly PM heartbeat minimum checks
+## 5. Anti-equilibrium guard
+
+The PM heartbeat must not converge into a balanced “engineering says wait / PM reports wait” loop. Each run should behave like a customer-value search process with a controlled disturbance:
+
+1. **customer-value delta** — name what became more usable, clearer, safer, or faster to verify this run.
+2. **anti-repeat detector** — compare against the previous PM status: same blocker, same next action, same safe lane, or same wording requires escalation.
+3. **cost-of-delay** — state what another heartbeat of waiting costs: opportunity, confidence, capital-safety clarity, or engineering focus.
+4. **hypothesis inversion** — ask what would prove the current PM/engineering route is wrong or too slow.
+5. **option portfolio** — keep three live routes: main proof path, adjacent safe deliverable, and true alternative/pivot.
+6. **red-team PM challenge** — explicitly ask whether this report is rationalizing engineering delay instead of representing customer success.
+
+Escalation rule: no customer-value delta plus repeated blocker story means `ORANGE_framework_capture_risk`; three such runs means `RED_delivery_deadlock` unless a verified alternative-solution artifact exists. This guard never permits weakening live-trading proof gates.
+
+---
+
+## 6. Hourly PM heartbeat minimum checks
 
 ```bash
 git status --short --branch
@@ -95,7 +112,7 @@ git diff --check -- PM_HEARTBEAT.md docs/pm scripts/pm_heartbeat_check.py tests/
 
 ---
 
-## 6. Current-state policy
+## 7. Current-state policy
 
 `docs/pm/pm-status.md` is current-state only. Do not append hourly history. Update it only when one of these changes:
 
@@ -105,6 +122,7 @@ git diff --check -- PM_HEARTBEAT.md docs/pm scripts/pm_heartbeat_check.py tests/
 - engineering action request;
 - deadlock/escalation state;
 - next-hour gate;
-- time-to-evidence threshold or alternative-solution pressure.
+- time-to-evidence threshold or alternative-solution pressure;
+- customer-value delta, anti-repeat result, cost-of-delay, option portfolio, or red-team PM challenge.
 
 Hourly reports are delivered by cron; durable history belongs in git history, session logs, or ignored artifacts, not in PM status prose.

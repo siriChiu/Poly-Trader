@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-05-20T07:32:00+08:00",
-  "purpose": "Poly-Trader PM heartbeat contract for customer-side delivery advocacy, claim audit, framework-capture detection, alternative-solution review, and safety-preserving arbitration between customer urgency and engineering guardrails.",
+  "updated_at": "2026-05-20T08:32:08+08:00",
+  "purpose": "Poly-Trader PM heartbeat contract for customer-side delivery advocacy, claim audit, framework-capture detection, anti-equilibrium review, alternative-solution review, and safety-preserving arbitration between customer urgency and engineering guardrails.",
   "entrypoints": {
     "pm_charter": "PM_HEARTBEAT.md",
     "pm_readme": "docs/pm/README.md",
@@ -154,6 +154,18 @@
         "selected alternative artifact",
         "unsafe shortcut rejection"
       ]
+    },
+    {
+      "id": "PMHQ10_anti_equilibrium_review",
+      "question": "Is this PM heartbeat resisting convergence, or did it just rebalance around engineering delay?",
+      "required_evidence": [
+        "customer-value delta",
+        "anti-repeat result",
+        "cost-of-delay estimate",
+        "hypothesis inversion",
+        "option portfolio",
+        "red-team PM challenge"
+      ]
     }
   ],
   "pm_decision_states": [
@@ -202,6 +214,15 @@
         "docs/pm/pm-status.md"
       ],
       "purpose": "current PM classification, customer-usable lanes, engineering ask, next gate"
+    },
+    {
+      "name": "pm_anti_equilibrium_state",
+      "paths": [
+        "PM_HEARTBEAT.md",
+        "docs/pm/pm-heartbeat-qa.md",
+        "docs/pm/pm-status.md"
+      ],
+      "purpose": "customer-value delta, anti-repeat detection, cost-of-delay, hypothesis inversion, option portfolio, and red-team PM pressure"
     }
   ],
   "mechanical_invariants": [
@@ -236,6 +257,10 @@
     {
       "id": "pm_alternative_solution_guard",
       "description": "PM docs require time-to-evidence estimates and a parallel alternative-solution review when validation is weeks/months/unknown."
+    },
+    {
+      "id": "pm_anti_equilibrium_guard",
+      "description": "PM docs require customer-value delta, anti-repeat detection, cost-of-delay, hypothesis inversion, option portfolio, and red-team PM challenge so the agent does not converge into repeated wait/status sync."
     }
   ],
   "verification_commands": [
@@ -251,7 +276,8 @@
       "do_not_lower_live_trading_safety_gates",
       "do_not_claim_live_buy_add_ready_without_machine_readable_proof",
       "do_not_accept_engineering_wait_without_safe_deliverable_or_release_condition",
-      "do_not_accept_months_long_verification_without_alternative_solution_review"
+      "do_not_accept_months_long_verification_without_alternative_solution_review",
+      "do_not_repeat_wait_without_customer_value_delta"
     ]
   },
   "framework_capture_guard": {
@@ -271,5 +297,20 @@
       "unknown"
     ],
     "forbidden_shortcut": "lowering thresholds or bypassing fail-closed live safety to create artificial progress"
+  },
+  "anti_equilibrium_guard": {
+    "risk_name": "pm_convergence_to_waiting_equilibrium",
+    "trigger": "no customer-value delta, repeated blocker/next-action/safe-lane wording, missing cost-of-delay, or PM report merely echoes engineering heartbeat",
+    "required_fields": [
+      "customer-value delta",
+      "anti-repeat result",
+      "cost-of-delay estimate",
+      "hypothesis inversion",
+      "option portfolio",
+      "red-team PM challenge"
+    ],
+    "pm_action": "create productive disequilibrium: demand a safe deliverable, falsification artifact, framework patch, alternative-solution evidence, or explicit stop/pivot decision while preserving live-trading proof gates",
+    "escalation": "one no-delta repeat -> ORANGE_framework_capture_risk; weeks/months/unknown proof path -> ORANGE_alternative_solution_required; three no-delta repeats -> RED_delivery_deadlock unless a verified alternative artifact exists",
+    "forbidden_shortcut": "lowering live-trading thresholds, bypassing fail-closed gates, or pretending a paper/shadow lane is live deployability"
   }
 }

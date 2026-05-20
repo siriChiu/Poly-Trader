@@ -21,6 +21,7 @@ REQUIRED_GATE_IDS = [
     "PMHQ7_deadlock_escape",
     "PMHQ8_customer_report",
     "PMHQ9_alternative_solution_review",
+    "PMHQ10_anti_equilibrium_review",
 ]
 
 
@@ -51,6 +52,10 @@ def test_pm_heartbeat_contract_is_machine_readable() -> None:
     assert "ORANGE_framework_capture_risk" in payload["pm_decision_states"]
     assert "ORANGE_alternative_solution_required" in payload["pm_decision_states"]
     assert payload["alternative_solution_guard"]["trigger"].startswith("verification horizon")
+    anti_equilibrium = payload["anti_equilibrium_guard"]
+    assert anti_equilibrium["risk_name"] == "pm_convergence_to_waiting_equilibrium"
+    for required in ["customer-value delta", "anti-repeat result", "cost-of-delay estimate", "hypothesis inversion", "option portfolio", "red-team PM challenge"]:
+        assert required in anti_equilibrium["required_fields"]
 
     qa_text = QA_PATH.read_text(encoding="utf-8")
     for gate_id in REQUIRED_GATE_IDS:
@@ -146,4 +151,11 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     assert "ORANGE_alternative_solution_required" in text
     assert "alternative-solution" in text
     assert "time-to-evidence" in text
+    assert "anti-equilibrium" in text
+    assert "customer-value delta" in text
+    assert "anti-repeat" in text
+    assert "cost-of-delay" in text
+    assert "hypothesis inversion" in text
+    assert "option portfolio" in text
+    assert "red-team PM" in text
     assert "live buy/add" in text or "真實買入 / 加倉" in text
