@@ -1,6 +1,6 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-21 13:10:45.469800**
+- generated_at: **2026-05-21 14:09:15.162025**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q15 bucket**
 - verdict: **current_exact_support_under_minimum**
@@ -12,28 +12,28 @@
 ## Current live
 - live path: **chop / CAUTION / C**
 - structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
-- structure_quality: **0.2266**
-- gap_to_q35_boundary: **0.1234**
+- structure_quality: **0.1843**
+- gap_to_q35_boundary: **0.1657**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `under_minimum_exact_live_structure_bucket`
-- support rows/minimum/gap: **3 / 50 / 47**
+- support rows/minimum/gap: **5 / 50 / 45**
 
 ## Exact live lane
-- rows: **248**
-- bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q00': 63, 'CAUTION|base_caution_regime_or_bias|q65': 60, 'CAUTION|base_caution_regime_or_bias|q15': 57, 'CAUTION|base_caution_regime_or_bias|q35': 41, 'CAUTION|base_caution_regime_or_bias|q85': 27}`
+- rows: **253**
+- bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q00': 63, 'CAUTION|base_caution_regime_or_bias|q65': 60, 'CAUTION|base_caution_regime_or_bias|q15': 59, 'CAUTION|base_caution_regime_or_bias|q35': 44, 'CAUTION|base_caution_regime_or_bias|q85': 27}`
 - dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q00** (63 rows)
-- near_boundary_window: `{'lower': 0.2266, 'upper': 0.35}`
-- near_boundary_rows: **53**
+- near_boundary_window: `{'lower': 0.1843, 'upper': 0.35}`
+- near_boundary_rows: **55**
 
 ## Decision
-- reason: current-live q15 bucket exact support 目前為 3/50，低於 minimum；這是 current exact support under minimum，不是 boundary candidate。
+- reason: current-live q15 bucket exact support 目前為 5/50，低於 minimum；這是 current exact support under minimum，不是 boundary candidate。
 - candidate_patch: `{}`
 - verify_next: 維持 minimum_support_rows=50 與 current-live guardrail，累積同 support_identity 的 exact rows；若只有 legacy / different semantic signature 支撐，文案必須標成 semantic rebaseline reference。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.3907 / norm=0.3907 / Δto_cross_q35=0.3629 / target_p25=0.249 / target_median=0.2674
-- `feat_4h_dist_bb_lower`: current=0.9418 / norm=0.1177 / Δto_cross_q35=2.9915 / target_p25=0.6011 / target_median=0.632
-- `feat_4h_dist_swing_low`: current=1.6651 / norm=0.1665 / Δto_cross_q35=3.7394 / target_p25=-0.8619 / target_median=-0.7775
+- `feat_4h_bb_pct_b`: current=0.3115 / norm=0.3115 / Δto_cross_q35=0.4874 / target_p25=0.249 / target_median=0.2674
+- `feat_4h_dist_bb_lower`: current=0.7501 / norm=0.0938 / Δto_cross_q35=4.017 / target_p25=0.6011 / target_median=0.632
+- `feat_4h_dist_swing_low`: current=1.4372 / norm=0.1437 / Δto_cross_q35=5.0212 / target_p25=-0.8619 / target_median=-0.7775
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
