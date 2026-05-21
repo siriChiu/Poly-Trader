@@ -1,6 +1,6 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-05-21 11:10:53.065576**
+- generated_at: **2026-05-21 12:13:54.595738**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_replay_not_applicable_for_current_context**
 - artifact_context_freshness: **current_context** (`[]`)
@@ -8,30 +8,30 @@
 - reason: q15 root-cause verdict=current_exact_support_under_minimum，不是 boundary_sensitivity_candidate；boundary replay 本輪不適用，舊 boundary counterfactual 不可當 current truth。
 
 ## Current live row
-- signal: **ABSTAIN**
+- signal: **HOLD**
 - regime/gate: **chop / CAUTION**
 - structure bucket: **CAUTION|base_caution_regime_or_bias|q15**
-- structure_quality: **0.2024**
-- entry_quality: **0.6013** (trade_floor_gap=0.0513)
+- structure_quality: **0.1862**
+- entry_quality: **0.5638** (trade_floor_gap=0.0138)
 - support_route: **exact_bucket_present_but_below_minimum**
 - floor_cross_legality: **floor_crossed_but_support_not_ready**
 
 ## Boundary replay
 - legacy bucket rows: **3**
 - replay bucket: **CAUTION|base_caution_regime_or_bias|q00**
-- replay bucket rows: **38**
+- replay bucket rows: **34**
 - generated_rows_via_boundary_only: **53**
 - preexisting_rows_in_replay_bucket: **0**
 - generated_row_share: **1.0**
-- generated_rows_exceed_replay_scope: **True** (excess=15)
+- generated_rows_exceed_replay_scope: **True** (excess=19)
 - dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q00** rows=63
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.3392 → None**
-- structure_quality: **0.2024 → 0.35**
+- raw before/after: **0.3151 → None**
+- structure_quality: **0.1862 → 0.35**
 - bucket_after: **CAUTION|base_caution_regime_or_bias|q00**
-- entry_quality: **0.6013 → 0.6382**
-- trade_floor_gap_after: **0.0882**
+- entry_quality: **0.5638 → 0.6047**
+- trade_floor_gap_after: **0.0547**
 - allowed_layers_after: **1** (entry_quality_C_single_layer)
 - counterfactual verdict: **counterfactual_not_evaluated**
 - counterfactual reason: boundary replay 不適用於目前 RCA verdict，因此不消費舊 q15 counterfactual。
