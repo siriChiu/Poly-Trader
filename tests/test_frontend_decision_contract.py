@@ -839,6 +839,7 @@ def test_runtime_copy_humanizes_patch_profiles_embedded_blockers_and_verify_inst
         '["simulated_pyramid_win", "金字塔勝率"]',
         '["feat_4h_bias50_formula", "4H bias50 公式"]',
         '["base_stack_redesign_discriminative_reweight_still_below_floor", "基礎堆疊重設後仍低於交易門檻"]',
+        '["base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked", "基礎堆疊重設可跨門檻，但執行仍被精準樣本阻塞"]',
         '["base_stack_redesign_discriminative_reweight_crosses_trade_floor", "基礎堆疊重設已跨過交易門檻"]',
         '["base_stack_redesign_floor_cross_requires_non_discriminative_reweight", "基礎堆疊重設需犧牲辨別力才可跨過交易門檻"]',
         '["entry_quality >= 0.55 and allowed_layers > 0 without q35 applicability / support / guardrail regression", "進場品質 >= 0.55，且允許層數 > 0，同時不得出現 q35 適用性 / 樣本支持 / 保護欄回歸"]',
