@@ -319,6 +319,64 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
     assert answers["first_canary_plan_if_all_gates_pass"]["add_exposure_enabled"] is False
 
 
+
+def test_execution_readiness_uses_circuit_breaker_audit_when_exact_support_is_active_blocker():
+    status_payload = _status_payload()
+    live_truth = status_payload["execution"]["live_runtime_truth"]
+    live_truth.update(
+        {
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "allowed_layers": 0,
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_missing",
+            "support_progress": {
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+                "stagnant_run_count": 7,
+                "stalled_support_accumulation": True,
+            },
+            "deployment_blocker_details": {
+                "support_progress": {
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                }
+            },
+        }
+    )
+    status_payload["circuit_breaker_audit"] = {
+        "verdict": "breaker_clear",
+        "release_condition": {
+            "recent_window": 50,
+            "current_recent_window_wins": 50,
+            "required_recent_window_wins": 15,
+            "additional_recent_window_wins_needed": 0,
+            "release_ready": True,
+        },
+    }
+
+    payload = build_execution_overview(status_payload, config={"trading": {"max_position_ratio": 0.10}})
+
+    readiness = payload["execution_readiness"]
+    gates = {gate["key"]: gate for gate in readiness["gates"]}
+    assert readiness["canary_ready"] is False
+    assert readiness["blocking_gate_key"] == "current_live_support_gate"
+    assert gates["current_live_support_gate"]["status"] == "blocked"
+    assert gates["current_live_support_gate"]["current"] == 0
+    assert gates["current_live_support_gate"]["gap"] == 50
+    assert gates["circuit_breaker_gate"]["status"] == "passed"
+    assert gates["circuit_breaker_gate"]["current"] == 50
+    assert gates["circuit_breaker_gate"]["required"] == 15
+    assert gates["circuit_breaker_gate"]["gap"] == 0
+    assert "熔斷已解除" in gates["circuit_breaker_gate"]["next_action"]
+    assert "即時支持 gate" in payload["canary_gap_answers"]["blocking_gate"]
+
+
+
 def test_build_execution_overview_exposes_strategy_snapshot_summary(monkeypatch, tmp_path):
     _seed_execution_strategy_catalog(tmp_path, monkeypatch)
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from execution.control_plane import (
@@ -58,6 +60,34 @@ def _load_high_conviction_topk(status_payload: Dict[str, Any]) -> Dict[str, Any]
         or execution.get("high_conviction_topk")
         or status_payload.get("high_conviction_topk")
     )
+
+
+
+def _load_circuit_breaker_audit(status_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the current circuit-breaker audit without requiring it to be the active blocker.
+
+    `/api/status.execution.live_runtime_truth.deployment_blocker_details` is shaped by the
+    active blocker.  When exact support is the blocker, breaker release math is not embedded
+    there, but the execution workspace still needs to show the breaker gate as clear instead
+    of falling back to an unknown/blocked state.
+    """
+
+    execution_surface_contract = _as_dict(status_payload.get("execution_surface_contract"))
+    execution = _as_dict(status_payload.get("execution"))
+    embedded = _as_dict(
+        status_payload.get("circuit_breaker_audit")
+        or execution.get("circuit_breaker_audit")
+        or execution_surface_contract.get("circuit_breaker_audit")
+    )
+    if embedded:
+        return embedded
+
+    audit_path = Path(__file__).resolve().parents[1] / "data" / "circuit_breaker_audit.json"
+    try:
+        with audit_path.open("r", encoding="utf-8") as fh:
+            return _as_dict(json.load(fh))
+    except (OSError, json.JSONDecodeError):
+        return {}
 
 
 
@@ -282,8 +312,13 @@ def build_execution_readiness_bundle(
     support_progress = _as_dict(live_runtime_truth.get("support_progress"))
     topk_support_context = _as_dict(topk.get("support_context"))
     blocker_details = _as_dict(live_runtime_truth.get("deployment_blocker_details"))
+    circuit_breaker_audit = _load_circuit_breaker_audit(payload)
     release_condition = _as_dict(blocker_details.get("release_condition"))
+    if not release_condition:
+        release_condition = _as_dict(circuit_breaker_audit.get("release_condition"))
     recent_window_details = _as_dict(blocker_details.get("recent_window"))
+    if not recent_window_details:
+        recent_window_details = _as_dict(circuit_breaker_audit.get("tail_pathology"))
 
     support_rows = _first_int(
         support_progress.get("current_rows"),
@@ -463,6 +498,11 @@ def build_execution_readiness_bundle(
         f"，解除門檻 {release_required_wins if release_required_wins is not None else '—'} 勝"
         f"，還差 {release_gap if release_gap is not None else '—'} 勝"
     )
+    release_next_action = (
+        "熔斷已解除；仍需即時支持 gate 與場館證據鏈通過後才可升級 canary。"
+        if release_passed
+        else "最近窗勝場未達門檻前，只做 shadow / reduce-only，不升級 canary。"
+    )
 
     gates = [
         {
@@ -497,7 +537,7 @@ def build_execution_readiness_bundle(
             "required": release_required_wins,
             "gap": release_gap,
             "summary": release_summary,
-            "next_action": "最近窗勝場未達門檻前，只做 shadow / reduce-only，不升級 canary。",
+            "next_action": release_next_action,
         },
         {
             "key": "venue_gate",
