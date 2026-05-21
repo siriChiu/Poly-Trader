@@ -262,6 +262,85 @@ def test_build_probe_payload_canonicalizes_zero_row_q15_insufficient_support_mod
 
 
 
+def test_build_probe_payload_promotes_q15_support_gap_when_predictor_only_reports_trade_floor(monkeypatch):
+    monkeypatch.setattr(hb_predict_probe, "build_live_pathology_scope_surface", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(hb_predict_probe, "_load_q35_scaling_audit_summary", lambda _bucket: {})
+
+    q15_current_overlay = {
+        "artifact_context_freshness": {"verdict": "current_context"},
+        "scope_applicability": {
+            "status": "current_live_q15_lane_active",
+            "active_for_current_live_row": True,
+            "current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        },
+        "support_route": {
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "verdict": "insufficient_support_everywhere",
+            "deployable": False,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_progress": {
+                "status": "semantic_rebaseline_under_minimum",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+        },
+    }
+
+    payload = hb_predict_probe._build_probe_payload(
+        latest={"timestamp": "2026-05-21 06:01:27.037450", "regime_label": "chop"},
+        result={
+            "target_col": "simulated_pyramid_win",
+            "used_model": "regime_chop_ensemble",
+            "model_type": "RegimeAwarePredictor",
+            "signal": "HOLD",
+            "confidence": 0.4521,
+            "should_trade": False,
+            "regime_label": "chop",
+            "regime_gate": "CAUTION",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "entry_quality": 0.5849,
+            "entry_quality_label": "C",
+            "decision_quality_label": "D",
+            "decision_quality_score": 0.2827,
+            "allowed_layers_raw": 1,
+            "allowed_layers_raw_reason": "entry_quality_C_single_layer",
+            "allowed_layers": 0,
+            "allowed_layers_reason": "decision_quality_below_trade_floor",
+            "execution_guardrail_applied": True,
+            "execution_guardrail_reason": "decision_quality_below_trade_floor",
+            "deployment_blocker": None,
+            "deployment_blocker_source": None,
+            "deployment_blocker_details": {},
+            "support_route_verdict": "insufficient_support_everywhere",
+            "support_route_deployable": False,
+            "decision_quality_scope_diagnostics": {},
+        },
+        target_col="simulated_pyramid_win",
+        used_model="regime_chop_ensemble",
+        current_live_structure_bucket="CAUTION|base_caution_regime_or_bias|q15",
+        current_live_structure_bucket_rows=0,
+        q15_support_audit=q15_current_overlay,
+        four_h_non_null={},
+        lag_non_null={},
+    )
+
+    assert payload["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert payload["deployment_blocker_source"] == "q15_support_audit"
+    assert payload["allowed_layers_reason"] == "unsupported_exact_live_structure_bucket"
+    assert payload["execution_guardrail_reason"] == "unsupported_exact_live_structure_bucket"
+    assert payload["api_trade_guardrail_runtime_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert payload["support_route_verdict"] == "insufficient_support_everywhere"
+    assert payload["support_progress"]["current_rows"] == 0
+    assert payload["deployment_blocker_details"]["support_mode"] == "exact_bucket_unsupported_block"
+    assert "0/50" in payload["deployment_blocker_reason"]
+    assert "品質分數 0.2827" in payload["deployment_blocker_reason"]
+    assert payload["runtime_closure_summary"] is not None
+    assert "精準樣本仍未就緒" in payload["runtime_closure_summary"]
+
+
+
 def test_build_probe_payload_canonicalizes_zero_row_non_q15_support_overlay(monkeypatch):
     monkeypatch.setattr(hb_predict_probe, "build_live_pathology_scope_surface", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(hb_predict_probe, "_load_q35_scaling_audit_summary", lambda _bucket: {})

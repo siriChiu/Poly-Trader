@@ -1065,16 +1065,33 @@ def _build_probe_payload(
         progress_minimum_value = int(support_progress.get("minimum_support_rows")) if support_progress.get("minimum_support_rows") is not None else None
     except (TypeError, ValueError):
         progress_minimum_value = None
-    if (
+    support_gap_verdicts = {
+        "exact_bucket_unsupported_block",
+        "exact_bucket_present_but_below_minimum",
+        "exact_bucket_missing_proxy_reference_only",
+        "exact_bucket_missing_exact_lane_proxy_only",
+        "insufficient_support_everywhere",
+    }
+    result_deployment_blocker = str(result.get("deployment_blocker") or "")
+    support_route_verdict_value = str(support_route.get("verdict") or "")
+    support_route_deployable_value = support_route.get("deployable")
+    support_gap_blocks_deployment = (
         progress_rows_value is not None
         and progress_minimum_value is not None
         and progress_rows_value < progress_minimum_value
-        and result.get("deployment_blocker") in {
-            "decision_quality_below_trade_floor",
-            "under_minimum_exact_live_structure_bucket",
-            "unsupported_exact_live_structure_bucket",
-        }
-    ):
+        and support_route_deployable_value is not True
+        and (
+            support_route_verdict_value in support_gap_verdicts
+            or result_deployment_blocker in {
+                "decision_quality_below_trade_floor",
+                "under_minimum_exact_live_structure_bucket",
+                "unsupported_exact_live_structure_bucket",
+            }
+        )
+        and result_deployment_blocker != "circuit_breaker_active"
+        and not result_deployment_blocker.startswith("exact_live_lane_toxic_")
+    )
+    if support_gap_blocks_deployment:
         progress_gap_value = support_progress.get("gap_to_minimum")
         if progress_gap_value is None:
             progress_gap_value = progress_minimum_value - progress_rows_value
@@ -1088,8 +1105,7 @@ def _build_probe_payload(
                     decision_quality_copy += f" / 品質分數 {float(decision_quality_score):.4f}"
                 except (TypeError, ValueError):
                     pass
-        support_route_verdict = support_route.get("verdict")
-        support_route_label = _support_route_operator_label(support_route_verdict)
+        support_route_label = _support_route_operator_label(support_route_verdict_value)
         support_route_copy = support_route_label
         current_live_structure_bucket_copy = shared_humanize_runtime_text(current_live_structure_bucket)
         support_truth_reason = (
@@ -1105,11 +1121,21 @@ def _build_probe_payload(
             # `insufficient_support_everywhere` instead of the generic
             # `exact_bucket_unsupported_block`; keep the machine support_mode
             # canonical so operator surfaces do not imply samples exist.
+            support_blocker_type = "unsupported_exact_live_structure_bucket"
             deployment_blocker_details["support_mode"] = "exact_bucket_unsupported_block"
         else:
+            support_blocker_type = "under_minimum_exact_live_structure_bucket"
             deployment_blocker_details["support_mode"] = "exact_bucket_present_but_below_minimum"
+        deployment_blocker_details["type"] = support_blocker_type
+        deployment_blocker_details.setdefault("source", "q15_support_audit")
+        runtime_result["deployment_blocker"] = support_blocker_type
         runtime_result["deployment_blocker_reason"] = support_truth_reason
+        runtime_result["deployment_blocker_source"] = deployment_blocker_details.get("source")
         runtime_result["deployment_blocker_details"] = deployment_blocker_details
+        runtime_result["allowed_layers"] = 0
+        runtime_result["allowed_layers_reason"] = support_blocker_type
+        runtime_result["execution_guardrail_applied"] = True
+        runtime_result["execution_guardrail_reason"] = support_blocker_type
     q35_scaling_audit = _load_q35_scaling_audit_summary(current_live_structure_bucket)
     q15_bucket_root_cause = _load_q15_bucket_root_cause_summary(
         str(current_live_structure_bucket) if current_live_structure_bucket is not None else None
@@ -1248,10 +1274,10 @@ def _build_probe_payload(
         "q15_exact_supported_component_patch_applied": result.get("q15_exact_supported_component_patch_applied"),
         "allowed_layers_raw": result.get("allowed_layers_raw"),
         "allowed_layers_raw_reason": result.get("allowed_layers_raw_reason"),
-        "allowed_layers": result.get("allowed_layers"),
-        "allowed_layers_reason": result.get("allowed_layers_reason"),
-        "execution_guardrail_applied": result.get("execution_guardrail_applied"),
-        "execution_guardrail_reason": result.get("execution_guardrail_reason"),
+        "allowed_layers": runtime_result.get("allowed_layers"),
+        "allowed_layers_reason": runtime_result.get("allowed_layers_reason"),
+        "execution_guardrail_applied": runtime_result.get("execution_guardrail_applied"),
+        "execution_guardrail_reason": runtime_result.get("execution_guardrail_reason"),
         "deployment_blocker": runtime_result.get("deployment_blocker"),
         "deployment_blocker_reason": runtime_result.get("deployment_blocker_reason"),
         "deployment_blocker_source": runtime_result.get("deployment_blocker_source"),
