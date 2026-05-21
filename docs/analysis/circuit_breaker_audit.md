@@ -1,27 +1,27 @@
-# Circuit Breaker Audit（Heartbeat #1419）
-_generated_at: 2026-05-21T18:12:11.016674Z_
+# Circuit Breaker Audit（Heartbeat #1420）
+_generated_at: 2026-05-21T19:11:29.576135Z_
 
 ## 結論
 - verdict: **breaker_clear**
 - summary: 1440m canonical live horizon 未觸發 breaker。
 - recommended_patch: 維持 horizon-aligned breaker，繼續追 live q15/q35 / support route。
-- top_level_release: ready=True / recent wins=23/50 / need=15 / gap=0
+- top_level_release: ready=True / recent wins=17/50 / need=15 / gap=0
 
 ## Mixed scope（現況錯誤口徑）
 - triggered: **False** via []
 - streak: 0 / threshold 50
-- recent 50: win_rate=0.36 wins=18 losses=32
+- recent 50: win_rate=0.38 wins=19 losses=31
 - streak horizons: {}
 
 ## Aligned scope（1440m canonical live horizon）
 - triggered: **False** via []
 - release_ready: **True**
-- streak: 0 / threshold 50
-- recent 50: win_rate=0.46 wins=23 losses=27
+- streak: 6 / threshold 50
+- recent 50: win_rate=0.34 wins=17 losses=33
 
 ## Release condition
 - streak < 50
 - recent 50 win_rate >= 30%
-- aligned_scope_now: streak=0, win_rate=0.46
+- aligned_scope_now: streak=6, win_rate=0.34
 - additional recent-window wins needed: 0
-- tail pathology: losses=27 / wins=23 / loss_share=0.54
+- tail pathology: losses=33 / wins=17 / loss_share=0.66
