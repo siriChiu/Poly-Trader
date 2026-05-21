@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-21 10:02:38 UTC**
+- generated_at: **2026-05-21 11:11:11 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -59,10 +59,10 @@
 - current bucket gap to minimum: **47**
 - exact-bucket proxy gap to minimum: **50**
 - exact-lane proxy gap to minimum: **42**
-- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q35` rows=16
-- bucket gap vs dominant neighbor: **13**
+- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q35` rows=20
+- bucket gap vs dominant neighbor: **17**
 - exact bucket root cause: **exact_bucket_present_but_below_minimum**
-- broader q65 rows / dominant regime: **120 / bear (0.8927)**
+- broader q65 rows / dominant regime: **120 / bear (0.8722)**
 - root cause interpretation: bull exact lane 已出現當前 bucket 樣本，但距離 minimum support 仍有缺口；需持續累積 exact rows，不能當成已解 blocker。
 - bucket comparison takeaway: **support_gap_unresolved**
 - proxy boundary verdict: **insufficient_recent_exact_bucket_rows**
@@ -78,7 +78,7 @@
 
 | cohort | bucket | rows | win_rate | quality / cv | note |
 |---|---|---:|---:|---:|---|
-| exact live lane | CAUTION|base_caution_regime_or_bias|q15 | 19 | 1.0 | 0.4886 | current bucket rows=3 |
+| exact live lane | CAUTION|base_caution_regime_or_bias|q15 | 23 | 0.8261 | 0.3947 | current bucket rows=3 |
 | exact bucket proxy | CAUTION|base_caution_regime_or_bias|q15 | 0 | 0.0 | None | proxy-vs-broader win Δ=-0.7917 |
 | broader same bucket | CAUTION|base_caution_regime_or_bias|q15 | 120 | 0.7917 | 0.3703 | dominant_regime=bear |
 
@@ -89,7 +89,7 @@
 - historical exact-bucket proxy rows / win_rate: **0 / None**
 - recent broader same-bucket rows / dominant regime: **120 / bear**
 - proxy vs current bucket win Δ / row ratio: **None / None**
-- exact lane vs current bucket win Δ / quality Δ: **None / -0.0373**
+- exact lane vs current bucket win Δ / quality Δ: **None / -0.1312**
 - broader same-bucket vs current bucket win Δ / quality Δ: **None / -0.1556**
 
 ## Exact lane sub-bucket diagnostics
