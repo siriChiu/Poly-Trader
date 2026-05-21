@@ -244,6 +244,83 @@ def _recent_context(recent_drift: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _alternative_solution_portfolio(
+    support_fill: Mapping[str, Any],
+    support: Mapping[str, Any],
+    topk: Mapping[str, Any],
+    venue: Mapping[str, Any],
+    recent: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Expose PM's option portfolio as a machine-readable, fail-closed artifact."""
+
+    verdict = support_fill.get("verdict") if isinstance(support_fill.get("verdict"), dict) else {}
+    raw_options = verdict.get("alternative_solutions") if isinstance(verdict.get("alternative_solutions"), list) else []
+    if not raw_options:
+        raw_options = [
+            {
+                "id": "paper_shadow_decision_support_sleeve",
+                "role": "customer_usable_now",
+                "next_artifact": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+                "live_exposure_allowed": False,
+            },
+            {
+                "id": "semantic_rebaseline_review",
+                "role": "support_policy_alternative",
+                "next_artifact": "OOS + Top-K + support audit replay under any proposed new calibration_window identity",
+                "live_exposure_allowed": False,
+            },
+            {
+                "id": "venue_dry_run_readiness_proof",
+                "role": "delivery_risk_reduction",
+                "next_artifact": "OKX/Binance dry-run lifecycle proof checklist with credential state as boolean only",
+                "live_exposure_allowed": False,
+            },
+        ]
+
+    normalized_options: list[dict[str, Any]] = []
+    for option in raw_options:
+        if not isinstance(option, dict):
+            continue
+        normalized_options.append(
+            {
+                "id": str(option.get("id") or "unnamed_alternative"),
+                "role": str(option.get("role") or "alternative_solution"),
+                "next_artifact": str(option.get("next_artifact") or "—"),
+                "live_exposure_allowed": False,
+                "deployable": False,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+                "reference_window": option.get("reference_window"),
+                "reference_rows": option.get("reference_rows"),
+            }
+        )
+
+    selected_option = normalized_options[0]["id"] if normalized_options else "paper_shadow_decision_support_sleeve"
+    return {
+        "pm_challenge_answered": True,
+        "option_count": len(normalized_options),
+        "selected_option": selected_option,
+        "time_to_evidence_bucket": verdict.get("time_to_evidence_bucket"),
+        "missing_capability_class": verdict.get("missing_capability_class"),
+        "selected_next_artifact": verdict.get("selected_next_alternative_artifact")
+        or "data/customer_safe_alternative_proof.json",
+        "options": normalized_options,
+        "safety_invariant": (
+            "All alternatives are customer-safe only: deployable=false, live_exposure_allowed=false, "
+            "order_submission_enabled=false until exact support, Top-K deployability, and venue runtime proof all pass."
+        ),
+        "evidence_summary": {
+            "support_rows": support.get("current_rows"),
+            "minimum_support_rows": support.get("minimum_support_rows"),
+            "support_gap": support.get("gap_to_minimum"),
+            "topk_risk_qualified_rows": topk.get("risk_qualified_rows"),
+            "topk_deployable_rows": topk.get("deployable_rows"),
+            "venue_runtime_ready": venue.get("runtime_ready"),
+            "recent_shadow_mode": recent.get("shadow_falsification_mode"),
+        },
+    }
+
+
 def build_customer_safe_alternative_proof(
     *,
     live_predict_probe: Mapping[str, Any] | None = None,
@@ -330,6 +407,8 @@ def build_customer_safe_alternative_proof(
         },
     ]
 
+    alternative_portfolio = _alternative_solution_portfolio(support_fill, support, topk_ctx, venue, recent)
+
     payloads = {
         "live_predict_probe": live_probe,
         "q15_support_fill_feasibility": support_fill,
@@ -365,6 +444,7 @@ def build_customer_safe_alternative_proof(
         "topk_shadow_candidate_context": topk_ctx,
         "venue_runtime_proof": venue,
         "recent_window_context": recent,
+        "alternative_solution_portfolio": alternative_portfolio,
         "customer_safe_lanes": customer_safe_lanes,
         "allowed_today": [
             "啟動 paper-shadow 訊號帳本並追蹤 24h pyramid outcome",
@@ -432,6 +512,23 @@ def markdown(payload: Mapping[str, Any]) -> str:
             f"- `{lane.get('id')}`: status=`{lane.get('status')}`, deployable=`{lane.get('deployable')}`, "
             f"live_exposure_allowed=`{lane.get('live_exposure_allowed')}`"
         )
+    portfolio = payload.get("alternative_solution_portfolio") if isinstance(payload.get("alternative_solution_portfolio"), dict) else {}
+    if portfolio:
+        lines += [
+            "",
+            "## Alternative solution option portfolio",
+            f"- option_count: `{portfolio.get('option_count')}`",
+            f"- selected_next_artifact: `{portfolio.get('selected_next_artifact')}`",
+            f"- time_to_evidence_bucket: `{portfolio.get('time_to_evidence_bucket')}`",
+            f"- safety_invariant: {portfolio.get('safety_invariant')}",
+        ]
+        for option in portfolio.get("options") or []:
+            if not isinstance(option, dict):
+                continue
+            lines.append(
+                f"- `{option.get('id')}`: role=`{option.get('role')}`, deployable=`{option.get('deployable')}`, "
+                f"live_exposure_allowed=`{option.get('live_exposure_allowed')}`, next=`{option.get('next_artifact')}`"
+            )
     lines += ["", "## Next gate", str(payload.get("next_gate")), ""]
     return "\n".join(lines)
 

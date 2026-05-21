@@ -87,6 +87,17 @@ def test_customer_safe_proof_preserves_fail_closed_live_gate_with_shadow_candida
     assert lanes["venue_dry_run_readiness_proof"]["status"] == "blocked_missing_runtime_backed_proof"
     assert lanes["venue_dry_run_readiness_proof"]["credential_values_redacted"] is True
 
+    portfolio = payload["alternative_solution_portfolio"]
+    assert portfolio["pm_challenge_answered"] is True
+    assert portfolio["option_count"] >= 3
+    assert portfolio["time_to_evidence_bucket"] == "semantic_rebaseline_review_required_before_reference_rows_count"
+    assert portfolio["missing_capability_class"] == "Constraint/Review"
+    for option in portfolio["options"]:
+        assert option["deployable"] is False
+        assert option["live_exposure_allowed"] is False
+        assert option["order_submission_enabled"] is False
+        assert option["risk_on_order_enabled"] is False
+
     assert "買入 / 加倉" in payload["not_allowed"]
     assert payload["fail_closed_invariants"]["paper_shadow_is_not_live_deployability"] is True
     assert payload["pm_handoff_carried_forward"]["selected_customer_safe_lane"] == "paper_shadow_decision_support_sleeve"
@@ -137,3 +148,5 @@ def test_customer_safe_markdown_names_handoff_and_forbidden_actions():
     assert "live_exposure_allowed: **False**" in md
     assert "買入 / 加倉" in md
     assert "paper_shadow_decision_support_sleeve" in md
+    assert "Alternative solution option portfolio" in md
+    assert "selected_next_artifact" in md
