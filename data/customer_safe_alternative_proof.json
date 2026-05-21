@@ -1,31 +1,31 @@
 {
-  "generated_at": "2026-05-21T15:09:05.409619Z",
+  "generated_at": "2026-05-21T16:02:43.529237Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-21T15:08:40.851745Z"
+      "generated_at": "2026-05-21T16:02:36.493040Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-21T15:09:02.313555+00:00"
+      "generated_at": "2026-05-21T16:02:40.324235+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-21T15:08:52.294843+00:00"
+      "generated_at": "2026-05-21T16:02:27.009680+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-21T15:09:04.579833Z"
+      "generated_at": "2026-05-21T16:02:42.653894Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-21T15:08:36.520983+00:00"
+      "generated_at": "2026-05-21T16:01:38.667770+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -47,15 +47,15 @@
   },
   "current_live_support": {
     "deployment_blocker": "under_minimum_exact_live_structure_bucket",
-    "structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+    "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
     "support_route_verdict": "exact_bucket_present_but_below_minimum",
-    "support_governance_route": "exact_live_bucket_supported",
-    "current_rows": 22,
+    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+    "current_rows": 1,
     "minimum_support_rows": 50,
-    "gap_to_minimum": 28,
+    "gap_to_minimum": 49,
     "support_route_deployable": false,
     "reference_only_rows": 8,
-    "operator_summary": "目前 current-live 精準支持 22/50，缺口 28；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
+    "operator_summary": "目前 current-live 精準支持 1/50，缺口 49；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
   },
   "topk_shadow_candidate_context": {
     "artifact_freshness_status": "fresh",
@@ -124,41 +124,40 @@
     "latest_window": {
       "window": "100",
       "alerts": [
-        "label_imbalance",
         "regime_shift"
       ],
       "summary": {
         "rows": 100,
-        "wins": 82,
-        "losses": 18,
-        "win_rate": 0.82,
-        "win_rate_delta_vs_full": 0.2023,
+        "wins": 79,
+        "losses": 21,
+        "win_rate": 0.79,
+        "win_rate_delta_vs_full": 0.1724,
         "unique_targets": [
           0,
           1
         ],
         "constant_target": false,
         "dominant_regime": "bear",
-        "dominant_regime_share": 0.62,
-        "dominant_regime_delta_vs_full": 0.5457,
+        "dominant_regime_share": 0.58,
+        "dominant_regime_delta_vs_full": 0.5057,
         "regime_counts": {
-          "bear": 62,
-          "chop": 38
+          "bear": 58,
+          "chop": 42
         },
         "regime_pct": {
-          "bear": 0.62,
-          "chop": 0.38
+          "bear": 0.58,
+          "chop": 0.42
         },
         "quality_metrics": {
-          "simulated_win_rate": 0.82,
+          "simulated_win_rate": 0.79,
           "spot_long_win_rate": 0.0,
-          "avg_simulated_pnl": 0.0067,
-          "avg_simulated_quality": 0.4263,
-          "avg_drawdown_penalty": 0.047,
-          "avg_time_underwater": 0.1714,
-          "avg_future_return_pct": 0.0067,
-          "avg_future_max_runup": 0.0109,
-          "avg_future_max_drawdown": -0.0023
+          "avg_simulated_pnl": 0.0062,
+          "avg_simulated_quality": 0.4045,
+          "avg_drawdown_penalty": 0.0519,
+          "avg_time_underwater": 0.1828,
+          "avg_future_return_pct": 0.0062,
+          "avg_future_max_runup": 0.0107,
+          "avg_future_max_drawdown": -0.0026
         },
         "feature_diagnostics": {
           "feature_count": 56,
@@ -174,26 +173,26 @@
             "weekday_market_closed_share": 0.73,
             "weekday_market_closed_dominant": false
           },
-          "low_variance_count": 14,
+          "low_variance_count": 13,
           "low_distinct_count": 14,
           "frozen_count": 0,
-          "compressed_count": 14,
+          "compressed_count": 13,
           "expected_static_count": 0,
           "expected_compressed_count": 0,
-          "overlay_only_count": 2,
+          "overlay_only_count": 1,
           "unexpected_frozen_count": 0,
           "unexpected_compressed_count": 12,
           "null_heavy_count": 13,
           "low_variance_examples": [
             {
               "feature": "feat_body",
-              "recent_std": 0.5868,
-              "baseline_std": 20710.5822,
+              "recent_std": 0.5853,
+              "baseline_std": 20708.8948,
               "std_ratio": 0.0,
               "recent_range": 1.6857,
               "baseline_range": 1272817.1727,
               "recent_distinct": 100,
-              "baseline_distinct": 16128,
+              "baseline_distinct": 16132,
               "distinct_ratio": 0.0062,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
@@ -202,13 +201,13 @@
             },
             {
               "feature": "feat_ear",
-              "recent_std": 0.0046,
-              "baseline_std": 0.6501,
-              "std_ratio": 0.0071,
-              "recent_range": 0.0185,
+              "recent_std": 0.0044,
+              "baseline_std": 0.65,
+              "std_ratio": 0.0067,
+              "recent_range": 0.0172,
               "baseline_range": 10.9755,
               "recent_distinct": 99,
-              "baseline_distinct": 24387,
+              "baseline_distinct": 24391,
               "distinct_ratio": 0.0041,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
@@ -217,13 +216,13 @@
             },
             {
               "feature": "feat_tongue",
-              "recent_std": 0.0024,
+              "recent_std": 0.0022,
               "baseline_std": 0.2339,
-              "std_ratio": 0.0102,
-              "recent_range": 0.0104,
+              "std_ratio": 0.0095,
+              "recent_range": 0.0088,
               "baseline_range": 0.8909,
               "recent_distinct": 100,
-              "baseline_distinct": 16206,
+              "baseline_distinct": 16210,
               "distinct_ratio": 0.0062,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
@@ -232,9 +231,9 @@
             },
             {
               "feature": "feat_vix",
-              "recent_std": 0.0984,
-              "baseline_std": 4.714,
-              "std_ratio": 0.0209,
+              "recent_std": 0.1183,
+              "baseline_std": 4.7135,
+              "std_ratio": 0.0251,
               "recent_range": 0.56,
               "baseline_range": 42.59,
               "recent_distinct": 29,
@@ -249,7 +248,7 @@
               "feature": "feat_atr_pct",
               "recent_std": 0.0,
               "baseline_std": 0.0012,
-              "std_ratio": 0.0372,
+              "std_ratio": 0.0333,
               "recent_range": 0.0002,
               "baseline_range": 0.022,
               "recent_distinct": 99,
@@ -307,8 +306,8 @@
               "baseline_distinct": 1709,
               "distinct_ratio": 0.0018,
               "recent_std": 0.1571,
-              "baseline_std": 0.3088,
-              "std_ratio": 0.5089,
+              "baseline_std": 0.3087,
+              "std_ratio": 0.509,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
@@ -332,13 +331,13 @@
           "compressed_examples": [
             {
               "feature": "feat_body",
-              "recent_std": 0.5868,
-              "baseline_std": 20710.5822,
+              "recent_std": 0.5853,
+              "baseline_std": 20708.8948,
               "std_ratio": 0.0,
               "recent_range": 1.6857,
               "baseline_range": 1272817.1727,
               "recent_distinct": 100,
-              "baseline_distinct": 16128,
+              "baseline_distinct": 16132,
               "distinct_ratio": 0.0062,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
@@ -347,13 +346,13 @@
             },
             {
               "feature": "feat_ear",
-              "recent_std": 0.0046,
-              "baseline_std": 0.6501,
-              "std_ratio": 0.0071,
-              "recent_range": 0.0185,
+              "recent_std": 0.0044,
+              "baseline_std": 0.65,
+              "std_ratio": 0.0067,
+              "recent_range": 0.0172,
               "baseline_range": 10.9755,
               "recent_distinct": 99,
-              "baseline_distinct": 24387,
+              "baseline_distinct": 24391,
               "distinct_ratio": 0.0041,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
@@ -362,13 +361,13 @@
             },
             {
               "feature": "feat_tongue",
-              "recent_std": 0.0024,
+              "recent_std": 0.0022,
               "baseline_std": 0.2339,
-              "std_ratio": 0.0102,
-              "recent_range": 0.0104,
+              "std_ratio": 0.0095,
+              "recent_range": 0.0088,
               "baseline_range": 0.8909,
               "recent_distinct": 100,
-              "baseline_distinct": 16206,
+              "baseline_distinct": 16210,
               "distinct_ratio": 0.0062,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
@@ -377,9 +376,9 @@
             },
             {
               "feature": "feat_vix",
-              "recent_std": 0.0984,
-              "baseline_std": 4.714,
-              "std_ratio": 0.0209,
+              "recent_std": 0.1183,
+              "baseline_std": 4.7135,
+              "std_ratio": 0.0251,
               "recent_range": 0.56,
               "baseline_range": 42.59,
               "recent_distinct": 29,
@@ -394,7 +393,7 @@
               "feature": "feat_atr_pct",
               "recent_std": 0.0,
               "baseline_std": 0.0012,
-              "std_ratio": 0.0372,
+              "std_ratio": 0.0333,
               "recent_range": 0.0002,
               "baseline_range": 0.022,
               "recent_distinct": 99,
@@ -410,30 +409,15 @@
           "expected_compressed_examples": [],
           "overlay_only_examples": [
             {
-              "feature": "feat_fang_pcr",
-              "recent_std": 0.0028,
-              "baseline_std": 0.0195,
-              "std_ratio": 0.1417,
-              "recent_range": 0.0096,
-              "baseline_range": 0.1443,
-              "recent_distinct": 79,
-              "baseline_distinct": 5165,
-              "distinct_ratio": 0.0153,
-              "expected_static_reason": null,
-              "expected_compressed_reason": null,
-              "expected_compressed_details": null,
-              "overlay_only_reason": "research_sparse_source"
-            },
-            {
               "feature": "feat_scales_ssr",
               "recent_std": 0.0004,
               "baseline_std": 0.0041,
-              "std_ratio": 0.0861,
+              "std_ratio": 0.0866,
               "recent_range": 0.001,
               "baseline_range": 0.1382,
-              "recent_distinct": 73,
-              "baseline_distinct": 4477,
-              "distinct_ratio": 0.0163,
+              "recent_distinct": 72,
+              "baseline_distinct": 4479,
+              "distinct_ratio": 0.0161,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
@@ -444,13 +428,13 @@
           "unexpected_compressed_examples": [
             {
               "feature": "feat_body",
-              "recent_std": 0.5868,
-              "baseline_std": 20710.5822,
+              "recent_std": 0.5853,
+              "baseline_std": 20708.8948,
               "std_ratio": 0.0,
               "recent_range": 1.6857,
               "baseline_range": 1272817.1727,
               "recent_distinct": 100,
-              "baseline_distinct": 16128,
+              "baseline_distinct": 16132,
               "distinct_ratio": 0.0062,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
@@ -459,13 +443,13 @@
             },
             {
               "feature": "feat_ear",
-              "recent_std": 0.0046,
-              "baseline_std": 0.6501,
-              "std_ratio": 0.0071,
-              "recent_range": 0.0185,
+              "recent_std": 0.0044,
+              "baseline_std": 0.65,
+              "std_ratio": 0.0067,
+              "recent_range": 0.0172,
               "baseline_range": 10.9755,
               "recent_distinct": 99,
-              "baseline_distinct": 24387,
+              "baseline_distinct": 24391,
               "distinct_ratio": 0.0041,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
@@ -474,13 +458,13 @@
             },
             {
               "feature": "feat_tongue",
-              "recent_std": 0.0024,
+              "recent_std": 0.0022,
               "baseline_std": 0.2339,
-              "std_ratio": 0.0102,
-              "recent_range": 0.0104,
+              "std_ratio": 0.0095,
+              "recent_range": 0.0088,
               "baseline_range": 0.8909,
               "recent_distinct": 100,
-              "baseline_distinct": 16206,
+              "baseline_distinct": 16210,
               "distinct_ratio": 0.0062,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
@@ -489,9 +473,9 @@
             },
             {
               "feature": "feat_vix",
-              "recent_std": 0.0984,
-              "baseline_std": 4.714,
-              "std_ratio": 0.0209,
+              "recent_std": 0.1183,
+              "baseline_std": 4.7135,
+              "std_ratio": 0.0251,
               "recent_range": 0.56,
               "baseline_range": 42.59,
               "recent_distinct": 29,
@@ -506,7 +490,7 @@
               "feature": "feat_atr_pct",
               "recent_std": 0.0,
               "baseline_std": 0.0012,
-              "std_ratio": 0.0372,
+              "std_ratio": 0.0333,
               "recent_range": 0.0002,
               "baseline_range": 0.022,
               "recent_distinct": 99,
@@ -552,72 +536,42 @@
           ]
         },
         "target_path_diagnostics": {
-          "window_start_timestamp": "2026-05-19 16:00:00.000000",
-          "window_end_timestamp": "2026-05-20 16:01:50.975666",
-          "latest_target": 0,
+          "window_start_timestamp": "2026-05-19 17:08:38.373655",
+          "window_end_timestamp": "2026-05-20 17:00:00.000000",
+          "latest_target": 1,
           "tail_target_streak": {
-            "target": 0,
-            "count": 18,
-            "start_timestamp": "2026-05-20 12:00:00.000000",
-            "end_timestamp": "2026-05-20 16:01:50.975666",
+            "target": 1,
+            "count": 1,
+            "start_timestamp": "2026-05-20 17:00:00.000000",
+            "end_timestamp": "2026-05-20 17:00:00.000000",
             "regime_counts": {
-              "chop": 18
+              "chop": 1
             },
             "examples": [
               {
-                "label_id": 76576,
-                "timestamp": "2026-05-20 15:16:29.519836",
+                "label_id": 76588,
+                "timestamp": "2026-05-20 17:00:00.000000",
                 "symbol": "BTC/USDT",
-                "target": 0,
+                "target": 1,
                 "regime": "chop",
                 "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0042,
-                "simulated_pyramid_quality": -0.0931,
-                "simulated_pyramid_drawdown_penalty": 0.0838,
-                "simulated_pyramid_time_underwater": 0.24,
-                "future_return_pct": -0.0042,
-                "future_max_drawdown": -0.0042,
-                "future_max_runup": 0.0097
-              },
-              {
-                "label_id": 76577,
-                "timestamp": "2026-05-20 16:00:00.000000",
-                "symbol": "BTC/USDT",
-                "target": 0,
-                "regime": "chop",
-                "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0059,
-                "simulated_pyramid_quality": -0.1325,
-                "simulated_pyramid_drawdown_penalty": 0.1185,
-                "simulated_pyramid_time_underwater": 0.3467,
-                "future_return_pct": -0.0059,
-                "future_max_drawdown": -0.0059,
-                "future_max_runup": 0.0079
-              },
-              {
-                "label_id": 76578,
-                "timestamp": "2026-05-20 16:01:50.975666",
-                "symbol": "BTC/USDT",
-                "target": 0,
-                "regime": "chop",
-                "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0059,
-                "simulated_pyramid_quality": -0.1329,
-                "simulated_pyramid_drawdown_penalty": 0.1186,
-                "simulated_pyramid_time_underwater": 0.3514,
-                "future_return_pct": -0.0059,
-                "future_max_drawdown": -0.0059,
-                "future_max_runup": 0.0079
+                "simulated_pyramid_pnl": 0.0002,
+                "simulated_pyramid_quality": 0.4154,
+                "simulated_pyramid_drawdown_penalty": 0.099,
+                "simulated_pyramid_time_underwater": 0.1757,
+                "future_return_pct": 0.0002,
+                "future_max_drawdown": -0.005,
+                "future_max_runup": 0.0105
               }
             ]
           },
           "longest_target_streak": {
             "target": 1,
-            "count": 82,
-            "start_timestamp": "2026-05-19 16:00:00.000000",
+            "count": 78,
+            "start_timestamp": "2026-05-19 17:08:38.373655",
             "end_timestamp": "2026-05-20 11:02:04.445018",
             "regime_counts": {
-              "bear": 62,
+              "bear": 58,
               "chop": 20
             },
             "examples": [
@@ -670,67 +624,67 @@
           },
           "longest_zero_target_streak": {
             "target": 0,
-            "count": 18,
+            "count": 21,
             "start_timestamp": "2026-05-20 12:00:00.000000",
-            "end_timestamp": "2026-05-20 16:01:50.975666",
+            "end_timestamp": "2026-05-20 16:16:35.147546",
             "regime_counts": {
-              "chop": 18
+              "chop": 21
             },
             "examples": [
               {
-                "label_id": 76576,
-                "timestamp": "2026-05-20 15:16:29.519836",
+                "label_id": 76585,
+                "timestamp": "2026-05-20 16:10:21.900971",
                 "symbol": "BTC/USDT",
                 "target": 0,
                 "regime": "chop",
                 "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0042,
-                "simulated_pyramid_quality": -0.0931,
-                "simulated_pyramid_drawdown_penalty": 0.0838,
-                "simulated_pyramid_time_underwater": 0.24,
-                "future_return_pct": -0.0042,
-                "future_max_drawdown": -0.0042,
-                "future_max_runup": 0.0097
+                "simulated_pyramid_pnl": -0.0028,
+                "simulated_pyramid_quality": -0.1109,
+                "simulated_pyramid_drawdown_penalty": 0.1599,
+                "simulated_pyramid_time_underwater": 0.4342,
+                "future_return_pct": -0.0028,
+                "future_max_drawdown": -0.008,
+                "future_max_runup": 0.0074
               },
               {
-                "label_id": 76577,
-                "timestamp": "2026-05-20 16:00:00.000000",
+                "label_id": 76586,
+                "timestamp": "2026-05-20 16:14:05.612054",
                 "symbol": "BTC/USDT",
                 "target": 0,
                 "regime": "chop",
                 "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0059,
-                "simulated_pyramid_quality": -0.1325,
-                "simulated_pyramid_drawdown_penalty": 0.1185,
-                "simulated_pyramid_time_underwater": 0.3467,
-                "future_return_pct": -0.0059,
-                "future_max_drawdown": -0.0059,
-                "future_max_runup": 0.0079
+                "simulated_pyramid_pnl": -0.001,
+                "simulated_pyramid_quality": -0.0668,
+                "simulated_pyramid_drawdown_penalty": 0.1237,
+                "simulated_pyramid_time_underwater": 0.2933,
+                "future_return_pct": -0.001,
+                "future_max_drawdown": -0.0062,
+                "future_max_runup": 0.0092
               },
               {
-                "label_id": 76578,
-                "timestamp": "2026-05-20 16:01:50.975666",
+                "label_id": 76587,
+                "timestamp": "2026-05-20 16:16:35.147546",
                 "symbol": "BTC/USDT",
                 "target": 0,
                 "regime": "chop",
                 "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0059,
-                "simulated_pyramid_quality": -0.1329,
-                "simulated_pyramid_drawdown_penalty": 0.1186,
-                "simulated_pyramid_time_underwater": 0.3514,
-                "future_return_pct": -0.0059,
-                "future_max_drawdown": -0.0059,
-                "future_max_runup": 0.0079
+                "simulated_pyramid_pnl": -0.001,
+                "simulated_pyramid_quality": -0.0668,
+                "simulated_pyramid_drawdown_penalty": 0.1237,
+                "simulated_pyramid_time_underwater": 0.2933,
+                "future_return_pct": -0.001,
+                "future_max_drawdown": -0.0062,
+                "future_max_runup": 0.0092
               }
             ]
           },
           "longest_one_target_streak": {
             "target": 1,
-            "count": 82,
-            "start_timestamp": "2026-05-19 16:00:00.000000",
+            "count": 78,
+            "start_timestamp": "2026-05-19 17:08:38.373655",
             "end_timestamp": "2026-05-20 11:02:04.445018",
             "regime_counts": {
-              "bear": 62,
+              "bear": 58,
               "chop": 20
             },
             "examples": [
@@ -782,71 +736,11 @@
             ]
           },
           "target_regime_breakdown": {
-            "bear:1": 62,
-            "chop:1": 20,
-            "chop:0": 18
+            "bear:1": 58,
+            "chop:1": 21,
+            "chop:0": 21
           },
           "recent_examples": [
-            {
-              "label_id": 76571,
-              "timestamp": "2026-05-20 15:07:39.718534",
-              "symbol": "BTC/USDT",
-              "target": 0,
-              "regime": "chop",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0032,
-              "simulated_pyramid_quality": -0.0738,
-              "simulated_pyramid_drawdown_penalty": 0.0632,
-              "simulated_pyramid_time_underwater": 0.2162,
-              "future_return_pct": -0.0032,
-              "future_max_drawdown": -0.0032,
-              "future_max_runup": 0.0097
-            },
-            {
-              "label_id": 76572,
-              "timestamp": "2026-05-20 15:09:05.149234",
-              "symbol": "BTC/USDT",
-              "target": 0,
-              "regime": "chop",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0032,
-              "simulated_pyramid_quality": -0.0738,
-              "simulated_pyramid_drawdown_penalty": 0.0632,
-              "simulated_pyramid_time_underwater": 0.2162,
-              "future_return_pct": -0.0032,
-              "future_max_drawdown": -0.0032,
-              "future_max_runup": 0.0097
-            },
-            {
-              "label_id": 76576,
-              "timestamp": "2026-05-20 15:16:29.519836",
-              "symbol": "BTC/USDT",
-              "target": 0,
-              "regime": "chop",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0042,
-              "simulated_pyramid_quality": -0.0931,
-              "simulated_pyramid_drawdown_penalty": 0.0838,
-              "simulated_pyramid_time_underwater": 0.24,
-              "future_return_pct": -0.0042,
-              "future_max_drawdown": -0.0042,
-              "future_max_runup": 0.0097
-            },
-            {
-              "label_id": 76577,
-              "timestamp": "2026-05-20 16:00:00.000000",
-              "symbol": "BTC/USDT",
-              "target": 0,
-              "regime": "chop",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0059,
-              "simulated_pyramid_quality": -0.1325,
-              "simulated_pyramid_drawdown_penalty": 0.1185,
-              "simulated_pyramid_time_underwater": 0.3467,
-              "future_return_pct": -0.0059,
-              "future_max_drawdown": -0.0059,
-              "future_max_runup": 0.0079
-            },
             {
               "label_id": 76578,
               "timestamp": "2026-05-20 16:01:50.975666",
@@ -861,97 +755,156 @@
               "future_return_pct": -0.0059,
               "future_max_drawdown": -0.0059,
               "future_max_runup": 0.0079
+            },
+            {
+              "label_id": 76585,
+              "timestamp": "2026-05-20 16:10:21.900971",
+              "symbol": "BTC/USDT",
+              "target": 0,
+              "regime": "chop",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.0028,
+              "simulated_pyramid_quality": -0.1109,
+              "simulated_pyramid_drawdown_penalty": 0.1599,
+              "simulated_pyramid_time_underwater": 0.4342,
+              "future_return_pct": -0.0028,
+              "future_max_drawdown": -0.008,
+              "future_max_runup": 0.0074
+            },
+            {
+              "label_id": 76586,
+              "timestamp": "2026-05-20 16:14:05.612054",
+              "symbol": "BTC/USDT",
+              "target": 0,
+              "regime": "chop",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.001,
+              "simulated_pyramid_quality": -0.0668,
+              "simulated_pyramid_drawdown_penalty": 0.1237,
+              "simulated_pyramid_time_underwater": 0.2933,
+              "future_return_pct": -0.001,
+              "future_max_drawdown": -0.0062,
+              "future_max_runup": 0.0092
+            },
+            {
+              "label_id": 76587,
+              "timestamp": "2026-05-20 16:16:35.147546",
+              "symbol": "BTC/USDT",
+              "target": 0,
+              "regime": "chop",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.001,
+              "simulated_pyramid_quality": -0.0668,
+              "simulated_pyramid_drawdown_penalty": 0.1237,
+              "simulated_pyramid_time_underwater": 0.2933,
+              "future_return_pct": -0.001,
+              "future_max_drawdown": -0.0062,
+              "future_max_runup": 0.0092
+            },
+            {
+              "label_id": 76588,
+              "timestamp": "2026-05-20 17:00:00.000000",
+              "symbol": "BTC/USDT",
+              "target": 1,
+              "regime": "chop",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": 0.0002,
+              "simulated_pyramid_quality": 0.4154,
+              "simulated_pyramid_drawdown_penalty": 0.099,
+              "simulated_pyramid_time_underwater": 0.1757,
+              "future_return_pct": 0.0002,
+              "future_max_drawdown": -0.005,
+              "future_max_runup": 0.0105
             }
           ]
         },
         "reference_window_comparison": {
           "current_rows": 100,
           "reference_rows": 100,
-          "current_start_timestamp": "2026-05-19 16:00:00.000000",
-          "current_end_timestamp": "2026-05-20 16:01:50.975666",
-          "reference_start_timestamp": "2026-05-18 08:00:00.000000",
-          "reference_end_timestamp": "2026-05-19 15:05:51.127658",
+          "current_start_timestamp": "2026-05-19 17:08:38.373655",
+          "current_end_timestamp": "2026-05-20 17:00:00.000000",
+          "reference_start_timestamp": "2026-05-18 10:00:00.000000",
+          "reference_end_timestamp": "2026-05-19 16:34:05.010972",
           "current_quality": {
-            "win_rate": 0.82,
+            "win_rate": 0.79,
             "spot_long_win_rate": 0.0,
-            "avg_simulated_pnl": 0.0067,
-            "avg_simulated_quality": 0.4263,
-            "avg_drawdown_penalty": 0.047,
-            "avg_time_underwater": 0.1714
+            "avg_simulated_pnl": 0.0062,
+            "avg_simulated_quality": 0.4045,
+            "avg_drawdown_penalty": 0.0519,
+            "avg_time_underwater": 0.1828
           },
           "reference_quality": {
-            "win_rate": 0.67,
+            "win_rate": 0.69,
             "spot_long_win_rate": 0.0,
-            "avg_simulated_pnl": 0.002,
-            "avg_simulated_quality": 0.2532,
-            "avg_drawdown_penalty": 0.1239,
-            "avg_time_underwater": 0.489
+            "avg_simulated_pnl": 0.0024,
+            "avg_simulated_quality": 0.2718,
+            "avg_drawdown_penalty": 0.1167,
+            "avg_time_underwater": 0.4602
           },
-          "win_rate_delta_vs_reference": 0.15,
+          "win_rate_delta_vs_reference": 0.1,
           "spot_long_win_rate_delta_vs_reference": 0.0,
-          "avg_simulated_pnl_delta_vs_reference": 0.0047,
-          "avg_simulated_quality_delta_vs_reference": 0.1731,
-          "avg_drawdown_penalty_delta_vs_reference": -0.0769,
-          "avg_time_underwater_delta_vs_reference": -0.3176,
+          "avg_simulated_pnl_delta_vs_reference": 0.0038,
+          "avg_simulated_quality_delta_vs_reference": 0.1327,
+          "avg_drawdown_penalty_delta_vs_reference": -0.0648,
+          "avg_time_underwater_delta_vs_reference": -0.2774,
           "current_dominant_regime": "bear",
           "reference_dominant_regime": "bear",
           "regime_share_deltas": {
             "bear": {
-              "current_share": 0.62,
+              "current_share": 0.58,
               "reference_share": 1.0,
-              "share_delta": -0.38
+              "share_delta": -0.42
             },
             "chop": {
-              "current_share": 0.38,
+              "current_share": 0.42,
               "reference_share": 0.0,
-              "share_delta": 0.38
+              "share_delta": 0.42
             }
           },
           "new_unexpected_frozen_features": [],
           "new_unexpected_compressed_features": [
-            "feat_atr_pct",
-            "feat_vix"
+            "feat_atr_pct"
           ],
           "new_null_heavy_features": [],
           "top_mean_shift_features": [
             {
               "feature": "feat_local_bottom_score",
-              "current_mean": 0.2344,
-              "reference_mean": 0.4565,
-              "mean_delta": -0.2221,
-              "delta_vs_baseline_std": 0.9734,
+              "current_mean": 0.2194,
+              "reference_mean": 0.4509,
+              "mean_delta": -0.2315,
+              "delta_vs_baseline_std": 1.0143,
               "overlay_only_reason": null
             },
             {
               "feature": "feat_local_top_score",
-              "current_mean": 0.5075,
-              "reference_mean": 0.3055,
-              "mean_delta": 0.202,
-              "delta_vs_baseline_std": 0.8969,
-              "overlay_only_reason": null
-            },
-            {
-              "feature": "feat_4h_vol_ratio",
-              "current_mean": 0.2366,
-              "reference_mean": 0.7718,
-              "mean_delta": -0.5352,
-              "delta_vs_baseline_std": 0.8616,
+              "current_mean": 0.5224,
+              "reference_mean": 0.3083,
+              "mean_delta": 0.2141,
+              "delta_vs_baseline_std": 0.9507,
               "overlay_only_reason": null
             },
             {
               "feature": "feat_nq_return_24h",
-              "current_mean": -0.0017,
-              "reference_mean": 0.004,
-              "mean_delta": -0.0057,
-              "delta_vs_baseline_std": 0.7112,
+              "current_mean": -0.0026,
+              "reference_mean": 0.0041,
+              "mean_delta": -0.0067,
+              "delta_vs_baseline_std": 0.8322,
+              "overlay_only_reason": null
+            },
+            {
+              "feature": "feat_4h_vol_ratio",
+              "current_mean": 0.2376,
+              "reference_mean": 0.752,
+              "mean_delta": -0.5144,
+              "delta_vs_baseline_std": 0.8281,
               "overlay_only_reason": null
             },
             {
               "feature": "feat_rsi14",
-              "current_mean": 0.5596,
-              "reference_mean": 0.4728,
-              "mean_delta": 0.0868,
-              "delta_vs_baseline_std": 0.6307,
+              "current_mean": 0.5641,
+              "reference_mean": 0.4751,
+              "mean_delta": 0.0891,
+              "delta_vs_baseline_std": 0.6475,
               "overlay_only_reason": null
             }
           ]
@@ -959,41 +912,39 @@
         "compact_summary": {
           "window": 100,
           "alerts": [
-            "label_imbalance",
             "regime_shift"
           ],
-          "severity": "medium",
-          "interpretation": "distribution_pathology",
-          "win_rate": 0.82,
-          "avg_quality": 0.4263,
-          "avg_pnl": 0.0067,
-          "avg_drawdown_penalty": 0.047,
+          "severity": "high",
+          "interpretation": "regime_concentration",
+          "win_rate": 0.79,
+          "avg_quality": 0.4045,
+          "avg_pnl": 0.0062,
+          "avg_drawdown_penalty": 0.0519,
           "dominant_regime": "bear",
-          "dominant_regime_share": 0.62,
+          "dominant_regime_share": 0.58,
           "tail_streak": {
-            "target": 0,
-            "count": 18,
-            "start_timestamp": "2026-05-20 12:00:00.000000",
-            "end_timestamp": "2026-05-20 16:01:50.975666"
+            "target": 1,
+            "count": 1,
+            "start_timestamp": "2026-05-20 17:00:00.000000",
+            "end_timestamp": "2026-05-20 17:00:00.000000"
           },
           "adverse_streak": {
             "target": 0,
-            "count": 18,
+            "count": 21,
             "start_timestamp": "2026-05-20 12:00:00.000000",
-            "end_timestamp": "2026-05-20 16:01:50.975666"
+            "end_timestamp": "2026-05-20 16:16:35.147546"
           },
           "top_shift_features": [
             "feat_local_bottom_score",
             "feat_local_top_score",
-            "feat_4h_vol_ratio",
             "feat_nq_return_24h",
+            "feat_4h_vol_ratio",
             "feat_rsi14"
           ],
-          "actionable_summary": "distribution concentration with adverse tail risk; canonical quality remains positive"
+          "actionable_summary": "negative distribution pathology requires current-window validation"
         },
-        "drift_interpretation": "distribution_pathology",
+        "drift_interpretation": "regime_concentration",
         "alerts": [
-          "label_imbalance",
           "regime_shift"
         ]
       }
@@ -1010,8 +961,8 @@
     "pm_challenge_answered": true,
     "option_count": 3,
     "selected_option": "paper_shadow_decision_support_sleeve",
-    "time_to_evidence_bucket": "within_week_if_exact_identity_keeps_accumulating",
-    "missing_capability_class": "Signal/Support",
+    "time_to_evidence_bucket": "semantic_rebaseline_review_required_before_reference_rows_count",
+    "missing_capability_class": "Constraint/Review",
     "selected_next_artifact": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
     "options": [
       {
@@ -1033,8 +984,8 @@
         "deployable": false,
         "order_submission_enabled": false,
         "risk_on_order_enabled": false,
-        "reference_window": "600",
-        "reference_rows": 39
+        "reference_window": "all",
+        "reference_rows": 2584
       },
       {
         "id": "venue_dry_run_readiness_proof",
@@ -1050,9 +1001,9 @@
     ],
     "safety_invariant": "All alternatives are customer-safe only: deployable=false, live_exposure_allowed=false, order_submission_enabled=false until exact support, Top-K deployability, and venue runtime proof all pass.",
     "evidence_summary": {
-      "support_rows": 22,
+      "support_rows": 1,
       "minimum_support_rows": 50,
-      "support_gap": 28,
+      "support_gap": 49,
       "topk_risk_qualified_rows": 6,
       "topk_deployable_rows": 0,
       "venue_runtime_ready": false,
@@ -1072,9 +1023,9 @@
         "risk_qualified_rows": 6,
         "runtime_blocked_candidate_rows": 6,
         "deployable_rows": 0,
-        "support_rows": 22,
+        "support_rows": 1,
         "support_minimum": 50,
-        "support_gap": 28
+        "support_gap": 49
       },
       "operator_message": "可用作客戶決策支援 / 影子觀察：記錄訊號、假想 entry、24h outcome；不送單、不加倉。"
     },
@@ -1126,14 +1077,14 @@
     {
       "id": "support_fill_feasibility",
       "role": "proof_path_or_falsification",
-      "status": "true_support_under_minimum",
+      "status": "semantic_window_gap_not_raw_backfill_gap",
       "deployable": false,
       "live_exposure_allowed": false,
-      "current_rows": 22,
+      "current_rows": 1,
       "minimum_support_rows": 50,
-      "gap_to_minimum": 28,
-      "time_to_evidence_bucket": "within_week_if_exact_identity_keeps_accumulating",
-      "missing_capability_class": "Signal/Support",
+      "gap_to_minimum": 49,
+      "time_to_evidence_bucket": "semantic_rebaseline_review_required_before_reference_rows_count",
+      "missing_capability_class": "Constraint/Review",
       "alternative_solution_required": true
     },
     {
@@ -1146,41 +1097,40 @@
       "latest_window": {
         "window": "100",
         "alerts": [
-          "label_imbalance",
           "regime_shift"
         ],
         "summary": {
           "rows": 100,
-          "wins": 82,
-          "losses": 18,
-          "win_rate": 0.82,
-          "win_rate_delta_vs_full": 0.2023,
+          "wins": 79,
+          "losses": 21,
+          "win_rate": 0.79,
+          "win_rate_delta_vs_full": 0.1724,
           "unique_targets": [
             0,
             1
           ],
           "constant_target": false,
           "dominant_regime": "bear",
-          "dominant_regime_share": 0.62,
-          "dominant_regime_delta_vs_full": 0.5457,
+          "dominant_regime_share": 0.58,
+          "dominant_regime_delta_vs_full": 0.5057,
           "regime_counts": {
-            "bear": 62,
-            "chop": 38
+            "bear": 58,
+            "chop": 42
           },
           "regime_pct": {
-            "bear": 0.62,
-            "chop": 0.38
+            "bear": 0.58,
+            "chop": 0.42
           },
           "quality_metrics": {
-            "simulated_win_rate": 0.82,
+            "simulated_win_rate": 0.79,
             "spot_long_win_rate": 0.0,
-            "avg_simulated_pnl": 0.0067,
-            "avg_simulated_quality": 0.4263,
-            "avg_drawdown_penalty": 0.047,
-            "avg_time_underwater": 0.1714,
-            "avg_future_return_pct": 0.0067,
-            "avg_future_max_runup": 0.0109,
-            "avg_future_max_drawdown": -0.0023
+            "avg_simulated_pnl": 0.0062,
+            "avg_simulated_quality": 0.4045,
+            "avg_drawdown_penalty": 0.0519,
+            "avg_time_underwater": 0.1828,
+            "avg_future_return_pct": 0.0062,
+            "avg_future_max_runup": 0.0107,
+            "avg_future_max_drawdown": -0.0026
           },
           "feature_diagnostics": {
             "feature_count": 56,
@@ -1196,26 +1146,26 @@
               "weekday_market_closed_share": 0.73,
               "weekday_market_closed_dominant": false
             },
-            "low_variance_count": 14,
+            "low_variance_count": 13,
             "low_distinct_count": 14,
             "frozen_count": 0,
-            "compressed_count": 14,
+            "compressed_count": 13,
             "expected_static_count": 0,
             "expected_compressed_count": 0,
-            "overlay_only_count": 2,
+            "overlay_only_count": 1,
             "unexpected_frozen_count": 0,
             "unexpected_compressed_count": 12,
             "null_heavy_count": 13,
             "low_variance_examples": [
               {
                 "feature": "feat_body",
-                "recent_std": 0.5868,
-                "baseline_std": 20710.5822,
+                "recent_std": 0.5853,
+                "baseline_std": 20708.8948,
                 "std_ratio": 0.0,
                 "recent_range": 1.6857,
                 "baseline_range": 1272817.1727,
                 "recent_distinct": 100,
-                "baseline_distinct": 16128,
+                "baseline_distinct": 16132,
                 "distinct_ratio": 0.0062,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
@@ -1224,13 +1174,13 @@
               },
               {
                 "feature": "feat_ear",
-                "recent_std": 0.0046,
-                "baseline_std": 0.6501,
-                "std_ratio": 0.0071,
-                "recent_range": 0.0185,
+                "recent_std": 0.0044,
+                "baseline_std": 0.65,
+                "std_ratio": 0.0067,
+                "recent_range": 0.0172,
                 "baseline_range": 10.9755,
                 "recent_distinct": 99,
-                "baseline_distinct": 24387,
+                "baseline_distinct": 24391,
                 "distinct_ratio": 0.0041,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
@@ -1239,13 +1189,13 @@
               },
               {
                 "feature": "feat_tongue",
-                "recent_std": 0.0024,
+                "recent_std": 0.0022,
                 "baseline_std": 0.2339,
-                "std_ratio": 0.0102,
-                "recent_range": 0.0104,
+                "std_ratio": 0.0095,
+                "recent_range": 0.0088,
                 "baseline_range": 0.8909,
                 "recent_distinct": 100,
-                "baseline_distinct": 16206,
+                "baseline_distinct": 16210,
                 "distinct_ratio": 0.0062,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
@@ -1254,9 +1204,9 @@
               },
               {
                 "feature": "feat_vix",
-                "recent_std": 0.0984,
-                "baseline_std": 4.714,
-                "std_ratio": 0.0209,
+                "recent_std": 0.1183,
+                "baseline_std": 4.7135,
+                "std_ratio": 0.0251,
                 "recent_range": 0.56,
                 "baseline_range": 42.59,
                 "recent_distinct": 29,
@@ -1271,7 +1221,7 @@
                 "feature": "feat_atr_pct",
                 "recent_std": 0.0,
                 "baseline_std": 0.0012,
-                "std_ratio": 0.0372,
+                "std_ratio": 0.0333,
                 "recent_range": 0.0002,
                 "baseline_range": 0.022,
                 "recent_distinct": 99,
@@ -1329,8 +1279,8 @@
                 "baseline_distinct": 1709,
                 "distinct_ratio": 0.0018,
                 "recent_std": 0.1571,
-                "baseline_std": 0.3088,
-                "std_ratio": 0.5089,
+                "baseline_std": 0.3087,
+                "std_ratio": 0.509,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
@@ -1354,13 +1304,13 @@
             "compressed_examples": [
               {
                 "feature": "feat_body",
-                "recent_std": 0.5868,
-                "baseline_std": 20710.5822,
+                "recent_std": 0.5853,
+                "baseline_std": 20708.8948,
                 "std_ratio": 0.0,
                 "recent_range": 1.6857,
                 "baseline_range": 1272817.1727,
                 "recent_distinct": 100,
-                "baseline_distinct": 16128,
+                "baseline_distinct": 16132,
                 "distinct_ratio": 0.0062,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
@@ -1369,13 +1319,13 @@
               },
               {
                 "feature": "feat_ear",
-                "recent_std": 0.0046,
-                "baseline_std": 0.6501,
-                "std_ratio": 0.0071,
-                "recent_range": 0.0185,
+                "recent_std": 0.0044,
+                "baseline_std": 0.65,
+                "std_ratio": 0.0067,
+                "recent_range": 0.0172,
                 "baseline_range": 10.9755,
                 "recent_distinct": 99,
-                "baseline_distinct": 24387,
+                "baseline_distinct": 24391,
                 "distinct_ratio": 0.0041,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
@@ -1384,13 +1334,13 @@
               },
               {
                 "feature": "feat_tongue",
-                "recent_std": 0.0024,
+                "recent_std": 0.0022,
                 "baseline_std": 0.2339,
-                "std_ratio": 0.0102,
-                "recent_range": 0.0104,
+                "std_ratio": 0.0095,
+                "recent_range": 0.0088,
                 "baseline_range": 0.8909,
                 "recent_distinct": 100,
-                "baseline_distinct": 16206,
+                "baseline_distinct": 16210,
                 "distinct_ratio": 0.0062,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
@@ -1399,9 +1349,9 @@
               },
               {
                 "feature": "feat_vix",
-                "recent_std": 0.0984,
-                "baseline_std": 4.714,
-                "std_ratio": 0.0209,
+                "recent_std": 0.1183,
+                "baseline_std": 4.7135,
+                "std_ratio": 0.0251,
                 "recent_range": 0.56,
                 "baseline_range": 42.59,
                 "recent_distinct": 29,
@@ -1416,7 +1366,7 @@
                 "feature": "feat_atr_pct",
                 "recent_std": 0.0,
                 "baseline_std": 0.0012,
-                "std_ratio": 0.0372,
+                "std_ratio": 0.0333,
                 "recent_range": 0.0002,
                 "baseline_range": 0.022,
                 "recent_distinct": 99,
@@ -1432,30 +1382,15 @@
             "expected_compressed_examples": [],
             "overlay_only_examples": [
               {
-                "feature": "feat_fang_pcr",
-                "recent_std": 0.0028,
-                "baseline_std": 0.0195,
-                "std_ratio": 0.1417,
-                "recent_range": 0.0096,
-                "baseline_range": 0.1443,
-                "recent_distinct": 79,
-                "baseline_distinct": 5165,
-                "distinct_ratio": 0.0153,
-                "expected_static_reason": null,
-                "expected_compressed_reason": null,
-                "expected_compressed_details": null,
-                "overlay_only_reason": "research_sparse_source"
-              },
-              {
                 "feature": "feat_scales_ssr",
                 "recent_std": 0.0004,
                 "baseline_std": 0.0041,
-                "std_ratio": 0.0861,
+                "std_ratio": 0.0866,
                 "recent_range": 0.001,
                 "baseline_range": 0.1382,
-                "recent_distinct": 73,
-                "baseline_distinct": 4477,
-                "distinct_ratio": 0.0163,
+                "recent_distinct": 72,
+                "baseline_distinct": 4479,
+                "distinct_ratio": 0.0161,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
@@ -1466,13 +1401,13 @@
             "unexpected_compressed_examples": [
               {
                 "feature": "feat_body",
-                "recent_std": 0.5868,
-                "baseline_std": 20710.5822,
+                "recent_std": 0.5853,
+                "baseline_std": 20708.8948,
                 "std_ratio": 0.0,
                 "recent_range": 1.6857,
                 "baseline_range": 1272817.1727,
                 "recent_distinct": 100,
-                "baseline_distinct": 16128,
+                "baseline_distinct": 16132,
                 "distinct_ratio": 0.0062,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
@@ -1481,13 +1416,13 @@
               },
               {
                 "feature": "feat_ear",
-                "recent_std": 0.0046,
-                "baseline_std": 0.6501,
-                "std_ratio": 0.0071,
-                "recent_range": 0.0185,
+                "recent_std": 0.0044,
+                "baseline_std": 0.65,
+                "std_ratio": 0.0067,
+                "recent_range": 0.0172,
                 "baseline_range": 10.9755,
                 "recent_distinct": 99,
-                "baseline_distinct": 24387,
+                "baseline_distinct": 24391,
                 "distinct_ratio": 0.0041,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
@@ -1496,13 +1431,13 @@
               },
               {
                 "feature": "feat_tongue",
-                "recent_std": 0.0024,
+                "recent_std": 0.0022,
                 "baseline_std": 0.2339,
-                "std_ratio": 0.0102,
-                "recent_range": 0.0104,
+                "std_ratio": 0.0095,
+                "recent_range": 0.0088,
                 "baseline_range": 0.8909,
                 "recent_distinct": 100,
-                "baseline_distinct": 16206,
+                "baseline_distinct": 16210,
                 "distinct_ratio": 0.0062,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
@@ -1511,9 +1446,9 @@
               },
               {
                 "feature": "feat_vix",
-                "recent_std": 0.0984,
-                "baseline_std": 4.714,
-                "std_ratio": 0.0209,
+                "recent_std": 0.1183,
+                "baseline_std": 4.7135,
+                "std_ratio": 0.0251,
                 "recent_range": 0.56,
                 "baseline_range": 42.59,
                 "recent_distinct": 29,
@@ -1528,7 +1463,7 @@
                 "feature": "feat_atr_pct",
                 "recent_std": 0.0,
                 "baseline_std": 0.0012,
-                "std_ratio": 0.0372,
+                "std_ratio": 0.0333,
                 "recent_range": 0.0002,
                 "baseline_range": 0.022,
                 "recent_distinct": 99,
@@ -1574,72 +1509,42 @@
             ]
           },
           "target_path_diagnostics": {
-            "window_start_timestamp": "2026-05-19 16:00:00.000000",
-            "window_end_timestamp": "2026-05-20 16:01:50.975666",
-            "latest_target": 0,
+            "window_start_timestamp": "2026-05-19 17:08:38.373655",
+            "window_end_timestamp": "2026-05-20 17:00:00.000000",
+            "latest_target": 1,
             "tail_target_streak": {
-              "target": 0,
-              "count": 18,
-              "start_timestamp": "2026-05-20 12:00:00.000000",
-              "end_timestamp": "2026-05-20 16:01:50.975666",
+              "target": 1,
+              "count": 1,
+              "start_timestamp": "2026-05-20 17:00:00.000000",
+              "end_timestamp": "2026-05-20 17:00:00.000000",
               "regime_counts": {
-                "chop": 18
+                "chop": 1
               },
               "examples": [
                 {
-                  "label_id": 76576,
-                  "timestamp": "2026-05-20 15:16:29.519836",
+                  "label_id": 76588,
+                  "timestamp": "2026-05-20 17:00:00.000000",
                   "symbol": "BTC/USDT",
-                  "target": 0,
+                  "target": 1,
                   "regime": "chop",
                   "spot_long_win": 0.0,
-                  "simulated_pyramid_pnl": -0.0042,
-                  "simulated_pyramid_quality": -0.0931,
-                  "simulated_pyramid_drawdown_penalty": 0.0838,
-                  "simulated_pyramid_time_underwater": 0.24,
-                  "future_return_pct": -0.0042,
-                  "future_max_drawdown": -0.0042,
-                  "future_max_runup": 0.0097
-                },
-                {
-                  "label_id": 76577,
-                  "timestamp": "2026-05-20 16:00:00.000000",
-                  "symbol": "BTC/USDT",
-                  "target": 0,
-                  "regime": "chop",
-                  "spot_long_win": 0.0,
-                  "simulated_pyramid_pnl": -0.0059,
-                  "simulated_pyramid_quality": -0.1325,
-                  "simulated_pyramid_drawdown_penalty": 0.1185,
-                  "simulated_pyramid_time_underwater": 0.3467,
-                  "future_return_pct": -0.0059,
-                  "future_max_drawdown": -0.0059,
-                  "future_max_runup": 0.0079
-                },
-                {
-                  "label_id": 76578,
-                  "timestamp": "2026-05-20 16:01:50.975666",
-                  "symbol": "BTC/USDT",
-                  "target": 0,
-                  "regime": "chop",
-                  "spot_long_win": 0.0,
-                  "simulated_pyramid_pnl": -0.0059,
-                  "simulated_pyramid_quality": -0.1329,
-                  "simulated_pyramid_drawdown_penalty": 0.1186,
-                  "simulated_pyramid_time_underwater": 0.3514,
-                  "future_return_pct": -0.0059,
-                  "future_max_drawdown": -0.0059,
-                  "future_max_runup": 0.0079
+                  "simulated_pyramid_pnl": 0.0002,
+                  "simulated_pyramid_quality": 0.4154,
+                  "simulated_pyramid_drawdown_penalty": 0.099,
+                  "simulated_pyramid_time_underwater": 0.1757,
+                  "future_return_pct": 0.0002,
+                  "future_max_drawdown": -0.005,
+                  "future_max_runup": 0.0105
                 }
               ]
             },
             "longest_target_streak": {
               "target": 1,
-              "count": 82,
-              "start_timestamp": "2026-05-19 16:00:00.000000",
+              "count": 78,
+              "start_timestamp": "2026-05-19 17:08:38.373655",
               "end_timestamp": "2026-05-20 11:02:04.445018",
               "regime_counts": {
-                "bear": 62,
+                "bear": 58,
                 "chop": 20
               },
               "examples": [
@@ -1692,67 +1597,67 @@
             },
             "longest_zero_target_streak": {
               "target": 0,
-              "count": 18,
+              "count": 21,
               "start_timestamp": "2026-05-20 12:00:00.000000",
-              "end_timestamp": "2026-05-20 16:01:50.975666",
+              "end_timestamp": "2026-05-20 16:16:35.147546",
               "regime_counts": {
-                "chop": 18
+                "chop": 21
               },
               "examples": [
                 {
-                  "label_id": 76576,
-                  "timestamp": "2026-05-20 15:16:29.519836",
+                  "label_id": 76585,
+                  "timestamp": "2026-05-20 16:10:21.900971",
                   "symbol": "BTC/USDT",
                   "target": 0,
                   "regime": "chop",
                   "spot_long_win": 0.0,
-                  "simulated_pyramid_pnl": -0.0042,
-                  "simulated_pyramid_quality": -0.0931,
-                  "simulated_pyramid_drawdown_penalty": 0.0838,
-                  "simulated_pyramid_time_underwater": 0.24,
-                  "future_return_pct": -0.0042,
-                  "future_max_drawdown": -0.0042,
-                  "future_max_runup": 0.0097
+                  "simulated_pyramid_pnl": -0.0028,
+                  "simulated_pyramid_quality": -0.1109,
+                  "simulated_pyramid_drawdown_penalty": 0.1599,
+                  "simulated_pyramid_time_underwater": 0.4342,
+                  "future_return_pct": -0.0028,
+                  "future_max_drawdown": -0.008,
+                  "future_max_runup": 0.0074
                 },
                 {
-                  "label_id": 76577,
-                  "timestamp": "2026-05-20 16:00:00.000000",
+                  "label_id": 76586,
+                  "timestamp": "2026-05-20 16:14:05.612054",
                   "symbol": "BTC/USDT",
                   "target": 0,
                   "regime": "chop",
                   "spot_long_win": 0.0,
-                  "simulated_pyramid_pnl": -0.0059,
-                  "simulated_pyramid_quality": -0.1325,
-                  "simulated_pyramid_drawdown_penalty": 0.1185,
-                  "simulated_pyramid_time_underwater": 0.3467,
-                  "future_return_pct": -0.0059,
-                  "future_max_drawdown": -0.0059,
-                  "future_max_runup": 0.0079
+                  "simulated_pyramid_pnl": -0.001,
+                  "simulated_pyramid_quality": -0.0668,
+                  "simulated_pyramid_drawdown_penalty": 0.1237,
+                  "simulated_pyramid_time_underwater": 0.2933,
+                  "future_return_pct": -0.001,
+                  "future_max_drawdown": -0.0062,
+                  "future_max_runup": 0.0092
                 },
                 {
-                  "label_id": 76578,
-                  "timestamp": "2026-05-20 16:01:50.975666",
+                  "label_id": 76587,
+                  "timestamp": "2026-05-20 16:16:35.147546",
                   "symbol": "BTC/USDT",
                   "target": 0,
                   "regime": "chop",
                   "spot_long_win": 0.0,
-                  "simulated_pyramid_pnl": -0.0059,
-                  "simulated_pyramid_quality": -0.1329,
-                  "simulated_pyramid_drawdown_penalty": 0.1186,
-                  "simulated_pyramid_time_underwater": 0.3514,
-                  "future_return_pct": -0.0059,
-                  "future_max_drawdown": -0.0059,
-                  "future_max_runup": 0.0079
+                  "simulated_pyramid_pnl": -0.001,
+                  "simulated_pyramid_quality": -0.0668,
+                  "simulated_pyramid_drawdown_penalty": 0.1237,
+                  "simulated_pyramid_time_underwater": 0.2933,
+                  "future_return_pct": -0.001,
+                  "future_max_drawdown": -0.0062,
+                  "future_max_runup": 0.0092
                 }
               ]
             },
             "longest_one_target_streak": {
               "target": 1,
-              "count": 82,
-              "start_timestamp": "2026-05-19 16:00:00.000000",
+              "count": 78,
+              "start_timestamp": "2026-05-19 17:08:38.373655",
               "end_timestamp": "2026-05-20 11:02:04.445018",
               "regime_counts": {
-                "bear": 62,
+                "bear": 58,
                 "chop": 20
               },
               "examples": [
@@ -1804,71 +1709,11 @@
               ]
             },
             "target_regime_breakdown": {
-              "bear:1": 62,
-              "chop:1": 20,
-              "chop:0": 18
+              "bear:1": 58,
+              "chop:1": 21,
+              "chop:0": 21
             },
             "recent_examples": [
-              {
-                "label_id": 76571,
-                "timestamp": "2026-05-20 15:07:39.718534",
-                "symbol": "BTC/USDT",
-                "target": 0,
-                "regime": "chop",
-                "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0032,
-                "simulated_pyramid_quality": -0.0738,
-                "simulated_pyramid_drawdown_penalty": 0.0632,
-                "simulated_pyramid_time_underwater": 0.2162,
-                "future_return_pct": -0.0032,
-                "future_max_drawdown": -0.0032,
-                "future_max_runup": 0.0097
-              },
-              {
-                "label_id": 76572,
-                "timestamp": "2026-05-20 15:09:05.149234",
-                "symbol": "BTC/USDT",
-                "target": 0,
-                "regime": "chop",
-                "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0032,
-                "simulated_pyramid_quality": -0.0738,
-                "simulated_pyramid_drawdown_penalty": 0.0632,
-                "simulated_pyramid_time_underwater": 0.2162,
-                "future_return_pct": -0.0032,
-                "future_max_drawdown": -0.0032,
-                "future_max_runup": 0.0097
-              },
-              {
-                "label_id": 76576,
-                "timestamp": "2026-05-20 15:16:29.519836",
-                "symbol": "BTC/USDT",
-                "target": 0,
-                "regime": "chop",
-                "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0042,
-                "simulated_pyramid_quality": -0.0931,
-                "simulated_pyramid_drawdown_penalty": 0.0838,
-                "simulated_pyramid_time_underwater": 0.24,
-                "future_return_pct": -0.0042,
-                "future_max_drawdown": -0.0042,
-                "future_max_runup": 0.0097
-              },
-              {
-                "label_id": 76577,
-                "timestamp": "2026-05-20 16:00:00.000000",
-                "symbol": "BTC/USDT",
-                "target": 0,
-                "regime": "chop",
-                "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0059,
-                "simulated_pyramid_quality": -0.1325,
-                "simulated_pyramid_drawdown_penalty": 0.1185,
-                "simulated_pyramid_time_underwater": 0.3467,
-                "future_return_pct": -0.0059,
-                "future_max_drawdown": -0.0059,
-                "future_max_runup": 0.0079
-              },
               {
                 "label_id": 76578,
                 "timestamp": "2026-05-20 16:01:50.975666",
@@ -1883,97 +1728,156 @@
                 "future_return_pct": -0.0059,
                 "future_max_drawdown": -0.0059,
                 "future_max_runup": 0.0079
+              },
+              {
+                "label_id": 76585,
+                "timestamp": "2026-05-20 16:10:21.900971",
+                "symbol": "BTC/USDT",
+                "target": 0,
+                "regime": "chop",
+                "spot_long_win": 0.0,
+                "simulated_pyramid_pnl": -0.0028,
+                "simulated_pyramid_quality": -0.1109,
+                "simulated_pyramid_drawdown_penalty": 0.1599,
+                "simulated_pyramid_time_underwater": 0.4342,
+                "future_return_pct": -0.0028,
+                "future_max_drawdown": -0.008,
+                "future_max_runup": 0.0074
+              },
+              {
+                "label_id": 76586,
+                "timestamp": "2026-05-20 16:14:05.612054",
+                "symbol": "BTC/USDT",
+                "target": 0,
+                "regime": "chop",
+                "spot_long_win": 0.0,
+                "simulated_pyramid_pnl": -0.001,
+                "simulated_pyramid_quality": -0.0668,
+                "simulated_pyramid_drawdown_penalty": 0.1237,
+                "simulated_pyramid_time_underwater": 0.2933,
+                "future_return_pct": -0.001,
+                "future_max_drawdown": -0.0062,
+                "future_max_runup": 0.0092
+              },
+              {
+                "label_id": 76587,
+                "timestamp": "2026-05-20 16:16:35.147546",
+                "symbol": "BTC/USDT",
+                "target": 0,
+                "regime": "chop",
+                "spot_long_win": 0.0,
+                "simulated_pyramid_pnl": -0.001,
+                "simulated_pyramid_quality": -0.0668,
+                "simulated_pyramid_drawdown_penalty": 0.1237,
+                "simulated_pyramid_time_underwater": 0.2933,
+                "future_return_pct": -0.001,
+                "future_max_drawdown": -0.0062,
+                "future_max_runup": 0.0092
+              },
+              {
+                "label_id": 76588,
+                "timestamp": "2026-05-20 17:00:00.000000",
+                "symbol": "BTC/USDT",
+                "target": 1,
+                "regime": "chop",
+                "spot_long_win": 0.0,
+                "simulated_pyramid_pnl": 0.0002,
+                "simulated_pyramid_quality": 0.4154,
+                "simulated_pyramid_drawdown_penalty": 0.099,
+                "simulated_pyramid_time_underwater": 0.1757,
+                "future_return_pct": 0.0002,
+                "future_max_drawdown": -0.005,
+                "future_max_runup": 0.0105
               }
             ]
           },
           "reference_window_comparison": {
             "current_rows": 100,
             "reference_rows": 100,
-            "current_start_timestamp": "2026-05-19 16:00:00.000000",
-            "current_end_timestamp": "2026-05-20 16:01:50.975666",
-            "reference_start_timestamp": "2026-05-18 08:00:00.000000",
-            "reference_end_timestamp": "2026-05-19 15:05:51.127658",
+            "current_start_timestamp": "2026-05-19 17:08:38.373655",
+            "current_end_timestamp": "2026-05-20 17:00:00.000000",
+            "reference_start_timestamp": "2026-05-18 10:00:00.000000",
+            "reference_end_timestamp": "2026-05-19 16:34:05.010972",
             "current_quality": {
-              "win_rate": 0.82,
+              "win_rate": 0.79,
               "spot_long_win_rate": 0.0,
-              "avg_simulated_pnl": 0.0067,
-              "avg_simulated_quality": 0.4263,
-              "avg_drawdown_penalty": 0.047,
-              "avg_time_underwater": 0.1714
+              "avg_simulated_pnl": 0.0062,
+              "avg_simulated_quality": 0.4045,
+              "avg_drawdown_penalty": 0.0519,
+              "avg_time_underwater": 0.1828
             },
             "reference_quality": {
-              "win_rate": 0.67,
+              "win_rate": 0.69,
               "spot_long_win_rate": 0.0,
-              "avg_simulated_pnl": 0.002,
-              "avg_simulated_quality": 0.2532,
-              "avg_drawdown_penalty": 0.1239,
-              "avg_time_underwater": 0.489
+              "avg_simulated_pnl": 0.0024,
+              "avg_simulated_quality": 0.2718,
+              "avg_drawdown_penalty": 0.1167,
+              "avg_time_underwater": 0.4602
             },
-            "win_rate_delta_vs_reference": 0.15,
+            "win_rate_delta_vs_reference": 0.1,
             "spot_long_win_rate_delta_vs_reference": 0.0,
-            "avg_simulated_pnl_delta_vs_reference": 0.0047,
-            "avg_simulated_quality_delta_vs_reference": 0.1731,
-            "avg_drawdown_penalty_delta_vs_reference": -0.0769,
-            "avg_time_underwater_delta_vs_reference": -0.3176,
+            "avg_simulated_pnl_delta_vs_reference": 0.0038,
+            "avg_simulated_quality_delta_vs_reference": 0.1327,
+            "avg_drawdown_penalty_delta_vs_reference": -0.0648,
+            "avg_time_underwater_delta_vs_reference": -0.2774,
             "current_dominant_regime": "bear",
             "reference_dominant_regime": "bear",
             "regime_share_deltas": {
               "bear": {
-                "current_share": 0.62,
+                "current_share": 0.58,
                 "reference_share": 1.0,
-                "share_delta": -0.38
+                "share_delta": -0.42
               },
               "chop": {
-                "current_share": 0.38,
+                "current_share": 0.42,
                 "reference_share": 0.0,
-                "share_delta": 0.38
+                "share_delta": 0.42
               }
             },
             "new_unexpected_frozen_features": [],
             "new_unexpected_compressed_features": [
-              "feat_atr_pct",
-              "feat_vix"
+              "feat_atr_pct"
             ],
             "new_null_heavy_features": [],
             "top_mean_shift_features": [
               {
                 "feature": "feat_local_bottom_score",
-                "current_mean": 0.2344,
-                "reference_mean": 0.4565,
-                "mean_delta": -0.2221,
-                "delta_vs_baseline_std": 0.9734,
+                "current_mean": 0.2194,
+                "reference_mean": 0.4509,
+                "mean_delta": -0.2315,
+                "delta_vs_baseline_std": 1.0143,
                 "overlay_only_reason": null
               },
               {
                 "feature": "feat_local_top_score",
-                "current_mean": 0.5075,
-                "reference_mean": 0.3055,
-                "mean_delta": 0.202,
-                "delta_vs_baseline_std": 0.8969,
-                "overlay_only_reason": null
-              },
-              {
-                "feature": "feat_4h_vol_ratio",
-                "current_mean": 0.2366,
-                "reference_mean": 0.7718,
-                "mean_delta": -0.5352,
-                "delta_vs_baseline_std": 0.8616,
+                "current_mean": 0.5224,
+                "reference_mean": 0.3083,
+                "mean_delta": 0.2141,
+                "delta_vs_baseline_std": 0.9507,
                 "overlay_only_reason": null
               },
               {
                 "feature": "feat_nq_return_24h",
-                "current_mean": -0.0017,
-                "reference_mean": 0.004,
-                "mean_delta": -0.0057,
-                "delta_vs_baseline_std": 0.7112,
+                "current_mean": -0.0026,
+                "reference_mean": 0.0041,
+                "mean_delta": -0.0067,
+                "delta_vs_baseline_std": 0.8322,
+                "overlay_only_reason": null
+              },
+              {
+                "feature": "feat_4h_vol_ratio",
+                "current_mean": 0.2376,
+                "reference_mean": 0.752,
+                "mean_delta": -0.5144,
+                "delta_vs_baseline_std": 0.8281,
                 "overlay_only_reason": null
               },
               {
                 "feature": "feat_rsi14",
-                "current_mean": 0.5596,
-                "reference_mean": 0.4728,
-                "mean_delta": 0.0868,
-                "delta_vs_baseline_std": 0.6307,
+                "current_mean": 0.5641,
+                "reference_mean": 0.4751,
+                "mean_delta": 0.0891,
+                "delta_vs_baseline_std": 0.6475,
                 "overlay_only_reason": null
               }
             ]
@@ -1981,41 +1885,39 @@
           "compact_summary": {
             "window": 100,
             "alerts": [
-              "label_imbalance",
               "regime_shift"
             ],
-            "severity": "medium",
-            "interpretation": "distribution_pathology",
-            "win_rate": 0.82,
-            "avg_quality": 0.4263,
-            "avg_pnl": 0.0067,
-            "avg_drawdown_penalty": 0.047,
+            "severity": "high",
+            "interpretation": "regime_concentration",
+            "win_rate": 0.79,
+            "avg_quality": 0.4045,
+            "avg_pnl": 0.0062,
+            "avg_drawdown_penalty": 0.0519,
             "dominant_regime": "bear",
-            "dominant_regime_share": 0.62,
+            "dominant_regime_share": 0.58,
             "tail_streak": {
-              "target": 0,
-              "count": 18,
-              "start_timestamp": "2026-05-20 12:00:00.000000",
-              "end_timestamp": "2026-05-20 16:01:50.975666"
+              "target": 1,
+              "count": 1,
+              "start_timestamp": "2026-05-20 17:00:00.000000",
+              "end_timestamp": "2026-05-20 17:00:00.000000"
             },
             "adverse_streak": {
               "target": 0,
-              "count": 18,
+              "count": 21,
               "start_timestamp": "2026-05-20 12:00:00.000000",
-              "end_timestamp": "2026-05-20 16:01:50.975666"
+              "end_timestamp": "2026-05-20 16:16:35.147546"
             },
             "top_shift_features": [
               "feat_local_bottom_score",
               "feat_local_top_score",
-              "feat_4h_vol_ratio",
               "feat_nq_return_24h",
+              "feat_4h_vol_ratio",
               "feat_rsi14"
             ],
-            "actionable_summary": "distribution concentration with adverse tail risk; canonical quality remains positive"
+            "actionable_summary": "negative distribution pathology requires current-window validation"
           },
-          "drift_interpretation": "distribution_pathology",
+          "drift_interpretation": "regime_concentration",
           "alerts": [
-            "label_imbalance",
             "regime_shift"
           ]
         }
@@ -2038,7 +1940,7 @@
     "把 exact-live-lane proxy、reference windows、OOS pass、paper/shadow 或 dry-run 證據包裝成 live deployment closure",
     "輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]"
   ],
-  "next_gate": "current exact support rows 22/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。",
+  "next_gate": "current exact support rows 1/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。",
   "fail_closed_invariants": {
     "support_reference_only_until_exact_rows_meet_minimum": true,
     "paper_shadow_is_not_live_deployability": true,
