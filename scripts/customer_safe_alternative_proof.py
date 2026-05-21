@@ -94,6 +94,13 @@ def _source_meta(payloads: Mapping[str, dict[str, Any]]) -> dict[str, Any]:
     return meta
 
 
+def _value_if_present(mapping: Mapping[str, Any], key: str) -> tuple[bool, Any]:
+    """Return whether a key is present, preserving explicit JSON null values."""
+    if key in mapping:
+        return True, mapping.get(key)
+    return False, None
+
+
 def _support_context(live_probe: Mapping[str, Any], support_fill: Mapping[str, Any], topk: Mapping[str, Any]) -> dict[str, Any]:
     verdict = support_fill.get("verdict") if isinstance(support_fill.get("verdict"), dict) else {}
     support_ctx = topk.get("support_context") if isinstance(topk.get("support_context"), dict) else {}
@@ -127,15 +134,30 @@ def _support_context(live_probe: Mapping[str, Any], support_fill: Mapping[str, A
             max(minimum - rows, 0),
         )
     )
+    support_route_verdict = _first_present(
+        live_probe.get("support_route_verdict"),
+        details.get("support_route_verdict"),
+        support_ctx.get("support_route_verdict"),
+        verdict.get("q15_support_route_verdict"),
+        "exact_bucket_unsupported_block",
+    )
     deployable = bool(
-        _as_bool(_first_present(support_ctx.get("support_route_deployable"), details.get("support_route_deployable")))
+        _as_bool(_first_present(support_ctx.get("support_route_deployable"), details.get("support_route_deployable"), support_route_verdict == "exact_bucket_supported"))
         and rows >= minimum
         and gap == 0
     )
+    live_blocker_present, live_blocker = _value_if_present(live_probe, "deployment_blocker")
+    support_blocker_present, support_blocker = _value_if_present(support_ctx, "deployment_blocker")
+    if live_blocker_present:
+        deployment_blocker = live_blocker
+    elif support_blocker_present:
+        deployment_blocker = support_blocker
+    elif deployable:
+        deployment_blocker = None
+    else:
+        deployment_blocker = "unsupported_exact_live_structure_bucket"
     return {
-        "deployment_blocker": _first_present(
-            live_probe.get("deployment_blocker"), support_ctx.get("deployment_blocker"), "unsupported_exact_live_structure_bucket"
-        ),
+        "deployment_blocker": deployment_blocker,
         "structure_bucket": _first_present(
             live_probe.get("current_live_structure_bucket"),
             support_ctx.get("current_live_structure_bucket"),
@@ -143,13 +165,7 @@ def _support_context(live_probe: Mapping[str, Any], support_fill: Mapping[str, A
             (support_fill.get("support_identity") or {}).get("current_live_structure_bucket") if isinstance(support_fill.get("support_identity"), dict) else None,
             "—",
         ),
-        "support_route_verdict": _first_present(
-            live_probe.get("support_route_verdict"),
-            details.get("support_route_verdict"),
-            support_ctx.get("support_route_verdict"),
-            verdict.get("q15_support_route_verdict"),
-            "exact_bucket_unsupported_block",
-        ),
+        "support_route_verdict": support_route_verdict,
         "support_governance_route": _first_present(
             live_probe.get("support_governance_route"),
             details.get("support_governance_route"),
@@ -408,6 +424,19 @@ def build_customer_safe_alternative_proof(
     ]
 
     alternative_portfolio = _alternative_solution_portfolio(support_fill, support, topk_ctx, venue, recent)
+    pm_handoff_decision = (
+        "承接 PM handoff：不降低 live gate；fresh runtime 已證明 current exact support 達標，"
+        "本輪轉往 Top-K/model gate 與 venue runtime proof，同時維持 paper/shadow、dry-run、falsification proof。"
+        if support_ready
+        else "維持 current-live exact-support blocker；若 exact rows 仍不足，交付 paper/shadow、dry-run、falsification 與 support-fill proof，不降低 live gate。"
+    )
+    next_gate = (
+        "current exact support 已達標；Top-K deployable_rows>0、venue runtime lifecycle proof complete，"
+        "並通過最小 canary review 後，才可考慮 live exposure。"
+        if support_ready
+        else f"current exact support rows {support['current_rows']}/{support['minimum_support_rows']} 必須補齊；"
+        "同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。"
+    )
 
     payloads = {
         "live_predict_probe": live_probe,
@@ -422,7 +451,7 @@ def build_customer_safe_alternative_proof(
         "artifact": "customer_safe_alternative_proof",
         "source_artifacts": _source_meta(payloads),
         "pm_handoff_carried_forward": {
-            "decision": "維持 current-live exact-support blocker；若 exact rows 仍不足，交付 paper/shadow、dry-run、falsification 與 support-fill proof，不降低 live gate。",
+            "decision": pm_handoff_decision,
             "current_live_blocker": support["deployment_blocker"],
             "selected_customer_safe_lane": "paper_shadow_decision_support_sleeve",
             "forbidden_shortcut": "不可降低 live-trading 門檻、不可把 proxy/reference/OOS/shadow 包裝成 live deployability。",
@@ -458,10 +487,7 @@ def build_customer_safe_alternative_proof(
             "把 exact-live-lane proxy、reference windows、OOS pass、paper/shadow 或 dry-run 證據包裝成 live deployment closure",
             "輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]",
         ],
-        "next_gate": (
-            f"current exact support rows {support['current_rows']}/{support['minimum_support_rows']} 必須補齊；"
-            "同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。"
-        ),
+        "next_gate": next_gate,
         "fail_closed_invariants": {
             "support_reference_only_until_exact_rows_meet_minimum": not support_ready,
             "paper_shadow_is_not_live_deployability": True,

@@ -129,8 +129,39 @@ def test_customer_safe_proof_requires_all_gates_before_canary():
     assert payload["live_deployment_gate"]["live_exposure_allowed"] is True
     assert payload["live_deployment_gate"]["order_submission_enabled"] is True
     assert payload["live_deployment_gate"]["blocking_gate"] == "none"
+    assert payload["current_live_support"]["deployment_blocker"] is None
+    assert "exact support 達標" in payload["pm_handoff_carried_forward"]["decision"]
+    assert "current exact support 已達標" in payload["next_gate"]
+    assert "必須補齊" not in payload["next_gate"]
     # Even when all gates pass, the proof still documents that paper/shadow is not live deployability.
     assert payload["fail_closed_invariants"]["paper_shadow_is_not_live_deployability"] is True
+
+
+def test_customer_safe_proof_does_not_resurrect_stale_support_blocker_after_support_closes():
+    payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "deployment_blocker": None,
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 117,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_governance_route": "exact_live_bucket_supported",
+        },
+        q15_support_fill_feasibility={"verdict": {"current_exact_bucket_rows": 117, "minimum_support_rows": 50, "gap_to_minimum": 0}},
+        high_conviction_topk_oos_matrix={"deployable_rows": 0, "risk_qualified_rows": 6, "runtime_blocked_candidate_rows": 6},
+        execution_metadata_smoke={"runtime_ready": False, "readiness_state": "blocked_until_runtime_lifecycle_proof"},
+        recent_drift_report={},
+        generated_at="2026-05-20T14:00:00Z",
+    )
+
+    assert payload["current_live_support"]["deployment_blocker"] is None
+    assert payload["current_live_support"]["support_route_deployable"] is True
+    assert payload["live_deployment_gate"]["support_ready"] is True
+    assert payload["live_deployment_gate"]["blocking_gate"] == "model_gate"
+    assert payload["live_deployment_gate"]["live_exposure_allowed"] is False
+    assert "current exact support 已達標" in payload["next_gate"]
+    assert "必須補齊" not in payload["next_gate"]
 
 
 def test_customer_safe_markdown_names_handoff_and_forbidden_actions():
