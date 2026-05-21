@@ -1,6 +1,6 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-05-21 08:28:07.498365**
+- generated_at: **2026-05-21 09:13:41.088023**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_replay_not_applicable_for_current_context**
 - artifact_context_freshness: **current_context** (`[]`)
@@ -8,30 +8,30 @@
 - reason: q15 root-cause verdict=current_exact_support_under_minimum，不是 boundary_sensitivity_candidate；boundary replay 本輪不適用，舊 boundary counterfactual 不可當 current truth。
 
 ## Current live row
-- signal: **HOLD**
+- signal: **ABSTAIN**
 - regime/gate: **chop / CAUTION**
 - structure bucket: **CAUTION|base_caution_regime_or_bias|q35**
-- structure_quality: **0.3708**
-- entry_quality: **0.631** (trade_floor_gap=0.081)
+- structure_quality: **0.356**
+- entry_quality: **0.6** (trade_floor_gap=0.05)
 - support_route: **exact_bucket_present_but_below_minimum**
 - floor_cross_legality: **floor_crossed_but_support_not_ready**
 
 ## Boundary replay
-- legacy bucket rows: **10**
+- legacy bucket rows: **13**
 - replay bucket: **CAUTION|base_caution_regime_or_bias|q65**
 - replay bucket rows: **0**
 - generated_rows_via_boundary_only: **0**
 - preexisting_rows_in_replay_bucket: **0**
 - generated_row_share: **None**
 - generated_rows_exceed_replay_scope: **False** (excess=0)
-- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** rows=67
+- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** rows=65
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.6507 → None**
-- structure_quality: **0.3708 → 0.3708**
+- raw before/after: **0.6232 → None**
+- structure_quality: **0.356 → 0.356**
 - bucket_after: **CAUTION|base_caution_regime_or_bias|q65**
-- entry_quality: **0.631 → 0.631**
-- trade_floor_gap_after: **0.081**
+- entry_quality: **0.6 → 0.6**
+- trade_floor_gap_after: **0.05**
 - allowed_layers_after: **1** (entry_quality_C_single_layer)
 - counterfactual verdict: **counterfactual_not_evaluated**
 - counterfactual reason: boundary replay 不適用於目前 RCA verdict，因此不消費舊 q15 counterfactual。
