@@ -10,6 +10,7 @@ _EXACT_SUPPORT_PENDING_VERDICTS = {
     "exact_bucket_present_but_below_minimum",
     "exact_bucket_missing_proxy_reference_only",
     "exact_bucket_missing_exact_lane_proxy_only",
+    "insufficient_support_everywhere",
 }
 
 _EXACT_SUPPORT_PENDING_BLOCKERS = {
@@ -414,6 +415,8 @@ def _humanize_runtime_text(value: Any) -> str:
         ("bull_collapse_q35", "牛市崩落 q35"),
         ("exact_live_bucket_present_but_below_minimum", "目前即時分桶精準樣本未達最小門檻"),
         ("exact_live_bucket_supported", "目前即時分桶精準樣本已就緒"),
+        ("exact_live_lane_proxy_available", "精準即時代理路徑僅供治理參考"),
+        ("insufficient_support_everywhere", "精準樣本不足且無可部署支持路徑"),
         ("unsupported_exact_live_structure_bucket", "精準樣本尚未建立"),
         ("under_minimum_exact_live_structure_bucket", "精準樣本未達最小門檻"),
         ("exact_bucket_supported", "精準樣本已就緒"),

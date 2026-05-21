@@ -37,6 +37,8 @@ RAW_RUNTIME_COPY_SNIPPETS = [
     "CAUTION|",
     "bull|CAUTION",
     "bull|BLOCK",
+    "insufficient_support_everywhere",
+    "exact_live_lane_proxy_available",
 ]
 
 
@@ -130,4 +132,25 @@ def test_runtime_closure_summary_humanizes_reference_only_recommended_patch_scop
     assert "牛市｜觀察" in summary
     assert "精準即時路徑" in summary
     for leaked_copy in [*RAW_RUNTIME_COPY_SNIPPETS, "reference_only", "non_current_live_scope", "exact_live_bucket_present"]:
+        assert leaked_copy not in summary
+
+
+def test_runtime_closure_summary_humanizes_insufficient_support_and_proxy_governance():
+    summary = build_runtime_closure_summary(
+        {
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "insufficient_support_everywhere",
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "allowed_layers": 0,
+        }
+    )
+
+    assert summary is not None
+    assert "觀察｜基線觀察（市場狀態 / 偏離）｜q15" in summary
+    assert "無可部署支持路徑" in summary
+    assert "精準即時代理路徑僅供治理參考" in summary
+    for leaked_copy in RAW_RUNTIME_COPY_SNIPPETS:
         assert leaked_copy not in summary
