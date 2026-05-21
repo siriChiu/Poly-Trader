@@ -1,11 +1,11 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-21 16:01:23.482752**
+- generated_at: **2026-05-21 17:17:47.493801**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
-- signal: **HOLD**
+- signal: **ABSTAIN**
 - regime / gate / label: **chop / CAUTION / D**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q15**
 - current_live_structure_bucket_rows: **1**
@@ -34,9 +34,9 @@
 - support_progress.status: **regressed_under_minimum**
 - support_progress.regression_basis: **same_identity_same_semantic_signature**
 - support_progress.current_rows / minimum: **1 / 50**
-- support_progress.previous_rows: **121**
-- support_progress.delta_vs_previous: **-120**
-- support_progress.stagnant_run_count: **0**
+- support_progress.previous_rows: **1**
+- support_progress.delta_vs_previous: **0**
+- support_progress.stagnant_run_count: **3**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
 - support_identity.path: **chop / CAUTION / D**
@@ -46,16 +46,16 @@
 - legacy semantic verdict: **reference_only_semantic_mismatch_or_missing_fields**; supports_current_identity=**False**; promotable=**False**
 - legacy semantic mismatch/missing fields: `['calibration_window']` / `[]`
 - legacy reference_only_reason: **semantic_evidence_mismatch_or_missing_fields**
-- support_progress.reason: current q15 exact support 自最近一次已就緒 121/50（heartbeat 1067） 回落；需優先檢查 current bucket / support artifact 是否退化。
+- support_progress.reason: current q15 exact support 最近曾達 minimum support（最近一次 121/50，heartbeat 1067），但目前仍停在 1/50；這不是一般停滯，而是 support regression。
 
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0261**
+- remaining_gap_to_floor: **0.0295**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.087**
+- best_single_component_required_score_delta: **0.0983**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.087），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.0983），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**
@@ -65,9 +65,9 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5239**
+- current_entry_quality: **0.5205**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.0261**
+- current_trade_floor_gap: **-0.0295**
 - current_entry_quality_ge_0_55: **False**
 - current_entry_quality_ge_trade_floor: **False**
 - allowed_layers_gt_0: **False**
@@ -81,9 +81,9 @@
 - component_verify_ready: **False**
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
-- current_signal / layers / guardrail: **HOLD / 0 / under_minimum_exact_live_structure_bucket**
+- current_signal / layers / guardrail: **ABSTAIN / 0 / under_minimum_exact_live_structure_bucket**
 - support rows / minimum / gap: **1 / 50 / 49**
-- stagnant_run_count: **0**
+- stagnant_run_count: **3**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**

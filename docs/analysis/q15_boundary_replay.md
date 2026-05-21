@@ -1,6 +1,6 @@
 # q15 Boundary Replay
 
-- generated_at: **2026-05-21 16:01:23.482752**
+- generated_at: **2026-05-21 17:17:47.493801**
 - target_col: **simulated_pyramid_win**
 - verdict: **boundary_replay_not_applicable_for_current_context**
 - artifact_context_freshness: **current_context** (`[]`)
@@ -8,11 +8,11 @@
 - reason: q15 root-cause verdict=current_exact_support_under_minimum，不是 boundary_sensitivity_candidate；boundary replay 本輪不適用，舊 boundary counterfactual 不可當 current truth。
 
 ## Current live row
-- signal: **HOLD**
+- signal: **ABSTAIN**
 - regime/gate: **chop / CAUTION**
 - structure bucket: **CAUTION|base_caution_regime_or_bias|q15**
-- structure_quality: **0.2344**
-- entry_quality: **0.5239** (trade_floor_gap=-0.0261)
+- structure_quality: **0.3485**
+- entry_quality: **0.5205** (trade_floor_gap=-0.0295)
 - support_route: **exact_bucket_present_but_below_minimum**
 - floor_cross_legality: **math_cross_possible_but_illegal_without_exact_support**
 
@@ -20,19 +20,19 @@
 - legacy bucket rows: **1**
 - replay bucket: **CAUTION|base_caution_regime_or_bias|q65**
 - replay bucket rows: **0**
-- generated_rows_via_boundary_only: **342**
+- generated_rows_via_boundary_only: **1**
 - preexisting_rows_in_replay_bucket: **0**
 - generated_row_share: **None**
-- generated_rows_exceed_replay_scope: **True** (excess=342)
-- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** rows=535
+- generated_rows_exceed_replay_scope: **True** (excess=1)
+- dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q65** rows=529
 
 ## feat_4h_bb_pct_b minimal counterfactual
-- raw before/after: **0.4099 → None**
-- structure_quality: **0.2344 → 0.35**
+- raw before/after: **0.6244 → None**
+- structure_quality: **0.3485 → 0.35**
 - bucket_after: **CAUTION|base_caution_regime_or_bias|q65**
-- entry_quality: **0.5239 → 0.5527**
-- trade_floor_gap_after: **0.0027**
-- allowed_layers_after: **1** (entry_quality_C_single_layer)
+- entry_quality: **0.5205 → 0.5209**
+- trade_floor_gap_after: **-0.0291**
+- allowed_layers_after: **0** (entry_quality_below_trade_floor)
 - counterfactual verdict: **counterfactual_not_evaluated**
 - counterfactual reason: boundary replay 不適用於目前 RCA verdict，因此不消費舊 q15 counterfactual。
 

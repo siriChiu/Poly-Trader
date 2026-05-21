@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-21 16:01:45 UTC**
+- generated_at: **2026-05-21 17:18:08 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -67,7 +67,7 @@
 - bucket comparison takeaway: **support_gap_unresolved**
 - proxy boundary verdict: **insufficient_recent_exact_bucket_rows**
 - proxy boundary reason: current live structure bucket 沒有 recent exact rows，無法判斷 proxy cohort 邊界。
-- decision-quality scope / label: **regime_gate / C**
+- decision-quality scope / label: **regime_label / D**
 - narrowed pathology scope: **None**
 - worst pathology scope: **None**
 - shared pathology shift features: []

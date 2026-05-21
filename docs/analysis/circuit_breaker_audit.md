@@ -1,27 +1,27 @@
-# Circuit Breaker Audit（Heartbeat #1417）
-_generated_at: 2026-05-21T16:01:47.579751Z_
+# Circuit Breaker Audit（Heartbeat #1418）
+_generated_at: 2026-05-21T17:18:10.740560Z_
 
 ## 結論
-- verdict: **mixed_horizon_false_positive**
-- summary: 混合 horizon breaker 會被 240m tail labels 觸發（streak=0，recent50 win_rate=0.2200），但 1440m canonical live horizon 目前 release-ready。
-- recommended_patch: 將 circuit breaker 對齊 horizon_minutes=1440 的 canonical live contract。
-- top_level_release: ready=True / recent wins=29/50 / need=15 / gap=0
+- verdict: **breaker_clear**
+- summary: 1440m canonical live horizon 未觸發 breaker。
+- recommended_patch: 維持 horizon-aligned breaker，繼續追 live q15/q35 / support route。
+- top_level_release: ready=True / recent wins=23/50 / need=15 / gap=0
 
 ## Mixed scope（現況錯誤口徑）
-- triggered: **True** via ['recent_win_rate']
+- triggered: **False** via []
 - streak: 0 / threshold 50
-- recent 50: win_rate=0.22 wins=11 losses=39
+- recent 50: win_rate=0.32 wins=16 losses=34
 - streak horizons: {}
 
 ## Aligned scope（1440m canonical live horizon）
 - triggered: **False** via []
 - release_ready: **True**
 - streak: 0 / threshold 50
-- recent 50: win_rate=0.58 wins=29 losses=21
+- recent 50: win_rate=0.46 wins=23 losses=27
 
 ## Release condition
 - streak < 50
 - recent 50 win_rate >= 30%
-- aligned_scope_now: streak=0, win_rate=0.58
+- aligned_scope_now: streak=0, win_rate=0.46
 - additional recent-window wins needed: 0
-- tail pathology: losses=21 / wins=29 / loss_share=0.42
+- tail pathology: losses=27 / wins=23 / loss_share=0.54
