@@ -1,8 +1,8 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-22T22:12:44.368458+00:00`
-- source live probe generated_at: `2026-05-22T22:12:23.316776Z`
-- source q15 audit generated_at: `2026-05-22 22:12:06.329797`
+- generated_at: `2026-05-22T23:14:13.484904+00:00`
+- source live probe generated_at: `2026-05-22T23:13:53.575814Z`
+- source q15 audit generated_at: `2026-05-22 23:13:35.590692`
 - classification: **no_exact_bucket_history**
 - reason: no exact-bucket rows were found under current bucket semantics; this is a support-harvest/design gap, not a backtest-results gap.
 - current exact bucket rows (deployable support candidate): **0/50**
@@ -26,11 +26,11 @@ This section is the current support identity captured by the source artifacts ab
 
 ## Data coverage
 
-- joined labeled rows: **24675**
+- joined labeled rows: **24682**
 - current calibration window filled: **True**
-- features_normalized: count=25101, range=`2024-04-14 07:00:00.000000` → `2026-05-22 22:12:06.329797`
-- labels: count=67738, range=`2024-04-14 07:00:00.000000` → `2026-05-22 19:11:48.681614`
-- raw_market_data: count=34112, range=`2024-04-13 22:00:00.000000` → `2026-05-22 22:12:06.329797`
+- features_normalized: count=25105, range=`2024-04-14 07:00:00.000000` → `2026-05-22 23:13:35.590692`
+- labels: count=67748, range=`2024-04-14 07:00:00.000000` → `2026-05-22 20:11:40.124891`
+- raw_market_data: count=34117, range=`2024-04-13 22:00:00.000000` → `2026-05-22 23:13:35.590692`
 
 ## PM delivery pressure
 
@@ -54,7 +54,7 @@ This section is the current support identity captured by the source artifacts ab
 | 100 | 0 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
 | 200 | 0 | 0 | current_support_identity | False | None | win=None, pnl=None, quality=None |
 | 600 | 58 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
-| 1000 | 89 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
+| 1000 | 83 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
 | 5000 | 90 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
 | all | 241 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
 
