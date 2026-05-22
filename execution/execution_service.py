@@ -85,6 +85,79 @@ class ExecutionService:
                 return f"{base}/{quote}"
         return value
 
+    def _live_canary_policy(self) -> Dict[str, Any]:
+        policy = self.execution_cfg.get("live_canary")
+        return policy if isinstance(policy, dict) else {}
+
+    def _live_canary_allowed_symbols(self) -> set[str]:
+        policy = self._live_canary_policy()
+        symbols = policy.get("allowed_symbols") or []
+        return {self._normalize_symbol(str(symbol)).upper() for symbol in symbols if str(symbol or "").strip()}
+
+    def _live_canary_max_qty_for_symbol(self, symbol: str) -> Optional[float]:
+        policy = self._live_canary_policy()
+        normalized_symbol = self._normalize_symbol(symbol).upper()
+        by_symbol = policy.get("max_base_qty_by_symbol") or {}
+        if isinstance(by_symbol, dict):
+            for key, value in by_symbol.items():
+                if self._normalize_symbol(str(key)).upper() == normalized_symbol:
+                    try:
+                        return float(value)
+                    except (TypeError, ValueError):
+                        return None
+        fallback = policy.get("max_base_qty")
+        if fallback is None:
+            return None
+        try:
+            return float(fallback)
+        except (TypeError, ValueError):
+            return None
+
+    def _enforce_live_canary_policy(self, request: OrderRequest) -> None:
+        """Require explicit tiny-canary limits before any live buy/add order.
+
+        This does not make a blocked strategy deployable.  It only prevents a
+        misconfigured live mode from turning into full-size risk-on execution
+        once the higher-level current-live gates allow a buy request through.
+        """
+        if not self.is_live_enabled() or request.reduce_only or request.side.lower() != "buy":
+            return
+
+        policy = self._live_canary_policy()
+        if not bool(policy.get("enabled", False)):
+            raise ExecutionRejectError(
+                "live_canary_policy_required",
+                "Live buy/add execution requires execution.live_canary.enabled with explicit tiny-size limits",
+                context={
+                    "mode": self.execution_cfg.get("mode"),
+                    "enable_live_trading": self.execution_cfg.get("enable_live_trading"),
+                    "required_config": "execution.live_canary.enabled=true + allowed_symbols + max_base_qty_by_symbol",
+                },
+            )
+
+        allowed_symbols = self._live_canary_allowed_symbols()
+        normalized_symbol = self._normalize_symbol(request.symbol).upper()
+        if allowed_symbols and normalized_symbol not in allowed_symbols:
+            raise ExecutionRejectError(
+                "live_canary_symbol_not_allowed",
+                "Live canary order symbol is not in the explicit allowlist",
+                context={"symbol": normalized_symbol, "allowed_symbols": sorted(allowed_symbols)},
+            )
+
+        max_qty = self._live_canary_max_qty_for_symbol(request.symbol)
+        if max_qty is None or max_qty <= 0:
+            raise ExecutionRejectError(
+                "live_canary_qty_cap_required",
+                "Live buy/add execution requires an explicit max base quantity cap for the symbol",
+                context={"symbol": normalized_symbol, "configured_max_qty": max_qty},
+            )
+        if float(request.qty) > float(max_qty):
+            raise ExecutionRejectError(
+                "live_canary_qty_cap_exceeded",
+                "Live canary order quantity exceeds the configured max base quantity cap",
+                context={"symbol": normalized_symbol, "qty": float(request.qty), "max_base_qty": float(max_qty)},
+            )
+
     def venue_default_type(self, venue: Optional[str] = None) -> str:
         venue_key = self._venue_key(venue)
         venue_cfg = (self.execution_cfg.get("venues") or {}).get(venue_key) or {}
@@ -395,6 +468,7 @@ class ExecutionService:
         normalization: Optional[Dict[str, Any]] = None
         try:
             validated_request, rules = self._validate_order_request(adapter, request)
+            self._enforce_live_canary_policy(validated_request)
             normalization = self._build_normalization_summary(
                 request=request,
                 validated_request=validated_request,

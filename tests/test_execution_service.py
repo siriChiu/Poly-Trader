@@ -170,6 +170,75 @@ def test_execution_service_rejects_below_min_notional(monkeypatch):
         raise AssertionError("should reject low notional order")
 
 
+def test_live_buy_requires_explicit_canary_policy(monkeypatch):
+    service = ExecutionService({"execution": {"mode": "live", "venue": "okx", "enable_live_trading": True}}, db_session=DummySession())
+    monkeypatch.setattr(service, "get_adapter", lambda venue=None: FakeAdapter(dry_run=False))
+
+    try:
+        service.submit_order(symbol="BTC/USDT", side="buy", order_type="market", qty=0.01)
+    except Exception as exc:
+        payload = exc.to_payload()
+        assert payload["code"] == "live_canary_policy_required"
+        assert "execution.live_canary.enabled" in payload["context"]["required_config"]
+    else:
+        raise AssertionError("live buy should require explicit tiny-canary policy")
+
+
+def test_live_canary_rejects_order_above_symbol_qty_cap(monkeypatch):
+    service = ExecutionService(
+        {
+            "execution": {
+                "mode": "live",
+                "venue": "okx",
+                "enable_live_trading": True,
+                "live_canary": {
+                    "enabled": True,
+                    "allowed_symbols": ["BTC/USDT"],
+                    "max_base_qty_by_symbol": {"BTC/USDT": 0.001},
+                },
+            }
+        },
+        db_session=DummySession(),
+    )
+    monkeypatch.setattr(service, "get_adapter", lambda venue=None: FakeAdapter(dry_run=False))
+
+    try:
+        service.submit_order(symbol="BTCUSDT", side="buy", order_type="market", qty=0.002)
+    except Exception as exc:
+        payload = exc.to_payload()
+        assert payload["code"] == "live_canary_qty_cap_exceeded"
+        assert payload["context"]["symbol"] == "BTC/USDT"
+        assert payload["context"]["max_base_qty"] == 0.001
+    else:
+        raise AssertionError("live canary should reject orders above the configured cap")
+
+
+def test_live_canary_allows_tiny_buy_after_policy_passes(monkeypatch):
+    service = ExecutionService(
+        {
+            "execution": {
+                "mode": "live",
+                "venue": "okx",
+                "enable_live_trading": True,
+                "live_canary": {
+                    "enabled": True,
+                    "allowed_symbols": ["BTC/USDT"],
+                    "max_base_qty_by_symbol": {"BTC/USDT": 0.001},
+                },
+            }
+        },
+        db_session=DummySession(),
+    )
+    monkeypatch.setattr(service, "get_adapter", lambda venue=None: FakeAdapter(dry_run=False))
+
+    payload = service.submit_order(symbol="BTCUSDT", side="buy", order_type="market", qty=0.001)
+
+    assert payload["success"] is True
+    assert payload["dry_run"] is False
+    assert payload["order"]["symbol"] == "BTC/USDT"
+    assert payload["order"]["qty"] == 0.001
+
+
 def test_execution_service_guardrail_summary_includes_last_reject(monkeypatch):
     service = ExecutionService({"execution": {"mode": "paper", "venue": "okx"}}, db_session=DummySession())
     monkeypatch.setattr(service, "get_adapter", lambda venue=None: FakeAdapter(dry_run=True))
