@@ -159,3 +159,7 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     assert "option portfolio" in text
     assert "red-team PM" in text
     assert "live buy/add" in text or "真實買入 / 加倉" in text
+    if probe.get("deployment_blocker") == "circuit_breaker_active" or breaker.get("verdict") == "canonical_breaker_active":
+        assert "breaker_clear" not in text
+        assert "breaker math can be clear" not in text
+        assert "熔斷仍 active" in text

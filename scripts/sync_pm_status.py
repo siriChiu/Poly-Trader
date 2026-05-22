@@ -161,6 +161,36 @@ def build_pm_status_markdown(now: datetime | None = None) -> str:
     )
     support_route = _first_present(probe.get("support_route_verdict"), details.get("support_route_verdict"), alt_support.get("support_route_verdict"))
     governance_route = _first_present(probe.get("support_governance_route"), details.get("support_governance_route"), alt_support.get("support_governance_route"))
+    release_ready = release.get("release_ready")
+    breaker_active = (
+        probe.get("deployment_blocker") == "circuit_breaker_active"
+        or probe.get("runtime_closure_state") == "circuit_breaker_active"
+        or breaker.get("verdict") == "canonical_breaker_active"
+        or release_ready is False
+    )
+    release_wins = release.get("current_recent_window_wins", "—")
+    release_window = release.get("recent_window", "—")
+    release_required = release.get("required_recent_window_wins", "—")
+    release_needed = release.get("additional_recent_window_wins_needed", "—")
+    if breaker_active:
+        breaker_verdict_line = (
+            f"熔斷仍 active（recent `{release_wins}/{release_window}`，"
+            f"需要 `{release_required}/{release_window}`，還差 `{release_needed}` 勝），"
+            f"且 current exact support 是 `{rows}/{minimum}`、尚未建立同一 support identity 的精準樣本，"
+            "所以 live buy/add 仍 fail-closed"
+        )
+        breaker_interpretation = (
+            "PM interpretation: breaker is currently active; even after it clears, exact support and venue runtime proof "
+            "must still block live exposure until verified."
+        )
+    else:
+        breaker_verdict_line = (
+            f"熔斷已解除，但 current exact support 是 `{rows}/{minimum}`、尚未建立同一 support identity 的精準樣本，"
+            "所以 live buy/add 仍 fail-closed"
+        )
+        breaker_interpretation = (
+            "PM interpretation: breaker math is clear, but exact support and venue runtime proof still block live exposure."
+        )
 
     matrix_rows = topk.get("rows") if isinstance(topk.get("rows"), list) else []
     runtime_blocked = _runtime_blocked_rows(topk)
@@ -211,13 +241,13 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 - Support progress: `support_progress_status={progress.get('status', '—')}` / `regression_basis={progress.get('regression_basis', '—')}` / `previous_rows={progress.get('previous_rows', '—')}` / `delta_vs_previous={progress.get('delta_vs_previous', '—')}` / `stagnant_run_count={progress.get('stagnant_run_count', '—')}` / legacy reference is reference-only because support identity does not close current deployment.
 - Direct action truth: `api_trade_guardrail_active={_bool_text(probe.get('api_trade_guardrail_active'))}`; `api_trade_buy_guardrail={probe.get('api_trade_buy_guardrail', '—')}`; risk-off sides remain `{_safe_join(probe.get('api_trade_allowed_risk_off_sides'))}` only。
 
-**PM verdict：接受「breaker_clear，但 current exact support 是 `{rows}/{minimum}`、尚未建立同一 support identity 的精準樣本，所以 live buy/add 仍 fail-closed」。不可把 legacy rows、exact-live-lane proxy rows、Top-K OOS pass 或 governance route 包裝成 deployable。**
+**PM verdict：接受「{breaker_verdict_line}」。不可把 legacy rows、exact-live-lane proxy rows、Top-K OOS pass 或 governance route 包裝成 deployable。**
 
 ### Circuit breaker
 
 - Latest artifact `data/circuit_breaker_audit.json` generated at `{breaker.get('generated_at', '—')}`；verdict `{breaker.get('verdict', '—')}`。
 - Release context: `release_ready={_bool_text(release.get('release_ready'))}`, recent-window wins `{release.get('current_recent_window_wins', '—')}/{release.get('recent_window', '—')}`, required wins `{release.get('required_recent_window_wins', '—')}/{release.get('recent_window', '—')}`, `additional_recent_window_wins_needed={release.get('additional_recent_window_wins_needed', '—')}`。
-- PM interpretation: breaker math can be clear while exact support and venue runtime proof still block live exposure.
+- {breaker_interpretation}
 
 ### Research-to-delivery candidates / Top-K
 

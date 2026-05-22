@@ -365,17 +365,29 @@ def _check_pm_status_current_state() -> list[CheckResult]:
     text = status_path.read_text(encoding="utf-8")
     required, artifact_errors = _pm_status_required_snippets()
     missing = [snippet for snippet in required if snippet not in text]
+    forbidden: list[str] = []
+    breaker, breaker_error = _load_json_artifact("data/circuit_breaker_audit.json")
+    if breaker_error:
+        artifact_errors.append(breaker_error)
+    elif breaker is not None:
+        release_condition = breaker.get("release_condition") or {}
+        if breaker.get("verdict") == "canonical_breaker_active" or release_condition.get("release_ready") is False:
+            forbidden.extend(["breaker_clear", "breaker math can be clear"])
+    forbidden_present = [snippet for snippet in forbidden if snippet in text]
     detail_parts = []
     if missing:
         detail_parts.append("missing=" + ", ".join(missing))
+    if forbidden_present:
+        detail_parts.append("forbidden=" + ", ".join(forbidden_present))
     if artifact_errors:
         detail_parts.append("artifact_errors=" + ", ".join(artifact_errors))
+    ok = not missing and not forbidden_present and not artifact_errors
     return [
         CheckResult(
             "pm_status_current_state_fields",
             "PM status matches current live artifacts, decision, usable lanes, and next gate?",
-            not missing and not artifact_errors,
-            "ok" if not missing and not artifact_errors else "; ".join(detail_parts),
+            ok,
+            "ok" if ok else "; ".join(detail_parts),
         )
     ]
 
