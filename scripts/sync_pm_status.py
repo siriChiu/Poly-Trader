@@ -37,6 +37,55 @@ def _first_present(*values: Any, default: Any = "—") -> Any:
     return default
 
 
+def _as_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _support_ready(rows: Any, minimum: Any, gap: Any, support_route: Any) -> bool:
+    rows_int = _as_int(rows)
+    minimum_int = _as_int(minimum)
+    gap_int = _as_int(gap)
+    return bool(
+        support_route == "exact_bucket_supported"
+        or (
+            rows_int is not None
+            and minimum_int is not None
+            and rows_int >= minimum_int
+            and (gap_int is None or gap_int <= 0)
+        )
+    )
+
+
+def _support_clause(*, rows: Any, minimum: Any, gap: Any, support_route: Any, support_ready: bool) -> str:
+    if support_ready:
+        return (
+            f"current exact support 已達 `{rows}/{minimum}`（gap `{gap}`、route `{support_route}`），"
+            "但這只是 support gate，不是 deployment closure"
+        )
+    return (
+        f"current exact support 仍是 `{rows}/{minimum}`、gap `{gap}`，"
+        "尚未建立同一 support identity 的精準樣本"
+    )
+
+
+def _support_handoff_clause(*, rows: Any, minimum: Any, gap: Any, support_ready: bool) -> str:
+    if support_ready:
+        return f"承認 current-live exact support 已達 `{rows}/{minimum}`（gap `{gap}`），但 live gate 仍由 breaker / Top-K / venue runtime proof 共同約束"
+    return "維持 current-live exact-support blocker"
+
+
+def _governance_route_interpretation(governance_route: Any, *, support_ready: bool) -> str:
+    route_text = str(governance_route or "")
+    if support_ready:
+        return "是 exact-support evidence；仍不是部署閉環，必須等 breaker、Top-K、venue/runtime gates 一起通過"
+    if "proxy" in route_text:
+        return "只能當治理 / proxy reference，不是部署閉環"
+    return "只能當 support-governance signal，不是部署閉環"
+
+
 def _bool_text(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -161,6 +210,24 @@ def build_pm_status_markdown(now: datetime | None = None) -> str:
     )
     support_route = _first_present(probe.get("support_route_verdict"), details.get("support_route_verdict"), alt_support.get("support_route_verdict"))
     governance_route = _first_present(probe.get("support_governance_route"), details.get("support_governance_route"), alt_support.get("support_governance_route"))
+    support_ready = _support_ready(rows, minimum, gap, support_route)
+    support_clause = _support_clause(
+        rows=rows,
+        minimum=minimum,
+        gap=gap,
+        support_route=support_route,
+        support_ready=support_ready,
+    )
+    support_handoff_clause = _support_handoff_clause(
+        rows=rows,
+        minimum=minimum,
+        gap=gap,
+        support_ready=support_ready,
+    )
+    governance_route_interpretation = _governance_route_interpretation(
+        governance_route,
+        support_ready=support_ready,
+    )
     release_ready = release.get("release_ready")
     breaker_active = (
         probe.get("deployment_blocker") == "circuit_breaker_active"
@@ -176,20 +243,20 @@ def build_pm_status_markdown(now: datetime | None = None) -> str:
         breaker_verdict_line = (
             f"熔斷仍 active（recent `{release_wins}/{release_window}`，"
             f"需要 `{release_required}/{release_window}`，還差 `{release_needed}` 勝），"
-            f"且 current exact support 是 `{rows}/{minimum}`、尚未建立同一 support identity 的精準樣本，"
+            f"且 {support_clause}，"
             "所以 live buy/add 仍 fail-closed"
         )
         breaker_interpretation = (
-            "PM interpretation: breaker is currently active; even after it clears, exact support and venue runtime proof "
-            "must still block live exposure until verified."
+            "PM interpretation: breaker is currently active; even after it clears, support evidence, Top-K deployability, "
+            "and venue runtime proof must all remain verified before live exposure."
         )
     else:
         breaker_verdict_line = (
-            f"熔斷已解除，但 current exact support 是 `{rows}/{minimum}`、尚未建立同一 support identity 的精準樣本，"
+            f"熔斷已解除，但 {support_clause}，"
             "所以 live buy/add 仍 fail-closed"
         )
         breaker_interpretation = (
-            "PM interpretation: breaker math is clear, but exact support and venue runtime proof still block live exposure."
+            "PM interpretation: breaker math is clear, but any remaining support, Top-K deployability, and venue runtime proof gates still block live exposure."
         )
 
     matrix_rows = topk.get("rows") if isinstance(topk.get("rows"), list) else []
@@ -223,7 +290,7 @@ _最後更新：{updated_at}_
 
 **State：`ORANGE_framework_capture_risk` governance overlay；safe lane remains `YELLOW_shadow_or_paper_usable`；`ORANGE_alternative_solution_required` remains active.**
 
-PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被 customer urgency 推翻。承接上一輪 PM handoff：維持 current-live exact-support blocker、交付 paper/shadow / dry-run / falsification / support-fill proof，且不可降低 live gate。fresh runtime truth 顯示 current-live bucket 是 `{current_bucket}`；PM 決策不變：current exact support 仍是 `{rows}/{minimum}`、`gap={gap}`、`support_route_verdict={support_route}`，`support_governance_route={governance_route}` 只能當治理 / proxy reference，不是部署閉環。
+PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被 customer urgency 推翻。承接上一輪 PM handoff：{support_handoff_clause}、交付 paper/shadow / dry-run / falsification / support-fill proof，且不可降低 live gate。fresh runtime truth 顯示 current-live bucket 是 `{current_bucket}`；PM 決策不變：current exact support 是 `{rows}/{minimum}`、`gap={gap}`、`support_route_verdict={support_route}`，`support_governance_route={governance_route}` {governance_route_interpretation}。
 
 安全答案：`signal={probe.get('signal', '—')}` / `should_trade={_bool_text(probe.get('should_trade'))}` / `deployment_blocker={probe.get('deployment_blocker', '—')}` / `runtime_closure_state={probe.get('runtime_closure_state', '—')}` / `allowed_layers_raw={probe.get('allowed_layers_raw')}` / `allowed_layers={probe.get('allowed_layers')}` / `allowed_layers_reason={probe.get('allowed_layers_reason', '—')}` / `execution_guardrail_reason={probe.get('execution_guardrail_reason', '—')}` / `api_trade_guardrail_active={_bool_text(probe.get('api_trade_guardrail_active'))}` / `api_trade_buy_guardrail={probe.get('api_trade_buy_guardrail', '—')}`。客戶可以使用 Dashboard、Strategy Lab、Execution Console、paper/shadow decision-support、Shadow Trade Ledger、venue readiness checklist、range-chop playbook 與 canary rehearsal；**真實買入 / 加倉 / live buy/add / 自動送單 / 小額 live canary 仍不可放行**。
 
@@ -241,7 +308,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 - Support progress: `support_progress_status={progress.get('status', '—')}` / `regression_basis={progress.get('regression_basis', '—')}` / `previous_rows={progress.get('previous_rows', '—')}` / `delta_vs_previous={progress.get('delta_vs_previous', '—')}` / `stagnant_run_count={progress.get('stagnant_run_count', '—')}` / legacy reference is reference-only because support identity does not close current deployment.
 - Direct action truth: `api_trade_guardrail_active={_bool_text(probe.get('api_trade_guardrail_active'))}`; `api_trade_buy_guardrail={probe.get('api_trade_buy_guardrail', '—')}`; risk-off sides remain `{_safe_join(probe.get('api_trade_allowed_risk_off_sides'))}` only。
 
-**PM verdict：接受「{breaker_verdict_line}」。不可把 legacy rows、exact-live-lane proxy rows、Top-K OOS pass 或 governance route 包裝成 deployable。**
+**PM verdict：接受「{breaker_verdict_line}」。不可把 legacy rows、exact-live-lane proxy rows、Top-K OOS pass、或單一 support/governance gate 包裝成 deployable。**
 
 ### Circuit breaker
 

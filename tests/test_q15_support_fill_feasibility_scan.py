@@ -149,3 +149,58 @@ def test_recommended_actions_use_current_calibration_window_and_under_minimum_co
     assert "current calibration_window=200" in md
     assert "current calibration_window=100" not in md
     assert "足量 rows" not in md
+
+
+def test_recommended_actions_switch_to_remaining_gates_copy_when_current_support_ready():
+    identity = {
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "regime_label": "bear",
+        "regime_gate": "CAUTION",
+        "entry_quality_label": "C",
+        "calibration_window": 200,
+        "bucket_semantic_signature": scan.BUCKET_SEMANTIC_SIGNATURE,
+    }
+    exact_rows = [
+        _row(
+            i,
+            regime="bear",
+            gate="CAUTION",
+            label="C",
+            bucket="CAUTION|base_caution_regime_or_bias|q15",
+            win=1,
+        )
+        for i in range(67)
+    ]
+    non_matching_rows = [_row(i + 67, bucket="ALLOW|different|q65") for i in range(160)]
+
+    report = scan.build_feasibility_report(
+        rows=exact_rows + non_matching_rows,
+        support_identity=identity,
+        generated_at="2026-05-22T09:03:59+00:00",
+        windows=(100, 200, 600),
+        minimum_support_rows=50,
+    )
+
+    verdict = report["verdict"]
+    assert verdict["classification"] == "current_identity_support_ready"
+    assert verdict["current_exact_bucket_rows"] == 67
+    assert verdict["gap_to_minimum"] == 0
+    assert verdict["time_to_evidence_bucket"] == "ready_for_remaining_live_execution_gates"
+    assert verdict["engineering_next_gate"].startswith("exact current support rows 67/50 already meet minimum")
+    assert "must reach minimum" not in verdict["engineering_next_gate"]
+
+    actions = {action["id"]: action for action in report["recommended_actions"]}
+    keep_action = actions["keep_deployment_fail_closed"]
+    assert "current support identity exact rows 67/50 已達門檻" in keep_action["description"]
+    assert "未達門檻前" not in keep_action["description"]
+    assert "support gate 不是 deployment closure" in keep_action["description"]
+    assert keep_action["rows_needed"] == 0
+    collect_action = actions["collect_forward_exact_current_identity_rows"]
+    assert "維持 >= 50" in collect_action["success_condition"]
+
+    md = scan.markdown(report)
+    assert "current support identity exact rows 67/50 已達門檻" in md
+    assert "must reach minimum" not in md
+    assert "support gate 不是 deployment closure" in md

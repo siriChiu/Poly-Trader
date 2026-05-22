@@ -10,6 +10,35 @@ CONTRACT_PATH = PROJECT_ROOT / "docs" / "pm" / "pm-heartbeat-contract.json"
 QA_PATH = PROJECT_ROOT / "docs" / "pm" / "pm-heartbeat-qa.md"
 STATUS_PATH = PROJECT_ROOT / "docs" / "pm" / "pm-status.md"
 
+
+def _first_present(*values):
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def _as_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _support_ready(rows, minimum, gap, support_route) -> bool:
+    rows_int = _as_int(rows)
+    minimum_int = _as_int(minimum)
+    gap_int = _as_int(gap)
+    return bool(
+        support_route == "exact_bucket_supported"
+        or (
+            rows_int is not None
+            and minimum_int is not None
+            and rows_int >= minimum_int
+            and (gap_int is None or gap_int <= 0)
+        )
+    )
+
 REQUIRED_GATE_IDS = [
     "PMHQ0_context_map",
     "PMHQ1_stakeholder_expectation",
@@ -108,11 +137,11 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     execution = json.loads((PROJECT_ROOT / "data/execution_metadata_smoke.json").read_text(encoding="utf-8"))
 
     details = probe.get("deployment_blocker_details") or {}
-    rows = probe.get("current_live_structure_bucket_rows") or details.get("current_live_structure_bucket_rows")
-    minimum = probe.get("minimum_support_rows") or details.get("minimum_support_rows")
-    gap = probe.get("current_live_structure_bucket_gap_to_minimum") or details.get("current_live_structure_bucket_gap_to_minimum")
-    support_route = probe.get("support_route_verdict") or details.get("support_route_verdict")
-    support_governance_route = probe.get("support_governance_route") or details.get("support_governance_route")
+    rows = _first_present(probe.get("current_live_structure_bucket_rows"), details.get("current_live_structure_bucket_rows"))
+    minimum = _first_present(probe.get("minimum_support_rows"), details.get("minimum_support_rows"))
+    gap = _first_present(probe.get("current_live_structure_bucket_gap_to_minimum"), details.get("current_live_structure_bucket_gap_to_minimum"))
+    support_route = _first_present(probe.get("support_route_verdict"), details.get("support_route_verdict"))
+    support_governance_route = _first_present(probe.get("support_governance_route"), details.get("support_governance_route"))
     release = breaker["release_condition"]
     matrix_rows = topk.get("rows") if isinstance(topk.get("rows"), list) else []
     runtime_blocked_rows = [
@@ -163,3 +192,10 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
         assert "breaker_clear" not in text
         assert "breaker math can be clear" not in text
         assert "熔斷仍 active" in text
+    if _support_ready(rows, minimum, gap, support_route):
+        assert "尚未建立同一 support identity 的精準樣本" not in text
+        assert "current exact support 已達" in text
+        assert "單一 support/governance gate" in text
+        if support_governance_route == "exact_live_bucket_supported":
+            assert "只能當治理 / proxy reference" not in text
+            assert "是 exact-support evidence" in text

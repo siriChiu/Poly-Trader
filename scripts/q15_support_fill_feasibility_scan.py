@@ -297,6 +297,17 @@ def _pm_delivery_pressure(
     """PM handoff lane: avoid endless wait by naming next proof and alternatives."""
 
     gap = max(minimum_support_rows - current_rows, 0)
+    if current_rows >= minimum_support_rows:
+        engineering_next_gate = (
+            f"exact current support rows {current_rows}/{minimum_support_rows} already meet minimum; "
+            "keep deployable=false until circuit breaker, Top-K deployability, and venue/execution gates pass; "
+            "reference rows stay non-deployable unless identity is deliberately rebaselined and reverified"
+        )
+    else:
+        engineering_next_gate = (
+            f"exact current support rows {current_rows}/{minimum_support_rows} must reach minimum; "
+            f"gap={gap}; reference rows stay non-deployable until identity is deliberately rebaselined and reverified"
+        )
     time_bucket = _time_to_evidence_bucket(
         classification=classification,
         current_rows=current_rows,
@@ -331,10 +342,7 @@ def _pm_delivery_pressure(
         "alternative_solution_required": classification != "current_identity_support_ready",
         "selected_next_alternative_artifact": alternatives[0]["next_artifact"],
         "customer_safe_lane": "paper/shadow decision-support; no buy/add live exposure",
-        "engineering_next_gate": (
-            f"exact current support rows {current_rows}/{minimum_support_rows} must reach minimum; "
-            f"gap={gap}; reference rows stay non-deployable until identity is deliberately rebaselined and reverified"
-        ),
+        "engineering_next_gate": engineering_next_gate,
         "alternative_solutions": alternatives,
     }
 
@@ -465,16 +473,29 @@ def build_feasibility_report(
     current_regime = support_identity.get("regime_label") or "unknown_regime"
     current_gate = support_identity.get("regime_gate") or "unknown_gate"
     current_entry_label = support_identity.get("entry_quality_label") or "unknown_entry_quality"
+    current_support_ready = current_rows >= minimum_support_rows
+    if current_support_ready:
+        keep_description = (
+            "維持 deployable=false / allowed_layers=0；"
+            f"current support identity exact rows {current_rows}/{minimum_support_rows} 已達門檻，"
+            "但 support gate 不是 deployment closure；reference windows 仍不可直接算作額外 deployment support。"
+        )
+        keep_success = "current support_identity exact rows 維持 >= minimum，且 circuit breaker / Top-K / venue / execution gates 同步通過。"
+        collect_success = f"current_exact_bucket_rows 維持 >= {minimum_support_rows} 且 remaining live/execution gates 進入驗證。"
+    else:
+        keep_description = (
+            "維持 deployable=false / allowed_layers=0；"
+            f"current support identity exact rows {current_rows}/{minimum_support_rows}，"
+            "未達門檻前 reference windows 不可直接算作 deployment support。"
+        )
+        keep_success = "current support_identity exact rows >= minimum 且 live/execution gates 同步通過。"
+        collect_success = f"current_exact_bucket_rows >= {minimum_support_rows}"
     actions = [
         {
             "id": "keep_deployment_fail_closed",
             "priority": "P0",
-            "description": (
-                "維持 deployable=false / allowed_layers=0；"
-                f"current support identity exact rows {current_rows}/{minimum_support_rows}，"
-                "未達門檻前 reference windows 不可直接算作 deployment support。"
-            ),
-            "success_condition": "current support_identity exact rows >= minimum 且 live/execution gates 同步通過。",
+            "description": keep_description,
+            "success_condition": keep_success,
             "current_rows": current_rows,
             "rows_needed": max(minimum_support_rows - current_rows, 0),
             "current_calibration_window": calibration_window,
@@ -488,7 +509,7 @@ def build_feasibility_report(
                 f"entry_label={current_entry_label}、bucket={current_bucket} "
                 "完全一致的真實 labeled rows。"
             ),
-            "success_condition": f"current_exact_bucket_rows >= {minimum_support_rows}",
+            "success_condition": collect_success,
             "current_rows": current_rows,
             "rows_needed": max(minimum_support_rows - current_rows, 0),
             "current_calibration_window": calibration_window,

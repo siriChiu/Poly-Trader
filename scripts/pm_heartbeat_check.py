@@ -237,6 +237,35 @@ def _bool_snippet(name: str, value: Any) -> str | None:
     return None
 
 
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def _as_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _support_ready(rows: Any, minimum: Any, gap: Any, support_route: Any) -> bool:
+    rows_int = _as_int(rows)
+    minimum_int = _as_int(minimum)
+    gap_int = _as_int(gap)
+    return bool(
+        support_route == "exact_bucket_supported"
+        or (
+            rows_int is not None
+            and minimum_int is not None
+            and rows_int >= minimum_int
+            and (gap_int is None or gap_int <= 0)
+        )
+    )
+
+
 def _pm_status_required_snippets() -> tuple[list[str], list[str]]:
     """Build PM status checks from current runtime artifacts, not stale literals.
 
@@ -285,13 +314,9 @@ def _pm_status_required_snippets() -> tuple[list[str], list[str]]:
             ]
             if snippet and snippet != "None"
         )
-        rows = probe.get("current_live_structure_bucket_rows") or details.get(
-            "current_live_structure_bucket_rows"
-        )
-        minimum = probe.get("minimum_support_rows") or details.get("minimum_support_rows")
-        gap = probe.get("current_live_structure_bucket_gap_to_minimum") or details.get(
-            "current_live_structure_bucket_gap_to_minimum"
-        )
+        rows = _first_present(probe.get("current_live_structure_bucket_rows"), details.get("current_live_structure_bucket_rows"))
+        minimum = _first_present(probe.get("minimum_support_rows"), details.get("minimum_support_rows"))
+        gap = _first_present(probe.get("current_live_structure_bucket_gap_to_minimum"), details.get("current_live_structure_bucket_gap_to_minimum"))
         if rows is not None and minimum is not None:
             required.append(f"{rows}/{minimum}")
         if gap is not None:
@@ -373,6 +398,20 @@ def _check_pm_status_current_state() -> list[CheckResult]:
         release_condition = breaker.get("release_condition") or {}
         if breaker.get("verdict") == "canonical_breaker_active" or release_condition.get("release_ready") is False:
             forbidden.extend(["breaker_clear", "breaker math can be clear"])
+    probe, probe_error = _load_json_artifact("data/live_predict_probe.json")
+    if probe_error:
+        artifact_errors.append(probe_error)
+    elif probe is not None:
+        details = probe.get("deployment_blocker_details") or {}
+        rows = _first_present(probe.get("current_live_structure_bucket_rows"), details.get("current_live_structure_bucket_rows"))
+        minimum = _first_present(probe.get("minimum_support_rows"), details.get("minimum_support_rows"))
+        gap = _first_present(probe.get("current_live_structure_bucket_gap_to_minimum"), details.get("current_live_structure_bucket_gap_to_minimum"))
+        support_route = _first_present(probe.get("support_route_verdict"), details.get("support_route_verdict"))
+        governance_route = _first_present(probe.get("support_governance_route"), details.get("support_governance_route"))
+        if _support_ready(rows, minimum, gap, support_route):
+            forbidden.append("尚未建立同一 support identity 的精準樣本")
+            if governance_route == "exact_live_bucket_supported":
+                forbidden.append("support_governance_route=exact_live_bucket_supported` 只能當治理 / proxy reference")
     forbidden_present = [snippet for snippet in forbidden if snippet in text]
     detail_parts = []
     if missing:
