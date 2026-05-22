@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-22 18:10:52 UTC**
+- generated_at: **2026-05-22 19:03:57 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -59,10 +59,10 @@
 - current bucket gap to minimum: **49**
 - exact-bucket proxy gap to minimum: **50**
 - exact-lane proxy gap to minimum: **42**
-- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q15` rows=33
-- bucket gap vs dominant neighbor: **32**
+- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q15` rows=30
+- bucket gap vs dominant neighbor: **29**
 - exact bucket root cause: **exact_bucket_present_but_below_minimum**
-- broader q65 rows / dominant regime: **1 / chop (0.7702)**
+- broader q65 rows / dominant regime: **1 / chop (0.7862)**
 - root cause interpretation: bull exact lane 已出現當前 bucket 樣本，但距離 minimum support 仍有缺口；需持續累積 exact rows，不能當成已解 blocker。
 - bucket comparison takeaway: **support_gap_unresolved**
 - proxy boundary verdict: **insufficient_recent_exact_bucket_rows**
@@ -78,7 +78,7 @@
 
 | cohort | bucket | rows | win_rate | quality / cv | note |
 |---|---|---:|---:|---:|---|
-| exact live lane | CAUTION|base_caution_regime_or_bias|q00 | 37 | 0.973 | 0.5458 | current bucket rows=1 |
+| exact live lane | CAUTION|base_caution_regime_or_bias|q00 | 34 | 0.9706 | 0.5457 | current bucket rows=1 |
 | exact bucket proxy | CAUTION|base_caution_regime_or_bias|q00 | 0 | 0.0 | None | proxy-vs-broader win Δ=-1.0 |
 | broader same bucket | CAUTION|base_caution_regime_or_bias|q00 | 1 | 1.0 | 0.4815 | dominant_regime=chop |
 
@@ -89,7 +89,7 @@
 - historical exact-bucket proxy rows / win_rate: **0 / None**
 - recent broader same-bucket rows / dominant regime: **1 / bear**
 - proxy vs current bucket win Δ / row ratio: **None / None**
-- exact lane vs current bucket win Δ / quality Δ: **None / 0.0643**
+- exact lane vs current bucket win Δ / quality Δ: **None / 0.0642**
 - broader same-bucket vs current bucket win Δ / quality Δ: **None / 0.0**
 
 ## Exact lane sub-bucket diagnostics
