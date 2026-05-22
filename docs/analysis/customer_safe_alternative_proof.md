@@ -1,16 +1,16 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-22T11:13:18.526588Z`
+- generated_at: `2026-05-22T12:11:01.998971Z`
 - current_live_blocker: `circuit_breaker_active`
 - current_live_structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
-- exact support: `59/50` (gap `0`)
-- support_route_verdict: `exact_bucket_supported`
+- exact support: `6/50` (gap `44`)
+- support_route_verdict: `exact_bucket_present_but_below_minimum`
 - canary_ready: **False**
 - live_exposure_allowed: **False**
 - order_submission_enabled: **False**
 
 ## PM handoff carried forward
-承接 PM handoff：不降低 live gate；fresh runtime 已證明 current exact support 達標，本輪轉往 Top-K/model gate 與 venue runtime proof，同時維持 paper/shadow、dry-run、falsification proof。
+維持 current-live exact-support blocker；若 exact rows 仍不足，交付 paper/shadow、dry-run、falsification 與 support-fill proof，不降低 live gate。
 
 ## Customer-safe lane available today
 - Top-K risk-qualified rows: `6`
@@ -32,18 +32,18 @@
 ## Lanes
 - `paper_shadow_decision_support_sleeve`: status=`available`, deployable=`False`, live_exposure_allowed=`False`
 - `venue_dry_run_readiness_proof`: status=`blocked_missing_runtime_backed_proof`, deployable=`False`, live_exposure_allowed=`False`
-- `support_fill_feasibility`: status=`current_identity_support_ready`, deployable=`False`, live_exposure_allowed=`False`
+- `support_fill_feasibility`: status=`semantic_window_gap_not_raw_backfill_gap`, deployable=`False`, live_exposure_allowed=`False`
 - `recent_window_no_new_risk_falsification`: status=`not_available`, deployable=`False`, live_exposure_allowed=`False`
 
 ## Alternative solution option portfolio
 - option_count: `3`
 - selected_next_artifact: `data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy`
-- time_to_evidence_bucket: `ready_for_remaining_live_execution_gates`
+- time_to_evidence_bucket: `semantic_rebaseline_review_required_before_reference_rows_count`
 - safety_invariant: All alternatives are customer-safe only: deployable=false, live_exposure_allowed=false, order_submission_enabled=false until exact support, Top-K deployability, and venue runtime proof all pass.
 - `paper_shadow_decision_support_sleeve`: role=`customer_usable_now`, deployable=`False`, live_exposure_allowed=`False`, next=`data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy`
 - `semantic_rebaseline_review`: role=`support_policy_alternative`, deployable=`False`, live_exposure_allowed=`False`, next=`OOS + Top-K + support audit replay under any proposed new calibration_window identity`
 - `venue_dry_run_readiness_proof`: role=`delivery_risk_reduction`, deployable=`False`, live_exposure_allowed=`False`, next=`OKX/Binance dry-run lifecycle proof checklist with credential state as boolean only`
 
 ## Next gate
-current exact support 已達標；Top-K deployable_rows>0、venue runtime lifecycle proof complete，並通過最小 canary review 後，才可考慮 live exposure。
+current exact support rows 6/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
 
