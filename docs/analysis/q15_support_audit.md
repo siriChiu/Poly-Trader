@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-22 04:11:56.675626**
+- generated_at: **2026-05-22 05:08:16.960968**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -8,7 +8,7 @@
 - signal: **HOLD**
 - regime / gate / label: **chop / CAUTION / D**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q15**
-- current_live_structure_bucket_rows: **1**
+- current_live_structure_bucket_rows: **2**
 - allowed_layers: **0** (under_minimum_exact_live_structure_bucket)
 - execution_guardrail_reason: **under_minimum_exact_live_structure_bucket**
 
@@ -25,7 +25,7 @@
 - deployable: **False**
 - governance_reference_only: **True**
 - preferred_support_cohort: **bull_exact_live_lane_proxy**
-- current bucket gap to minimum: **49**
+- current bucket gap to minimum: **48**
 - exact-bucket proxy rows: **0**
 - exact-lane proxy rows: **860**
 - supported neighbor rows: **0**
@@ -33,10 +33,10 @@
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
 - support_progress.status: **regressed_under_minimum**
 - support_progress.regression_basis: **same_identity_same_semantic_signature**
-- support_progress.current_rows / minimum: **1 / 50**
-- support_progress.previous_rows: **1**
+- support_progress.current_rows / minimum: **2 / 50**
+- support_progress.previous_rows: **2**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **5**
+- support_progress.stagnant_run_count: **2**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
 - support_identity.path: **chop / CAUTION / D**
@@ -46,16 +46,16 @@
 - legacy semantic verdict: **reference_only_semantic_mismatch_or_missing_fields**; supports_current_identity=**False**; promotable=**False**
 - legacy semantic mismatch/missing fields: `['calibration_window']` / `[]`
 - legacy reference_only_reason: **semantic_evidence_mismatch_or_missing_fields**
-- support_progress.reason: current q15 exact support 最近曾達 minimum support（最近一次 121/50，heartbeat 1067），但目前仍停在 1/50；這不是一般停滯，而是 support regression。
+- support_progress.reason: current q15 exact support 最近曾達 minimum support（最近一次 121/50，heartbeat 1067），但目前仍停在 2/50；這不是一般停滯，而是 support regression。
 
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0613**
+- remaining_gap_to_floor: **0.0374**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.2043**
+- best_single_component_required_score_delta: **0.1247**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.2043），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.1247），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**
@@ -65,9 +65,9 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.4887**
+- current_entry_quality: **0.5126**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.0613**
+- current_trade_floor_gap: **-0.0374**
 - current_entry_quality_ge_0_55: **False**
 - current_entry_quality_ge_trade_floor: **False**
 - allowed_layers_gt_0: **False**
@@ -82,8 +82,8 @@
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **HOLD / 0 / under_minimum_exact_live_structure_bucket**
-- support rows / minimum / gap: **1 / 50 / 49**
-- stagnant_run_count: **5**
+- support rows / minimum / gap: **2 / 50 / 48**
+- stagnant_run_count: **2**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**
