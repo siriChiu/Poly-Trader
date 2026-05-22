@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-22 02:09:50 UTC**
+- generated_at: **2026-05-22 03:02:30 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -59,10 +59,10 @@
 - current bucket gap to minimum: **25**
 - exact-bucket proxy gap to minimum: **50**
 - exact-lane proxy gap to minimum: **42**
-- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q35` rows=50
-- bucket gap vs dominant neighbor: **25**
+- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q35` rows=54
+- bucket gap vs dominant neighbor: **29**
 - exact bucket root cause: **exact_bucket_present_but_below_minimum**
-- broader q65 rows / dominant regime: **118 / bear (0.5665)**
+- broader q65 rows / dominant regime: **114 / bear (0.5434)**
 - root cause interpretation: bull exact lane 已出現當前 bucket 樣本，但距離 minimum support 仍有缺口；需持續累積 exact rows，不能當成已解 blocker。
 - bucket comparison takeaway: **support_gap_unresolved**
 - proxy boundary verdict: **insufficient_recent_exact_bucket_rows**
@@ -78,19 +78,19 @@
 
 | cohort | bucket | rows | win_rate | quality / cv | note |
 |---|---|---:|---:|---:|---|
-| exact live lane | CAUTION|base_caution_regime_or_bias|q15 | 75 | 0.4933 | 0.1705 | current bucket rows=25 |
-| exact bucket proxy | CAUTION|base_caution_regime_or_bias|q15 | 0 | 0.0 | None | proxy-vs-broader win Δ=-0.8729 |
-| broader same bucket | CAUTION|base_caution_regime_or_bias|q15 | 118 | 0.8729 | 0.4253 | dominant_regime=bear |
+| exact live lane | CAUTION|base_caution_regime_or_bias|q15 | 79 | 0.4684 | 0.1531 | current bucket rows=25 |
+| exact bucket proxy | CAUTION|base_caution_regime_or_bias|q15 | 0 | 0.0 | None | proxy-vs-broader win Δ=-0.886 |
+| broader same bucket | CAUTION|base_caution_regime_or_bias|q15 | 114 | 0.886 | 0.4345 | dominant_regime=bear |
 
 ## Proxy boundary diagnostics
 
 - recent exact current bucket rows / win_rate: **0 / None**
 - recent exact live lane rows / win_rate: **8 / 0.75**
 - historical exact-bucket proxy rows / win_rate: **0 / None**
-- recent broader same-bucket rows / dominant regime: **118 / bear**
+- recent broader same-bucket rows / dominant regime: **114 / bear**
 - proxy vs current bucket win Δ / row ratio: **None / None**
-- exact lane vs current bucket win Δ / quality Δ: **None / -0.133**
-- broader same-bucket vs current bucket win Δ / quality Δ: **None / 0.1218**
+- exact lane vs current bucket win Δ / quality Δ: **None / -0.1504**
+- broader same-bucket vs current bucket win Δ / quality Δ: **None / 0.131**
 
 ## Exact lane sub-bucket diagnostics
 

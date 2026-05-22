@@ -1,31 +1,31 @@
 {
-  "generated_at": "2026-05-22T02:10:09.390028Z",
+  "generated_at": "2026-05-22T03:10:45.242657Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-22T02:09:47.014077Z"
+      "generated_at": "2026-05-22T03:10:26.906118Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-22T02:10:05.171246+00:00"
+      "generated_at": "2026-05-22T03:10:42.101026+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-22T02:09:54.866016+00:00"
+      "generated_at": "2026-05-22T03:10:31.445984+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-22T02:10:08.490067Z"
+      "generated_at": "2026-05-22T03:10:44.310757Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-22T02:09:43.167711+00:00"
+      "generated_at": "2026-05-22T03:10:23.201921+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -122,78 +122,79 @@
   },
   "recent_window_context": {
     "latest_window": {
-      "window": "500",
+      "window": "100",
       "alerts": [
+        "regime_concentration",
         "regime_shift"
       ],
       "summary": {
-        "rows": 500,
-        "wins": 208,
-        "losses": 292,
-        "win_rate": 0.416,
-        "win_rate_delta_vs_full": -0.2013,
+        "rows": 100,
+        "wins": 46,
+        "losses": 54,
+        "win_rate": 0.46,
+        "win_rate_delta_vs_full": -0.1571,
         "unique_targets": [
           0,
           1
         ],
         "constant_target": false,
-        "dominant_regime": "bear",
-        "dominant_regime_share": 0.71,
-        "dominant_regime_delta_vs_full": 0.6359,
+        "dominant_regime": "chop",
+        "dominant_regime_share": 0.94,
+        "dominant_regime_delta_vs_full": 0.4683,
         "regime_counts": {
-          "bear": 355,
-          "chop": 145
+          "bear": 6,
+          "chop": 94
         },
         "regime_pct": {
-          "bear": 0.71,
-          "chop": 0.29
+          "bear": 0.06,
+          "chop": 0.94
         },
         "quality_metrics": {
-          "simulated_win_rate": 0.416,
-          "spot_long_win_rate": 0.014,
-          "avg_simulated_pnl": -0.0021,
-          "avg_simulated_quality": 0.0708,
-          "avg_drawdown_penalty": 0.1842,
-          "avg_time_underwater": 0.539,
-          "avg_future_return_pct": -0.0048,
-          "avg_future_max_runup": 0.0058,
-          "avg_future_max_drawdown": -0.0111
+          "simulated_win_rate": 0.46,
+          "spot_long_win_rate": 0.0,
+          "avg_simulated_pnl": 0.0003,
+          "avg_simulated_quality": 0.1489,
+          "avg_drawdown_penalty": 0.1256,
+          "avg_time_underwater": 0.3712,
+          "avg_future_return_pct": 0.0003,
+          "avg_future_max_runup": 0.0075,
+          "avg_future_max_drawdown": -0.0063
         },
         "feature_diagnostics": {
           "feature_count": 56,
-          "window_rows": 500,
+          "window_rows": 100,
           "time_context": {
-            "parsed_timestamps": 500,
-            "weekend_count": 133,
-            "weekend_share": 0.266,
+            "parsed_timestamps": 100,
+            "weekend_count": 0,
+            "weekend_share": 0.0,
             "weekend_dominant": false,
-            "weekday_count": 367,
-            "weekday_market_open_count": 102,
-            "weekday_market_closed_count": 265,
-            "weekday_market_closed_share": 0.7221,
+            "weekday_count": 100,
+            "weekday_market_open_count": 29,
+            "weekday_market_closed_count": 71,
+            "weekday_market_closed_share": 0.71,
             "weekday_market_closed_dominant": false
           },
-          "low_variance_count": 6,
-          "low_distinct_count": 13,
+          "low_variance_count": 17,
+          "low_distinct_count": 14,
           "frozen_count": 0,
-          "compressed_count": 6,
+          "compressed_count": 17,
           "expected_static_count": 0,
-          "expected_compressed_count": 0,
+          "expected_compressed_count": 6,
           "overlay_only_count": 1,
           "unexpected_frozen_count": 0,
-          "unexpected_compressed_count": 5,
+          "unexpected_compressed_count": 10,
           "null_heavy_count": 13,
           "low_variance_examples": [
             {
               "feature": "feat_body",
-              "recent_std": 0.6552,
-              "baseline_std": 20690.3603,
+              "recent_std": 0.3522,
+              "baseline_std": 20686.9958,
               "std_ratio": 0.0,
-              "recent_range": 2.8045,
+              "recent_range": 1.4039,
               "baseline_range": 1272817.1727,
-              "recent_distinct": 500,
-              "baseline_distinct": 16176,
-              "distinct_ratio": 0.0309,
+              "recent_distinct": 100,
+              "baseline_distinct": 16184,
+              "distinct_ratio": 0.0062,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
@@ -201,14 +202,14 @@
             },
             {
               "feature": "feat_ear",
-              "recent_std": 0.0085,
-              "baseline_std": 0.6494,
-              "std_ratio": 0.0131,
-              "recent_range": 0.0485,
+              "recent_std": 0.0036,
+              "baseline_std": 0.6493,
+              "std_ratio": 0.0055,
+              "recent_range": 0.015,
               "baseline_range": 10.9755,
-              "recent_distinct": 491,
-              "baseline_distinct": 24435,
-              "distinct_ratio": 0.0201,
+              "recent_distinct": 100,
+              "baseline_distinct": 24443,
+              "distinct_ratio": 0.0041,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
@@ -216,47 +217,90 @@
             },
             {
               "feature": "feat_tongue",
-              "recent_std": 0.0045,
+              "recent_std": 0.0021,
               "baseline_std": 0.2338,
-              "std_ratio": 0.0193,
-              "recent_range": 0.0383,
+              "std_ratio": 0.0092,
+              "recent_range": 0.008,
               "baseline_range": 0.8909,
-              "recent_distinct": 500,
-              "baseline_distinct": 16254,
-              "distinct_ratio": 0.0308,
+              "recent_distinct": 100,
+              "baseline_distinct": 16262,
+              "distinct_ratio": 0.0061,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
               "overlay_only_reason": null
             },
             {
-              "feature": "feat_scales_ssr",
-              "recent_std": 0.0003,
-              "baseline_std": 0.0041,
-              "std_ratio": 0.0817,
-              "recent_range": 0.0012,
-              "baseline_range": 0.1382,
-              "recent_distinct": 337,
-              "baseline_distinct": 4512,
-              "distinct_ratio": 0.0747,
+              "feature": "feat_atr_pct",
+              "recent_std": 0.0,
+              "baseline_std": 0.0012,
+              "std_ratio": 0.015,
+              "recent_range": 0.0001,
+              "baseline_range": 0.022,
+              "recent_distinct": 100,
+              "baseline_distinct": 19685,
+              "distinct_ratio": 0.0051,
               "expected_static_reason": null,
-              "expected_compressed_reason": null,
-              "expected_compressed_details": null,
-              "overlay_only_reason": "research_sparse_source"
+              "expected_compressed_reason": "underlying_raw_volatility_compression",
+              "expected_compressed_details": {
+                "reason": "underlying_raw_volatility_compression",
+                "proxy_cols": [
+                  "raw_volatility"
+                ],
+                "compressed_proxy_count": 1,
+                "min_required_proxies": 1,
+                "proxy_stats": {
+                  "raw_volatility": {
+                    "recent_std": 0.0002,
+                    "baseline_std": 0.0013,
+                    "std_ratio": 0.1237,
+                    "recent_mean": 0.0025,
+                    "baseline_mean": 0.004,
+                    "mean_delta": -0.0015
+                  }
+                }
+              },
+              "overlay_only_reason": null
             },
             {
-              "feature": "feat_vix",
-              "recent_std": 0.4229,
-              "baseline_std": 4.7088,
-              "std_ratio": 0.0898,
-              "recent_range": 2.01,
-              "baseline_range": 42.59,
-              "recent_distinct": 92,
-              "baseline_distinct": 1438,
-              "distinct_ratio": 0.064,
+              "feature": "feat_4h_bias200",
+              "recent_std": 0.2923,
+              "baseline_std": 6.2035,
+              "std_ratio": 0.0471,
+              "recent_range": 1.2279,
+              "baseline_range": 56.2776,
+              "recent_distinct": 84,
+              "baseline_distinct": 23975,
+              "distinct_ratio": 0.0035,
               "expected_static_reason": null,
-              "expected_compressed_reason": null,
-              "expected_compressed_details": null,
+              "expected_compressed_reason": "underlying_price_and_volatility_compression",
+              "expected_compressed_details": {
+                "reason": "underlying_price_and_volatility_compression",
+                "proxy_cols": [
+                  "raw_close_price",
+                  "raw_volatility"
+                ],
+                "compressed_proxy_count": 2,
+                "min_required_proxies": 2,
+                "proxy_stats": {
+                  "raw_close_price": {
+                    "recent_std": 229.9723,
+                    "baseline_std": 17609.0376,
+                    "std_ratio": 0.0131,
+                    "recent_mean": 77543.8366,
+                    "baseline_mean": 82850.9799,
+                    "mean_delta": -5307.1432
+                  },
+                  "raw_volatility": {
+                    "recent_std": 0.0002,
+                    "baseline_std": 0.0013,
+                    "std_ratio": 0.1237,
+                    "recent_mean": 0.0025,
+                    "baseline_mean": 0.004,
+                    "mean_delta": -0.0015
+                  }
+                }
+              },
               "overlay_only_reason": null
             }
           ],
@@ -301,20 +345,20 @@
               "overlay_only_reason": "research_sparse_source"
             },
             {
-              "feature": "feat_4h_dist_swing_high",
-              "recent_distinct": 0,
-              "baseline_distinct": 0,
-              "distinct_ratio": null,
-              "recent_std": null,
-              "baseline_std": null,
-              "std_ratio": null,
+              "feature": "feat_web_whale",
+              "recent_distinct": 3,
+              "baseline_distinct": 1709,
+              "distinct_ratio": 0.0018,
+              "recent_std": 0.1256,
+              "baseline_std": 0.3078,
+              "std_ratio": 0.4081,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
-              "overlay_only_reason": null
+              "overlay_only_reason": "research_sparse_source"
             },
             {
-              "feature": "feat_chorus",
+              "feature": "feat_4h_dist_swing_high",
               "recent_distinct": 0,
               "baseline_distinct": 0,
               "distinct_ratio": null,
@@ -331,14 +375,14 @@
           "compressed_examples": [
             {
               "feature": "feat_body",
-              "recent_std": 0.6552,
-              "baseline_std": 20690.3603,
+              "recent_std": 0.3522,
+              "baseline_std": 20686.9958,
               "std_ratio": 0.0,
-              "recent_range": 2.8045,
+              "recent_range": 1.4039,
               "baseline_range": 1272817.1727,
-              "recent_distinct": 500,
-              "baseline_distinct": 16176,
-              "distinct_ratio": 0.0309,
+              "recent_distinct": 100,
+              "baseline_distinct": 16184,
+              "distinct_ratio": 0.0062,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
@@ -346,14 +390,14 @@
             },
             {
               "feature": "feat_ear",
-              "recent_std": 0.0085,
-              "baseline_std": 0.6494,
-              "std_ratio": 0.0131,
-              "recent_range": 0.0485,
+              "recent_std": 0.0036,
+              "baseline_std": 0.6493,
+              "std_ratio": 0.0055,
+              "recent_range": 0.015,
               "baseline_range": 10.9755,
-              "recent_distinct": 491,
-              "baseline_distinct": 24435,
-              "distinct_ratio": 0.0201,
+              "recent_distinct": 100,
+              "baseline_distinct": 24443,
+              "distinct_ratio": 0.0041,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
@@ -361,63 +405,402 @@
             },
             {
               "feature": "feat_tongue",
-              "recent_std": 0.0045,
+              "recent_std": 0.0021,
               "baseline_std": 0.2338,
-              "std_ratio": 0.0193,
-              "recent_range": 0.0383,
+              "std_ratio": 0.0092,
+              "recent_range": 0.008,
               "baseline_range": 0.8909,
-              "recent_distinct": 500,
-              "baseline_distinct": 16254,
-              "distinct_ratio": 0.0308,
+              "recent_distinct": 100,
+              "baseline_distinct": 16262,
+              "distinct_ratio": 0.0061,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
               "overlay_only_reason": null
             },
             {
-              "feature": "feat_scales_ssr",
-              "recent_std": 0.0003,
-              "baseline_std": 0.0041,
-              "std_ratio": 0.0817,
-              "recent_range": 0.0012,
-              "baseline_range": 0.1382,
-              "recent_distinct": 337,
-              "baseline_distinct": 4512,
-              "distinct_ratio": 0.0747,
+              "feature": "feat_atr_pct",
+              "recent_std": 0.0,
+              "baseline_std": 0.0012,
+              "std_ratio": 0.015,
+              "recent_range": 0.0001,
+              "baseline_range": 0.022,
+              "recent_distinct": 100,
+              "baseline_distinct": 19685,
+              "distinct_ratio": 0.0051,
               "expected_static_reason": null,
-              "expected_compressed_reason": null,
-              "expected_compressed_details": null,
-              "overlay_only_reason": "research_sparse_source"
+              "expected_compressed_reason": "underlying_raw_volatility_compression",
+              "expected_compressed_details": {
+                "reason": "underlying_raw_volatility_compression",
+                "proxy_cols": [
+                  "raw_volatility"
+                ],
+                "compressed_proxy_count": 1,
+                "min_required_proxies": 1,
+                "proxy_stats": {
+                  "raw_volatility": {
+                    "recent_std": 0.0002,
+                    "baseline_std": 0.0013,
+                    "std_ratio": 0.1237,
+                    "recent_mean": 0.0025,
+                    "baseline_mean": 0.004,
+                    "mean_delta": -0.0015
+                  }
+                }
+              },
+              "overlay_only_reason": null
             },
             {
-              "feature": "feat_vix",
-              "recent_std": 0.4229,
-              "baseline_std": 4.7088,
-              "std_ratio": 0.0898,
-              "recent_range": 2.01,
-              "baseline_range": 42.59,
-              "recent_distinct": 92,
-              "baseline_distinct": 1438,
-              "distinct_ratio": 0.064,
+              "feature": "feat_4h_bias200",
+              "recent_std": 0.2923,
+              "baseline_std": 6.2035,
+              "std_ratio": 0.0471,
+              "recent_range": 1.2279,
+              "baseline_range": 56.2776,
+              "recent_distinct": 84,
+              "baseline_distinct": 23975,
+              "distinct_ratio": 0.0035,
               "expected_static_reason": null,
-              "expected_compressed_reason": null,
-              "expected_compressed_details": null,
+              "expected_compressed_reason": "underlying_price_and_volatility_compression",
+              "expected_compressed_details": {
+                "reason": "underlying_price_and_volatility_compression",
+                "proxy_cols": [
+                  "raw_close_price",
+                  "raw_volatility"
+                ],
+                "compressed_proxy_count": 2,
+                "min_required_proxies": 2,
+                "proxy_stats": {
+                  "raw_close_price": {
+                    "recent_std": 229.9723,
+                    "baseline_std": 17609.0376,
+                    "std_ratio": 0.0131,
+                    "recent_mean": 77543.8366,
+                    "baseline_mean": 82850.9799,
+                    "mean_delta": -5307.1432
+                  },
+                  "raw_volatility": {
+                    "recent_std": 0.0002,
+                    "baseline_std": 0.0013,
+                    "std_ratio": 0.1237,
+                    "recent_mean": 0.0025,
+                    "baseline_mean": 0.004,
+                    "mean_delta": -0.0015
+                  }
+                }
+              },
               "overlay_only_reason": null
             }
           ],
           "expected_static_examples": [],
-          "expected_compressed_examples": [],
+          "expected_compressed_examples": [
+            {
+              "feature": "feat_4h_dist_bb_lower",
+              "recent_std": 0.157,
+              "baseline_std": 3.1454,
+              "std_ratio": 0.0499,
+              "recent_range": 0.6536,
+              "baseline_range": 34.2222,
+              "recent_distinct": 84,
+              "baseline_distinct": 23976,
+              "distinct_ratio": 0.0035,
+              "expected_static_reason": null,
+              "expected_compressed_reason": "coherent_4h_band_floor_compression",
+              "expected_compressed_details": {
+                "reason": "coherent_4h_band_floor_compression",
+                "proxy_cols": [
+                  "raw_close_price",
+                  "raw_volatility",
+                  "feat_4h_bb_pct_b",
+                  "feat_4h_dist_swing_low"
+                ],
+                "compressed_proxy_count": 4,
+                "min_required_proxies": 3,
+                "proxy_stats": {
+                  "raw_close_price": {
+                    "recent_std": 229.9723,
+                    "baseline_std": 17609.0376,
+                    "std_ratio": 0.0131,
+                    "recent_mean": 77543.8366,
+                    "baseline_mean": 82850.9799,
+                    "mean_delta": -5307.1432
+                  },
+                  "raw_volatility": {
+                    "recent_std": 0.0002,
+                    "baseline_std": 0.0013,
+                    "std_ratio": 0.1237,
+                    "recent_mean": 0.0025,
+                    "baseline_mean": 0.004,
+                    "mean_delta": -0.0015
+                  },
+                  "feat_4h_bb_pct_b": {
+                    "recent_std": 0.0622,
+                    "baseline_std": 0.4235,
+                    "std_ratio": 0.1469,
+                    "recent_mean": 0.6867,
+                    "baseline_mean": 0.5596,
+                    "mean_delta": 0.1272
+                  },
+                  "feat_4h_dist_swing_low": {
+                    "recent_std": 0.2992,
+                    "baseline_std": 5.0905,
+                    "std_ratio": 0.0588,
+                    "recent_mean": 1.9312,
+                    "baseline_mean": 4.7468,
+                    "mean_delta": -2.8156
+                  }
+                }
+              },
+              "overlay_only_reason": null
+            },
+            {
+              "feature": "feat_4h_macd_hist",
+              "recent_std": 35.9159,
+              "baseline_std": 650.6449,
+              "std_ratio": 0.0552,
+              "recent_range": 148.8331,
+              "baseline_range": 6017.0645,
+              "recent_distinct": 84,
+              "baseline_distinct": 5526,
+              "distinct_ratio": 0.0152,
+              "expected_static_reason": null,
+              "expected_compressed_reason": "coherent_4h_momentum_compression",
+              "expected_compressed_details": {
+                "reason": "coherent_4h_momentum_compression",
+                "proxy_cols": [
+                  "raw_close_price",
+                  "raw_volatility",
+                  "feat_4h_bias50",
+                  "feat_4h_rsi14",
+                  "feat_4h_bb_pct_b"
+                ],
+                "compressed_proxy_count": 4,
+                "min_required_proxies": 4,
+                "proxy_stats": {
+                  "raw_close_price": {
+                    "recent_std": 229.9723,
+                    "baseline_std": 17609.0376,
+                    "std_ratio": 0.0131,
+                    "recent_mean": 77543.8366,
+                    "baseline_mean": 82850.9799,
+                    "mean_delta": -5307.1432
+                  },
+                  "raw_volatility": {
+                    "recent_std": 0.0002,
+                    "baseline_std": 0.0013,
+                    "std_ratio": 0.1237,
+                    "recent_mean": 0.0025,
+                    "baseline_mean": 0.004,
+                    "mean_delta": -0.0015
+                  },
+                  "feat_4h_bias50": {
+                    "recent_std": 0.412,
+                    "baseline_std": 3.2477,
+                    "std_ratio": 0.1269,
+                    "recent_mean": -1.3965,
+                    "baseline_mean": 0.5612,
+                    "mean_delta": -1.9577
+                  },
+                  "feat_4h_rsi14": {
+                    "recent_std": 2.8563,
+                    "baseline_std": 11.8691,
+                    "std_ratio": 0.2407,
+                    "recent_mean": 49.0996,
+                    "baseline_mean": 52.455,
+                    "mean_delta": -3.3554
+                  },
+                  "feat_4h_bb_pct_b": {
+                    "recent_std": 0.0622,
+                    "baseline_std": 0.4235,
+                    "std_ratio": 0.1469,
+                    "recent_mean": 0.6867,
+                    "baseline_mean": 0.5596,
+                    "mean_delta": 0.1272
+                  }
+                }
+              },
+              "overlay_only_reason": null
+            },
+            {
+              "feature": "feat_4h_dist_swing_low",
+              "recent_std": 0.2992,
+              "baseline_std": 5.0905,
+              "std_ratio": 0.0588,
+              "recent_range": 1.2703,
+              "baseline_range": 126.9125,
+              "recent_distinct": 83,
+              "baseline_distinct": 23897,
+              "distinct_ratio": 0.0035,
+              "expected_static_reason": null,
+              "expected_compressed_reason": "coherent_4h_support_cluster_compression",
+              "expected_compressed_details": {
+                "reason": "coherent_4h_support_cluster_compression",
+                "proxy_cols": [
+                  "raw_close_price",
+                  "raw_volatility",
+                  "feat_4h_dist_bb_lower",
+                  "feat_4h_bb_pct_b"
+                ],
+                "compressed_proxy_count": 4,
+                "min_required_proxies": 3,
+                "proxy_stats": {
+                  "raw_close_price": {
+                    "recent_std": 229.9723,
+                    "baseline_std": 17609.0376,
+                    "std_ratio": 0.0131,
+                    "recent_mean": 77543.8366,
+                    "baseline_mean": 82850.9799,
+                    "mean_delta": -5307.1432
+                  },
+                  "raw_volatility": {
+                    "recent_std": 0.0002,
+                    "baseline_std": 0.0013,
+                    "std_ratio": 0.1237,
+                    "recent_mean": 0.0025,
+                    "baseline_mean": 0.004,
+                    "mean_delta": -0.0015
+                  },
+                  "feat_4h_dist_bb_lower": {
+                    "recent_std": 0.157,
+                    "baseline_std": 3.1454,
+                    "std_ratio": 0.0499,
+                    "recent_mean": 1.6936,
+                    "baseline_mean": 3.4524,
+                    "mean_delta": -1.7588
+                  },
+                  "feat_4h_bb_pct_b": {
+                    "recent_std": 0.0622,
+                    "baseline_std": 0.4235,
+                    "std_ratio": 0.1469,
+                    "recent_mean": 0.6867,
+                    "baseline_mean": 0.5596,
+                    "mean_delta": 0.1272
+                  }
+                }
+              },
+              "overlay_only_reason": null
+            },
+            {
+              "feature": "feat_4h_bias50",
+              "recent_std": 0.412,
+              "baseline_std": 3.2477,
+              "std_ratio": 0.1269,
+              "recent_range": 1.73,
+              "baseline_range": 37.6863,
+              "recent_distinct": 84,
+              "baseline_distinct": 23976,
+              "distinct_ratio": 0.0035,
+              "expected_static_reason": null,
+              "expected_compressed_reason": "coherent_4h_trend_compression",
+              "expected_compressed_details": {
+                "reason": "coherent_4h_trend_compression",
+                "proxy_cols": [
+                  "raw_close_price",
+                  "raw_volatility",
+                  "feat_4h_rsi14",
+                  "feat_4h_bb_pct_b",
+                  "feat_4h_macd_hist"
+                ],
+                "compressed_proxy_count": 4,
+                "min_required_proxies": 4,
+                "proxy_stats": {
+                  "raw_close_price": {
+                    "recent_std": 229.9723,
+                    "baseline_std": 17609.0376,
+                    "std_ratio": 0.0131,
+                    "recent_mean": 77543.8366,
+                    "baseline_mean": 82850.9799,
+                    "mean_delta": -5307.1432
+                  },
+                  "raw_volatility": {
+                    "recent_std": 0.0002,
+                    "baseline_std": 0.0013,
+                    "std_ratio": 0.1237,
+                    "recent_mean": 0.0025,
+                    "baseline_mean": 0.004,
+                    "mean_delta": -0.0015
+                  },
+                  "feat_4h_rsi14": {
+                    "recent_std": 2.8563,
+                    "baseline_std": 11.8691,
+                    "std_ratio": 0.2407,
+                    "recent_mean": 49.0996,
+                    "baseline_mean": 52.455,
+                    "mean_delta": -3.3554
+                  },
+                  "feat_4h_bb_pct_b": {
+                    "recent_std": 0.0622,
+                    "baseline_std": 0.4235,
+                    "std_ratio": 0.1469,
+                    "recent_mean": 0.6867,
+                    "baseline_mean": 0.5596,
+                    "mean_delta": 0.1272
+                  },
+                  "feat_4h_macd_hist": {
+                    "recent_std": 35.9159,
+                    "baseline_std": 650.6449,
+                    "std_ratio": 0.0552,
+                    "recent_mean": 171.2445,
+                    "baseline_mean": 48.0397,
+                    "mean_delta": 123.2047
+                  }
+                }
+              },
+              "overlay_only_reason": null
+            },
+            {
+              "feature": "feat_4h_bias200",
+              "recent_std": 0.2923,
+              "baseline_std": 6.2035,
+              "std_ratio": 0.0471,
+              "recent_range": 1.2279,
+              "baseline_range": 56.2776,
+              "recent_distinct": 84,
+              "baseline_distinct": 23975,
+              "distinct_ratio": 0.0035,
+              "expected_static_reason": null,
+              "expected_compressed_reason": "underlying_price_and_volatility_compression",
+              "expected_compressed_details": {
+                "reason": "underlying_price_and_volatility_compression",
+                "proxy_cols": [
+                  "raw_close_price",
+                  "raw_volatility"
+                ],
+                "compressed_proxy_count": 2,
+                "min_required_proxies": 2,
+                "proxy_stats": {
+                  "raw_close_price": {
+                    "recent_std": 229.9723,
+                    "baseline_std": 17609.0376,
+                    "std_ratio": 0.0131,
+                    "recent_mean": 77543.8366,
+                    "baseline_mean": 82850.9799,
+                    "mean_delta": -5307.1432
+                  },
+                  "raw_volatility": {
+                    "recent_std": 0.0002,
+                    "baseline_std": 0.0013,
+                    "std_ratio": 0.1237,
+                    "recent_mean": 0.0025,
+                    "baseline_mean": 0.004,
+                    "mean_delta": -0.0015
+                  }
+                }
+              },
+              "overlay_only_reason": null
+            }
+          ],
           "overlay_only_examples": [
             {
               "feature": "feat_scales_ssr",
               "recent_std": 0.0003,
               "baseline_std": 0.0041,
-              "std_ratio": 0.0817,
-              "recent_range": 0.0012,
+              "std_ratio": 0.0669,
+              "recent_range": 0.0009,
               "baseline_range": 0.1382,
-              "recent_distinct": 337,
-              "baseline_distinct": 4512,
-              "distinct_ratio": 0.0747,
+              "recent_distinct": 73,
+              "baseline_distinct": 4519,
+              "distinct_ratio": 0.0162,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
@@ -428,14 +811,14 @@
           "unexpected_compressed_examples": [
             {
               "feature": "feat_body",
-              "recent_std": 0.6552,
-              "baseline_std": 20690.3603,
+              "recent_std": 0.3522,
+              "baseline_std": 20686.9958,
               "std_ratio": 0.0,
-              "recent_range": 2.8045,
+              "recent_range": 1.4039,
               "baseline_range": 1272817.1727,
-              "recent_distinct": 500,
-              "baseline_distinct": 16176,
-              "distinct_ratio": 0.0309,
+              "recent_distinct": 100,
+              "baseline_distinct": 16184,
+              "distinct_ratio": 0.0062,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
@@ -443,14 +826,14 @@
             },
             {
               "feature": "feat_ear",
-              "recent_std": 0.0085,
-              "baseline_std": 0.6494,
-              "std_ratio": 0.0131,
-              "recent_range": 0.0485,
+              "recent_std": 0.0036,
+              "baseline_std": 0.6493,
+              "std_ratio": 0.0055,
+              "recent_range": 0.015,
               "baseline_range": 10.9755,
-              "recent_distinct": 491,
-              "baseline_distinct": 24435,
-              "distinct_ratio": 0.0201,
+              "recent_distinct": 100,
+              "baseline_distinct": 24443,
+              "distinct_ratio": 0.0041,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
@@ -458,14 +841,14 @@
             },
             {
               "feature": "feat_tongue",
-              "recent_std": 0.0045,
+              "recent_std": 0.0021,
               "baseline_std": 0.2338,
-              "std_ratio": 0.0193,
-              "recent_range": 0.0383,
+              "std_ratio": 0.0092,
+              "recent_range": 0.008,
               "baseline_range": 0.8909,
-              "recent_distinct": 500,
-              "baseline_distinct": 16254,
-              "distinct_ratio": 0.0308,
+              "recent_distinct": 100,
+              "baseline_distinct": 16262,
+              "distinct_ratio": 0.0061,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
@@ -473,29 +856,29 @@
             },
             {
               "feature": "feat_vix",
-              "recent_std": 0.4229,
-              "baseline_std": 4.7088,
-              "std_ratio": 0.0898,
-              "recent_range": 2.01,
+              "recent_std": 0.2667,
+              "baseline_std": 4.708,
+              "std_ratio": 0.0566,
+              "recent_range": 0.76,
               "baseline_range": 42.59,
-              "recent_distinct": 92,
+              "recent_distinct": 34,
               "baseline_distinct": 1438,
-              "distinct_ratio": 0.064,
+              "distinct_ratio": 0.0236,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
               "overlay_only_reason": null
             },
             {
-              "feature": "feat_atr_pct",
-              "recent_std": 0.0001,
-              "baseline_std": 0.0012,
-              "std_ratio": 0.1203,
-              "recent_range": 0.001,
-              "baseline_range": 0.022,
-              "recent_distinct": 496,
-              "baseline_distinct": 19681,
-              "distinct_ratio": 0.0252,
+              "feature": "feat_dist_swing_high",
+              "recent_std": 0.1343,
+              "baseline_std": 1.8072,
+              "std_ratio": 0.0743,
+              "recent_range": 0.5172,
+              "baseline_range": 24.504,
+              "recent_distinct": 69,
+              "baseline_distinct": 22262,
+              "distinct_ratio": 0.0031,
               "expected_static_reason": null,
               "expected_compressed_reason": null,
               "expected_compressed_details": null,
@@ -507,101 +890,101 @@
               "feature": "feat_4h_dist_swing_high",
               "non_null_ratio": 0.0,
               "non_null": 0,
-              "window_rows": 500
+              "window_rows": 100
             },
             {
               "feature": "feat_chorus",
               "non_null_ratio": 0.0,
               "non_null": 0,
-              "window_rows": 500
+              "window_rows": 100
             },
             {
               "feature": "feat_claw",
               "non_null_ratio": 0.0,
               "non_null": 0,
-              "window_rows": 500
+              "window_rows": 100
             },
             {
               "feature": "feat_claw_intensity",
               "non_null_ratio": 0.0,
               "non_null": 0,
-              "window_rows": 500
+              "window_rows": 100
             },
             {
               "feature": "feat_fin_netflow",
               "non_null_ratio": 0.0,
               "non_null": 0,
-              "window_rows": 500
+              "window_rows": 100
             }
           ]
         },
         "target_path_diagnostics": {
-          "window_start_timestamp": "2026-05-14 11:10:50.356196",
-          "window_end_timestamp": "2026-05-21 03:04:02.185355",
+          "window_start_timestamp": "2026-05-20 05:21:40.743406",
+          "window_end_timestamp": "2026-05-21 04:10:09.100536",
           "latest_target": 0,
           "tail_target_streak": {
             "target": 0,
-            "count": 12,
+            "count": 20,
             "start_timestamp": "2026-05-21 00:15:34.335944",
-            "end_timestamp": "2026-05-21 03:04:02.185355",
+            "end_timestamp": "2026-05-21 04:10:09.100536",
             "regime_counts": {
-              "chop": 12
+              "chop": 20
             },
             "examples": [
               {
-                "label_id": 76676,
-                "timestamp": "2026-05-21 02:13:09.928568",
+                "label_id": 76690,
+                "timestamp": "2026-05-21 04:01:42.526292",
                 "symbol": "BTC/USDT",
                 "target": 0,
                 "regime": "chop",
                 "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0026,
-                "simulated_pyramid_quality": -0.1567,
-                "simulated_pyramid_drawdown_penalty": 0.2401,
-                "simulated_pyramid_time_underwater": 0.7671,
-                "future_return_pct": -0.0026,
-                "future_max_drawdown": -0.012,
-                "future_max_runup": 0.0033
+                "simulated_pyramid_pnl": -0.0053,
+                "simulated_pyramid_quality": -0.2239,
+                "simulated_pyramid_drawdown_penalty": 0.3007,
+                "simulated_pyramid_time_underwater": 0.9718,
+                "future_return_pct": -0.0053,
+                "future_max_drawdown": -0.015,
+                "future_max_runup": 0.0003
               },
               {
-                "label_id": 76677,
-                "timestamp": "2026-05-21 03:00:00.000000",
+                "label_id": 76692,
+                "timestamp": "2026-05-21 04:05:59.090175",
                 "symbol": "BTC/USDT",
                 "target": 0,
                 "regime": "chop",
                 "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.004,
-                "simulated_pyramid_quality": -0.1867,
-                "simulated_pyramid_drawdown_penalty": 0.2683,
-                "simulated_pyramid_time_underwater": 0.8333,
-                "future_return_pct": -0.004,
-                "future_max_drawdown": -0.0134,
-                "future_max_runup": 0.0019
+                "simulated_pyramid_pnl": -0.0033,
+                "simulated_pyramid_quality": -0.1872,
+                "simulated_pyramid_drawdown_penalty": 0.2704,
+                "simulated_pyramid_time_underwater": 0.9155,
+                "future_return_pct": -0.0033,
+                "future_max_drawdown": -0.0135,
+                "future_max_runup": 0.0018
               },
               {
-                "label_id": 76679,
-                "timestamp": "2026-05-21 03:04:02.185355",
+                "label_id": 76693,
+                "timestamp": "2026-05-21 04:10:09.100536",
                 "symbol": "BTC/USDT",
                 "target": 0,
                 "regime": "chop",
                 "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0038,
-                "simulated_pyramid_quality": -0.1861,
-                "simulated_pyramid_drawdown_penalty": 0.2683,
-                "simulated_pyramid_time_underwater": 0.8472,
-                "future_return_pct": -0.0038,
-                "future_max_drawdown": -0.0134,
-                "future_max_runup": 0.0019
+                "simulated_pyramid_pnl": -0.0033,
+                "simulated_pyramid_quality": -0.1872,
+                "simulated_pyramid_drawdown_penalty": 0.2704,
+                "simulated_pyramid_time_underwater": 0.9155,
+                "future_return_pct": -0.0033,
+                "future_max_drawdown": -0.0135,
+                "future_max_runup": 0.0018
               }
             ]
           },
           "longest_target_streak": {
             "target": 1,
-            "count": 122,
-            "start_timestamp": "2026-05-19 05:15:33.142288",
+            "count": 26,
+            "start_timestamp": "2026-05-20 05:21:40.743406",
             "end_timestamp": "2026-05-20 11:02:04.445018",
             "regime_counts": {
-              "bear": 102,
+              "bear": 6,
               "chop": 20
             },
             "examples": [
@@ -654,68 +1037,67 @@
           },
           "longest_zero_target_streak": {
             "target": 0,
-            "count": 116,
-            "start_timestamp": "2026-05-14 15:00:00.000000",
-            "end_timestamp": "2026-05-16 09:01:34.702823",
+            "count": 21,
+            "start_timestamp": "2026-05-20 12:00:00.000000",
+            "end_timestamp": "2026-05-20 16:16:35.147546",
             "regime_counts": {
-              "chop": 59,
-              "bear": 57
+              "chop": 21
             },
             "examples": [
               {
-                "label_id": 75881,
-                "timestamp": "2026-05-16 08:01:16.947537",
+                "label_id": 76585,
+                "timestamp": "2026-05-20 16:10:21.900971",
                 "symbol": "BTC/USDT",
                 "target": 0,
-                "regime": "bear",
+                "regime": "chop",
                 "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0041,
-                "simulated_pyramid_quality": -0.1767,
-                "simulated_pyramid_drawdown_penalty": 0.1531,
-                "simulated_pyramid_time_underwater": 0.9516,
-                "future_return_pct": -0.0041,
-                "future_max_drawdown": -0.0077,
-                "future_max_runup": 0.0002
+                "simulated_pyramid_pnl": -0.0028,
+                "simulated_pyramid_quality": -0.1109,
+                "simulated_pyramid_drawdown_penalty": 0.1599,
+                "simulated_pyramid_time_underwater": 0.4342,
+                "future_return_pct": -0.0028,
+                "future_max_drawdown": -0.008,
+                "future_max_runup": 0.0074
               },
               {
-                "label_id": 75885,
-                "timestamp": "2026-05-16 09:00:00.000000",
+                "label_id": 76586,
+                "timestamp": "2026-05-20 16:14:05.612054",
                 "symbol": "BTC/USDT",
                 "target": 0,
-                "regime": "bear",
+                "regime": "chop",
                 "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0035,
-                "simulated_pyramid_quality": -0.1735,
-                "simulated_pyramid_drawdown_penalty": 0.1563,
-                "simulated_pyramid_time_underwater": 0.9841,
-                "future_return_pct": -0.0035,
-                "future_max_drawdown": -0.0078,
-                "future_max_runup": 0.0
+                "simulated_pyramid_pnl": -0.001,
+                "simulated_pyramid_quality": -0.0668,
+                "simulated_pyramid_drawdown_penalty": 0.1237,
+                "simulated_pyramid_time_underwater": 0.2933,
+                "future_return_pct": -0.001,
+                "future_max_drawdown": -0.0062,
+                "future_max_runup": 0.0092
               },
               {
-                "label_id": 75886,
-                "timestamp": "2026-05-16 09:01:34.702823",
+                "label_id": 76587,
+                "timestamp": "2026-05-20 16:16:35.147546",
                 "symbol": "BTC/USDT",
                 "target": 0,
-                "regime": "bear",
+                "regime": "chop",
                 "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0035,
-                "simulated_pyramid_quality": -0.1734,
-                "simulated_pyramid_drawdown_penalty": 0.1563,
-                "simulated_pyramid_time_underwater": 0.9839,
-                "future_return_pct": -0.0035,
-                "future_max_drawdown": -0.0078,
-                "future_max_runup": 0.0
+                "simulated_pyramid_pnl": -0.001,
+                "simulated_pyramid_quality": -0.0668,
+                "simulated_pyramid_drawdown_penalty": 0.1237,
+                "simulated_pyramid_time_underwater": 0.2933,
+                "future_return_pct": -0.001,
+                "future_max_drawdown": -0.0062,
+                "future_max_runup": 0.0092
               }
             ]
           },
           "longest_one_target_streak": {
             "target": 1,
-            "count": 122,
-            "start_timestamp": "2026-05-19 05:15:33.142288",
+            "count": 26,
+            "start_timestamp": "2026-05-20 05:21:40.743406",
             "end_timestamp": "2026-05-20 11:02:04.445018",
             "regime_counts": {
-              "bear": 102,
+              "bear": 6,
               "chop": 20
             },
             "examples": [
@@ -767,225 +1149,217 @@
             ]
           },
           "target_regime_breakdown": {
-            "bear:1": 168,
-            "chop:0": 105,
-            "bear:0": 187,
-            "chop:1": 40
+            "bear:1": 6,
+            "chop:1": 40,
+            "chop:0": 54
           },
           "recent_examples": [
             {
-              "label_id": 76671,
-              "timestamp": "2026-05-21 02:02:12.256464",
+              "label_id": 76688,
+              "timestamp": "2026-05-21 03:22:18.205123",
               "symbol": "BTC/USDT",
               "target": 0,
               "regime": "chop",
               "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0054,
-              "simulated_pyramid_quality": -0.1906,
-              "simulated_pyramid_drawdown_penalty": 0.2376,
-              "simulated_pyramid_time_underwater": 0.75,
-              "future_return_pct": -0.0054,
-              "future_max_drawdown": -0.0119,
-              "future_max_runup": 0.0035
-            },
-            {
-              "label_id": 76672,
-              "timestamp": "2026-05-21 02:09:54.501077",
-              "symbol": "BTC/USDT",
-              "target": 0,
-              "regime": "chop",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0056,
-              "simulated_pyramid_quality": -0.1938,
-              "simulated_pyramid_drawdown_penalty": 0.2401,
-              "simulated_pyramid_time_underwater": 0.7606,
-              "future_return_pct": -0.0056,
-              "future_max_drawdown": -0.012,
-              "future_max_runup": 0.0033
-            },
-            {
-              "label_id": 76676,
-              "timestamp": "2026-05-21 02:13:09.928568",
-              "symbol": "BTC/USDT",
-              "target": 0,
-              "regime": "chop",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0026,
-              "simulated_pyramid_quality": -0.1567,
-              "simulated_pyramid_drawdown_penalty": 0.2401,
-              "simulated_pyramid_time_underwater": 0.7671,
-              "future_return_pct": -0.0026,
-              "future_max_drawdown": -0.012,
-              "future_max_runup": 0.0033
-            },
-            {
-              "label_id": 76677,
-              "timestamp": "2026-05-21 03:00:00.000000",
-              "symbol": "BTC/USDT",
-              "target": 0,
-              "regime": "chop",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.004,
-              "simulated_pyramid_quality": -0.1867,
-              "simulated_pyramid_drawdown_penalty": 0.2683,
-              "simulated_pyramid_time_underwater": 0.8333,
-              "future_return_pct": -0.004,
-              "future_max_drawdown": -0.0134,
-              "future_max_runup": 0.0019
-            },
-            {
-              "label_id": 76679,
-              "timestamp": "2026-05-21 03:04:02.185355",
-              "symbol": "BTC/USDT",
-              "target": 0,
-              "regime": "chop",
-              "spot_long_win": 0.0,
-              "simulated_pyramid_pnl": -0.0038,
-              "simulated_pyramid_quality": -0.1861,
-              "simulated_pyramid_drawdown_penalty": 0.2683,
+              "simulated_pyramid_pnl": -0.0028,
+              "simulated_pyramid_quality": -0.1693,
+              "simulated_pyramid_drawdown_penalty": 0.25,
               "simulated_pyramid_time_underwater": 0.8472,
-              "future_return_pct": -0.0038,
-              "future_max_drawdown": -0.0134,
-              "future_max_runup": 0.0019
+              "future_return_pct": -0.0028,
+              "future_max_drawdown": -0.0125,
+              "future_max_runup": 0.0028
+            },
+            {
+              "label_id": 76689,
+              "timestamp": "2026-05-21 04:00:00.000000",
+              "symbol": "BTC/USDT",
+              "target": 0,
+              "regime": "chop",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.0052,
+              "simulated_pyramid_quality": -0.2211,
+              "simulated_pyramid_drawdown_penalty": 0.2989,
+              "simulated_pyramid_time_underwater": 0.9583,
+              "future_return_pct": -0.0052,
+              "future_max_drawdown": -0.0149,
+              "future_max_runup": 0.0003
+            },
+            {
+              "label_id": 76690,
+              "timestamp": "2026-05-21 04:01:42.526292",
+              "symbol": "BTC/USDT",
+              "target": 0,
+              "regime": "chop",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.0053,
+              "simulated_pyramid_quality": -0.2239,
+              "simulated_pyramid_drawdown_penalty": 0.3007,
+              "simulated_pyramid_time_underwater": 0.9718,
+              "future_return_pct": -0.0053,
+              "future_max_drawdown": -0.015,
+              "future_max_runup": 0.0003
+            },
+            {
+              "label_id": 76692,
+              "timestamp": "2026-05-21 04:05:59.090175",
+              "symbol": "BTC/USDT",
+              "target": 0,
+              "regime": "chop",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.0033,
+              "simulated_pyramid_quality": -0.1872,
+              "simulated_pyramid_drawdown_penalty": 0.2704,
+              "simulated_pyramid_time_underwater": 0.9155,
+              "future_return_pct": -0.0033,
+              "future_max_drawdown": -0.0135,
+              "future_max_runup": 0.0018
+            },
+            {
+              "label_id": 76693,
+              "timestamp": "2026-05-21 04:10:09.100536",
+              "symbol": "BTC/USDT",
+              "target": 0,
+              "regime": "chop",
+              "spot_long_win": 0.0,
+              "simulated_pyramid_pnl": -0.0033,
+              "simulated_pyramid_quality": -0.1872,
+              "simulated_pyramid_drawdown_penalty": 0.2704,
+              "simulated_pyramid_time_underwater": 0.9155,
+              "future_return_pct": -0.0033,
+              "future_max_drawdown": -0.0135,
+              "future_max_runup": 0.0018
             }
           ]
         },
         "reference_window_comparison": {
-          "current_rows": 500,
-          "reference_rows": 500,
-          "current_start_timestamp": "2026-05-14 11:10:50.356196",
-          "current_end_timestamp": "2026-05-21 03:04:02.185355",
-          "reference_start_timestamp": "2026-04-27 17:15:27.636656",
-          "reference_end_timestamp": "2026-05-14 11:01:48.421641",
+          "current_rows": 100,
+          "reference_rows": 100,
+          "current_start_timestamp": "2026-05-20 05:21:40.743406",
+          "current_end_timestamp": "2026-05-21 04:10:09.100536",
+          "reference_start_timestamp": "2026-05-19 04:06:25.396012",
+          "reference_end_timestamp": "2026-05-20 05:16:11.304232",
           "current_quality": {
-            "win_rate": 0.416,
-            "spot_long_win_rate": 0.014,
-            "avg_simulated_pnl": -0.0021,
-            "avg_simulated_quality": 0.0708,
-            "avg_drawdown_penalty": 0.1842,
-            "avg_time_underwater": 0.539
+            "win_rate": 0.46,
+            "spot_long_win_rate": 0.0,
+            "avg_simulated_pnl": 0.0003,
+            "avg_simulated_quality": 0.1489,
+            "avg_drawdown_penalty": 0.1256,
+            "avg_time_underwater": 0.3712
           },
           "reference_quality": {
-            "win_rate": 0.662,
-            "spot_long_win_rate": 0.268,
-            "avg_simulated_pnl": 0.0066,
-            "avg_simulated_quality": 0.3086,
-            "avg_drawdown_penalty": 0.1502,
-            "avg_time_underwater": 0.4113
+            "win_rate": 0.96,
+            "spot_long_win_rate": 0.0,
+            "avg_simulated_pnl": 0.0082,
+            "avg_simulated_quality": 0.4878,
+            "avg_drawdown_penalty": 0.0788,
+            "avg_time_underwater": 0.3085
           },
-          "win_rate_delta_vs_reference": -0.246,
-          "spot_long_win_rate_delta_vs_reference": -0.254,
-          "avg_simulated_pnl_delta_vs_reference": -0.0087,
-          "avg_simulated_quality_delta_vs_reference": -0.2378,
-          "avg_drawdown_penalty_delta_vs_reference": 0.034,
-          "avg_time_underwater_delta_vs_reference": 0.1277,
-          "current_dominant_regime": "bear",
-          "reference_dominant_regime": "chop",
+          "win_rate_delta_vs_reference": -0.5,
+          "spot_long_win_rate_delta_vs_reference": 0.0,
+          "avg_simulated_pnl_delta_vs_reference": -0.0079,
+          "avg_simulated_quality_delta_vs_reference": -0.3389,
+          "avg_drawdown_penalty_delta_vs_reference": 0.0468,
+          "avg_time_underwater_delta_vs_reference": 0.0627,
+          "current_dominant_regime": "chop",
+          "reference_dominant_regime": "bear",
           "regime_share_deltas": {
             "bear": {
-              "current_share": 0.71,
-              "reference_share": 0.204,
-              "share_delta": 0.506
-            },
-            "bull": {
-              "current_share": 0.0,
-              "reference_share": 0.028,
-              "share_delta": -0.028
+              "current_share": 0.06,
+              "reference_share": 1.0,
+              "share_delta": -0.94
             },
             "chop": {
-              "current_share": 0.29,
-              "reference_share": 0.768,
-              "share_delta": -0.478
+              "current_share": 0.94,
+              "reference_share": 0.0,
+              "share_delta": 0.94
             }
           },
           "new_unexpected_frozen_features": [],
           "new_unexpected_compressed_features": [
-            "feat_atr_pct",
-            "feat_body"
+            "feat_dist_swing_high"
           ],
-          "new_null_heavy_features": [
-            "feat_claw",
-            "feat_claw_intensity"
-          ],
+          "new_null_heavy_features": [],
           "top_mean_shift_features": [
             {
-              "feature": "feat_nq_return_1h",
-              "current_mean": 0.0001,
-              "reference_mean": -0.0121,
-              "mean_delta": 0.0122,
-              "delta_vs_baseline_std": 3.4289,
+              "feature": "feat_4h_ma_order",
+              "current_mean": -0.06,
+              "reference_mean": -1.0,
+              "mean_delta": 0.94,
+              "delta_vs_baseline_std": 1.3561,
+              "overlay_only_reason": null
+            },
+            {
+              "feature": "feat_turning_point_score",
+              "current_mean": 0.6352,
+              "reference_mean": 0.4813,
+              "mean_delta": 0.1539,
+              "delta_vs_baseline_std": 1.2954,
               "overlay_only_reason": null
             },
             {
               "feature": "feat_nq_return_24h",
-              "current_mean": -0.0007,
-              "reference_mean": -0.0142,
-              "mean_delta": 0.0135,
-              "delta_vs_baseline_std": 1.6784,
+              "current_mean": -0.0067,
+              "reference_mean": 0.0031,
+              "mean_delta": -0.0099,
+              "delta_vs_baseline_std": 1.2263,
               "overlay_only_reason": null
             },
             {
-              "feature": "feat_dxy",
-              "current_mean": 99.1932,
-              "reference_mean": 98.3282,
-              "mean_delta": 0.865,
-              "delta_vs_baseline_std": 0.881,
+              "feature": "feat_local_top_score",
+              "current_mean": 0.6266,
+              "reference_mean": 0.388,
+              "mean_delta": 0.2386,
+              "delta_vs_baseline_std": 1.0591,
               "overlay_only_reason": null
             },
             {
-              "feature": "feat_4h_ma_order",
-              "current_mean": -0.71,
-              "reference_mean": -0.1928,
-              "mean_delta": -0.5172,
-              "delta_vs_baseline_std": 0.746,
-              "overlay_only_reason": null
-            },
-            {
-              "feature": "feat_4h_bias200",
-              "current_mean": -0.1326,
-              "reference_mean": 4.1401,
-              "mean_delta": -4.2727,
-              "delta_vs_baseline_std": 0.6886,
+              "feature": "feat_local_bottom_score",
+              "current_mean": 0.1496,
+              "reference_mean": 0.3529,
+              "mean_delta": -0.2033,
+              "delta_vs_baseline_std": 0.891,
               "overlay_only_reason": null
             }
           ]
         },
         "compact_summary": {
-          "window": 500,
+          "window": 100,
           "alerts": [
+            "regime_concentration",
             "regime_shift"
           ],
           "severity": "high",
           "interpretation": "regime_concentration",
-          "win_rate": 0.416,
-          "avg_quality": 0.0708,
-          "avg_pnl": -0.0021,
-          "avg_drawdown_penalty": 0.1842,
-          "dominant_regime": "bear",
-          "dominant_regime_share": 0.71,
+          "win_rate": 0.46,
+          "avg_quality": 0.1489,
+          "avg_pnl": 0.0003,
+          "avg_drawdown_penalty": 0.1256,
+          "dominant_regime": "chop",
+          "dominant_regime_share": 0.94,
           "tail_streak": {
             "target": 0,
-            "count": 12,
+            "count": 20,
             "start_timestamp": "2026-05-21 00:15:34.335944",
-            "end_timestamp": "2026-05-21 03:04:02.185355"
+            "end_timestamp": "2026-05-21 04:10:09.100536"
           },
           "adverse_streak": {
             "target": 0,
-            "count": 116,
-            "start_timestamp": "2026-05-14 15:00:00.000000",
-            "end_timestamp": "2026-05-16 09:01:34.702823"
+            "count": 21,
+            "start_timestamp": "2026-05-20 12:00:00.000000",
+            "end_timestamp": "2026-05-20 16:16:35.147546"
           },
           "top_shift_features": [
-            "feat_nq_return_1h",
-            "feat_nq_return_24h",
-            "feat_dxy",
             "feat_4h_ma_order",
-            "feat_4h_bias200"
+            "feat_turning_point_score",
+            "feat_nq_return_24h",
+            "feat_local_top_score",
+            "feat_local_bottom_score"
           ],
           "actionable_summary": "negative distribution pathology requires current-window validation"
         },
         "drift_interpretation": "regime_concentration",
         "alerts": [
+          "regime_concentration",
           "regime_shift"
         ]
       }
@@ -1136,78 +1510,79 @@
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
       "latest_window": {
-        "window": "500",
+        "window": "100",
         "alerts": [
+          "regime_concentration",
           "regime_shift"
         ],
         "summary": {
-          "rows": 500,
-          "wins": 208,
-          "losses": 292,
-          "win_rate": 0.416,
-          "win_rate_delta_vs_full": -0.2013,
+          "rows": 100,
+          "wins": 46,
+          "losses": 54,
+          "win_rate": 0.46,
+          "win_rate_delta_vs_full": -0.1571,
           "unique_targets": [
             0,
             1
           ],
           "constant_target": false,
-          "dominant_regime": "bear",
-          "dominant_regime_share": 0.71,
-          "dominant_regime_delta_vs_full": 0.6359,
+          "dominant_regime": "chop",
+          "dominant_regime_share": 0.94,
+          "dominant_regime_delta_vs_full": 0.4683,
           "regime_counts": {
-            "bear": 355,
-            "chop": 145
+            "bear": 6,
+            "chop": 94
           },
           "regime_pct": {
-            "bear": 0.71,
-            "chop": 0.29
+            "bear": 0.06,
+            "chop": 0.94
           },
           "quality_metrics": {
-            "simulated_win_rate": 0.416,
-            "spot_long_win_rate": 0.014,
-            "avg_simulated_pnl": -0.0021,
-            "avg_simulated_quality": 0.0708,
-            "avg_drawdown_penalty": 0.1842,
-            "avg_time_underwater": 0.539,
-            "avg_future_return_pct": -0.0048,
-            "avg_future_max_runup": 0.0058,
-            "avg_future_max_drawdown": -0.0111
+            "simulated_win_rate": 0.46,
+            "spot_long_win_rate": 0.0,
+            "avg_simulated_pnl": 0.0003,
+            "avg_simulated_quality": 0.1489,
+            "avg_drawdown_penalty": 0.1256,
+            "avg_time_underwater": 0.3712,
+            "avg_future_return_pct": 0.0003,
+            "avg_future_max_runup": 0.0075,
+            "avg_future_max_drawdown": -0.0063
           },
           "feature_diagnostics": {
             "feature_count": 56,
-            "window_rows": 500,
+            "window_rows": 100,
             "time_context": {
-              "parsed_timestamps": 500,
-              "weekend_count": 133,
-              "weekend_share": 0.266,
+              "parsed_timestamps": 100,
+              "weekend_count": 0,
+              "weekend_share": 0.0,
               "weekend_dominant": false,
-              "weekday_count": 367,
-              "weekday_market_open_count": 102,
-              "weekday_market_closed_count": 265,
-              "weekday_market_closed_share": 0.7221,
+              "weekday_count": 100,
+              "weekday_market_open_count": 29,
+              "weekday_market_closed_count": 71,
+              "weekday_market_closed_share": 0.71,
               "weekday_market_closed_dominant": false
             },
-            "low_variance_count": 6,
-            "low_distinct_count": 13,
+            "low_variance_count": 17,
+            "low_distinct_count": 14,
             "frozen_count": 0,
-            "compressed_count": 6,
+            "compressed_count": 17,
             "expected_static_count": 0,
-            "expected_compressed_count": 0,
+            "expected_compressed_count": 6,
             "overlay_only_count": 1,
             "unexpected_frozen_count": 0,
-            "unexpected_compressed_count": 5,
+            "unexpected_compressed_count": 10,
             "null_heavy_count": 13,
             "low_variance_examples": [
               {
                 "feature": "feat_body",
-                "recent_std": 0.6552,
-                "baseline_std": 20690.3603,
+                "recent_std": 0.3522,
+                "baseline_std": 20686.9958,
                 "std_ratio": 0.0,
-                "recent_range": 2.8045,
+                "recent_range": 1.4039,
                 "baseline_range": 1272817.1727,
-                "recent_distinct": 500,
-                "baseline_distinct": 16176,
-                "distinct_ratio": 0.0309,
+                "recent_distinct": 100,
+                "baseline_distinct": 16184,
+                "distinct_ratio": 0.0062,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
@@ -1215,14 +1590,14 @@
               },
               {
                 "feature": "feat_ear",
-                "recent_std": 0.0085,
-                "baseline_std": 0.6494,
-                "std_ratio": 0.0131,
-                "recent_range": 0.0485,
+                "recent_std": 0.0036,
+                "baseline_std": 0.6493,
+                "std_ratio": 0.0055,
+                "recent_range": 0.015,
                 "baseline_range": 10.9755,
-                "recent_distinct": 491,
-                "baseline_distinct": 24435,
-                "distinct_ratio": 0.0201,
+                "recent_distinct": 100,
+                "baseline_distinct": 24443,
+                "distinct_ratio": 0.0041,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
@@ -1230,47 +1605,90 @@
               },
               {
                 "feature": "feat_tongue",
-                "recent_std": 0.0045,
+                "recent_std": 0.0021,
                 "baseline_std": 0.2338,
-                "std_ratio": 0.0193,
-                "recent_range": 0.0383,
+                "std_ratio": 0.0092,
+                "recent_range": 0.008,
                 "baseline_range": 0.8909,
-                "recent_distinct": 500,
-                "baseline_distinct": 16254,
-                "distinct_ratio": 0.0308,
+                "recent_distinct": 100,
+                "baseline_distinct": 16262,
+                "distinct_ratio": 0.0061,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
                 "overlay_only_reason": null
               },
               {
-                "feature": "feat_scales_ssr",
-                "recent_std": 0.0003,
-                "baseline_std": 0.0041,
-                "std_ratio": 0.0817,
-                "recent_range": 0.0012,
-                "baseline_range": 0.1382,
-                "recent_distinct": 337,
-                "baseline_distinct": 4512,
-                "distinct_ratio": 0.0747,
+                "feature": "feat_atr_pct",
+                "recent_std": 0.0,
+                "baseline_std": 0.0012,
+                "std_ratio": 0.015,
+                "recent_range": 0.0001,
+                "baseline_range": 0.022,
+                "recent_distinct": 100,
+                "baseline_distinct": 19685,
+                "distinct_ratio": 0.0051,
                 "expected_static_reason": null,
-                "expected_compressed_reason": null,
-                "expected_compressed_details": null,
-                "overlay_only_reason": "research_sparse_source"
+                "expected_compressed_reason": "underlying_raw_volatility_compression",
+                "expected_compressed_details": {
+                  "reason": "underlying_raw_volatility_compression",
+                  "proxy_cols": [
+                    "raw_volatility"
+                  ],
+                  "compressed_proxy_count": 1,
+                  "min_required_proxies": 1,
+                  "proxy_stats": {
+                    "raw_volatility": {
+                      "recent_std": 0.0002,
+                      "baseline_std": 0.0013,
+                      "std_ratio": 0.1237,
+                      "recent_mean": 0.0025,
+                      "baseline_mean": 0.004,
+                      "mean_delta": -0.0015
+                    }
+                  }
+                },
+                "overlay_only_reason": null
               },
               {
-                "feature": "feat_vix",
-                "recent_std": 0.4229,
-                "baseline_std": 4.7088,
-                "std_ratio": 0.0898,
-                "recent_range": 2.01,
-                "baseline_range": 42.59,
-                "recent_distinct": 92,
-                "baseline_distinct": 1438,
-                "distinct_ratio": 0.064,
+                "feature": "feat_4h_bias200",
+                "recent_std": 0.2923,
+                "baseline_std": 6.2035,
+                "std_ratio": 0.0471,
+                "recent_range": 1.2279,
+                "baseline_range": 56.2776,
+                "recent_distinct": 84,
+                "baseline_distinct": 23975,
+                "distinct_ratio": 0.0035,
                 "expected_static_reason": null,
-                "expected_compressed_reason": null,
-                "expected_compressed_details": null,
+                "expected_compressed_reason": "underlying_price_and_volatility_compression",
+                "expected_compressed_details": {
+                  "reason": "underlying_price_and_volatility_compression",
+                  "proxy_cols": [
+                    "raw_close_price",
+                    "raw_volatility"
+                  ],
+                  "compressed_proxy_count": 2,
+                  "min_required_proxies": 2,
+                  "proxy_stats": {
+                    "raw_close_price": {
+                      "recent_std": 229.9723,
+                      "baseline_std": 17609.0376,
+                      "std_ratio": 0.0131,
+                      "recent_mean": 77543.8366,
+                      "baseline_mean": 82850.9799,
+                      "mean_delta": -5307.1432
+                    },
+                    "raw_volatility": {
+                      "recent_std": 0.0002,
+                      "baseline_std": 0.0013,
+                      "std_ratio": 0.1237,
+                      "recent_mean": 0.0025,
+                      "baseline_mean": 0.004,
+                      "mean_delta": -0.0015
+                    }
+                  }
+                },
                 "overlay_only_reason": null
               }
             ],
@@ -1315,20 +1733,20 @@
                 "overlay_only_reason": "research_sparse_source"
               },
               {
-                "feature": "feat_4h_dist_swing_high",
-                "recent_distinct": 0,
-                "baseline_distinct": 0,
-                "distinct_ratio": null,
-                "recent_std": null,
-                "baseline_std": null,
-                "std_ratio": null,
+                "feature": "feat_web_whale",
+                "recent_distinct": 3,
+                "baseline_distinct": 1709,
+                "distinct_ratio": 0.0018,
+                "recent_std": 0.1256,
+                "baseline_std": 0.3078,
+                "std_ratio": 0.4081,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
-                "overlay_only_reason": null
+                "overlay_only_reason": "research_sparse_source"
               },
               {
-                "feature": "feat_chorus",
+                "feature": "feat_4h_dist_swing_high",
                 "recent_distinct": 0,
                 "baseline_distinct": 0,
                 "distinct_ratio": null,
@@ -1345,14 +1763,14 @@
             "compressed_examples": [
               {
                 "feature": "feat_body",
-                "recent_std": 0.6552,
-                "baseline_std": 20690.3603,
+                "recent_std": 0.3522,
+                "baseline_std": 20686.9958,
                 "std_ratio": 0.0,
-                "recent_range": 2.8045,
+                "recent_range": 1.4039,
                 "baseline_range": 1272817.1727,
-                "recent_distinct": 500,
-                "baseline_distinct": 16176,
-                "distinct_ratio": 0.0309,
+                "recent_distinct": 100,
+                "baseline_distinct": 16184,
+                "distinct_ratio": 0.0062,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
@@ -1360,14 +1778,14 @@
               },
               {
                 "feature": "feat_ear",
-                "recent_std": 0.0085,
-                "baseline_std": 0.6494,
-                "std_ratio": 0.0131,
-                "recent_range": 0.0485,
+                "recent_std": 0.0036,
+                "baseline_std": 0.6493,
+                "std_ratio": 0.0055,
+                "recent_range": 0.015,
                 "baseline_range": 10.9755,
-                "recent_distinct": 491,
-                "baseline_distinct": 24435,
-                "distinct_ratio": 0.0201,
+                "recent_distinct": 100,
+                "baseline_distinct": 24443,
+                "distinct_ratio": 0.0041,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
@@ -1375,63 +1793,402 @@
               },
               {
                 "feature": "feat_tongue",
-                "recent_std": 0.0045,
+                "recent_std": 0.0021,
                 "baseline_std": 0.2338,
-                "std_ratio": 0.0193,
-                "recent_range": 0.0383,
+                "std_ratio": 0.0092,
+                "recent_range": 0.008,
                 "baseline_range": 0.8909,
-                "recent_distinct": 500,
-                "baseline_distinct": 16254,
-                "distinct_ratio": 0.0308,
+                "recent_distinct": 100,
+                "baseline_distinct": 16262,
+                "distinct_ratio": 0.0061,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
                 "overlay_only_reason": null
               },
               {
-                "feature": "feat_scales_ssr",
-                "recent_std": 0.0003,
-                "baseline_std": 0.0041,
-                "std_ratio": 0.0817,
-                "recent_range": 0.0012,
-                "baseline_range": 0.1382,
-                "recent_distinct": 337,
-                "baseline_distinct": 4512,
-                "distinct_ratio": 0.0747,
+                "feature": "feat_atr_pct",
+                "recent_std": 0.0,
+                "baseline_std": 0.0012,
+                "std_ratio": 0.015,
+                "recent_range": 0.0001,
+                "baseline_range": 0.022,
+                "recent_distinct": 100,
+                "baseline_distinct": 19685,
+                "distinct_ratio": 0.0051,
                 "expected_static_reason": null,
-                "expected_compressed_reason": null,
-                "expected_compressed_details": null,
-                "overlay_only_reason": "research_sparse_source"
+                "expected_compressed_reason": "underlying_raw_volatility_compression",
+                "expected_compressed_details": {
+                  "reason": "underlying_raw_volatility_compression",
+                  "proxy_cols": [
+                    "raw_volatility"
+                  ],
+                  "compressed_proxy_count": 1,
+                  "min_required_proxies": 1,
+                  "proxy_stats": {
+                    "raw_volatility": {
+                      "recent_std": 0.0002,
+                      "baseline_std": 0.0013,
+                      "std_ratio": 0.1237,
+                      "recent_mean": 0.0025,
+                      "baseline_mean": 0.004,
+                      "mean_delta": -0.0015
+                    }
+                  }
+                },
+                "overlay_only_reason": null
               },
               {
-                "feature": "feat_vix",
-                "recent_std": 0.4229,
-                "baseline_std": 4.7088,
-                "std_ratio": 0.0898,
-                "recent_range": 2.01,
-                "baseline_range": 42.59,
-                "recent_distinct": 92,
-                "baseline_distinct": 1438,
-                "distinct_ratio": 0.064,
+                "feature": "feat_4h_bias200",
+                "recent_std": 0.2923,
+                "baseline_std": 6.2035,
+                "std_ratio": 0.0471,
+                "recent_range": 1.2279,
+                "baseline_range": 56.2776,
+                "recent_distinct": 84,
+                "baseline_distinct": 23975,
+                "distinct_ratio": 0.0035,
                 "expected_static_reason": null,
-                "expected_compressed_reason": null,
-                "expected_compressed_details": null,
+                "expected_compressed_reason": "underlying_price_and_volatility_compression",
+                "expected_compressed_details": {
+                  "reason": "underlying_price_and_volatility_compression",
+                  "proxy_cols": [
+                    "raw_close_price",
+                    "raw_volatility"
+                  ],
+                  "compressed_proxy_count": 2,
+                  "min_required_proxies": 2,
+                  "proxy_stats": {
+                    "raw_close_price": {
+                      "recent_std": 229.9723,
+                      "baseline_std": 17609.0376,
+                      "std_ratio": 0.0131,
+                      "recent_mean": 77543.8366,
+                      "baseline_mean": 82850.9799,
+                      "mean_delta": -5307.1432
+                    },
+                    "raw_volatility": {
+                      "recent_std": 0.0002,
+                      "baseline_std": 0.0013,
+                      "std_ratio": 0.1237,
+                      "recent_mean": 0.0025,
+                      "baseline_mean": 0.004,
+                      "mean_delta": -0.0015
+                    }
+                  }
+                },
                 "overlay_only_reason": null
               }
             ],
             "expected_static_examples": [],
-            "expected_compressed_examples": [],
+            "expected_compressed_examples": [
+              {
+                "feature": "feat_4h_dist_bb_lower",
+                "recent_std": 0.157,
+                "baseline_std": 3.1454,
+                "std_ratio": 0.0499,
+                "recent_range": 0.6536,
+                "baseline_range": 34.2222,
+                "recent_distinct": 84,
+                "baseline_distinct": 23976,
+                "distinct_ratio": 0.0035,
+                "expected_static_reason": null,
+                "expected_compressed_reason": "coherent_4h_band_floor_compression",
+                "expected_compressed_details": {
+                  "reason": "coherent_4h_band_floor_compression",
+                  "proxy_cols": [
+                    "raw_close_price",
+                    "raw_volatility",
+                    "feat_4h_bb_pct_b",
+                    "feat_4h_dist_swing_low"
+                  ],
+                  "compressed_proxy_count": 4,
+                  "min_required_proxies": 3,
+                  "proxy_stats": {
+                    "raw_close_price": {
+                      "recent_std": 229.9723,
+                      "baseline_std": 17609.0376,
+                      "std_ratio": 0.0131,
+                      "recent_mean": 77543.8366,
+                      "baseline_mean": 82850.9799,
+                      "mean_delta": -5307.1432
+                    },
+                    "raw_volatility": {
+                      "recent_std": 0.0002,
+                      "baseline_std": 0.0013,
+                      "std_ratio": 0.1237,
+                      "recent_mean": 0.0025,
+                      "baseline_mean": 0.004,
+                      "mean_delta": -0.0015
+                    },
+                    "feat_4h_bb_pct_b": {
+                      "recent_std": 0.0622,
+                      "baseline_std": 0.4235,
+                      "std_ratio": 0.1469,
+                      "recent_mean": 0.6867,
+                      "baseline_mean": 0.5596,
+                      "mean_delta": 0.1272
+                    },
+                    "feat_4h_dist_swing_low": {
+                      "recent_std": 0.2992,
+                      "baseline_std": 5.0905,
+                      "std_ratio": 0.0588,
+                      "recent_mean": 1.9312,
+                      "baseline_mean": 4.7468,
+                      "mean_delta": -2.8156
+                    }
+                  }
+                },
+                "overlay_only_reason": null
+              },
+              {
+                "feature": "feat_4h_macd_hist",
+                "recent_std": 35.9159,
+                "baseline_std": 650.6449,
+                "std_ratio": 0.0552,
+                "recent_range": 148.8331,
+                "baseline_range": 6017.0645,
+                "recent_distinct": 84,
+                "baseline_distinct": 5526,
+                "distinct_ratio": 0.0152,
+                "expected_static_reason": null,
+                "expected_compressed_reason": "coherent_4h_momentum_compression",
+                "expected_compressed_details": {
+                  "reason": "coherent_4h_momentum_compression",
+                  "proxy_cols": [
+                    "raw_close_price",
+                    "raw_volatility",
+                    "feat_4h_bias50",
+                    "feat_4h_rsi14",
+                    "feat_4h_bb_pct_b"
+                  ],
+                  "compressed_proxy_count": 4,
+                  "min_required_proxies": 4,
+                  "proxy_stats": {
+                    "raw_close_price": {
+                      "recent_std": 229.9723,
+                      "baseline_std": 17609.0376,
+                      "std_ratio": 0.0131,
+                      "recent_mean": 77543.8366,
+                      "baseline_mean": 82850.9799,
+                      "mean_delta": -5307.1432
+                    },
+                    "raw_volatility": {
+                      "recent_std": 0.0002,
+                      "baseline_std": 0.0013,
+                      "std_ratio": 0.1237,
+                      "recent_mean": 0.0025,
+                      "baseline_mean": 0.004,
+                      "mean_delta": -0.0015
+                    },
+                    "feat_4h_bias50": {
+                      "recent_std": 0.412,
+                      "baseline_std": 3.2477,
+                      "std_ratio": 0.1269,
+                      "recent_mean": -1.3965,
+                      "baseline_mean": 0.5612,
+                      "mean_delta": -1.9577
+                    },
+                    "feat_4h_rsi14": {
+                      "recent_std": 2.8563,
+                      "baseline_std": 11.8691,
+                      "std_ratio": 0.2407,
+                      "recent_mean": 49.0996,
+                      "baseline_mean": 52.455,
+                      "mean_delta": -3.3554
+                    },
+                    "feat_4h_bb_pct_b": {
+                      "recent_std": 0.0622,
+                      "baseline_std": 0.4235,
+                      "std_ratio": 0.1469,
+                      "recent_mean": 0.6867,
+                      "baseline_mean": 0.5596,
+                      "mean_delta": 0.1272
+                    }
+                  }
+                },
+                "overlay_only_reason": null
+              },
+              {
+                "feature": "feat_4h_dist_swing_low",
+                "recent_std": 0.2992,
+                "baseline_std": 5.0905,
+                "std_ratio": 0.0588,
+                "recent_range": 1.2703,
+                "baseline_range": 126.9125,
+                "recent_distinct": 83,
+                "baseline_distinct": 23897,
+                "distinct_ratio": 0.0035,
+                "expected_static_reason": null,
+                "expected_compressed_reason": "coherent_4h_support_cluster_compression",
+                "expected_compressed_details": {
+                  "reason": "coherent_4h_support_cluster_compression",
+                  "proxy_cols": [
+                    "raw_close_price",
+                    "raw_volatility",
+                    "feat_4h_dist_bb_lower",
+                    "feat_4h_bb_pct_b"
+                  ],
+                  "compressed_proxy_count": 4,
+                  "min_required_proxies": 3,
+                  "proxy_stats": {
+                    "raw_close_price": {
+                      "recent_std": 229.9723,
+                      "baseline_std": 17609.0376,
+                      "std_ratio": 0.0131,
+                      "recent_mean": 77543.8366,
+                      "baseline_mean": 82850.9799,
+                      "mean_delta": -5307.1432
+                    },
+                    "raw_volatility": {
+                      "recent_std": 0.0002,
+                      "baseline_std": 0.0013,
+                      "std_ratio": 0.1237,
+                      "recent_mean": 0.0025,
+                      "baseline_mean": 0.004,
+                      "mean_delta": -0.0015
+                    },
+                    "feat_4h_dist_bb_lower": {
+                      "recent_std": 0.157,
+                      "baseline_std": 3.1454,
+                      "std_ratio": 0.0499,
+                      "recent_mean": 1.6936,
+                      "baseline_mean": 3.4524,
+                      "mean_delta": -1.7588
+                    },
+                    "feat_4h_bb_pct_b": {
+                      "recent_std": 0.0622,
+                      "baseline_std": 0.4235,
+                      "std_ratio": 0.1469,
+                      "recent_mean": 0.6867,
+                      "baseline_mean": 0.5596,
+                      "mean_delta": 0.1272
+                    }
+                  }
+                },
+                "overlay_only_reason": null
+              },
+              {
+                "feature": "feat_4h_bias50",
+                "recent_std": 0.412,
+                "baseline_std": 3.2477,
+                "std_ratio": 0.1269,
+                "recent_range": 1.73,
+                "baseline_range": 37.6863,
+                "recent_distinct": 84,
+                "baseline_distinct": 23976,
+                "distinct_ratio": 0.0035,
+                "expected_static_reason": null,
+                "expected_compressed_reason": "coherent_4h_trend_compression",
+                "expected_compressed_details": {
+                  "reason": "coherent_4h_trend_compression",
+                  "proxy_cols": [
+                    "raw_close_price",
+                    "raw_volatility",
+                    "feat_4h_rsi14",
+                    "feat_4h_bb_pct_b",
+                    "feat_4h_macd_hist"
+                  ],
+                  "compressed_proxy_count": 4,
+                  "min_required_proxies": 4,
+                  "proxy_stats": {
+                    "raw_close_price": {
+                      "recent_std": 229.9723,
+                      "baseline_std": 17609.0376,
+                      "std_ratio": 0.0131,
+                      "recent_mean": 77543.8366,
+                      "baseline_mean": 82850.9799,
+                      "mean_delta": -5307.1432
+                    },
+                    "raw_volatility": {
+                      "recent_std": 0.0002,
+                      "baseline_std": 0.0013,
+                      "std_ratio": 0.1237,
+                      "recent_mean": 0.0025,
+                      "baseline_mean": 0.004,
+                      "mean_delta": -0.0015
+                    },
+                    "feat_4h_rsi14": {
+                      "recent_std": 2.8563,
+                      "baseline_std": 11.8691,
+                      "std_ratio": 0.2407,
+                      "recent_mean": 49.0996,
+                      "baseline_mean": 52.455,
+                      "mean_delta": -3.3554
+                    },
+                    "feat_4h_bb_pct_b": {
+                      "recent_std": 0.0622,
+                      "baseline_std": 0.4235,
+                      "std_ratio": 0.1469,
+                      "recent_mean": 0.6867,
+                      "baseline_mean": 0.5596,
+                      "mean_delta": 0.1272
+                    },
+                    "feat_4h_macd_hist": {
+                      "recent_std": 35.9159,
+                      "baseline_std": 650.6449,
+                      "std_ratio": 0.0552,
+                      "recent_mean": 171.2445,
+                      "baseline_mean": 48.0397,
+                      "mean_delta": 123.2047
+                    }
+                  }
+                },
+                "overlay_only_reason": null
+              },
+              {
+                "feature": "feat_4h_bias200",
+                "recent_std": 0.2923,
+                "baseline_std": 6.2035,
+                "std_ratio": 0.0471,
+                "recent_range": 1.2279,
+                "baseline_range": 56.2776,
+                "recent_distinct": 84,
+                "baseline_distinct": 23975,
+                "distinct_ratio": 0.0035,
+                "expected_static_reason": null,
+                "expected_compressed_reason": "underlying_price_and_volatility_compression",
+                "expected_compressed_details": {
+                  "reason": "underlying_price_and_volatility_compression",
+                  "proxy_cols": [
+                    "raw_close_price",
+                    "raw_volatility"
+                  ],
+                  "compressed_proxy_count": 2,
+                  "min_required_proxies": 2,
+                  "proxy_stats": {
+                    "raw_close_price": {
+                      "recent_std": 229.9723,
+                      "baseline_std": 17609.0376,
+                      "std_ratio": 0.0131,
+                      "recent_mean": 77543.8366,
+                      "baseline_mean": 82850.9799,
+                      "mean_delta": -5307.1432
+                    },
+                    "raw_volatility": {
+                      "recent_std": 0.0002,
+                      "baseline_std": 0.0013,
+                      "std_ratio": 0.1237,
+                      "recent_mean": 0.0025,
+                      "baseline_mean": 0.004,
+                      "mean_delta": -0.0015
+                    }
+                  }
+                },
+                "overlay_only_reason": null
+              }
+            ],
             "overlay_only_examples": [
               {
                 "feature": "feat_scales_ssr",
                 "recent_std": 0.0003,
                 "baseline_std": 0.0041,
-                "std_ratio": 0.0817,
-                "recent_range": 0.0012,
+                "std_ratio": 0.0669,
+                "recent_range": 0.0009,
                 "baseline_range": 0.1382,
-                "recent_distinct": 337,
-                "baseline_distinct": 4512,
-                "distinct_ratio": 0.0747,
+                "recent_distinct": 73,
+                "baseline_distinct": 4519,
+                "distinct_ratio": 0.0162,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
@@ -1442,14 +2199,14 @@
             "unexpected_compressed_examples": [
               {
                 "feature": "feat_body",
-                "recent_std": 0.6552,
-                "baseline_std": 20690.3603,
+                "recent_std": 0.3522,
+                "baseline_std": 20686.9958,
                 "std_ratio": 0.0,
-                "recent_range": 2.8045,
+                "recent_range": 1.4039,
                 "baseline_range": 1272817.1727,
-                "recent_distinct": 500,
-                "baseline_distinct": 16176,
-                "distinct_ratio": 0.0309,
+                "recent_distinct": 100,
+                "baseline_distinct": 16184,
+                "distinct_ratio": 0.0062,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
@@ -1457,14 +2214,14 @@
               },
               {
                 "feature": "feat_ear",
-                "recent_std": 0.0085,
-                "baseline_std": 0.6494,
-                "std_ratio": 0.0131,
-                "recent_range": 0.0485,
+                "recent_std": 0.0036,
+                "baseline_std": 0.6493,
+                "std_ratio": 0.0055,
+                "recent_range": 0.015,
                 "baseline_range": 10.9755,
-                "recent_distinct": 491,
-                "baseline_distinct": 24435,
-                "distinct_ratio": 0.0201,
+                "recent_distinct": 100,
+                "baseline_distinct": 24443,
+                "distinct_ratio": 0.0041,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
@@ -1472,14 +2229,14 @@
               },
               {
                 "feature": "feat_tongue",
-                "recent_std": 0.0045,
+                "recent_std": 0.0021,
                 "baseline_std": 0.2338,
-                "std_ratio": 0.0193,
-                "recent_range": 0.0383,
+                "std_ratio": 0.0092,
+                "recent_range": 0.008,
                 "baseline_range": 0.8909,
-                "recent_distinct": 500,
-                "baseline_distinct": 16254,
-                "distinct_ratio": 0.0308,
+                "recent_distinct": 100,
+                "baseline_distinct": 16262,
+                "distinct_ratio": 0.0061,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
@@ -1487,29 +2244,29 @@
               },
               {
                 "feature": "feat_vix",
-                "recent_std": 0.4229,
-                "baseline_std": 4.7088,
-                "std_ratio": 0.0898,
-                "recent_range": 2.01,
+                "recent_std": 0.2667,
+                "baseline_std": 4.708,
+                "std_ratio": 0.0566,
+                "recent_range": 0.76,
                 "baseline_range": 42.59,
-                "recent_distinct": 92,
+                "recent_distinct": 34,
                 "baseline_distinct": 1438,
-                "distinct_ratio": 0.064,
+                "distinct_ratio": 0.0236,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
                 "overlay_only_reason": null
               },
               {
-                "feature": "feat_atr_pct",
-                "recent_std": 0.0001,
-                "baseline_std": 0.0012,
-                "std_ratio": 0.1203,
-                "recent_range": 0.001,
-                "baseline_range": 0.022,
-                "recent_distinct": 496,
-                "baseline_distinct": 19681,
-                "distinct_ratio": 0.0252,
+                "feature": "feat_dist_swing_high",
+                "recent_std": 0.1343,
+                "baseline_std": 1.8072,
+                "std_ratio": 0.0743,
+                "recent_range": 0.5172,
+                "baseline_range": 24.504,
+                "recent_distinct": 69,
+                "baseline_distinct": 22262,
+                "distinct_ratio": 0.0031,
                 "expected_static_reason": null,
                 "expected_compressed_reason": null,
                 "expected_compressed_details": null,
@@ -1521,101 +2278,101 @@
                 "feature": "feat_4h_dist_swing_high",
                 "non_null_ratio": 0.0,
                 "non_null": 0,
-                "window_rows": 500
+                "window_rows": 100
               },
               {
                 "feature": "feat_chorus",
                 "non_null_ratio": 0.0,
                 "non_null": 0,
-                "window_rows": 500
+                "window_rows": 100
               },
               {
                 "feature": "feat_claw",
                 "non_null_ratio": 0.0,
                 "non_null": 0,
-                "window_rows": 500
+                "window_rows": 100
               },
               {
                 "feature": "feat_claw_intensity",
                 "non_null_ratio": 0.0,
                 "non_null": 0,
-                "window_rows": 500
+                "window_rows": 100
               },
               {
                 "feature": "feat_fin_netflow",
                 "non_null_ratio": 0.0,
                 "non_null": 0,
-                "window_rows": 500
+                "window_rows": 100
               }
             ]
           },
           "target_path_diagnostics": {
-            "window_start_timestamp": "2026-05-14 11:10:50.356196",
-            "window_end_timestamp": "2026-05-21 03:04:02.185355",
+            "window_start_timestamp": "2026-05-20 05:21:40.743406",
+            "window_end_timestamp": "2026-05-21 04:10:09.100536",
             "latest_target": 0,
             "tail_target_streak": {
               "target": 0,
-              "count": 12,
+              "count": 20,
               "start_timestamp": "2026-05-21 00:15:34.335944",
-              "end_timestamp": "2026-05-21 03:04:02.185355",
+              "end_timestamp": "2026-05-21 04:10:09.100536",
               "regime_counts": {
-                "chop": 12
+                "chop": 20
               },
               "examples": [
                 {
-                  "label_id": 76676,
-                  "timestamp": "2026-05-21 02:13:09.928568",
+                  "label_id": 76690,
+                  "timestamp": "2026-05-21 04:01:42.526292",
                   "symbol": "BTC/USDT",
                   "target": 0,
                   "regime": "chop",
                   "spot_long_win": 0.0,
-                  "simulated_pyramid_pnl": -0.0026,
-                  "simulated_pyramid_quality": -0.1567,
-                  "simulated_pyramid_drawdown_penalty": 0.2401,
-                  "simulated_pyramid_time_underwater": 0.7671,
-                  "future_return_pct": -0.0026,
-                  "future_max_drawdown": -0.012,
-                  "future_max_runup": 0.0033
+                  "simulated_pyramid_pnl": -0.0053,
+                  "simulated_pyramid_quality": -0.2239,
+                  "simulated_pyramid_drawdown_penalty": 0.3007,
+                  "simulated_pyramid_time_underwater": 0.9718,
+                  "future_return_pct": -0.0053,
+                  "future_max_drawdown": -0.015,
+                  "future_max_runup": 0.0003
                 },
                 {
-                  "label_id": 76677,
-                  "timestamp": "2026-05-21 03:00:00.000000",
+                  "label_id": 76692,
+                  "timestamp": "2026-05-21 04:05:59.090175",
                   "symbol": "BTC/USDT",
                   "target": 0,
                   "regime": "chop",
                   "spot_long_win": 0.0,
-                  "simulated_pyramid_pnl": -0.004,
-                  "simulated_pyramid_quality": -0.1867,
-                  "simulated_pyramid_drawdown_penalty": 0.2683,
-                  "simulated_pyramid_time_underwater": 0.8333,
-                  "future_return_pct": -0.004,
-                  "future_max_drawdown": -0.0134,
-                  "future_max_runup": 0.0019
+                  "simulated_pyramid_pnl": -0.0033,
+                  "simulated_pyramid_quality": -0.1872,
+                  "simulated_pyramid_drawdown_penalty": 0.2704,
+                  "simulated_pyramid_time_underwater": 0.9155,
+                  "future_return_pct": -0.0033,
+                  "future_max_drawdown": -0.0135,
+                  "future_max_runup": 0.0018
                 },
                 {
-                  "label_id": 76679,
-                  "timestamp": "2026-05-21 03:04:02.185355",
+                  "label_id": 76693,
+                  "timestamp": "2026-05-21 04:10:09.100536",
                   "symbol": "BTC/USDT",
                   "target": 0,
                   "regime": "chop",
                   "spot_long_win": 0.0,
-                  "simulated_pyramid_pnl": -0.0038,
-                  "simulated_pyramid_quality": -0.1861,
-                  "simulated_pyramid_drawdown_penalty": 0.2683,
-                  "simulated_pyramid_time_underwater": 0.8472,
-                  "future_return_pct": -0.0038,
-                  "future_max_drawdown": -0.0134,
-                  "future_max_runup": 0.0019
+                  "simulated_pyramid_pnl": -0.0033,
+                  "simulated_pyramid_quality": -0.1872,
+                  "simulated_pyramid_drawdown_penalty": 0.2704,
+                  "simulated_pyramid_time_underwater": 0.9155,
+                  "future_return_pct": -0.0033,
+                  "future_max_drawdown": -0.0135,
+                  "future_max_runup": 0.0018
                 }
               ]
             },
             "longest_target_streak": {
               "target": 1,
-              "count": 122,
-              "start_timestamp": "2026-05-19 05:15:33.142288",
+              "count": 26,
+              "start_timestamp": "2026-05-20 05:21:40.743406",
               "end_timestamp": "2026-05-20 11:02:04.445018",
               "regime_counts": {
-                "bear": 102,
+                "bear": 6,
                 "chop": 20
               },
               "examples": [
@@ -1668,68 +2425,67 @@
             },
             "longest_zero_target_streak": {
               "target": 0,
-              "count": 116,
-              "start_timestamp": "2026-05-14 15:00:00.000000",
-              "end_timestamp": "2026-05-16 09:01:34.702823",
+              "count": 21,
+              "start_timestamp": "2026-05-20 12:00:00.000000",
+              "end_timestamp": "2026-05-20 16:16:35.147546",
               "regime_counts": {
-                "chop": 59,
-                "bear": 57
+                "chop": 21
               },
               "examples": [
                 {
-                  "label_id": 75881,
-                  "timestamp": "2026-05-16 08:01:16.947537",
+                  "label_id": 76585,
+                  "timestamp": "2026-05-20 16:10:21.900971",
                   "symbol": "BTC/USDT",
                   "target": 0,
-                  "regime": "bear",
+                  "regime": "chop",
                   "spot_long_win": 0.0,
-                  "simulated_pyramid_pnl": -0.0041,
-                  "simulated_pyramid_quality": -0.1767,
-                  "simulated_pyramid_drawdown_penalty": 0.1531,
-                  "simulated_pyramid_time_underwater": 0.9516,
-                  "future_return_pct": -0.0041,
-                  "future_max_drawdown": -0.0077,
-                  "future_max_runup": 0.0002
+                  "simulated_pyramid_pnl": -0.0028,
+                  "simulated_pyramid_quality": -0.1109,
+                  "simulated_pyramid_drawdown_penalty": 0.1599,
+                  "simulated_pyramid_time_underwater": 0.4342,
+                  "future_return_pct": -0.0028,
+                  "future_max_drawdown": -0.008,
+                  "future_max_runup": 0.0074
                 },
                 {
-                  "label_id": 75885,
-                  "timestamp": "2026-05-16 09:00:00.000000",
+                  "label_id": 76586,
+                  "timestamp": "2026-05-20 16:14:05.612054",
                   "symbol": "BTC/USDT",
                   "target": 0,
-                  "regime": "bear",
+                  "regime": "chop",
                   "spot_long_win": 0.0,
-                  "simulated_pyramid_pnl": -0.0035,
-                  "simulated_pyramid_quality": -0.1735,
-                  "simulated_pyramid_drawdown_penalty": 0.1563,
-                  "simulated_pyramid_time_underwater": 0.9841,
-                  "future_return_pct": -0.0035,
-                  "future_max_drawdown": -0.0078,
-                  "future_max_runup": 0.0
+                  "simulated_pyramid_pnl": -0.001,
+                  "simulated_pyramid_quality": -0.0668,
+                  "simulated_pyramid_drawdown_penalty": 0.1237,
+                  "simulated_pyramid_time_underwater": 0.2933,
+                  "future_return_pct": -0.001,
+                  "future_max_drawdown": -0.0062,
+                  "future_max_runup": 0.0092
                 },
                 {
-                  "label_id": 75886,
-                  "timestamp": "2026-05-16 09:01:34.702823",
+                  "label_id": 76587,
+                  "timestamp": "2026-05-20 16:16:35.147546",
                   "symbol": "BTC/USDT",
                   "target": 0,
-                  "regime": "bear",
+                  "regime": "chop",
                   "spot_long_win": 0.0,
-                  "simulated_pyramid_pnl": -0.0035,
-                  "simulated_pyramid_quality": -0.1734,
-                  "simulated_pyramid_drawdown_penalty": 0.1563,
-                  "simulated_pyramid_time_underwater": 0.9839,
-                  "future_return_pct": -0.0035,
-                  "future_max_drawdown": -0.0078,
-                  "future_max_runup": 0.0
+                  "simulated_pyramid_pnl": -0.001,
+                  "simulated_pyramid_quality": -0.0668,
+                  "simulated_pyramid_drawdown_penalty": 0.1237,
+                  "simulated_pyramid_time_underwater": 0.2933,
+                  "future_return_pct": -0.001,
+                  "future_max_drawdown": -0.0062,
+                  "future_max_runup": 0.0092
                 }
               ]
             },
             "longest_one_target_streak": {
               "target": 1,
-              "count": 122,
-              "start_timestamp": "2026-05-19 05:15:33.142288",
+              "count": 26,
+              "start_timestamp": "2026-05-20 05:21:40.743406",
               "end_timestamp": "2026-05-20 11:02:04.445018",
               "regime_counts": {
-                "bear": 102,
+                "bear": 6,
                 "chop": 20
               },
               "examples": [
@@ -1781,225 +2537,217 @@
               ]
             },
             "target_regime_breakdown": {
-              "bear:1": 168,
-              "chop:0": 105,
-              "bear:0": 187,
-              "chop:1": 40
+              "bear:1": 6,
+              "chop:1": 40,
+              "chop:0": 54
             },
             "recent_examples": [
               {
-                "label_id": 76671,
-                "timestamp": "2026-05-21 02:02:12.256464",
+                "label_id": 76688,
+                "timestamp": "2026-05-21 03:22:18.205123",
                 "symbol": "BTC/USDT",
                 "target": 0,
                 "regime": "chop",
                 "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0054,
-                "simulated_pyramid_quality": -0.1906,
-                "simulated_pyramid_drawdown_penalty": 0.2376,
-                "simulated_pyramid_time_underwater": 0.75,
-                "future_return_pct": -0.0054,
-                "future_max_drawdown": -0.0119,
-                "future_max_runup": 0.0035
-              },
-              {
-                "label_id": 76672,
-                "timestamp": "2026-05-21 02:09:54.501077",
-                "symbol": "BTC/USDT",
-                "target": 0,
-                "regime": "chop",
-                "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0056,
-                "simulated_pyramid_quality": -0.1938,
-                "simulated_pyramid_drawdown_penalty": 0.2401,
-                "simulated_pyramid_time_underwater": 0.7606,
-                "future_return_pct": -0.0056,
-                "future_max_drawdown": -0.012,
-                "future_max_runup": 0.0033
-              },
-              {
-                "label_id": 76676,
-                "timestamp": "2026-05-21 02:13:09.928568",
-                "symbol": "BTC/USDT",
-                "target": 0,
-                "regime": "chop",
-                "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0026,
-                "simulated_pyramid_quality": -0.1567,
-                "simulated_pyramid_drawdown_penalty": 0.2401,
-                "simulated_pyramid_time_underwater": 0.7671,
-                "future_return_pct": -0.0026,
-                "future_max_drawdown": -0.012,
-                "future_max_runup": 0.0033
-              },
-              {
-                "label_id": 76677,
-                "timestamp": "2026-05-21 03:00:00.000000",
-                "symbol": "BTC/USDT",
-                "target": 0,
-                "regime": "chop",
-                "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.004,
-                "simulated_pyramid_quality": -0.1867,
-                "simulated_pyramid_drawdown_penalty": 0.2683,
-                "simulated_pyramid_time_underwater": 0.8333,
-                "future_return_pct": -0.004,
-                "future_max_drawdown": -0.0134,
-                "future_max_runup": 0.0019
-              },
-              {
-                "label_id": 76679,
-                "timestamp": "2026-05-21 03:04:02.185355",
-                "symbol": "BTC/USDT",
-                "target": 0,
-                "regime": "chop",
-                "spot_long_win": 0.0,
-                "simulated_pyramid_pnl": -0.0038,
-                "simulated_pyramid_quality": -0.1861,
-                "simulated_pyramid_drawdown_penalty": 0.2683,
+                "simulated_pyramid_pnl": -0.0028,
+                "simulated_pyramid_quality": -0.1693,
+                "simulated_pyramid_drawdown_penalty": 0.25,
                 "simulated_pyramid_time_underwater": 0.8472,
-                "future_return_pct": -0.0038,
-                "future_max_drawdown": -0.0134,
-                "future_max_runup": 0.0019
+                "future_return_pct": -0.0028,
+                "future_max_drawdown": -0.0125,
+                "future_max_runup": 0.0028
+              },
+              {
+                "label_id": 76689,
+                "timestamp": "2026-05-21 04:00:00.000000",
+                "symbol": "BTC/USDT",
+                "target": 0,
+                "regime": "chop",
+                "spot_long_win": 0.0,
+                "simulated_pyramid_pnl": -0.0052,
+                "simulated_pyramid_quality": -0.2211,
+                "simulated_pyramid_drawdown_penalty": 0.2989,
+                "simulated_pyramid_time_underwater": 0.9583,
+                "future_return_pct": -0.0052,
+                "future_max_drawdown": -0.0149,
+                "future_max_runup": 0.0003
+              },
+              {
+                "label_id": 76690,
+                "timestamp": "2026-05-21 04:01:42.526292",
+                "symbol": "BTC/USDT",
+                "target": 0,
+                "regime": "chop",
+                "spot_long_win": 0.0,
+                "simulated_pyramid_pnl": -0.0053,
+                "simulated_pyramid_quality": -0.2239,
+                "simulated_pyramid_drawdown_penalty": 0.3007,
+                "simulated_pyramid_time_underwater": 0.9718,
+                "future_return_pct": -0.0053,
+                "future_max_drawdown": -0.015,
+                "future_max_runup": 0.0003
+              },
+              {
+                "label_id": 76692,
+                "timestamp": "2026-05-21 04:05:59.090175",
+                "symbol": "BTC/USDT",
+                "target": 0,
+                "regime": "chop",
+                "spot_long_win": 0.0,
+                "simulated_pyramid_pnl": -0.0033,
+                "simulated_pyramid_quality": -0.1872,
+                "simulated_pyramid_drawdown_penalty": 0.2704,
+                "simulated_pyramid_time_underwater": 0.9155,
+                "future_return_pct": -0.0033,
+                "future_max_drawdown": -0.0135,
+                "future_max_runup": 0.0018
+              },
+              {
+                "label_id": 76693,
+                "timestamp": "2026-05-21 04:10:09.100536",
+                "symbol": "BTC/USDT",
+                "target": 0,
+                "regime": "chop",
+                "spot_long_win": 0.0,
+                "simulated_pyramid_pnl": -0.0033,
+                "simulated_pyramid_quality": -0.1872,
+                "simulated_pyramid_drawdown_penalty": 0.2704,
+                "simulated_pyramid_time_underwater": 0.9155,
+                "future_return_pct": -0.0033,
+                "future_max_drawdown": -0.0135,
+                "future_max_runup": 0.0018
               }
             ]
           },
           "reference_window_comparison": {
-            "current_rows": 500,
-            "reference_rows": 500,
-            "current_start_timestamp": "2026-05-14 11:10:50.356196",
-            "current_end_timestamp": "2026-05-21 03:04:02.185355",
-            "reference_start_timestamp": "2026-04-27 17:15:27.636656",
-            "reference_end_timestamp": "2026-05-14 11:01:48.421641",
+            "current_rows": 100,
+            "reference_rows": 100,
+            "current_start_timestamp": "2026-05-20 05:21:40.743406",
+            "current_end_timestamp": "2026-05-21 04:10:09.100536",
+            "reference_start_timestamp": "2026-05-19 04:06:25.396012",
+            "reference_end_timestamp": "2026-05-20 05:16:11.304232",
             "current_quality": {
-              "win_rate": 0.416,
-              "spot_long_win_rate": 0.014,
-              "avg_simulated_pnl": -0.0021,
-              "avg_simulated_quality": 0.0708,
-              "avg_drawdown_penalty": 0.1842,
-              "avg_time_underwater": 0.539
+              "win_rate": 0.46,
+              "spot_long_win_rate": 0.0,
+              "avg_simulated_pnl": 0.0003,
+              "avg_simulated_quality": 0.1489,
+              "avg_drawdown_penalty": 0.1256,
+              "avg_time_underwater": 0.3712
             },
             "reference_quality": {
-              "win_rate": 0.662,
-              "spot_long_win_rate": 0.268,
-              "avg_simulated_pnl": 0.0066,
-              "avg_simulated_quality": 0.3086,
-              "avg_drawdown_penalty": 0.1502,
-              "avg_time_underwater": 0.4113
+              "win_rate": 0.96,
+              "spot_long_win_rate": 0.0,
+              "avg_simulated_pnl": 0.0082,
+              "avg_simulated_quality": 0.4878,
+              "avg_drawdown_penalty": 0.0788,
+              "avg_time_underwater": 0.3085
             },
-            "win_rate_delta_vs_reference": -0.246,
-            "spot_long_win_rate_delta_vs_reference": -0.254,
-            "avg_simulated_pnl_delta_vs_reference": -0.0087,
-            "avg_simulated_quality_delta_vs_reference": -0.2378,
-            "avg_drawdown_penalty_delta_vs_reference": 0.034,
-            "avg_time_underwater_delta_vs_reference": 0.1277,
-            "current_dominant_regime": "bear",
-            "reference_dominant_regime": "chop",
+            "win_rate_delta_vs_reference": -0.5,
+            "spot_long_win_rate_delta_vs_reference": 0.0,
+            "avg_simulated_pnl_delta_vs_reference": -0.0079,
+            "avg_simulated_quality_delta_vs_reference": -0.3389,
+            "avg_drawdown_penalty_delta_vs_reference": 0.0468,
+            "avg_time_underwater_delta_vs_reference": 0.0627,
+            "current_dominant_regime": "chop",
+            "reference_dominant_regime": "bear",
             "regime_share_deltas": {
               "bear": {
-                "current_share": 0.71,
-                "reference_share": 0.204,
-                "share_delta": 0.506
-              },
-              "bull": {
-                "current_share": 0.0,
-                "reference_share": 0.028,
-                "share_delta": -0.028
+                "current_share": 0.06,
+                "reference_share": 1.0,
+                "share_delta": -0.94
               },
               "chop": {
-                "current_share": 0.29,
-                "reference_share": 0.768,
-                "share_delta": -0.478
+                "current_share": 0.94,
+                "reference_share": 0.0,
+                "share_delta": 0.94
               }
             },
             "new_unexpected_frozen_features": [],
             "new_unexpected_compressed_features": [
-              "feat_atr_pct",
-              "feat_body"
+              "feat_dist_swing_high"
             ],
-            "new_null_heavy_features": [
-              "feat_claw",
-              "feat_claw_intensity"
-            ],
+            "new_null_heavy_features": [],
             "top_mean_shift_features": [
               {
-                "feature": "feat_nq_return_1h",
-                "current_mean": 0.0001,
-                "reference_mean": -0.0121,
-                "mean_delta": 0.0122,
-                "delta_vs_baseline_std": 3.4289,
+                "feature": "feat_4h_ma_order",
+                "current_mean": -0.06,
+                "reference_mean": -1.0,
+                "mean_delta": 0.94,
+                "delta_vs_baseline_std": 1.3561,
+                "overlay_only_reason": null
+              },
+              {
+                "feature": "feat_turning_point_score",
+                "current_mean": 0.6352,
+                "reference_mean": 0.4813,
+                "mean_delta": 0.1539,
+                "delta_vs_baseline_std": 1.2954,
                 "overlay_only_reason": null
               },
               {
                 "feature": "feat_nq_return_24h",
-                "current_mean": -0.0007,
-                "reference_mean": -0.0142,
-                "mean_delta": 0.0135,
-                "delta_vs_baseline_std": 1.6784,
+                "current_mean": -0.0067,
+                "reference_mean": 0.0031,
+                "mean_delta": -0.0099,
+                "delta_vs_baseline_std": 1.2263,
                 "overlay_only_reason": null
               },
               {
-                "feature": "feat_dxy",
-                "current_mean": 99.1932,
-                "reference_mean": 98.3282,
-                "mean_delta": 0.865,
-                "delta_vs_baseline_std": 0.881,
+                "feature": "feat_local_top_score",
+                "current_mean": 0.6266,
+                "reference_mean": 0.388,
+                "mean_delta": 0.2386,
+                "delta_vs_baseline_std": 1.0591,
                 "overlay_only_reason": null
               },
               {
-                "feature": "feat_4h_ma_order",
-                "current_mean": -0.71,
-                "reference_mean": -0.1928,
-                "mean_delta": -0.5172,
-                "delta_vs_baseline_std": 0.746,
-                "overlay_only_reason": null
-              },
-              {
-                "feature": "feat_4h_bias200",
-                "current_mean": -0.1326,
-                "reference_mean": 4.1401,
-                "mean_delta": -4.2727,
-                "delta_vs_baseline_std": 0.6886,
+                "feature": "feat_local_bottom_score",
+                "current_mean": 0.1496,
+                "reference_mean": 0.3529,
+                "mean_delta": -0.2033,
+                "delta_vs_baseline_std": 0.891,
                 "overlay_only_reason": null
               }
             ]
           },
           "compact_summary": {
-            "window": 500,
+            "window": 100,
             "alerts": [
+              "regime_concentration",
               "regime_shift"
             ],
             "severity": "high",
             "interpretation": "regime_concentration",
-            "win_rate": 0.416,
-            "avg_quality": 0.0708,
-            "avg_pnl": -0.0021,
-            "avg_drawdown_penalty": 0.1842,
-            "dominant_regime": "bear",
-            "dominant_regime_share": 0.71,
+            "win_rate": 0.46,
+            "avg_quality": 0.1489,
+            "avg_pnl": 0.0003,
+            "avg_drawdown_penalty": 0.1256,
+            "dominant_regime": "chop",
+            "dominant_regime_share": 0.94,
             "tail_streak": {
               "target": 0,
-              "count": 12,
+              "count": 20,
               "start_timestamp": "2026-05-21 00:15:34.335944",
-              "end_timestamp": "2026-05-21 03:04:02.185355"
+              "end_timestamp": "2026-05-21 04:10:09.100536"
             },
             "adverse_streak": {
               "target": 0,
-              "count": 116,
-              "start_timestamp": "2026-05-14 15:00:00.000000",
-              "end_timestamp": "2026-05-16 09:01:34.702823"
+              "count": 21,
+              "start_timestamp": "2026-05-20 12:00:00.000000",
+              "end_timestamp": "2026-05-20 16:16:35.147546"
             },
             "top_shift_features": [
-              "feat_nq_return_1h",
-              "feat_nq_return_24h",
-              "feat_dxy",
               "feat_4h_ma_order",
-              "feat_4h_bias200"
+              "feat_turning_point_score",
+              "feat_nq_return_24h",
+              "feat_local_top_score",
+              "feat_local_bottom_score"
             ],
             "actionable_summary": "negative distribution pathology requires current-window validation"
           },
           "drift_interpretation": "regime_concentration",
           "alerts": [
+            "regime_concentration",
             "regime_shift"
           ]
         }
