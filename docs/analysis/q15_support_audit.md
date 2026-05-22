@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-22 06:15:25.893720**
+- generated_at: **2026-05-22 07:12:52.531896**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -34,9 +34,9 @@
 - support_progress.status: **semantic_rebaseline_under_minimum**
 - support_progress.regression_basis: **legacy_or_different_semantic_signature**
 - support_progress.current_rows / minimum: **33 / 50**
-- support_progress.previous_rows: **30**
-- support_progress.delta_vs_previous: **3**
-- support_progress.stagnant_run_count: **0**
+- support_progress.previous_rows: **33**
+- support_progress.delta_vs_previous: **0**
+- support_progress.stagnant_run_count: **3**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
 - support_identity.path: **chop / CAUTION / C**
@@ -65,9 +65,9 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.6018**
+- current_entry_quality: **0.6217**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.0518**
+- current_trade_floor_gap: **0.0717**
 - current_entry_quality_ge_0_55: **True**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
@@ -83,7 +83,7 @@
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **CIRCUIT_BREAKER / 0 / decision_quality_below_trade_floor; circuit_breaker_active**
 - support rows / minimum / gap: **33 / 50 / 17**
-- stagnant_run_count: **0**
+- stagnant_run_count: **3**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**
