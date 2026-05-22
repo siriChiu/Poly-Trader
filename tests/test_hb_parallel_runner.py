@@ -2757,6 +2757,8 @@ def test_overwrite_current_state_docs_surfaces_support_fill_feasibility_pm_press
                 },
                 "verdict": {
                     "classification": "no_exact_bucket_history",
+                    "current_exact_identity_rows": 11,
+                    "current_exact_identity_non_bucket_rows": 11,
                     "current_exact_bucket_rows": 0,
                     "minimum_support_rows": 50,
                     "gap_to_minimum": 50,
@@ -2803,10 +2805,14 @@ def test_overwrite_current_state_docs_surfaces_support_fill_feasibility_pm_press
     assert "classification=no_exact_bucket_history" in combined_docs
     assert "bucket=CAUTION|base_caution_regime_or_bias|q35" in combined_docs
     assert "exact_rows=0/50" in combined_docs
+    assert "identity_rows=11" in combined_docs
+    assert "non_bucket_identity_rows=11" in combined_docs
     assert "time_to_evidence=unknown_until_bucket_map_or_signal_redesign" in combined_docs
     assert "missing_capability=Map/Signal" in combined_docs
     assert "alternative_solution_required=True" in combined_docs
     assert "reference windows / governance rows 不可包裝成 deployable support" in combined_docs
+    assert "exact bucket rows / identity rows / missing capability / alternative solution" in combined_docs
+    assert "identity/proxy/reference rows 被包裝成 deployable" in combined_docs
     assert "data/q15_support_fill_feasibility.json" in combined_docs
     assert "- - **support-fill feasibility" not in roadmap_md
 

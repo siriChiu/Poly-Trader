@@ -3879,6 +3879,8 @@ def overwrite_current_state_docs(
             f"`bucket={support_fill_bucket}` / "
             f"`exact_rows={support_fill_feasibility.get('current_exact_bucket_rows', '—')}/"
             f"{support_fill_feasibility.get('minimum_support_rows', '—')}` / "
+            f"`identity_rows={support_fill_feasibility.get('current_exact_identity_rows', '—')}` / "
+            f"`non_bucket_identity_rows={support_fill_feasibility.get('current_exact_identity_non_bucket_rows', '—')}` / "
             f"`gap={support_fill_feasibility.get('gap_to_minimum', '—')}` / "
             f"`time_to_evidence={support_fill_feasibility.get('time_to_evidence_bucket') or '—'}` / "
             f"`missing_capability={support_fill_feasibility.get('missing_capability_class') or '—'}` / "
@@ -3902,11 +3904,11 @@ def overwrite_current_state_docs(
         ]
         support_fill_next_gate_lines = [
             "4. **依 PM handoff 追 exact support-fill movement 與 alternative-solution proof**",
-            "   - 驗證：`python scripts/q15_support_fill_feasibility_scan.py`、`python scripts/customer_safe_alternative_proof.py`、`data/q15_support_fill_feasibility.json`、`data/customer_safe_alternative_proof.json`、`docs/analysis/q15_support_fill_feasibility.md`、`docs/analysis/customer_safe_alternative_proof.md`、`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` 是否同步 exact rows / missing capability / alternative solution",
-            "   - 升級 blocker：若 exact rows 仍 0/50 卻沒有 missing_capability / time_to_evidence / alternative_solution artifact，或 reference rows 被包裝成 deployable。",
+            "   - 驗證：`python scripts/q15_support_fill_feasibility_scan.py`、`python scripts/customer_safe_alternative_proof.py`、`data/q15_support_fill_feasibility.json`、`data/customer_safe_alternative_proof.json`、`docs/analysis/q15_support_fill_feasibility.md`、`docs/analysis/customer_safe_alternative_proof.md`、`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` 是否同步 exact bucket rows / identity rows / missing capability / alternative solution",
+            "   - 升級 blocker：若 exact bucket rows 仍低於門檻卻沒有 missing_capability / time_to_evidence / alternative_solution artifact，或 identity/proxy/reference rows 被包裝成 deployable。",
         ]
         support_fill_success_lines = [
-            "- support-fill feasibility 維持 PM-safe：current exact rows / missing capability / time-to-evidence / alternative-solution artifact 可見，且 reference rows 不可升級成 deployable truth",
+            "- support-fill feasibility 維持 PM-safe：current exact bucket rows、identity rows、missing capability、time-to-evidence、alternative-solution artifact 可見，且 identity/proxy/reference rows 不可升級成 deployable truth",
         ]
     range_chop_context_text = " ".join(
         str(value)
@@ -7117,6 +7119,8 @@ def collect_q15_support_fill_feasibility_diagnostics() -> Dict[str, Any]:
         "data_coverage": payload.get("data_coverage") or {},
         "verdict": verdict,
         "classification": verdict.get("classification"),
+        "current_exact_identity_rows": verdict.get("current_exact_identity_rows"),
+        "current_exact_identity_non_bucket_rows": verdict.get("current_exact_identity_non_bucket_rows"),
         "current_exact_bucket_rows": verdict.get("current_exact_bucket_rows"),
         "minimum_support_rows": verdict.get("minimum_support_rows"),
         "gap_to_minimum": verdict.get("gap_to_minimum"),

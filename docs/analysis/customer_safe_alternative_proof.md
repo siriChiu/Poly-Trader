@@ -1,6 +1,6 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-22T15:11:25.596668Z`
+- generated_at: `2026-05-22T16:11:52.102489Z`
 - current_live_blocker: `under_minimum_exact_live_structure_bucket`
 - current_live_structure_bucket: `CAUTION|base_caution_regime_or_bias|q00`
 - exact support: `1/50` (gap `49`)

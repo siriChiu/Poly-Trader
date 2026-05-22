@@ -58,6 +58,8 @@ def test_feasibility_scan_separates_reference_window_rows_from_current_identity(
 
     verdict = report["verdict"]
     assert verdict["classification"] == "semantic_window_gap_not_raw_backfill_gap"
+    assert verdict["current_exact_identity_rows"] == 0
+    assert verdict["current_exact_identity_non_bucket_rows"] == 0
     assert verdict["current_exact_bucket_rows"] == 0
     assert verdict["gap_to_minimum"] == 50
     assert verdict["can_historical_backfill_close_current_identity"] is False
@@ -87,6 +89,8 @@ def test_feasibility_scan_separates_reference_window_rows_from_current_identity(
     assert "Scanned current support identity" in md
     assert "Scanned q15 support identity" not in md
     assert "semantic_window_gap_not_raw_backfill_gap" in md
+    assert "current exact bucket rows (deployable support candidate)" in md
+    assert "current exact identity rows before bucket filter" in md
     assert "PM delivery pressure" in md
     assert "semantic_rebaseline_review_required_before_reference_rows_count" in md
     assert "paper_shadow_decision_support_sleeve" in md
@@ -126,6 +130,8 @@ def test_recommended_actions_use_current_calibration_window_and_under_minimum_co
     )
 
     assert report["verdict"]["classification"] == "true_support_under_minimum"
+    assert report["verdict"]["current_exact_identity_rows"] == 38
+    assert report["verdict"]["current_exact_identity_non_bucket_rows"] == 0
     assert report["verdict"]["current_exact_bucket_rows"] == 38
     actions = {action["id"]: action for action in report["recommended_actions"]}
     collect_action = actions["collect_forward_exact_current_identity_rows"]
@@ -204,3 +210,50 @@ def test_recommended_actions_switch_to_remaining_gates_copy_when_current_support
     assert "current support identity exact rows 67/50 已達門檻" in md
     assert "must reach minimum" not in md
     assert "support gate 不是 deployment closure" in md
+
+
+def test_current_window_reports_identity_rows_that_do_not_match_current_bucket():
+    identity = {
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+        "regime_label": "bear",
+        "regime_gate": "CAUTION",
+        "entry_quality_label": "C",
+        "calibration_window": 20,
+        "bucket_semantic_signature": scan.BUCKET_SEMANTIC_SIGNATURE,
+    }
+    current_bucket = [
+        _row(0, regime="bear", gate="CAUTION", label="C", bucket="CAUTION|base_caution_regime_or_bias|q00")
+    ]
+    same_identity_wrong_bucket = [
+        _row(
+            i + 1,
+            regime="bear",
+            gate="CAUTION",
+            label="C",
+            bucket="CAUTION|base_caution_regime_or_bias|q15",
+        )
+        for i in range(12)
+    ]
+    non_matching_rows = [_row(i + 13, bucket="ALLOW|different|q65") for i in range(30)]
+
+    report = scan.build_feasibility_report(
+        rows=current_bucket + same_identity_wrong_bucket + non_matching_rows,
+        support_identity=identity,
+        generated_at="2026-05-23T00:00:00+08:00",
+        windows=(20,),
+        minimum_support_rows=50,
+    )
+
+    verdict = report["verdict"]
+    assert verdict["current_exact_bucket_rows"] == 1
+    assert verdict["current_exact_identity_rows"] == 13
+    assert verdict["current_exact_identity_non_bucket_rows"] == 12
+    assert verdict["gap_to_minimum"] == 49
+
+    md = scan.markdown(report)
+    assert "current exact bucket rows (deployable support candidate): **1/50**" in md
+    assert "current exact identity rows before bucket filter: **13**" in md
+    assert "non-current-bucket: **12**" in md
+    assert "reference only, not deployment support" in md

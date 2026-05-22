@@ -413,6 +413,8 @@ def build_feasibility_report(
     best_reference = max(reference_candidates, key=lambda item: int(item.get("exact_bucket_rows") or 0), default={})
     full_scan = window_scan.get("all") or (list(window_scan.values())[-1] if window_scan else {})
     current_rows = int(current_scan.get("exact_bucket_rows") or 0)
+    current_exact_identity_rows = int(current_scan.get("exact_identity_rows") or 0)
+    current_exact_identity_non_bucket_rows = max(current_exact_identity_rows - current_rows, 0)
     joined_rows = len(rows)
     current_window_filled = bool(calibration_window > 0 and joined_rows >= calibration_window)
 
@@ -455,6 +457,8 @@ def build_feasibility_report(
         "can_historical_backfill_close_current_identity": can_backfill_close_current_identity,
         "can_count_reference_windows_as_deployable": False,
         "current_calibration_window": calibration_window,
+        "current_exact_identity_rows": current_exact_identity_rows,
+        "current_exact_identity_non_bucket_rows": current_exact_identity_non_bucket_rows,
         "current_exact_bucket_rows": current_rows,
         "minimum_support_rows": minimum_support_rows,
         "gap_to_minimum": max(minimum_support_rows - current_rows, 0),
@@ -559,7 +563,9 @@ def markdown(report: dict[str, Any]) -> str:
         f"- source q15 audit generated_at: `{source_artifacts.get('q15_support_audit_generated_at')}`",
         f"- classification: **{verdict.get('classification')}**",
         f"- reason: {verdict.get('reason')}",
-        f"- current rows: **{verdict.get('current_exact_bucket_rows')}/{verdict.get('minimum_support_rows')}**",
+        f"- current exact bucket rows (deployable support candidate): **{verdict.get('current_exact_bucket_rows')}/{verdict.get('minimum_support_rows')}**",
+        f"- current exact identity rows before bucket filter: **{verdict.get('current_exact_identity_rows')}** "
+        f"(non-current-bucket: **{verdict.get('current_exact_identity_non_bucket_rows')}**; reference only, not deployment support)",
         f"- gap_to_minimum: **{verdict.get('gap_to_minimum')}**",
         f"- historical backfill can close current identity: **{verdict.get('can_historical_backfill_close_current_identity')}**",
         f"- reference windows deployable by count alone: **{verdict.get('can_count_reference_windows_as_deployable')}**",
@@ -681,7 +687,8 @@ def main() -> None:
     print(
         "current support-fill feasibility: "
         f"{verdict['classification']} rows={verdict['current_exact_bucket_rows']}/"
-        f"{verdict['minimum_support_rows']} best_reference="
+        f"{verdict['minimum_support_rows']} identity_rows={verdict.get('current_exact_identity_rows')} "
+        f"non_bucket_identity_rows={verdict.get('current_exact_identity_non_bucket_rows')} best_reference="
         f"{verdict.get('best_reference_window')}:{verdict.get('best_reference_exact_bucket_rows')} "
         f"time_to_evidence={verdict.get('time_to_evidence_bucket')} "
         f"missing_capability={verdict.get('missing_capability_class')}"
