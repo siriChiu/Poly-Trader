@@ -1,9 +1,9 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-22T07:13:25.840115Z`
+- generated_at: `2026-05-22T08:12:37.529135Z`
 - current_live_blocker: `circuit_breaker_active`
 - current_live_structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
-- exact support: `33/50` (gap `17`)
+- exact support: `34/50` (gap `16`)
 - support_route_verdict: `exact_bucket_present_but_below_minimum`
 - canary_ready: **False**
 - live_exposure_allowed: **False**
@@ -45,5 +45,5 @@
 - `venue_dry_run_readiness_proof`: role=`delivery_risk_reduction`, deployable=`False`, live_exposure_allowed=`False`, next=`OKX/Binance dry-run lifecycle proof checklist with credential state as boolean only`
 
 ## Next gate
-current exact support rows 33/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
+current exact support rows 34/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
 
