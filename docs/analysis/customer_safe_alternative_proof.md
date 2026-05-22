@@ -1,10 +1,10 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-22T19:12:17.813135Z`
-- current_live_blocker: `under_minimum_exact_live_structure_bucket`
-- current_live_structure_bucket: `CAUTION|base_caution_regime_or_bias|q00`
-- exact support: `1/50` (gap `49`)
-- support_route_verdict: `exact_bucket_present_but_below_minimum`
+- generated_at: `2026-05-22T20:14:10.400633Z`
+- current_live_blocker: `unsupported_exact_live_structure_bucket`
+- current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
+- exact support: `0/50` (gap `50`)
+- support_route_verdict: `exact_bucket_unsupported_block`
 - canary_ready: **False**
 - live_exposure_allowed: **False**
 - order_submission_enabled: **False**
@@ -32,18 +32,18 @@
 ## Lanes
 - `paper_shadow_decision_support_sleeve`: status=`available`, deployable=`False`, live_exposure_allowed=`False`
 - `venue_dry_run_readiness_proof`: status=`blocked_missing_runtime_backed_proof`, deployable=`False`, live_exposure_allowed=`False`
-- `support_fill_feasibility`: status=`true_support_under_minimum`, deployable=`False`, live_exposure_allowed=`False`
+- `support_fill_feasibility`: status=`no_exact_bucket_history`, deployable=`False`, live_exposure_allowed=`False`
 - `recent_window_no_new_risk_falsification`: status=`not_available`, deployable=`False`, live_exposure_allowed=`False`
 
 ## Alternative solution option portfolio
 - option_count: `3`
 - selected_next_artifact: `data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy`
-- time_to_evidence_bucket: `within_week_if_exact_identity_keeps_accumulating`
+- time_to_evidence_bucket: `unknown_until_bucket_map_or_signal_redesign`
 - safety_invariant: All alternatives are customer-safe only: deployable=false, live_exposure_allowed=false, order_submission_enabled=false until exact support, Top-K deployability, and venue runtime proof all pass.
 - `paper_shadow_decision_support_sleeve`: role=`customer_usable_now`, deployable=`False`, live_exposure_allowed=`False`, next=`data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy`
 - `semantic_rebaseline_review`: role=`support_policy_alternative`, deployable=`False`, live_exposure_allowed=`False`, next=`OOS + Top-K + support audit replay under any proposed new calibration_window identity`
 - `venue_dry_run_readiness_proof`: role=`delivery_risk_reduction`, deployable=`False`, live_exposure_allowed=`False`, next=`OKX/Binance dry-run lifecycle proof checklist with credential state as boolean only`
 
 ## Next gate
-current exact support rows 1/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
+current exact support rows 0/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
 
