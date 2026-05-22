@@ -1,7 +1,7 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-22T21:09:55.508453Z`
-- current_live_blocker: `unsupported_exact_live_structure_bucket`
+- generated_at: `2026-05-22T22:12:47.588560Z`
+- current_live_blocker: `circuit_breaker_active`
 - current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
 - exact support: `0/50` (gap `50`)
 - support_route_verdict: `exact_bucket_unsupported_block`
