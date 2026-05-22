@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-05-22T12:10:36.352792+00:00",
+  "generated_at": "2026-05-22T13:19:29.526106+00:00",
   "target_col": "simulated_pyramid_win",
   "horizon_minutes": 1440,
   "window": 100,
   "rows": 100,
-  "wins": 34,
-  "losses": 66,
-  "loss_rate": 0.66,
+  "wins": 40,
+  "losses": 60,
+  "loss_rate": 0.6,
   "reference_rows": 100,
   "thresholds": {
     "tp_pct": 0.02,
@@ -14,45 +14,53 @@
     "high_underwater_ratio": 0.5
   },
   "loss_path_breakdown": {
-    "losses": 66,
-    "tp_miss_count": 66,
+    "losses": 60,
+    "tp_miss_count": 60,
     "tp_miss_share": 1.0,
     "dd_breach_count": 0,
     "dd_breach_share": 0.0,
     "high_underwater_count": 44,
-    "high_underwater_share": 0.6667,
-    "avg_time_underwater": 0.6971,
-    "avg_future_max_runup": 0.0039,
-    "avg_future_max_drawdown": -0.011,
-    "avg_simulated_pnl": -0.0041,
-    "avg_simulated_quality": -0.1643
+    "high_underwater_share": 0.7333,
+    "avg_time_underwater": 0.7375,
+    "avg_future_max_runup": 0.0034,
+    "avg_future_max_drawdown": -0.0115,
+    "avg_simulated_pnl": -0.0042,
+    "avg_simulated_quality": -0.1727
   },
   "regime_breakdown": {
     "chop": {
-      "rows": 100,
-      "wins": 34,
-      "losses": 66,
-      "row_share": 1.0,
-      "loss_rate": 0.66,
+      "rows": 98,
+      "wins": 38,
+      "losses": 60,
+      "row_share": 0.98,
+      "loss_rate": 0.6122,
       "share_of_losses": 1.0
+    },
+    "bear": {
+      "rows": 2,
+      "wins": 2,
+      "losses": 0,
+      "row_share": 0.02,
+      "loss_rate": 0.0,
+      "share_of_losses": 0.0
     }
   },
   "dominant_loss_regime": "chop",
   "feature_shift": {
     "loss_vs_reference": {
       "feat_4h_bias200": {
-        "current_loss_mean": -0.8237,
-        "reference_mean": -1.6905,
-        "reference_std": 0.3916,
-        "mean_delta": 0.8668,
-        "delta_vs_reference_std": 2.2135
+        "current_loss_mean": -0.7778,
+        "reference_mean": -1.63,
+        "reference_std": 0.3755,
+        "mean_delta": 0.8522,
+        "delta_vs_reference_std": 2.2695
       },
       "feat_4h_dist_swing_low": {
-        "current_loss_mean": 2.241,
-        "reference_mean": 1.3234,
-        "reference_std": 0.413,
-        "mean_delta": 0.9176,
-        "delta_vs_reference_std": 2.2218
+        "current_loss_mean": 2.2871,
+        "reference_mean": 1.3899,
+        "reference_std": 0.3968,
+        "mean_delta": 0.8972,
+        "delta_vs_reference_std": 2.2611
       },
       "feat_4h_dist_swing_high": {
         "current_loss_mean": null,
@@ -62,51 +70,51 @@
         "delta_vs_reference_std": null
       },
       "feat_4h_bias50": {
-        "current_loss_mean": -0.9032,
-        "reference_mean": -2.3134,
-        "reference_std": 0.5706,
-        "mean_delta": 1.4102,
-        "delta_vs_reference_std": 2.4714
+        "current_loss_mean": -0.841,
+        "reference_mean": -2.2038,
+        "reference_std": 0.5536,
+        "mean_delta": 1.3628,
+        "delta_vs_reference_std": 2.4617
       },
       "feat_4h_bias20": {
-        "current_loss_mean": 0.8571,
-        "reference_mean": -0.289,
-        "reference_std": 0.5101,
-        "mean_delta": 1.1461,
-        "delta_vs_reference_std": 2.2468
+        "current_loss_mean": 0.9046,
+        "reference_mean": -0.1936,
+        "reference_std": 0.4916,
+        "mean_delta": 1.0982,
+        "delta_vs_reference_std": 2.2339
       },
       "feat_4h_rsi14": {
-        "current_loss_mean": 51.926,
-        "reference_mean": 42.9955,
-        "reference_std": 4.1172,
-        "mean_delta": 8.9305,
-        "delta_vs_reference_std": 2.1691
+        "current_loss_mean": 52.3488,
+        "reference_mean": 43.6804,
+        "reference_std": 3.9603,
+        "mean_delta": 8.6684,
+        "delta_vs_reference_std": 2.1888
       },
       "feat_4h_bb_pct_b": {
-        "current_loss_mean": 0.6585,
-        "reference_mean": 0.5909,
-        "reference_std": 0.119,
-        "mean_delta": 0.0676,
-        "delta_vs_reference_std": 0.5681
+        "current_loss_mean": 0.661,
+        "reference_mean": 0.605,
+        "reference_std": 0.1083,
+        "mean_delta": 0.056,
+        "delta_vs_reference_std": 0.5171
       },
       "feat_4h_macd_hist": {
-        "current_loss_mean": 208.1021,
-        "reference_mean": 85.8333,
-        "reference_std": 51.5183,
-        "mean_delta": 122.2688,
-        "delta_vs_reference_std": 2.3733
+        "current_loss_mean": 211.5807,
+        "reference_mean": 96.933,
+        "reference_std": 51.7698,
+        "mean_delta": 114.6477,
+        "delta_vs_reference_std": 2.2146
       }
     },
     "loss_vs_recent_wins": {
       "feat_4h_bias200": {
-        "loss_mean": -0.8237,
-        "win_mean": -1.3336,
-        "mean_delta": 0.5099
+        "loss_mean": -0.7778,
+        "win_mean": -1.3783,
+        "mean_delta": 0.6005
       },
       "feat_4h_dist_swing_low": {
-        "loss_mean": 2.241,
-        "win_mean": 1.7341,
-        "mean_delta": 0.5069
+        "loss_mean": 2.2871,
+        "win_mean": 1.6908,
+        "mean_delta": 0.5963
       },
       "feat_4h_dist_swing_high": {
         "loss_mean": null,
@@ -114,50 +122,50 @@
         "mean_delta": null
       },
       "feat_4h_bias50": {
-        "loss_mean": -0.9032,
-        "win_mean": -1.3911,
-        "mean_delta": 0.4879
+        "loss_mean": -0.841,
+        "win_mean": -1.3922,
+        "mean_delta": 0.5512
       },
       "feat_4h_bias20": {
-        "loss_mean": 0.8571,
-        "win_mean": 0.3399,
-        "mean_delta": 0.5172
+        "loss_mean": 0.9046,
+        "win_mean": 0.2923,
+        "mean_delta": 0.6123
       },
       "feat_4h_rsi14": {
-        "loss_mean": 51.926,
-        "win_mean": 47.2349,
-        "mean_delta": 4.6911
+        "loss_mean": 52.3488,
+        "win_mean": 46.8355,
+        "mean_delta": 5.5133
       },
       "feat_4h_bb_pct_b": {
-        "loss_mean": 0.6585,
-        "win_mean": 0.5026,
-        "mean_delta": 0.1559
+        "loss_mean": 0.661,
+        "win_mean": 0.4693,
+        "mean_delta": 0.1917
       },
       "feat_4h_macd_hist": {
-        "loss_mean": 208.1021,
-        "win_mean": 170.3735,
-        "mean_delta": 37.7286
+        "loss_mean": 211.5807,
+        "win_mean": 163.7213,
+        "mean_delta": 47.8594
       }
     }
   },
   "top_4h_shift_features": [
     "feat_4h_bias50",
-    "feat_4h_macd_hist",
-    "feat_4h_bias20",
+    "feat_4h_bias200",
     "feat_4h_dist_swing_low",
-    "feat_4h_bias200"
+    "feat_4h_bias20",
+    "feat_4h_macd_hist"
   ],
   "key_findings": [
     "\u6700\u8fd1 100 \u7b46 canonical losses \u4e3b\u8981\u96c6\u4e2d\u5728 chop\uff08loss share=1.0\uff09\u3002",
-    "loss path\uff1aTP miss 66/66\u3001DD breach 0/66\u3001\u9ad8 underwater 44/66\u3002",
-    "4H feature shift \u4ee5 feat_4h_bias50 / feat_4h_macd_hist / feat_4h_bias20 \u6700\u660e\u986f\u3002"
+    "loss path\uff1aTP miss 60/60\u3001DD breach 0/60\u3001\u9ad8 underwater 44/60\u3002",
+    "4H feature shift \u4ee5 feat_4h_bias50 / feat_4h_bias200 / feat_4h_dist_swing_low \u6700\u660e\u986f\u3002"
   ],
   "falsification_tests": [
     {
       "id": "tp_miss_not_stop_loss",
       "priority": "P0",
       "hypothesis": "recent canonical losses are primarily profit-target misses, not stop-loss/drawdown breaches",
-      "current_evidence": "tp_miss=66/66 (100.00%), dd_breach=0/66 (0.00%), high_underwater=44/66 (66.67%)",
+      "current_evidence": "tp_miss=60/60 (100.00%), dd_breach=0/60 (0.00%), high_underwater=44/60 (73.33%)",
       "metric": "Replay the recent canonical window with a no-new-risk gate for rows whose forward max-runup stays below the canonical TP while time-underwater is high.",
       "pass_condition": "loss_rate falls and recent_window_wins moves toward the breaker release floor without increasing dd_breach_share.",
       "fail_condition": "loss_rate remains high or dd_breach_share becomes the dominant loss path after the TP-miss gate.",
@@ -167,7 +175,7 @@
       "id": "dominant_regime_pocket",
       "priority": "P0",
       "hypothesis": "the negative tail is concentrated in the chop regime pocket",
-      "current_evidence": "dominant_loss_regime=chop, share_of_losses=100.00%, window=100, losses=66, wins=34",
+      "current_evidence": "dominant_loss_regime=chop, share_of_losses=100.00%, window=100, losses=60, wins=40",
       "metric": "Compare recent-window win_rate / avg_quality with and without the dominant-loss-regime rows, then require same-regime support before any deployment closure.",
       "pass_condition": "Excluding or risk-off gating the dominant regime improves recent win_rate by >= 10pp and keeps avg_quality above 0.",
       "fail_condition": "The negative quality persists outside the dominant regime, meaning regime concentration is descriptive rather than causal.",
@@ -180,15 +188,15 @@
       "current_evidence": {
         "top_4h_shift_features": [
           "feat_4h_bias50",
-          "feat_4h_macd_hist",
-          "feat_4h_bias20",
+          "feat_4h_bias200",
           "feat_4h_dist_swing_low",
-          "feat_4h_bias200"
+          "feat_4h_bias20",
+          "feat_4h_macd_hist"
         ],
         "lead_feature": "feat_4h_bias50",
-        "lead_feature_current_loss_mean": -0.9032,
-        "lead_feature_reference_mean": -2.3134,
-        "lead_feature_delta_vs_reference_std": 2.4714
+        "lead_feature_current_loss_mean": -0.841,
+        "lead_feature_reference_mean": -2.2038,
+        "lead_feature_delta_vs_reference_std": 2.4617
       },
       "metric": "Split recent rows by the lead shifted 4H feature quantile and compare simulated_pyramid_win / quality against the sibling window.",
       "pass_condition": "The shifted quantile explains most recent losses and can be encoded as a fail-closed filter without reducing supported rows below minimum.",
@@ -206,27 +214,27 @@
     "deployment_verdict": "not_deployable_shadow_only_runtime_blocked",
     "baseline": {
       "rows": 100,
-      "wins": 34,
-      "losses": 66,
-      "win_rate": 0.34,
-      "loss_rate": 0.66,
-      "avg_simulated_pnl": -0.0019,
-      "avg_simulated_quality": 0.0369,
-      "avg_drawdown_penalty": 0.1852,
-      "avg_time_underwater": 0.5496,
+      "wins": 40,
+      "losses": 60,
+      "win_rate": 0.4,
+      "loss_rate": 0.6,
+      "avg_simulated_pnl": -0.0015,
+      "avg_simulated_quality": 0.0706,
+      "avg_drawdown_penalty": 0.182,
+      "avg_time_underwater": 0.5386,
       "loss_path_breakdown": {
-        "losses": 66,
-        "tp_miss_count": 66,
+        "losses": 60,
+        "tp_miss_count": 60,
         "tp_miss_share": 1.0,
         "dd_breach_count": 0,
         "dd_breach_share": 0.0,
         "high_underwater_count": 44,
-        "high_underwater_share": 0.6667,
-        "avg_time_underwater": 0.6971,
-        "avg_future_max_runup": 0.0039,
-        "avg_future_max_drawdown": -0.011,
-        "avg_simulated_pnl": -0.0041,
-        "avg_simulated_quality": -0.1643
+        "high_underwater_share": 0.7333,
+        "avg_time_underwater": 0.7375,
+        "avg_future_max_runup": 0.0034,
+        "avg_future_max_drawdown": -0.0115,
+        "avg_simulated_pnl": -0.0042,
+        "avg_simulated_quality": -0.1727
       }
     },
     "gates": [
@@ -251,15 +259,15 @@
         "blocked_rows": 47,
         "blocked_losses": 44,
         "blocked_wins": 3,
-        "loss_capture_share": 0.6667,
-        "win_cost_share": 0.0882,
+        "loss_capture_share": 0.7333,
+        "win_cost_share": 0.075,
         "kept_rows": 53,
-        "kept_wins": 31,
-        "kept_losses": 22,
-        "kept_win_rate": 0.5849,
-        "kept_avg_simulated_quality": 0.2146,
-        "kept_avg_simulated_pnl": 0.0005,
-        "win_rate_delta_vs_baseline": 0.2449,
+        "kept_wins": 37,
+        "kept_losses": 16,
+        "kept_win_rate": 0.6981,
+        "kept_avg_simulated_quality": 0.2781,
+        "kept_avg_simulated_pnl": 0.0013,
+        "win_rate_delta_vs_baseline": 0.2981,
         "blocked_slice": {
           "rows": 47,
           "wins": 3,
@@ -287,27 +295,27 @@
         },
         "kept_slice": {
           "rows": 53,
-          "wins": 31,
-          "losses": 22,
-          "win_rate": 0.5849,
-          "loss_rate": 0.4151,
-          "avg_simulated_pnl": 0.0005,
-          "avg_simulated_quality": 0.2146,
-          "avg_drawdown_penalty": 0.1291,
-          "avg_time_underwater": 0.2949,
+          "wins": 37,
+          "losses": 16,
+          "win_rate": 0.6981,
+          "loss_rate": 0.3019,
+          "avg_simulated_pnl": 0.0013,
+          "avg_simulated_quality": 0.2781,
+          "avg_drawdown_penalty": 0.1229,
+          "avg_time_underwater": 0.274,
           "loss_path_breakdown": {
-            "losses": 22,
-            "tp_miss_count": 22,
+            "losses": 16,
+            "tp_miss_count": 16,
             "tp_miss_share": 1.0,
             "dd_breach_count": 0,
             "dd_breach_share": 0.0,
             "high_underwater_count": 0,
             "high_underwater_share": 0.0,
-            "avg_time_underwater": 0.3741,
-            "avg_future_max_runup": 0.0076,
-            "avg_future_max_drawdown": -0.0077,
+            "avg_time_underwater": 0.4042,
+            "avg_future_max_runup": 0.0071,
+            "avg_future_max_drawdown": -0.0083,
             "avg_simulated_pnl": -0.0021,
-            "avg_simulated_quality": -0.0946
+            "avg_simulated_quality": -0.0998
           }
         }
       },
@@ -329,54 +337,54 @@
         "threshold": {
           "regime": "chop"
         },
-        "falsification_verdict": "inconclusive_all_rows_blocked",
-        "blocked_rows": 100,
-        "blocked_losses": 66,
-        "blocked_wins": 34,
+        "falsification_verdict": "fails_shadow_metric",
+        "blocked_rows": 98,
+        "blocked_losses": 60,
+        "blocked_wins": 38,
         "loss_capture_share": 1.0,
-        "win_cost_share": 1.0,
-        "kept_rows": 0,
-        "kept_wins": 0,
+        "win_cost_share": 0.95,
+        "kept_rows": 2,
+        "kept_wins": 2,
         "kept_losses": 0,
-        "kept_win_rate": null,
-        "kept_avg_simulated_quality": null,
-        "kept_avg_simulated_pnl": null,
-        "win_rate_delta_vs_baseline": null,
+        "kept_win_rate": 1.0,
+        "kept_avg_simulated_quality": 0.4937,
+        "kept_avg_simulated_pnl": 0.0047,
+        "win_rate_delta_vs_baseline": 0.6,
         "blocked_slice": {
-          "rows": 100,
-          "wins": 34,
-          "losses": 66,
-          "win_rate": 0.34,
-          "loss_rate": 0.66,
-          "avg_simulated_pnl": -0.0019,
-          "avg_simulated_quality": 0.0369,
-          "avg_drawdown_penalty": 0.1852,
-          "avg_time_underwater": 0.5496,
+          "rows": 98,
+          "wins": 38,
+          "losses": 60,
+          "win_rate": 0.3878,
+          "loss_rate": 0.6122,
+          "avg_simulated_pnl": -0.0017,
+          "avg_simulated_quality": 0.062,
+          "avg_drawdown_penalty": 0.1846,
+          "avg_time_underwater": 0.5487,
           "loss_path_breakdown": {
-            "losses": 66,
-            "tp_miss_count": 66,
+            "losses": 60,
+            "tp_miss_count": 60,
             "tp_miss_share": 1.0,
             "dd_breach_count": 0,
             "dd_breach_share": 0.0,
             "high_underwater_count": 44,
-            "high_underwater_share": 0.6667,
-            "avg_time_underwater": 0.6971,
-            "avg_future_max_runup": 0.0039,
-            "avg_future_max_drawdown": -0.011,
-            "avg_simulated_pnl": -0.0041,
-            "avg_simulated_quality": -0.1643
+            "high_underwater_share": 0.7333,
+            "avg_time_underwater": 0.7375,
+            "avg_future_max_runup": 0.0034,
+            "avg_future_max_drawdown": -0.0115,
+            "avg_simulated_pnl": -0.0042,
+            "avg_simulated_quality": -0.1727
           }
         },
         "kept_slice": {
-          "rows": 0,
-          "wins": 0,
+          "rows": 2,
+          "wins": 2,
           "losses": 0,
-          "win_rate": null,
-          "loss_rate": null,
-          "avg_simulated_pnl": null,
-          "avg_simulated_quality": null,
-          "avg_drawdown_penalty": null,
-          "avg_time_underwater": null,
+          "win_rate": 1.0,
+          "loss_rate": 0.0,
+          "avg_simulated_pnl": 0.0047,
+          "avg_simulated_quality": 0.4937,
+          "avg_drawdown_penalty": 0.0523,
+          "avg_time_underwater": 0.0432,
           "loss_path_breakdown": {
             "losses": 0,
             "tp_miss_count": 0,
@@ -411,34 +419,34 @@
         "threshold": {
           "feature": "feat_4h_bias50",
           "direction": "at_or_above",
-          "value": -1.1471,
-          "loss_mean": -0.9032,
-          "comparison_mean": -1.3911,
+          "value": -1.1166,
+          "loss_mean": -0.841,
+          "comparison_mean": -1.3922,
           "comparison_source": "recent_wins"
         },
         "falsification_verdict": "passes_shadow_metric",
-        "blocked_rows": 53,
+        "blocked_rows": 50,
         "blocked_losses": 49,
-        "blocked_wins": 4,
-        "loss_capture_share": 0.7424,
-        "win_cost_share": 0.1176,
-        "kept_rows": 47,
-        "kept_wins": 30,
-        "kept_losses": 17,
-        "kept_win_rate": 0.6383,
-        "kept_avg_simulated_quality": 0.2445,
-        "kept_avg_simulated_pnl": 0.0008,
-        "win_rate_delta_vs_baseline": 0.2983,
+        "blocked_wins": 1,
+        "loss_capture_share": 0.8167,
+        "win_cost_share": 0.025,
+        "kept_rows": 50,
+        "kept_wins": 39,
+        "kept_losses": 11,
+        "kept_win_rate": 0.78,
+        "kept_avg_simulated_quality": 0.3193,
+        "kept_avg_simulated_pnl": 0.0015,
+        "win_rate_delta_vs_baseline": 0.38,
         "blocked_slice": {
-          "rows": 53,
-          "wins": 4,
+          "rows": 50,
+          "wins": 1,
           "losses": 49,
-          "win_rate": 0.0755,
-          "loss_rate": 0.9245,
-          "avg_simulated_pnl": -0.0043,
-          "avg_simulated_quality": -0.1471,
-          "avg_drawdown_penalty": 0.2405,
-          "avg_time_underwater": 0.7913,
+          "win_rate": 0.02,
+          "loss_rate": 0.98,
+          "avg_simulated_pnl": -0.0046,
+          "avg_simulated_quality": -0.1781,
+          "avg_drawdown_penalty": 0.2435,
+          "avg_time_underwater": 0.8103,
           "loss_path_breakdown": {
             "losses": 49,
             "tp_miss_count": 49,
@@ -455,33 +463,33 @@
           }
         },
         "kept_slice": {
-          "rows": 47,
-          "wins": 30,
-          "losses": 17,
-          "win_rate": 0.6383,
-          "loss_rate": 0.3617,
-          "avg_simulated_pnl": 0.0008,
-          "avg_simulated_quality": 0.2445,
-          "avg_drawdown_penalty": 0.1229,
-          "avg_time_underwater": 0.2771,
+          "rows": 50,
+          "wins": 39,
+          "losses": 11,
+          "win_rate": 0.78,
+          "loss_rate": 0.22,
+          "avg_simulated_pnl": 0.0015,
+          "avg_simulated_quality": 0.3193,
+          "avg_drawdown_penalty": 0.1205,
+          "avg_time_underwater": 0.2668,
           "loss_path_breakdown": {
-            "losses": 17,
-            "tp_miss_count": 17,
+            "losses": 11,
+            "tp_miss_count": 11,
             "tp_miss_share": 1.0,
             "dd_breach_count": 0,
             "dd_breach_share": 0.0,
             "high_underwater_count": 0,
             "high_underwater_share": 0.0,
-            "avg_time_underwater": 0.3538,
-            "avg_future_max_runup": 0.008,
-            "avg_future_max_drawdown": -0.0073,
+            "avg_time_underwater": 0.3866,
+            "avg_future_max_runup": 0.0073,
+            "avg_future_max_drawdown": -0.0081,
             "avg_simulated_pnl": -0.0023,
-            "avg_simulated_quality": -0.093
+            "avg_simulated_quality": -0.0998
           }
         }
       }
     ],
-    "best_observable_gate": "observable_4h_shift_shadow_gate",
+    "best_observable_gate": "dominant_regime_shadow_gate",
     "operator_next_action": "Use this only as a paper/shadow falsification artifact. Keep circuit breaker, current-bucket support, and venue lifecycle gates fail-closed before any live buy/add exposure."
   },
   "recent_loss_examples": [

@@ -1235,6 +1235,89 @@ def test_enrich_confidence_with_q15_bucket_root_cause_surfaces_boundary_candidat
 
 
 
+def test_enrich_confidence_with_q15_bucket_root_cause_replaces_stale_breaker_preempt_copy(tmp_path, monkeypatch):
+    report_path = tmp_path / "q15_bucket_root_cause.json"
+    report_path.write_text(json.dumps({
+        "generated_at": "2026-05-22 13:01:00.191016",
+        "current_live": {
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 6,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 44,
+        },
+        "verdict": "current_exact_support_under_minimum",
+        "candidate_patch_type": "support_accumulation_or_semantic_rebaseline",
+        "reason": "current-live q15 bucket exact support 目前為 6/50，低於 minimum。",
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_Q15_BUCKET_ROOT_CAUSE_PATH", report_path)
+
+    enriched = api_module._enrich_confidence_with_q15_bucket_root_cause({
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+        "runtime_closure_state": "patch_inactive_or_blocked",
+        "current_bucket_root_cause": {
+            "generated_at": "2026-05-22 12:10:25.112669",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 6,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 44,
+            "verdict": "runtime_blocker_preempts_bucket_root_cause",
+            "reason": "目前 live runtime 已先被 circuit breaker 擋下。",
+        },
+        "deployment_blocker_details": {
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_bucket_root_cause": {
+                "verdict": "runtime_blocker_preempts_bucket_root_cause",
+                "reason": "目前 live runtime 已先被 circuit breaker 擋下。",
+            },
+        },
+    })
+
+    assert enriched["current_bucket_root_cause"]["verdict"] == "current_exact_support_under_minimum"
+    assert "circuit breaker" not in enriched["current_bucket_root_cause"]["reason"]
+    assert enriched["deployment_blocker_details"]["current_bucket_root_cause"]["support_current_rows"] == 6
+
+
+
+def test_enrich_confidence_with_q15_bucket_root_cause_preserves_circuit_breaker_preempt_copy(tmp_path, monkeypatch):
+    report_path = tmp_path / "q15_bucket_root_cause.json"
+    report_path.write_text(json.dumps({
+        "current_live": {
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 6,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 44,
+        },
+        "verdict": "current_exact_support_under_minimum",
+        "reason": "q15 exact support under minimum。",
+    }), encoding="utf-8")
+    monkeypatch.setattr(api_module, "_Q15_BUCKET_ROOT_CAUSE_PATH", report_path)
+
+    enriched = api_module._enrich_confidence_with_q15_bucket_root_cause({
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "deployment_blocker": "circuit_breaker_active",
+        "runtime_closure_state": "circuit_breaker_active",
+        "current_bucket_root_cause": {
+            "verdict": "runtime_blocker_preempts_bucket_root_cause",
+            "reason": "目前 live runtime 已先被 circuit breaker 擋下。",
+        },
+        "deployment_blocker_details": {
+            "current_bucket_root_cause": {
+                "verdict": "runtime_blocker_preempts_bucket_root_cause",
+                "reason": "目前 live runtime 已先被 circuit breaker 擋下。",
+            },
+        },
+    })
+
+    assert enriched["current_bucket_root_cause"]["verdict"] == "runtime_blocker_preempts_bucket_root_cause"
+    assert "circuit breaker" in enriched["current_bucket_root_cause"]["reason"]
+    assert enriched["q15_bucket_root_cause"]["verdict"] == "current_exact_support_under_minimum"
+
+
+
 def test_api_status_passes_db_session_into_execution_service(monkeypatch):
     captured = {}
     db_session = object()

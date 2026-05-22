@@ -1195,11 +1195,32 @@ def _enrich_confidence_with_q15_bucket_root_cause(result: Dict[str, Any]) -> Dic
     enriched = dict(result)
     details = dict(blocker_details)
     details["q15_bucket_root_cause"] = root_cause_summary
-    if not details.get("current_bucket_root_cause"):
+    active_runtime_blockers = {
+        value
+        for value in (
+            enriched.get("runtime_closure_state"),
+            enriched.get("deployment_blocker"),
+            enriched.get("execution_guardrail_reason"),
+            details.get("runtime_closure_state"),
+            details.get("deployment_blocker"),
+            details.get("execution_guardrail_reason"),
+        )
+        if value
+    }
+    # When the active blocker is not the circuit breaker, q15 current-bucket copy
+    # must not preserve an older "runtime_blocker_preempts_bucket_root_cause"
+    # artifact.  Browser/API surfaces otherwise say breaker-first while the live
+    # blocker is actually exact support under minimum.
+    circuit_breaker_active = "circuit_breaker_active" in active_runtime_blockers
+    should_replace_current_root_cause = (
+        not details.get("current_bucket_root_cause")
+        or not circuit_breaker_active
+    )
+    if should_replace_current_root_cause:
         details["current_bucket_root_cause"] = root_cause_summary
     enriched["deployment_blocker_details"] = details
     enriched["q15_bucket_root_cause"] = root_cause_summary
-    if not enriched.get("current_bucket_root_cause"):
+    if should_replace_current_root_cause or not enriched.get("current_bucket_root_cause"):
         enriched["current_bucket_root_cause"] = root_cause_summary
     return enriched
 

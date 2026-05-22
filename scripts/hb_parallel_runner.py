@@ -6712,14 +6712,14 @@ def _q15_root_cause_mismatch(
     if not live_root_cause:
         return True
 
-    comparisons = (
+    current_live_comparisons = (
         ("structure_bucket", "current_live_structure_bucket"),
         ("support_route_verdict", "support_route_verdict"),
         ("support_current_rows", "support_current_rows"),
         ("support_minimum_rows", "support_minimum_rows"),
         ("support_gap_to_minimum", "support_gap_to_minimum"),
     )
-    for expected_key, live_key in comparisons:
+    for expected_key, live_key in current_live_comparisons:
         expected_value = expected.get(expected_key)
         if expected_value is None:
             continue
@@ -6727,6 +6727,27 @@ def _q15_root_cause_mismatch(
         if live_value is None and live_key == "current_live_structure_bucket":
             live_value = live_root_cause.get("structure_bucket")
         if live_value != expected_value:
+            return True
+
+    # The q15 root-cause writer runs after the initial live probe in the heartbeat
+    # runner.  If it refreshed the artifact for the same support truth, rerun the
+    # probe anyway so API/docs/browser surfaces do not carry an older embedded
+    # generated_at / copy block while data/q15_bucket_root_cause.json is newer.
+    expected_generated_at = q15_bucket_root_cause_summary.get("generated_at")
+    if expected_generated_at and live_root_cause.get("generated_at") != expected_generated_at:
+        return True
+
+    # Support rows can stay aligned while the embedded root-cause verdict/copy is
+    # stale (for example q15 exact support is now the active blocker but an older
+    # current_bucket_root_cause still says circuit breaker preempts the bucket).
+    # Compare stable top-level decision fields as well so the post-root-cause
+    # resync path refreshes operator/API copy instead of leaving contradictory
+    # browser surfaces.
+    for key in ("verdict", "candidate_patch_type", "candidate_patch_feature"):
+        expected_value = q15_bucket_root_cause_summary.get(key)
+        if expected_value is None:
+            continue
+        if live_root_cause.get(key) != expected_value:
             return True
     return False
 

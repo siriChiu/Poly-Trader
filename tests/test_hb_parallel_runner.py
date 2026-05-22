@@ -1718,6 +1718,98 @@ def test_q15_post_root_cause_runtime_resync_reason_reports_stale_embedded_root_c
     ) is True
 
 
+def test_q15_post_root_cause_runtime_resync_reason_reports_stale_verdict_even_when_support_rows_match():
+    live_predictor_diagnostics = {
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "q15_bucket_root_cause": {
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 6,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 44,
+            "verdict": "runtime_blocker_preempts_bucket_root_cause",
+            "candidate_patch_type": "circuit_breaker_release_verification",
+        },
+        "current_bucket_root_cause": {
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 6,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 44,
+            "verdict": "runtime_blocker_preempts_bucket_root_cause",
+            "candidate_patch_type": "circuit_breaker_release_verification",
+        },
+    }
+    q15_bucket_root_cause_summary = {
+        "generated_at": "2026-05-22 13:15:01.014164",
+        "verdict": "current_exact_support_under_minimum",
+        "candidate_patch_type": "support_accumulation_or_semantic_rebaseline",
+        "current_live": {
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 6,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 44,
+        },
+    }
+
+    assert (
+        hb_parallel_runner._q15_post_root_cause_runtime_resync_reason(
+            live_predictor_diagnostics,
+            q15_bucket_root_cause_summary,
+        )
+        == "q15_root_cause_truth_changed_after_probe"
+    )
+
+
+
+def test_q15_post_root_cause_runtime_resync_reason_reports_newer_root_cause_timestamp():
+    live_predictor_diagnostics = {
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "q15_bucket_root_cause": {
+            "generated_at": "2026-05-22 13:01:00.191016",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 6,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 44,
+            "verdict": "current_exact_support_under_minimum",
+            "candidate_patch_type": "support_accumulation_or_semantic_rebaseline",
+        },
+        "current_bucket_root_cause": {
+            "generated_at": "2026-05-22 13:01:00.191016",
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 6,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 44,
+            "verdict": "current_exact_support_under_minimum",
+            "candidate_patch_type": "support_accumulation_or_semantic_rebaseline",
+        },
+    }
+    q15_bucket_root_cause_summary = {
+        "generated_at": "2026-05-22 13:15:01.014164",
+        "verdict": "current_exact_support_under_minimum",
+        "candidate_patch_type": "support_accumulation_or_semantic_rebaseline",
+        "current_live": {
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 6,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 44,
+        },
+    }
+
+    assert (
+        hb_parallel_runner._q15_post_root_cause_runtime_resync_reason(
+            live_predictor_diagnostics,
+            q15_bucket_root_cause_summary,
+        )
+        == "q15_root_cause_truth_changed_after_probe"
+    )
+
+
+
 def test_q15_post_root_cause_runtime_resync_reason_ignores_aligned_root_cause():
     live_predictor_diagnostics = {
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",

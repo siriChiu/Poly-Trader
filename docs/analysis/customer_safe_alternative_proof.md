@@ -1,7 +1,7 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-22T12:11:01.998971Z`
-- current_live_blocker: `circuit_breaker_active`
+- generated_at: `2026-05-22T13:20:28.461076Z`
+- current_live_blocker: `under_minimum_exact_live_structure_bucket`
 - current_live_structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
 - exact support: `6/50` (gap `44`)
 - support_route_verdict: `exact_bucket_present_but_below_minimum`
