@@ -1,8 +1,8 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-23T11:15:35.300573+00:00`
-- source live probe generated_at: `2026-05-23T11:15:19.008452Z`
-- source q15 audit generated_at: `2026-05-23 11:15:03.694725`
+- generated_at: `2026-05-23T12:22:20.755838+00:00`
+- source live probe generated_at: `2026-05-23T12:22:04.657747Z`
+- source q15 audit generated_at: `2026-05-23 12:21:47.521781`
 - classification: **no_exact_bucket_history**
 - reason: no exact-bucket rows were found under current bucket semantics; this is a support-harvest/design gap, not a backtest-results gap.
 - current exact bucket rows (deployable support candidate): **0/50**
@@ -26,11 +26,11 @@ This section is the current support identity captured by the source artifacts ab
 
 ## Data coverage
 
-- joined labeled rows: **24736**
+- joined labeled rows: **24741**
 - current calibration window filled: **True**
-- features_normalized: count=25156, range=`2024-04-14 07:00:00.000000` → `2026-05-23 11:15:03.694725`
-- labels: count=67850, range=`2024-04-14 07:00:00.000000` → `2026-05-23 08:00:00.000000`
-- raw_market_data: count=34178, range=`2024-04-13 22:00:00.000000` → `2026-05-23 11:15:03.694725`
+- features_normalized: count=25161, range=`2024-04-14 07:00:00.000000` → `2026-05-23 12:21:47.521781`
+- labels: count=67861, range=`2024-04-14 07:00:00.000000` → `2026-05-23 09:20:15.037690`
+- raw_market_data: count=34184, range=`2024-04-13 22:00:00.000000` → `2026-05-23 12:21:47.521781`
 
 ## PM delivery pressure
 
