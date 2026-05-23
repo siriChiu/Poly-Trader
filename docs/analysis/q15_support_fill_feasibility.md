@@ -1,8 +1,8 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-23T14:32:35.454665+00:00`
-- source live probe generated_at: `2026-05-23T14:32:32.020294Z`
-- source q15 audit generated_at: `2026-05-23 14:31:54.724732`
+- generated_at: `2026-05-23T15:42:38.382650+00:00`
+- source live probe generated_at: `2026-05-23T15:42:34.905946Z`
+- source q15 audit generated_at: `2026-05-23 15:41:11.704795`
 - classification: **semantic_window_gap_not_raw_backfill_gap**
 - reason: older calibration windows have enough exact-bucket rows by count, but they mismatch the current support_identity on calibration_window; they are reference-only unless governance deliberately rebaselines the identity.
 - current exact bucket rows (deployable support candidate): **0/50**
@@ -26,11 +26,11 @@ This section is the current support identity captured by the source artifacts ab
 
 ## Data coverage
 
-- joined labeled rows: **24750**
+- joined labeled rows: **24754**
 - current calibration window filled: **True**
-- features_normalized: count=25175, range=`2024-04-14 07:00:00.000000` → `2026-05-23 14:31:54.724732`
-- labels: count=67878, range=`2024-04-14 07:00:00.000000` → `2026-05-23 11:15:03.694725`
-- raw_market_data: count=34200, range=`2024-04-13 22:00:00.000000` → `2026-05-23 14:31:54.724732`
+- features_normalized: count=25180, range=`2024-04-14 07:00:00.000000` → `2026-05-23 15:41:11.704795`
+- labels: count=67889, range=`2024-04-14 07:00:00.000000` → `2026-05-23 12:25:39.440971`
+- raw_market_data: count=34206, range=`2024-04-13 22:00:00.000000` → `2026-05-23 15:41:11.704795`
 
 ## PM delivery pressure
 
@@ -53,7 +53,7 @@ This section is the current support identity captured by the source artifacts ab
 | --- | ---: | ---: | --- | --- | --- | --- |
 | 100 | 0 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
 | 200 | 0 | 0 | current_support_identity | False | None | win=None, pnl=None, quality=None |
-| 600 | 58 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
+| 600 | 54 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
 | 1000 | 68 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
 | 5000 | 90 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
 | all | 241 | 110 | reference_only_calibration_window_mismatch | False | 2026-04-04 10:33:02.726298 | win=0.9727, pnl=0.0077, quality=0.5046 |

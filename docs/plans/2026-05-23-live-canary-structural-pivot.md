@@ -1,10 +1,10 @@
 # Live canary structural pivot
 
-- generated_at: `2026-05-23T14:32:39.926789Z`
+- generated_at: `2026-05-23T15:42:42.762025Z`
 - PM handoff carried forward: `PM 強制反平衡：若 72h 內不能執行 bounded micro-canary，必須寫明單一失敗 gate 與下一個驗證 artifact；不得再只做 observation-only heartbeat。`
 - deployment_blocker: `circuit_breaker_active`
 - current bucket: `BLOCK|bear_bias200_hard_block|q15`
-- support: `0/50` (gap `50`, delta `0`, stagnant `0`)
+- support: `0/50` (gap `50`, delta `0`, stagnant `3`)
 - release_ready: `False` / recent wins `0/50`, required `15`, needed `15`
 - venue_runtime_ready: `False` / OKX credentials configured: `False`
 - top-k: risk-qualified `6`, runtime-blocked `6`, deployable `0`
