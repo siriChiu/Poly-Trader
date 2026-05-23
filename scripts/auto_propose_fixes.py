@@ -853,8 +853,8 @@ def sync_current_state_governance_issues(
             else "熔斷解除條件未達"
         )
         breaker_action = (
-            "先把熔斷解除條件視為當前 immediate hard gate；同時保留 current exact support rows/minimum/gap、"
-            "support_route、Top-K deployable=0 與 venue runtime proof 作為後續 live gates。"
+            "即時部署阻塞語義切回熔斷解除條件：先把熔斷解除條件視為當前 immediate hard gate；"
+            "同時保留 current exact support rows/minimum/gap、support_route、Top-K deployable=0 與 venue runtime proof 作為後續 live gates。"
             "熔斷期間不得把 support/proxy/reference rows 或 venue checklist 包裝成 deploy-ready，也不得把它們從 live gate 清單移除。"
             f" {release_text}"
         )

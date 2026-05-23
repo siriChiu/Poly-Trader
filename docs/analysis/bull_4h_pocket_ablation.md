@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-23 10:18:32 UTC**
+- generated_at: **2026-05-23 13:14:53 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -10,7 +10,7 @@
 
 ## Cohorts
 
-- bull_all rows: **2500** / win_rate **0.4984** / recommended **`current_full_minus_4h_structure_shift`**
+- bull_all rows: **2499** / win_rate **0.4982** / recommended **`current_full_minus_4h_structure_shift`**
 - bull_collapse_q35 rows: **920** / win_rate **0.3913** / recommended **`core_plus_macro_plus_all_4h`**
 - bull_exact_live_lane_proxy rows: **10** / win_rate **0.0000** / recommended **`None`**
 - bull_live_exact_lane_bucket_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
@@ -103,7 +103,7 @@
 ## Notes
 
 - collapse features under inspection: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
-- thresholds (bull q35): {"feat_4h_dist_swing_low": 4.7898, "feat_4h_dist_bb_lower": 4.038, "feat_4h_bb_pct_b": 0.6991}
+- thresholds (bull q35): {"feat_4h_dist_swing_low": 4.7892, "feat_4h_dist_bb_lower": 4.0379, "feat_4h_bb_pct_b": 0.6991}
 - exact live structure bucket: `BLOCK|bear_bias200_hard_block|q00` rows=0
 - supported neighbor buckets from exact scope: []
 - best bull-all profile: **current_full_minus_4h_structure_shift**
