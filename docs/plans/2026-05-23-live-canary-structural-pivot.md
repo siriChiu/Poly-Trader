@@ -1,57 +1,56 @@
 # Live canary structural pivot
 
-- generated_at: `2026-05-22T23:27:38.041057Z`
+- generated_at: `2026-05-23T02:23:29.943135Z`
+- PM handoff carried forward: `PM 強制反平衡：若 72h 內不能執行 bounded micro-canary，必須寫明單一失敗 gate 與下一個驗證 artifact；不得再只做 observation-only heartbeat。`
 - deployment_blocker: `circuit_breaker_active`
 - current bucket: `BLOCK|bear_bias200_hard_block|q00`
-- support: `0/50` (gap `50`)
-- release_ready: `False` / recent wins `7/50`, required `15`, needed `8`
+- support: `0/50` (gap `50`, delta `0`, stagnant `5`)
+- release_ready: `False` / recent wins `0/50`, required `15`, needed `15`
 - venue_runtime_ready: `False` / OKX credentials configured: `False`
 - top-k: risk-qualified `6`, runtime-blocked `6`, deployable `0`
+- local execution mode: `paper` / live_canary_policy_ready: `False`
+- micro_canary_ready: **False** / order_submission_enabled: **False**
+- single_failed_gate_for_72h_decision: `current_live_support_gate`
+- next_validation_artifact: `data/q15_support_fill_feasibility.json + data/live_predict_probe.json after Map/Signal redesign or exact-bucket row harvest`
 
 ## Decision
-停止只做 observation-only heartbeat。結構改成三條 lane：
+停止重複 observation-only。每輪刷新 live-canary pivot，將 readiness 拆成 support、breaker、model-shadow、venue lifecycle、live-canary policy 五個 gate。
 
-1. **Venue lifecycle proof** — 先證明 OKX credential / ack / cancel 或 fill / reconciliation，不把模型風險混進來。
-2. **Model shadow to decision** — 高信心 Top-K 只做影子決策與 24h pyramid outcome；如果 same semantic signature + support delta=0 連續 2 輪，直接切 Map/Signal redesign。
-3. **Strategy micro-canary** — 真正策略實單只允許極小額、單商品、第一層、無自動加倉；任何 lifecycle / slippage / runtime hard-block 失敗即停。
+## Why this is not observation-only
+本 artifact 由 fresh runtime artifacts 重新生成，保留數字零值（例如 support_rows=0、deployable_rows=0），並把 72h 決策壓成一個主要失敗 gate；其餘 gate 只列為補充 blocker，不拿來稀釋責任。
 
-## Code guard added in this turn
-`execution/execution_service.py` 現在會在 live buy/add 送到 adapter 前先檢查：
+## Gates
+- `current_live_support_gate`: ready=`False`, reason=current-live exact support must reach the minimum with matching support_identity.
+- `circuit_breaker_gate`: ready=`False`, reason=recent canonical 24h outcomes must clear streak and win-rate release math.
+- `model_shadow_outcome_gate`: ready=`False`, reason=OOS pass / paper-shadow rows are not live deployability until deployable_rows>0 under current gates.
+- `venue_lifecycle_gate`: ready=`False`, reason=exchange credential boolean plus ack/fill/cancel/reconciliation proof must be runtime-backed.
+- `live_canary_policy_gate`: ready=`False`, reason=local config must opt into explicit live_canary with symbol cap before adapter order submission.
 
-- `execution.mode == live` 且 `enable_live_trading=true` 時，買入必須有 `execution.live_canary.enabled=true`。
-- 必須有 explicit `allowed_symbols` 與 `max_base_qty_by_symbol`。
-- 超過 symbol cap 的 live buy 會以 `live_canary_qty_cap_exceeded` 拒單。
-- reduce/sell 風險降低路徑不被這個 canary policy 阻擋。
+## Supplementary blockers
+`circuit_breaker_gate`, `model_shadow_outcome_gate`, `venue_lifecycle_gate`, `live_canary_policy_gate`
 
-## Redacted local config shape
-```yaml
-execution:
-  mode: live
-  venue: okx
-  enable_live_trading: true
-  kill_switch: false
-  max_daily_loss_pct: 0.003
-  max_consecutive_failures: 1
-  live_canary:
-    enabled: true
-    allowed_symbols: [BTC/USDT]
-    max_base_qty_by_symbol:
-      BTC/USDT: 0.0001
-  venues:
-    okx:
-      enabled: true
-      api_key: "[REDACTED]"
-      api_secret: "[REDACTED]"
-      passphrase: "[REDACTED]"
-      default_type: spot
-```
+## Lanes
+- `A_venue_lifecycle_proof`: status=`blocked_missing_runtime_backed_proof`, can_start_now=`True`, live_exposure=`none_or_min_exchange_probe_only`
+- `B_model_shadow_to_decision`: status=`paper_shadow_available`, can_start_now=`True`, live_exposure=`paper_shadow_only`
+- `C_strategy_micro_canary`: status=`blocked_by_current_live_support_gate`, can_start_now=`False`, live_exposure=`max one first-layer position, tiny symbol cap, no auto-add, no pyramiding until post-trade proof is clean`
+- `D_map_signal_redesign_for_current_bucket`: status=`required`, can_start_now=`True`, live_exposure=`none`
+
+## Local config snapshot (secret-safe)
+- config: `config.yaml` exists=`True`
+- execution_mode: `paper`
+- enable_live_trading: `False`
+- live_canary_enabled: `False`
+- allowed_symbols_configured: `False`
+- max_base_qty_by_symbol_configured: `False`
+- credential_values_redacted: `True`
 
 ## 72h sequence
-1. **T+0h** — 保持買入 / 加倉 fail-closed；只允許等待、影子觀察、減風險與 venue proof。  
-2. **T+4h** — 配置 OKX credential 後重跑：`PYTHONPATH=. venv/bin/python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx`。  
-3. **T+24h** — selective sleeve 跑最近 Top-K 候選的 shadow ledger，記錄 24h pyramid outcome。  
-4. **T+48h** — 只有當 venue proof + breaker release + runtime 非 bear-hard-block 同時過，才準備一筆 micro-canary。  
-5. **T+72h** — 要嘛執行一筆 bounded micro-canary，要嘛寫明唯一失敗 gate；禁止再產出沒有決策的 heartbeat。
+1. T+0h: Keep buy/add fail-closed; refresh this pivot from artifacts and name the single failed gate.
+2. T+4h: If primary gate is venue, produce OKX runtime lifecycle proof; if credentials are missing, credential boolean remains false and secrets stay redacted.
+3. T+24h: Run/select Shadow Trade Ledger sleeve for the nearest Top-K candidate and collect 24h pyramid outcome without order submission.
+4. T+48h: If the single failed gate is support, produce Map/Signal redesign or exact-bucket support-harvest proof instead of another passive status refresh.
+5. T+72h: Either execute one bounded micro-canary after all gates pass, or record hard no-go with this artifact's single_failed_gate_for_72h_decision.
 
 ## Hard no-go now
-目前 `support=0/50`、`release_ready=false`、`venue_runtime_ready=false`，所以策略買入 / 加倉仍不應放行。實戰化第一步是把交易所生命週期與 micro-canary policy 做實，而不是把 q00 / 熔斷 gate 人工關掉。
+micro_canary_ready=`False`, live_exposure_allowed=`False`, order_submission_enabled=`False`.
+primary_failed_gate=current_live_support_gate; next_validation_artifact=data/q15_support_fill_feasibility.json + data/live_predict_probe.json after Map/Signal redesign or exact-bucket row harvest

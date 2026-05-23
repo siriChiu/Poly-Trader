@@ -64,6 +64,22 @@ def test_execution_metadata_smoke_lane_uses_explicit_okx_and_binance_venues(monk
     assert calls[0][-5:] == ["--symbol", "BTCUSDT", "--venues", "okx", "binance"]
 
 
+def test_live_canary_structural_pivot_lane_runs_generator(monkeypatch):
+    calls = []
+
+    def fake_run_serial_command(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run_serial_command)
+
+    result = hb_parallel_runner.run_live_canary_structural_pivot()
+
+    assert result["success"] is True
+    assert calls == [hb_parallel_runner.LIVE_CANARY_STRUCTURAL_PIVOT_CMD]
+    assert calls[0][-1] == "scripts/live_canary_structural_pivot.py"
+
+
 def test_q15_support_fill_feasibility_lane_runs_scan_script(monkeypatch):
     calls = []
 
@@ -7417,6 +7433,7 @@ def test_main_writes_final_progress_artifact(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_boundary_replay_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_execution_metadata_smoke", lambda: _ok('{"runtime_ready": false}'))
     monkeypatch.setattr(hb_parallel_runner, "run_customer_safe_alternative_proof", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_live_canary_structural_pivot", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "run_auto_propose", lambda run_label=None: _ok())
 
     hb_parallel_runner.main(["--fast", "--hb", "progress"])

@@ -133,6 +133,7 @@ BULL_4H_POCKET_ABLATION_REFRESH_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.
 LEADERBOARD_CANDIDATE_PROBE_CMD = [PYTHON, "scripts/hb_leaderboard_candidate_probe.py"]
 TOPK_WALKFORWARD_PRECISION_CMD = [PYTHON, "scripts/topk_walkforward_precision.py"]
 CUSTOMER_SAFE_ALTERNATIVE_PROOF_CMD = [PYTHON, "scripts/customer_safe_alternative_proof.py"]
+LIVE_CANARY_STRUCTURAL_PIVOT_CMD = [PYTHON, "scripts/live_canary_structural_pivot.py"]
 EXECUTION_METADATA_SMOKE_CMD = [
     PYTHON,
     "scripts/execution_metadata_smoke.py",
@@ -5957,6 +5958,16 @@ def run_customer_safe_alternative_proof() -> Dict[str, Any]:
     return _run_serial_command(CUSTOMER_SAFE_ALTERNATIVE_PROOF_CMD)
 
 
+def run_live_canary_structural_pivot() -> Dict[str, Any]:
+    """Refresh the forced-execution live-canary pivot from fresh artifacts.
+
+    PM governance requires one explicit failed gate if a bounded micro-canary
+    cannot execute within the 72h decision window. This lane prevents the live
+    canary plan from carrying stale support / breaker / venue numbers.
+    """
+    return _run_serial_command(LIVE_CANARY_STRUCTURAL_PIVOT_CMD)
+
+
 def run_auto_propose(run_label: str | None = None) -> Dict[str, Any]:
     extra_env = {"HB_RUN_LABEL": str(run_label)} if run_label is not None else None
     return _run_serial_command(AUTO_PROPOSE_CMD, extra_env=extra_env)
@@ -8751,6 +8762,21 @@ def main(argv=None):
     if customer_safe_alternative_proof_result.get("stderr"):
         print(f"\n--- customer_safe_alternative_proof stderr ---\n{customer_safe_alternative_proof_result['stderr']}")
 
+    write_progress(run_label, "live_canary_structural_pivot")
+    live_canary_structural_pivot_result = run_live_canary_structural_pivot()
+    print(
+        f"🐣 Live-canary structural pivot：{'通過' if live_canary_structural_pivot_result['success'] else '失敗'} "
+        f"(rc={live_canary_structural_pivot_result['returncode']})"
+    )
+    if live_canary_structural_pivot_result.get("stdout"):
+        lines = live_canary_structural_pivot_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- live_canary_structural_pivot ---\n{preview}")
+    if live_canary_structural_pivot_result.get("stderr"):
+        print(f"\n--- live_canary_structural_pivot stderr ---\n{live_canary_structural_pivot_result['stderr']}")
+
     write_progress(run_label, "auto_propose")
     auto_propose_result = run_auto_propose(run_label)
     print(
@@ -8838,6 +8864,10 @@ def main(argv=None):
         "customer_safe_alternative_proof": {
             "result": customer_safe_alternative_proof_result,
             "artifact_path": Path(PROJECT_ROOT) / "data" / "customer_safe_alternative_proof.json",
+        },
+        "live_canary_structural_pivot": {
+            "result": live_canary_structural_pivot_result,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "live_canary_structural_pivot.json",
         },
         "auto_propose_fixes": {
             "result": auto_propose_result,
@@ -8968,6 +8998,7 @@ def main(argv=None):
         q15_boundary_replay_result,
         execution_metadata_smoke_result,
         customer_safe_alternative_proof_result,
+        live_canary_structural_pivot_result,
         auto_propose_result,
     ]
     if not collect_result.get("success", True):

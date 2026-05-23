@@ -1,0 +1,253 @@
+{
+  "generated_at": "2026-05-23T02:23:29.943135Z",
+  "artifact": "live_canary_structural_pivot",
+  "source_artifacts": {
+    "live_predict_probe": {
+      "path": "data/live_predict_probe.json",
+      "exists": true,
+      "generated_at": "2026-05-23T02:21:25.928808Z"
+    },
+    "circuit_breaker_audit": {
+      "path": "data/circuit_breaker_audit.json",
+      "exists": true,
+      "generated_at": "2026-05-23T02:21:28.411991Z"
+    },
+    "high_conviction_topk_oos_matrix": {
+      "path": "data/high_conviction_topk_oos_matrix.json",
+      "exists": true,
+      "generated_at": "2026-05-23T02:22:05.740724+00:00"
+    },
+    "execution_metadata_smoke": {
+      "path": "data/execution_metadata_smoke.json",
+      "exists": true,
+      "generated_at": "2026-05-23T02:22:24.950348Z"
+    },
+    "customer_safe_alternative_proof": {
+      "path": "data/customer_safe_alternative_proof.json",
+      "exists": true,
+      "generated_at": "2026-05-23T02:22:25.553944Z"
+    },
+    "q15_support_fill_feasibility": {
+      "path": "data/q15_support_fill_feasibility.json",
+      "exists": true,
+      "generated_at": "2026-05-23T02:22:22.066618+00:00"
+    }
+  },
+  "pm_handoff_carried_forward": {
+    "decision": "PM 強制反平衡：若 72h 內不能執行 bounded micro-canary，必須寫明單一失敗 gate 與下一個驗證 artifact；不得再只做 observation-only heartbeat。",
+    "selected_customer_safe_lane": "paper_shadow_decision_support_sleeve",
+    "forbidden_shortcut": "不可降低 live gate；不可把 proxy/reference/OOS/shadow/dry-run 包裝成 live deployability。"
+  },
+  "current_truth": {
+    "deployment_blocker": "circuit_breaker_active",
+    "structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+    "support_rows": 0,
+    "minimum_support_rows": 50,
+    "support_gap": 50,
+    "support_route_verdict": "exact_bucket_unsupported_block",
+    "support_governance_route": "exact_live_lane_proxy_available",
+    "support_delta_vs_previous": 0,
+    "stagnant_run_count": 5,
+    "release_ready": false,
+    "recent_window_size": 50,
+    "recent_window_wins": 0,
+    "required_recent_window_wins": 15,
+    "additional_recent_window_wins_needed": 15,
+    "current_streak": 56,
+    "venue_runtime_ready": false,
+    "okx_credentials_configured": false,
+    "risk_qualified_rows": 6,
+    "runtime_blocked_candidate_rows": 6,
+    "deployable_rows": 0,
+    "paper_shadow_available": true,
+    "execution_mode": "paper",
+    "live_canary_policy_ready": false,
+    "nearest_candidate": {
+      "model": "logistic_regression",
+      "top_k": "top_2pct",
+      "win_rate": 0.8621,
+      "oos_roi": 0.9324,
+      "max_drawdown": null,
+      "verdict": "not_deployable"
+    }
+  },
+  "structural_decision": {
+    "decision": "停止重複 observation-only。每輪刷新 live-canary pivot，將 readiness 拆成 support、breaker、model-shadow、venue lifecycle、live-canary policy 五個 gate。",
+    "non_negotiable_invariant": "No risk-on buy/add while any support, breaker, model-shadow, venue lifecycle, or canary policy gate is failing.",
+    "single_failed_gate_for_72h_decision": "current_live_support_gate",
+    "supplementary_blockers_not_used_as_single_gate": [
+      "circuit_breaker_gate",
+      "model_shadow_outcome_gate",
+      "venue_lifecycle_gate",
+      "live_canary_policy_gate"
+    ],
+    "next_validation_artifact": "data/q15_support_fill_feasibility.json + data/live_predict_probe.json after Map/Signal redesign or exact-bucket row harvest",
+    "artifact_refresh_patch": "scripts/live_canary_structural_pivot.py now derives this plan from fresh runtime artifacts and is wired into hb_parallel_runner serial lanes."
+  },
+  "micro_canary_gate": {
+    "micro_canary_ready": false,
+    "live_exposure_allowed": false,
+    "risk_on_order_enabled": false,
+    "order_submission_enabled": false,
+    "single_failed_gate_for_72h_decision": "current_live_support_gate",
+    "supplementary_blockers_not_used_as_single_gate": [
+      "circuit_breaker_gate",
+      "model_shadow_outcome_gate",
+      "venue_lifecycle_gate",
+      "live_canary_policy_gate"
+    ],
+    "gates": {
+      "current_live_support_gate": {
+        "ready": false,
+        "current": 0,
+        "required": 50,
+        "gap": 50,
+        "reason": "current-live exact support must reach the minimum with matching support_identity."
+      },
+      "circuit_breaker_gate": {
+        "ready": false,
+        "current_recent_window_wins": 0,
+        "required_recent_window_wins": 15,
+        "additional_recent_window_wins_needed": 15,
+        "current_streak": 56,
+        "reason": "recent canonical 24h outcomes must clear streak and win-rate release math."
+      },
+      "model_shadow_outcome_gate": {
+        "ready": false,
+        "risk_qualified_rows": 6,
+        "runtime_blocked_candidate_rows": 6,
+        "deployable_rows": 0,
+        "reason": "OOS pass / paper-shadow rows are not live deployability until deployable_rows>0 under current gates."
+      },
+      "venue_lifecycle_gate": {
+        "ready": false,
+        "runtime_ready": false,
+        "okx_credentials_configured": false,
+        "readiness_state": "blocked_until_runtime_lifecycle_proof",
+        "reason": "exchange credential boolean plus ack/fill/cancel/reconciliation proof must be runtime-backed."
+      },
+      "live_canary_policy_gate": {
+        "ready": false,
+        "execution_mode": "paper",
+        "enable_live_trading": false,
+        "live_canary_enabled": false,
+        "allowed_symbols_configured": false,
+        "max_base_qty_by_symbol_configured": false,
+        "reason": "local config must opt into explicit live_canary with symbol cap before adapter order submission."
+      }
+    }
+  },
+  "lanes": [
+    {
+      "lane": "A_venue_lifecycle_proof",
+      "goal": "Get real exchange plumbing out of theory: credential boolean, ack, cancel/fill/reconciliation lifecycle proof.",
+      "can_start_now": true,
+      "status": "blocked_missing_runtime_backed_proof",
+      "blocks_strategy_risk": true,
+      "live_exposure": "none_or_min_exchange_probe_only",
+      "exit_gate": "okx runtime_ready=true, credentials_configured=true, no lifecycle blockers; no secret values logged.",
+      "operator_steps": [
+        "Configure OKX credentials locally only; never paste secrets in chat or docs.",
+        "Run: PYTHONPATH=. venv/bin/python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx",
+        "If credentials are present, perform sandbox or minimum-size lifecycle proof and verify OrderLifecycleEvent contains validation_passed + venue_ack + cancel/fill/reconciliation evidence."
+      ]
+    },
+    {
+      "lane": "B_model_shadow_to_decision",
+      "goal": "Keep high-conviction model work producing actionable go/no-go evidence without pretending current-live support is deployable.",
+      "can_start_now": true,
+      "status": "paper_shadow_available",
+      "blocks_strategy_risk": true,
+      "live_exposure": "paper_shadow_only",
+      "exit_gate": "Top-K candidate remains OOS positive, breaker clears, exact support closes, and deployable_rows>0.",
+      "operator_steps": [
+        "Start/selective sleeve shadow run for nearest top-k candidate.",
+        "Record 24h pyramid outcome, missed entry reason, and whether the signal would survive spread/slippage.",
+        "If same semantic signature + support delta=0 persists, switch to Map/Signal redesign instead of another observation-only heartbeat."
+      ]
+    },
+    {
+      "lane": "C_strategy_micro_canary",
+      "goal": "Actual strategy live exposure, but only as bounded pilot rather than full deployment.",
+      "can_start_now": false,
+      "status": "blocked_by_current_live_support_gate",
+      "blocks_strategy_risk": false,
+      "live_exposure": "max one first-layer position, tiny symbol cap, no auto-add, no pyramiding until post-trade proof is clean",
+      "entry_gate": [
+        "current-live exact support rows >= minimum and support_route_deployable=true",
+        "circuit_breaker release_ready=true",
+        "Top-K/model-shadow gate deployable_rows>=1 or explicit operator pilot exception recorded in ORID",
+        "Venue lifecycle proof complete",
+        "execution.live_canary.enabled=true with allowed_symbols and max_base_qty_by_symbol"
+      ],
+      "kill_gate": [
+        "one failed venue ack/cancel/fill lifecycle event",
+        "daily loss >= configured canary budget",
+        "one slippage/reconciliation mismatch above configured tolerance",
+        "current runtime flips back to bear hard block or breaker active"
+      ]
+    },
+    {
+      "lane": "D_map_signal_redesign_for_current_bucket",
+      "goal": "When exact current bucket support stays 0/50 with support delta=0, stop waiting for rows and produce a Map/Signal redesign proof path.",
+      "can_start_now": true,
+      "status": "required",
+      "blocks_strategy_risk": true,
+      "live_exposure": "none",
+      "exit_gate": "A new support identity / semantic bucket map is proposed, replayed, and proven without reclassifying reference rows as deployable support.",
+      "next_artifact": "data/q15_support_fill_feasibility.json + data/live_predict_probe.json after Map/Signal redesign or exact-bucket row harvest"
+    }
+  ],
+  "operator_config_snapshot_redacted": {
+    "config_path": "config.yaml",
+    "exists": true,
+    "execution_mode": "paper",
+    "enable_live_trading": false,
+    "live_canary_enabled": false,
+    "allowed_symbols_configured": false,
+    "max_base_qty_by_symbol_configured": false,
+    "policy_ready": false,
+    "credential_values_redacted": true
+  },
+  "operator_config_template_redacted": {
+    "execution": {
+      "mode": "live_canary",
+      "venue": "okx",
+      "enable_live_trading": true,
+      "kill_switch": false,
+      "max_daily_loss_pct": 0.003,
+      "max_consecutive_failures": 1,
+      "live_canary": {
+        "enabled": true,
+        "allowed_symbols": [
+          "BTC/USDT"
+        ],
+        "max_base_qty_by_symbol": {
+          "BTC/USDT": 0.0001
+        }
+      },
+      "venues": {
+        "okx": {
+          "enabled": true,
+          "api_key": "[REDACTED]",
+          "api_secret": "[REDACTED]",
+          "passphrase": "[REDACTED]",
+          "default_type": "spot"
+        }
+      }
+    }
+  },
+  "next_72h_sequence": [
+    "T+0h: Keep buy/add fail-closed; refresh this pivot from artifacts and name the single failed gate.",
+    "T+4h: If primary gate is venue, produce OKX runtime lifecycle proof; if credentials are missing, credential boolean remains false and secrets stay redacted.",
+    "T+24h: Run/select Shadow Trade Ledger sleeve for the nearest Top-K candidate and collect 24h pyramid outcome without order submission.",
+    "T+48h: If the single failed gate is support, produce Map/Signal redesign or exact-bucket support-harvest proof instead of another passive status refresh.",
+    "T+72h: Either execute one bounded micro-canary after all gates pass, or record hard no-go with this artifact's single_failed_gate_for_72h_decision."
+  ],
+  "hard_no_go_now": {
+    "micro_canary_ready": false,
+    "live_exposure_allowed": false,
+    "order_submission_enabled": false,
+    "reason": "primary_failed_gate=current_live_support_gate; next_validation_artifact=data/q15_support_fill_feasibility.json + data/live_predict_probe.json after Map/Signal redesign or exact-bucket row harvest"
+  }
+}

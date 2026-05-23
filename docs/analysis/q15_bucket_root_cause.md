@@ -1,6 +1,6 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-23 01:11:28.896936**
+- generated_at: **2026-05-23 02:21:08.566903**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q00 bucket**
 - verdict: **runtime_blocker_preempts_bucket_root_cause**
@@ -12,8 +12,8 @@
 ## Current live
 - live path: **bear / BLOCK / C**
 - structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
-- structure_quality: **0.0016**
-- gap_to_q35_boundary: **0.3484**
+- structure_quality: **0.0033**
+- gap_to_q35_boundary: **0.3467**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
 - support rows/minimum/gap: **0 / 50 / 50**
@@ -22,7 +22,7 @@
 - rows: **90**
 - bucket_counts: `{'BLOCK|structure_quality_block|q00': 90}`
 - dominant_neighbor_bucket: **BLOCK|structure_quality_block|q00** (90 rows)
-- near_boundary_window: `{'lower': 0.0016, 'upper': 0.35}`
+- near_boundary_window: `{'lower': 0.0033, 'upper': 0.35}`
 - near_boundary_rows: **84**
 
 ## Decision
@@ -31,9 +31,9 @@
 - verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.0035 / norm=0.0035 / Δto_cross_q35=0.9965 / target_p25=0.1116 / target_median=0.2075
-- `feat_4h_dist_bb_lower`: current=0.0091 / norm=0.0011 / Δto_cross_q35=7.9909 / target_p25=0.2927 / target_median=0.54
-- `feat_4h_dist_swing_low`: current=-1.6593 / norm=0.0 / Δto_cross_q35=11.6593 / target_p25=-0.8836 / target_median=-0.4302
+- `feat_4h_bb_pct_b`: current=0.0074 / norm=0.0074 / Δto_cross_q35=0.9926 / target_p25=0.1116 / target_median=0.2075
+- `feat_4h_dist_bb_lower`: current=0.019 / norm=0.0024 / Δto_cross_q35=7.981 / target_p25=0.2927 / target_median=0.54
+- `feat_4h_dist_swing_low`: current=-1.6463 / norm=0.0 / Δto_cross_q35=11.6463 / target_p25=-0.8836 / target_median=-0.4302
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
