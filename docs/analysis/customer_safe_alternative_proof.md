@@ -1,10 +1,10 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-23T13:25:22.438797Z`
+- generated_at: `2026-05-23T14:32:38.929836Z`
 - current_live_blocker: `circuit_breaker_active`
-- current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
+- current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q15`
 - exact support: `0/50` (gap `50`)
-- support_route_verdict: `exact_bucket_unsupported_block`
+- support_route_verdict: `insufficient_support_everywhere`
 - canary_ready: **False**
 - live_exposure_allowed: **False**
 - order_submission_enabled: **False**
@@ -33,13 +33,13 @@
 ## Lanes
 - `paper_shadow_decision_support_sleeve`: status=`available`, deployable=`False`, live_exposure_allowed=`False`
 - `venue_dry_run_readiness_proof`: status=`blocked_missing_runtime_backed_proof`, deployable=`False`, live_exposure_allowed=`False`
-- `support_fill_feasibility`: status=`no_exact_bucket_history`, deployable=`False`, live_exposure_allowed=`False`
+- `support_fill_feasibility`: status=`semantic_window_gap_not_raw_backfill_gap`, deployable=`False`, live_exposure_allowed=`False`
 - `recent_window_no_new_risk_falsification`: status=`shadow_only_no_new_risk_falsification`, deployable=`False`, live_exposure_allowed=`False`
 
 ## Alternative solution option portfolio
 - option_count: `3`
 - selected_next_artifact: `data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy`
-- time_to_evidence_bucket: `unknown_until_bucket_map_or_signal_redesign`
+- time_to_evidence_bucket: `semantic_rebaseline_review_required_before_reference_rows_count`
 - safety_invariant: All alternatives are customer-safe only: deployable=false, live_exposure_allowed=false, order_submission_enabled=false until exact support, Top-K deployability, and venue runtime proof all pass.
 - `paper_shadow_decision_support_sleeve`: role=`customer_usable_now`, deployable=`False`, live_exposure_allowed=`False`, next=`data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy`
 - `semantic_rebaseline_review`: role=`support_policy_alternative`, deployable=`False`, live_exposure_allowed=`False`, next=`OOS + Top-K + support audit replay under any proposed new calibration_window identity`

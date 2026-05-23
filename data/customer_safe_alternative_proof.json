@@ -1,31 +1,31 @@
 {
-  "generated_at": "2026-05-23T13:25:22.438797Z",
+  "generated_at": "2026-05-23T14:32:38.929836Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-23T13:25:01.405730Z"
+      "generated_at": "2026-05-23T14:32:32.020294Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-23T13:25:18.415503+00:00"
+      "generated_at": "2026-05-23T14:32:35.454665+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-23T13:25:06.216108+00:00"
+      "generated_at": "2026-05-23T14:32:22.421422+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-23T13:25:21.514002Z"
+      "generated_at": "2026-05-23T14:32:38.105672Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-23T13:24:57.590967+00:00"
+      "generated_at": "2026-05-23T14:32:06.290642+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -47,8 +47,8 @@
   },
   "current_live_support": {
     "deployment_blocker": "circuit_breaker_active",
-    "structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
-    "support_route_verdict": "exact_bucket_unsupported_block",
+    "structure_bucket": "BLOCK|bear_bias200_hard_block|q15",
+    "support_route_verdict": "insufficient_support_everywhere",
     "support_governance_route": "exact_live_lane_proxy_available",
     "current_rows": 0,
     "minimum_support_rows": 50,
@@ -88,12 +88,12 @@
         "deployment_blocker_active",
         "breaker_release_not_ready"
       ],
-      "support_route": "exact_bucket_unsupported_block",
+      "support_route": "insufficient_support_everywhere",
       "support_governance_route": "exact_live_lane_proxy_available",
       "support_route_deployable": false,
       "deployment_blocker": "circuit_breaker_active",
       "runtime_closure_state": "circuit_breaker_active",
-      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q15",
       "current_live_structure_bucket_rows": 0,
       "minimum_support_rows": 50,
       "current_live_structure_bucket_gap_to_minimum": 50,
@@ -173,8 +173,8 @@
     "pm_challenge_answered": true,
     "option_count": 3,
     "selected_option": "paper_shadow_decision_support_sleeve",
-    "time_to_evidence_bucket": "unknown_until_bucket_map_or_signal_redesign",
-    "missing_capability_class": "Map/Signal",
+    "time_to_evidence_bucket": "semantic_rebaseline_review_required_before_reference_rows_count",
+    "missing_capability_class": "Constraint/Review",
     "selected_next_artifact": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
     "options": [
       {
@@ -196,8 +196,8 @@
         "deployable": false,
         "order_submission_enabled": false,
         "risk_on_order_enabled": false,
-        "reference_window": "100",
-        "reference_rows": 0
+        "reference_window": "all",
+        "reference_rows": 110
       },
       {
         "id": "venue_dry_run_readiness_proof",
@@ -289,14 +289,14 @@
     {
       "id": "support_fill_feasibility",
       "role": "proof_path_or_falsification",
-      "status": "no_exact_bucket_history",
+      "status": "semantic_window_gap_not_raw_backfill_gap",
       "deployable": false,
       "live_exposure_allowed": false,
       "current_rows": 0,
       "minimum_support_rows": 50,
       "gap_to_minimum": 50,
-      "time_to_evidence_bucket": "unknown_until_bucket_map_or_signal_redesign",
-      "missing_capability_class": "Map/Signal",
+      "time_to_evidence_bucket": "semantic_rebaseline_review_required_before_reference_rows_count",
+      "missing_capability_class": "Constraint/Review",
       "alternative_solution_required": true
     },
     {
