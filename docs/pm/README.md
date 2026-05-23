@@ -16,6 +16,7 @@ The PM heartbeat is a repo-native harness for product management:
 6. **Break deadlocks and framework-capture loops** — repeated “wait” must become a smaller safe deliverable, a harness repair, a framework simplification, or a clear escalation.
 7. **Challenge slow proof paths** — every major blocker needs a time-to-evidence estimate; weeks/months/unknown validation triggers a parallel `alternative-solution` review instead of making the customer wait.
 8. **Maintain productive disequilibrium** — every run must show customer-value delta, anti-repeat evidence, cost-of-delay, hypothesis inversion, option portfolio, and a red-team PM challenge.
+9. **Force execution when no-delta repeats** — same semantic signature/support delta=0 must become a `forced-execution` lane: Venue lifecycle proof, Model shadow to decision, Strategy micro-canary readiness, Map-Signal redesign, or hard no-go; any live buy/add pilot must use bounded live-canary policy and a 72h decision clock.
 
 ---
 
@@ -47,6 +48,7 @@ The PM heartbeat is a **customer-side advocate with evidence discipline**:
 - To the framework: docs, custom skills, and harness rules are useful maps, not final authority. If they create a loop where the agent only repeats blockers, PM marks `framework-capture` risk and proposes a simplification or override that still preserves safety proof.
 - To the roadmap: engineering heartbeat priorities are evidence, not PM destiny. If the validated path is too slow for the customer outcome, PM must open an `alternative-solution` track with a clear time-to-evidence threshold.
 - To itself: PM consistency is not a virtue when it becomes inertia. The PM must run an anti-equilibrium check so customer-value delta, cost-of-delay, and red-team PM pressure stay visible.
+- To forced execution: if anti-repeat finds same blocker/support signature with no delta, PM must select a `forced-execution` lane and name the 72h bounded live-canary-or-single-gate decision; bounded live-canary is a safety contract, not permission to bypass gates.
 
 Accepted PM outcome examples:
 
@@ -93,6 +95,8 @@ The PM heartbeat must not converge into a balanced “engineering says wait / PM
 6. **red-team PM challenge** — explicitly ask whether this report is rationalizing engineering delay instead of representing customer success.
 
 Escalation rule: no customer-value delta plus repeated blocker story means `ORANGE_framework_capture_risk`; three such runs means `RED_delivery_deadlock` unless a verified alternative-solution artifact exists. This guard never permits weakening live-trading proof gates.
+
+Forced-execution overlay: if support delta remains 0 under the same semantic signature, the next PM run must name one lane — Venue lifecycle proof, Model shadow to decision, Strategy micro-canary readiness, Map-Signal redesign, or hard no-go single failed gate. Within 72h it must either verify a bounded live-canary under explicit `execution.live_canary` policy or name the one gate preventing it.
 
 ---
 

@@ -292,7 +292,7 @@ _最後更新：{updated_at}_
 
 PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被 customer urgency 推翻。承接上一輪 PM handoff：{support_handoff_clause}、交付 paper/shadow / dry-run / falsification / support-fill proof，且不可降低 live gate。fresh runtime truth 顯示 current-live bucket 是 `{current_bucket}`；PM 決策不變：current exact support 是 `{rows}/{minimum}`、`gap={gap}`、`support_route_verdict={support_route}`，`support_governance_route={governance_route}` {governance_route_interpretation}。
 
-安全答案：`signal={probe.get('signal', '—')}` / `should_trade={_bool_text(probe.get('should_trade'))}` / `deployment_blocker={probe.get('deployment_blocker', '—')}` / `runtime_closure_state={probe.get('runtime_closure_state', '—')}` / `allowed_layers_raw={probe.get('allowed_layers_raw')}` / `allowed_layers={probe.get('allowed_layers')}` / `allowed_layers_reason={probe.get('allowed_layers_reason', '—')}` / `execution_guardrail_reason={probe.get('execution_guardrail_reason', '—')}` / `api_trade_guardrail_active={_bool_text(probe.get('api_trade_guardrail_active'))}` / `api_trade_buy_guardrail={probe.get('api_trade_buy_guardrail', '—')}`。客戶可以使用 Dashboard、Strategy Lab、Execution Console、paper/shadow decision-support、Shadow Trade Ledger、venue readiness checklist、range-chop playbook 與 canary rehearsal；**真實買入 / 加倉 / live buy/add / 自動送單 / 小額 live canary 仍不可放行**。
+安全答案：`signal={probe.get('signal', '—')}` / `should_trade={_bool_text(probe.get('should_trade'))}` / `deployment_blocker={probe.get('deployment_blocker', '—')}` / `runtime_closure_state={probe.get('runtime_closure_state', '—')}` / `allowed_layers_raw={probe.get('allowed_layers_raw')}` / `allowed_layers={probe.get('allowed_layers')}` / `allowed_layers_reason={probe.get('allowed_layers_reason', '—')}` / `execution_guardrail_reason={probe.get('execution_guardrail_reason', '—')}` / `api_trade_guardrail_active={_bool_text(probe.get('api_trade_guardrail_active'))}` / `api_trade_buy_guardrail={probe.get('api_trade_buy_guardrail', '—')}`。客戶可以使用 Dashboard、Strategy Lab、Execution Console、paper/shadow decision-support、Shadow Trade Ledger、venue readiness checklist、range-chop playbook 與 canary rehearsal；**真實買入 / 加倉 / live buy/add / 自動送單 / 小額 live canary 仍不可放行**，除非 bounded live-canary policy、current-live gate、support/breaker gate 與 venue lifecycle proof 全部通過。
 
 ---
 
@@ -352,6 +352,14 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 - Live gate: `canary_ready={_bool_text(alt_gate.get('canary_ready'))}`, `live_exposure_allowed={_bool_text(alt_gate.get('live_exposure_allowed'))}`, `order_submission_enabled={_bool_text(alt_gate.get('order_submission_enabled'))}`, `risk_on_order_enabled={_bool_text(alt_gate.get('risk_on_order_enabled'))}`, `support_ready={_bool_text(alt_gate.get('support_ready'))}`, `topk_deployable={_bool_text(alt_gate.get('topk_deployable'))}`, `venue_runtime_ready={_bool_text(alt_gate.get('venue_runtime_ready'))}`。
 - Allowed today: paper/shadow decision-support, Shadow Trade Ledger, venue dry-run checklist, reduce-only / wait modes. Not allowed: buy/add live exposure, automatic order submission, canary live order without exact support and runtime venue proof.
 
+### Forced-execution / bounded live-canary structural pivot
+
+- `forced-execution` trigger is active when same semantic signature repeats, support `delta_vs_previous=0`, `stagnant_run_count` rises, or the customer flags equilibrium/repetition.
+- Forced lanes: **Venue lifecycle proof**, **Model shadow to decision**, **Strategy micro-canary readiness**, **Map-Signal redesign**, or **hard no-go single failed gate**；observation-only status refresh is not accepted.
+- Structural pivot reference: `docs/plans/2026-05-23-live-canary-structural-pivot.md` and `data/live_canary_structural_pivot.json`；implementation guard is `execution.live_canary` in `execution/execution_service.py` with tests `tests/test_execution_service.py -k live_canary`.
+- bounded live-canary policy is required for any live buy/add pilot: `execution.mode=live`, `enable_live_trading=true`, `execution.live_canary.enabled=true`, explicit `allowed_symbols`, symbol-specific `max_base_qty_by_symbol`, and adapter-pre cap enforcement. Missing policy is `live_canary_policy_required`; over-cap is `live_canary_qty_cap_exceeded`.
+- **72h decision clock:** either verify a bounded micro-canary under policy after all live gates pass, or name the single failed gate and next artifact. “Continue observing” is forbidden as fallback.
+
 ---
 
 ## 3. Customer expectation vs PM answer
@@ -372,7 +380,7 @@ Customer-usable lanes now:
 
 **time-to-evidence：** `{fill_verdict.get('time_to_evidence_bucket', '—')}` for exact support movement；`same_day` for venue dry-run metadata proof if credentials/config are supplied；`within_week_or_unknown` for true venue lifecycle proof without credentials。PM 不把「治理參考」包裝成 deploy-ready；下輪必須產出 exact-row accumulation proof、missing-capability proof、recent-tail no-new-risk artifact、venue dry-run proof，或一個可驗證的 alternative-solution artifact。
 
-**anti-equilibrium guard：** `anti-repeat` 結果是不能再只重複 support gap；`cost-of-delay` 是客戶信心、策略可用性與工程焦點繼續被單一路徑消耗；`hypothesis inversion` 是若 exact support 無法累積，最快會由 support stagnation counter、recent drift no-new-risk replay、與 venue dry-run proof 暴露；`option portfolio`：60% 主路徑追 exact support + source/data proof，20% 鄰近安全交付推 paper/shadow decision-support，20% 真替代評估縮小策略/市場範圍、外部資料/工具、manual workflow、替代模型/架構或 stop/pivot；`red-team PM` 挑戰：若下輪沒有客戶可見位移，就要求替代解法 artifact，而不是改寫等待文案。
+**anti-equilibrium guard：** `anti-repeat` 結果是不能再只重複 support gap；若 same semantic signature + support `delta_vs_previous=0` 再出現，PM 必須轉入 `forced-execution`：Venue lifecycle proof、Model shadow to decision、Strategy micro-canary readiness、Map-Signal redesign、或 hard no-go single failed gate。`cost-of-delay` 是客戶信心、策略可用性與工程焦點繼續被單一路徑消耗；`hypothesis inversion` 是若 exact support 無法累積，最快會由 support stagnation counter、recent drift no-new-risk replay、與 venue dry-run proof 暴露；`option portfolio`：60% 主路徑追 exact support + source/data proof，20% 鄰近安全交付推 paper/shadow decision-support，20% 真替代評估縮小策略/市場範圍、外部資料/工具、manual workflow、替代模型/架構或 stop/pivot；`red-team PM` 挑戰：若下輪沒有客戶可見位移，就要求替代解法 artifact 或 bounded live-canary 72h hard gate，而不是改寫等待文案。
 
 ---
 
@@ -387,14 +395,15 @@ Customer-usable lanes now:
 5. **Venue proof lane**：產出 OKX sandbox/dry-run 或 metadata-to-runtime proof checklist；credential present 只可顯示布林，不可洩漏 secret。
 6. **PM drift harness lane**：維持 `scripts/pm_heartbeat_check.py` 以 current runtime artifacts 驗證 `docs/pm/pm-status.md`，避免 stale literals 誤通過。
 7. **alternative-solution lane**：至少列三個 alternative-solution，並選一個可於下輪驗證的 artifact；安全 gate 不可放鬆，但產品路線不可被單一路徑綁死。
+8. **forced-execution lane**：若 same semantic signature / support delta=0 再重複，必須選 Venue lifecycle proof、Model shadow to decision、Strategy micro-canary readiness、Map-Signal redesign 或 hard no-go single failed gate；任何 live buy/add 都必須先通過 bounded live-canary policy 與 adapter-pre cap enforcement。
 
 ---
 
 ## 6. Next-hour gate
 
-**Next-hour gate / Success gate：** 下次 PM heartbeat 應能回答：客戶此刻可以打開哪個頁面或模式、做什麼安全操作、看到什麼證據。最低可接受證據是：current exact support rows 從目前 `{rows}/{minimum}` 開始 movement 或明確證明 stagnation 的 missing capability；recent drift no-new-risk / shadow-only falsification artifact clearly labels `deployable=false`；Top-K matrix 保持 fresh；`/execution` paper/shadow 或 dry-run readiness 可操作 proof；或 venue dry-run proof。除此之外，PM 必須交付 time-to-evidence bucket 與 `alternative-solution` 候選。
+**Next-hour gate / Success gate：** 下次 PM heartbeat 應能回答：客戶此刻可以打開哪個頁面或模式、做什麼安全操作、看到什麼證據。最低可接受證據是：current exact support rows 從目前 `{rows}/{minimum}` 開始 movement 或明確證明 stagnation 的 missing capability；recent drift no-new-risk / shadow-only falsification artifact clearly labels `deployable=false`；Top-K matrix 保持 fresh；`/execution` paper/shadow 或 dry-run readiness 可操作 proof；venue dry-run proof；或 forced-execution lane 的 72h bounded live-canary / single failed gate artifact。除此之外，PM 必須交付 time-to-evidence bucket 與 `alternative-solution` 候選。
 
-**Fallback：** 若下次仍只有「wait」且沒有 safe deliverable，PM 維持 `ORANGE_framework_capture_risk` 並升級 `ORANGE_alternative_solution_required`；若連續三次沒有 artifact movement、safe product proof 或替代解法驗證，升級為 `RED_delivery_deadlock`。
+**Fallback：** 若下次仍只有「wait」且沒有 safe deliverable，PM 維持 `ORANGE_framework_capture_risk` 並升級 `ORANGE_alternative_solution_required`；若 same semantic signature + support delta=0 重複卻沒有 forced-execution lane，升級 `RED_forced_execution_required`；若連續三次沒有 artifact movement、safe product proof 或替代解法驗證，升級為 `RED_delivery_deadlock`。
 """
     return _redact(text).rstrip() + "\n"
 

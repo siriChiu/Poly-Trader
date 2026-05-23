@@ -31,6 +31,7 @@ REQUIRED_GATE_IDS = [
     "PMHQ8_customer_report",
     "PMHQ9_alternative_solution_review",
     "PMHQ10_anti_equilibrium_review",
+    "PMHQ11_forced_execution_pivot",
 ]
 
 REQUIRED_DOC_REFERENCES = {
@@ -48,9 +49,12 @@ REQUIRED_DOC_REFERENCES = {
         "customer-value delta",
         "cost-of-delay",
         "red-team PM",
+        "forced-execution",
+        "bounded live-canary",
+        "72h",
     ],
-    "docs/pm/README.md": ["customer-side advocate", "framework-capture", "alternative-solution", "time-to-evidence", "anti-equilibrium", "customer-value delta", "cost-of-delay", "red-team PM"],
-    "docs/pm/pm-heartbeat-qa.md": ["PMHQ1_stakeholder_expectation", "PMHQ9_alternative_solution_review", "PMHQ10_anti_equilibrium_review", "framework-capture", "alternative-solution", "time-to-evidence", "anti-equilibrium", "customer-value delta", "cost-of-delay"],
+    "docs/pm/README.md": ["customer-side advocate", "framework-capture", "alternative-solution", "time-to-evidence", "anti-equilibrium", "customer-value delta", "cost-of-delay", "red-team PM", "forced-execution", "bounded live-canary", "72h"],
+    "docs/pm/pm-heartbeat-qa.md": ["PMHQ1_stakeholder_expectation", "PMHQ9_alternative_solution_review", "PMHQ10_anti_equilibrium_review", "PMHQ11_forced_execution_pivot", "framework-capture", "alternative-solution", "time-to-evidence", "anti-equilibrium", "customer-value delta", "cost-of-delay", "forced-execution", "bounded live-canary", "72h"],
     "README.md": ["docs/pm/README.md", "scripts/pm_heartbeat_check.py"],
     "ARCHITECTURE.md": ["docs/pm", "PM_HEARTBEAT.md"],
 }
@@ -182,7 +186,7 @@ def _check_question_gates(contract: dict[str, Any]) -> list[CheckResult]:
     return [
         CheckResult(
             "pm_qa_gates_complete",
-            "PM contract and QA playbook include PMHQ0-PMHQ10?",
+            "PM contract and QA playbook include PMHQ0-PMHQ11?",
             not missing_contract and not missing_qa,
             "ok"
             if not missing_contract and not missing_qa
@@ -292,6 +296,12 @@ def _pm_status_required_snippets() -> tuple[list[str], list[str]]:
         "hypothesis inversion",
         "option portfolio",
         "red-team PM",
+        "forced-execution",
+        "bounded live-canary",
+        "72h",
+        "Venue lifecycle proof",
+        "Model shadow to decision",
+        "Strategy micro-canary",
     ]
     artifact_errors: list[str] = []
 

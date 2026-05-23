@@ -3906,6 +3906,9 @@ def overwrite_current_state_docs(
             "4. **依 PM handoff 追 exact support-fill movement 與 alternative-solution proof**",
             "   - 驗證：`python scripts/q15_support_fill_feasibility_scan.py`、`python scripts/customer_safe_alternative_proof.py`、`data/q15_support_fill_feasibility.json`、`data/customer_safe_alternative_proof.json`、`docs/analysis/q15_support_fill_feasibility.md`、`docs/analysis/customer_safe_alternative_proof.md`、`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` 是否同步 exact bucket rows / identity rows / missing capability / alternative solution",
             "   - 升級 blocker：若 exact bucket rows 仍低於門檻卻沒有 missing_capability / time_to_evidence / alternative_solution artifact，或 identity/proxy/reference rows 被包裝成 deployable。",
+        "5. **反平衡 forced-execution gate：same semantic signature + support delta=0 不得再回到 observation-only**",
+        "   - 驗證：`docs/plans/2026-05-23-live-canary-structural-pivot.md`、`data/live_canary_structural_pivot.json`、`python -m pytest tests/test_execution_service.py -k live_canary -q`、`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` forced branch",
+        "   - 升級 blocker：若 72h 內沒有 bounded micro-canary policy proof 或 single failed gate，或下一輪 heartbeat 只重述 wait/support gap",
         ]
         support_fill_success_lines = [
             "- support-fill feasibility 維持 PM-safe：current exact bucket rows、identity rows、missing capability、time-to-evidence、alternative-solution artifact 可見，且 identity/proxy/reference rows 不可升級成 deployable truth",
@@ -4363,6 +4366,10 @@ def overwrite_current_state_docs(
         f"  - {support_line}",
         *[f"  - {line}" for line in support_progress_doc_lines],
         *support_fill_doc_lines,
+        "- **anti-equilibrium forced execution governor 已啟用**",
+        "  - trigger：`same_identity_same_semantic_signature` + `delta_vs_previous=0` / stagnant support 或使用者指出趨近平衡時，heartbeat 不得只刷新 observation-only status。",
+        "  - forced branches：Venue lifecycle proof / Model shadow to decision / Strategy micro-canary readiness / Map-Signal redesign / hard no-go single failed gate。",
+        "  - bounded live-canary：任何 live buy/add pilot 必須有 `execution.live_canary.enabled=true`、explicit `allowed_symbols`、symbol-specific `max_base_qty_by_symbol`，缺 policy 或超 cap 會在 adapter 前拒單。",
         "- **recent canonical diagnostics 已刷新**",
         f"  - {pathology_line}",
         *([f"  - {shadow_replay_line}"] if shadow_replay_line else []),
@@ -4424,7 +4431,7 @@ def overwrite_current_state_docs(
     high_conviction_priority_lines = []
     if high_conviction_issue:
         high_conviction_priority_lines = [
-            "5. **P0 實戰化：建立 high-conviction top-k OOS ROI gate，把研究 winner 轉成可拒單部署候選**",
+            "6. **P0 實戰化：建立 high-conviction top-k OOS ROI gate，把研究 winner 轉成可拒單部署候選**",
             (
                 f"   - `data/high_conviction_topk_oos_matrix.json` 已產出 `generated_at={high_conviction_latest_matrix.get('generated_at', '—')}` / "
                 f"`freshness={high_conviction_latest_matrix.get('artifact_freshness_status', '—')}` / `age_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_age_minutes'), 1)}` / `stale_after_min={_format_doc_number(high_conviction_latest_matrix.get('artifact_stale_after_minutes'), 0)}` / `deployment_blocking={high_conviction_latest_matrix.get('artifact_deployment_blocking', '—')}` / "
@@ -4442,7 +4449,8 @@ def overwrite_current_state_docs(
             current_priority_line1,
             "2. **持續沿 recent canonical pathological slice 追根因，不要 generic 化 blocker**",
             current_priority_line3,
-            "4. **讓 heartbeat 自動 overwrite sync current-state docs，不再把 docs drift 留給人工補寫**",
+            "4. **反平衡強制執行：same semantic signature + support delta=0 時必須選 forced branch，不得 observation-only**",
+            "5. **讓 heartbeat 自動 overwrite sync current-state docs，不再把 docs drift 留給人工補寫**",
             *high_conviction_priority_lines,
             "",
         ]
@@ -4507,9 +4515,14 @@ def overwrite_current_state_docs(
         *high_conviction_shadow_roadmap_lines,
         *range_chop_roadmap_lines,
         *m5_readiness_roadmap_lines,
+        "- **anti-equilibrium forced execution governor 已成為 current plan contract**",
+        "  - same semantic signature / support delta=0 / stagnant repeats 不能再產生 observation-only heartbeat；必須選 Venue lifecycle proof、Model shadow to decision、Strategy micro-canary readiness、Map-Signal redesign 或 hard no-go single failed gate。",
+        "  - bounded live-canary guard 已在 execution service 形成 hard gate：live buy/add 若缺 explicit `execution.live_canary` allowlist 與 symbol qty cap，adapter 前拒單；reduce/sell 風險降低路徑保留。",
         "- **本輪 current-state docs 已同步到最新 artifacts**",
         "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/q15_support_fill_feasibility.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json` 的 current-state truth 已對齊",
         *support_fill_roadmap_lines,
+        "- **反平衡強制執行 contract**",
+        "  - 目前 same semantic signature + support delta=0 已觸發 forced branch：Venue lifecycle proof / Model shadow to decision / Strategy micro-canary readiness / Map-Signal redesign / hard no-go single failed gate；下一輪不得只輸出狀態刷新。",
         *parallel_failure_roadmap_lines,
         "",
         "---",
@@ -4576,7 +4589,7 @@ def overwrite_current_state_docs(
         *support_fill_next_gate_lines,
         *(
             [
-                f"{'5' if support_fill_next_gate_lines else '4'}. **建立 high-conviction top-k OOS ROI gate，讓 Strategy Lab winner 先經研究→模擬觀察→影子驗證→小流量分級**",
+                f"{'6' if support_fill_next_gate_lines else '5'}. **建立 high-conviction top-k OOS ROI gate，讓 Strategy Lab winner 先經研究→模擬觀察→影子驗證→小流量分級**",
                 "   - 驗證：`data/high_conviction_topk_oos_matrix.json`、`/api/models/leaderboard.high_conviction_topk`、Strategy Lab 高信心 OOS Top-K 部署門檻面板、`python -m pytest tests/test_model_leaderboard.py tests/test_frontend_decision_contract.py -k high_conviction -q`",
                 "   - 升級 blocker：若 scan winner 未經 OOS top-k / minimum support / drawdown / breaker release gate 就被標成 deployable，或 current-live unsupported 時仍允許 buy/add exposure",
             ]
@@ -4591,6 +4604,7 @@ def overwrite_current_state_docs(
         f"- {support_truth_label} 維持：**{support_truth_ratio} + {support_success_verdict} + {support_success_status}**",
         "- recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋",
         *support_fill_success_lines,
+        "- anti-equilibrium forced execution 維持：same semantic signature + support delta=0 觸發 forced branch；bounded live-canary policy / single failed gate 必須 machine-readable，禁止 observation-only heartbeat",
         f"- {leaderboard_governance_label} 維持；venue/source blockers 持續可見",
         "- heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**",
         "- `/api/trade` 直接 API 不能繞過即時部署阻塞點：買入 / 加倉在 no-deploy 狀態必須 409，減倉 / 賣出仍可用",
@@ -4640,6 +4654,8 @@ def overwrite_current_state_docs(
         f"- leaderboard / governance：{leaderboard_line}。",
         f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；top source blockers={top_source_blockers_line}；fin_netflow={fin_line}；venue={execution_venue_line}；metadata smoke venue rows 已帶 adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next。",
         *high_conviction_shadow_orid_lines,
+        "- anti-equilibrium forced execution：same semantic signature + support `delta_vs_previous=0` / stagnant repeats 已觸發；下輪必須留下 Venue lifecycle proof、Model shadow to decision、Strategy micro-canary readiness、Map-Signal redesign 或 hard no-go single failed gate。",
+        "- bounded live-canary hard gate：live buy/add pilot 必須 `execution.live_canary.enabled=true` + explicit `allowed_symbols` + symbol-specific `max_base_qty_by_symbol`，缺 policy / 超 cap 會 adapter-pre 拒單；reduce/sell 風險降低路徑保留。",
         *range_chop_orid_lines,
         *m5_readiness_orid_lines,
         *parallel_failure_orid_lines,
@@ -4661,8 +4677,9 @@ def overwrite_current_state_docs(
         "- **Owner**：即時執行治理 lane",
         orid_action_line.rstrip("。") + "；`/execution` 操作入口在同步中 / 已阻塞時只對買入 / 加倉與啟用自動模式 fail-closed，等待 / 觀望與減碼保留；直接 API 買入 / 加倉也必須 409 暫停，等待 / 觀望與減倉 / 賣出保留風險降低路徑。",
         *high_conviction_orid_action_lines,
-        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/q15_support_fill_feasibility.json`、`docs/analysis/q15_support_fill_feasibility.md`、`data/leaderboard_feature_profile_probe.json`、`data/high_conviction_topk_oos_matrix.json`、`data/execution_metadata_smoke.json`。",
-        "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、等待 / 觀望與減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python scripts/q15_support_fill_feasibility_scan.py`、`python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx binance`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`。",
+        "- **反平衡 forced-execution gate**：若 72h 內不能執行 bounded micro-canary，必須寫明唯一失敗 gate（breaker / support / venue / policy / model shadow outcome）與下一個驗證 artifact；不得再輸出 observation-only heartbeat。",
+        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/q15_support_fill_feasibility.json`、`docs/analysis/q15_support_fill_feasibility.md`、`data/leaderboard_feature_profile_probe.json`、`data/high_conviction_topk_oos_matrix.json`、`data/execution_metadata_smoke.json`、`docs/plans/2026-05-23-live-canary-structural-pivot.md`、`data/live_canary_structural_pivot.json`。",
+        "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、等待 / 觀望與減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python scripts/q15_support_fill_feasibility_scan.py`、`python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx binance`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`、`python -m pytest tests/test_execution_service.py -k live_canary -q`。",
         orid_fail_line,
         "",
     ]

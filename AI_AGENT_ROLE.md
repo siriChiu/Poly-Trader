@@ -54,9 +54,10 @@
 每次讀取 `HEARTBEAT.md` 時，你不是報告產生器，而是 **嚴厲的專案推行者** 與 **harness engineer**：
 - 不可只回報「仍未達標」
 - 不可只更新數字不修問題
-- 不可跳過 `docs/harness/heartbeat-qa.md` 的 Q&A gate（至少內部回答 HQ0-HQ8）
+- 不可跳過 `docs/harness/heartbeat-qa.md` 的 Q&A gate（至少內部回答 HQ0-HQ9，含反平衡強制執行）
 - 不可跳過 `ISSUES.md` / `ROADMAP.md` / `ORID_DECISIONS.md` 的 current-state sync；`ARCHITECTURE.md` 只在穩定契約變更時更新
 - 沒有 patch、verify、next gate 的心跳視為失敗
+- 若同一 blocker/support signature 連續無位移，不可再只回報狀態；必須交付 structural pivot、shadow proof、venue proof、bounded live-canary hard gate 或 hard no-go
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-05-14T07:12:38+08:00",
+  "updated_at": "2026-05-23T07:54:00+08:00",
   "definition_reference": {
     "title": "OpenAI Harness Engineering: using Codex in an agent-first world",
     "url": "https://openai.com/zh-Hant/index/harness-engineering/",
@@ -57,79 +57,169 @@
     {
       "id": "HQ0_context_map",
       "question": "Do I have the shortest usable repo map and dirty-file boundary?",
-      "required_evidence": ["git status", "AGENTS.md", "HEARTBEAT.md", "previous PM heartbeat handoff", "graphify when present"]
+      "required_evidence": [
+        "git status",
+        "AGENTS.md",
+        "HEARTBEAT.md",
+        "previous PM heartbeat handoff",
+        "graphify when present"
+      ]
     },
     {
       "id": "HQ1_goal_and_boundary",
       "question": "What is this run's human intent and what must not be changed?",
-      "required_evidence": ["user request", "previous PM heartbeat decision", "ISSUES.md current priority", "ROADMAP.md next gate"]
+      "required_evidence": [
+        "user request",
+        "previous PM heartbeat decision",
+        "ISSUES.md current priority",
+        "ROADMAP.md next gate"
+      ]
     },
     {
       "id": "HQ2_current_truth",
       "question": "What are the current-live, research, venue/source, and governance truths?",
-      "required_evidence": ["issues.json", "data/live_predict_probe.json", "data/live_decision_quality_drilldown.json", "data/recent_drift_report.json"]
+      "required_evidence": [
+        "issues.json",
+        "data/live_predict_probe.json",
+        "data/live_decision_quality_drilldown.json",
+        "data/recent_drift_report.json"
+      ]
     },
     {
       "id": "HQ3_missing_capability",
       "question": "Is the blocker a strategy/data issue or a harness capability gap?",
-      "required_evidence": ["map gap", "tool gap", "signal gap", "constraint gap", "review gap"]
+      "required_evidence": [
+        "map gap",
+        "tool gap",
+        "signal gap",
+        "constraint gap",
+        "review gap"
+      ]
     },
     {
       "id": "HQ4_patch_contract",
       "question": "What is the smallest testable and rollback-safe patch?",
-      "required_evidence": ["target file list", "deployment fail-closed boundary", "generated artifact policy"]
+      "required_evidence": [
+        "target file list",
+        "deployment fail-closed boundary",
+        "generated artifact policy"
+      ]
     },
     {
       "id": "HQ5_verification_loop",
       "question": "How can another agent verify the result without trusting the author?",
-      "required_evidence": ["pytest or script", "build/API/browser smoke when relevant", "git diff --check"]
+      "required_evidence": [
+        "pytest or script",
+        "build/API/browser smoke when relevant",
+        "git diff --check"
+      ]
     },
     {
       "id": "HQ6_docs_sync",
       "question": "Are current-state docs synchronized by overwrite instead of append-only history?",
-      "required_evidence": ["ISSUES.md", "ROADMAP.md", "ORID_DECISIONS.md", "source artifact"]
+      "required_evidence": [
+        "ISSUES.md",
+        "ROADMAP.md",
+        "ORID_DECISIONS.md",
+        "source artifact"
+      ]
     },
     {
       "id": "HQ7_failure_escalation",
       "question": "If the same blocker fails again, what harness capability or architecture path changes?",
-      "required_evidence": ["same-blocker count", "fallback", "issue ID"]
+      "required_evidence": [
+        "same-blocker count",
+        "fallback",
+        "issue ID"
+      ]
+    },
+    {
+      "id": "HQ9_anti_equilibrium_execution",
+      "question": "If the same semantic signature or support delta repeats, what forced execution branch prevents another observation-only heartbeat?",
+      "required_evidence": [
+        "same semantic signature or blocker repeat count",
+        "support_progress.delta_vs_previous",
+        "stagnant_run_count",
+        "selected forced branch: Map/Signal redesign, customer-safe shadow proof, venue lifecycle proof, bounded live-canary prep, or hard no-go",
+        "bounded live-canary policy evidence or single failed gate"
+      ]
     },
     {
       "id": "HQ8_user_report",
       "question": "Can the user understand completion, verification, blockers, and next gate within 30 seconds?",
-      "required_evidence": ["Traditional Chinese summary", "files changed", "commands run", "commit hash when applicable"]
+      "required_evidence": [
+        "Traditional Chinese summary",
+        "files changed",
+        "commands run",
+        "commit hash when applicable"
+      ]
     }
   ],
   "agent_readable_signals": [
     {
       "name": "previous_pm_heartbeat_handoff",
-      "paths": ["cron context_from poly-trader-pm-heartbeat-1h", "PM_HEARTBEAT.md", "docs/pm/pm-status.md"],
+      "paths": [
+        "cron context_from poly-trader-pm-heartbeat-1h",
+        "PM_HEARTBEAT.md",
+        "docs/pm/pm-status.md"
+      ],
       "purpose": "PM heartbeat conclusions and decisions that must be carried into the next engineering heartbeat before choosing P0/P1 work"
     },
     {
       "name": "current_live_truth",
-      "paths": ["data/live_predict_probe.json", "data/live_decision_quality_drilldown.json"],
+      "paths": [
+        "data/live_predict_probe.json",
+        "data/live_decision_quality_drilldown.json"
+      ],
       "purpose": "current runtime blocker, live bucket, support route, fail-closed state"
     },
     {
       "name": "recent_drift_truth",
-      "paths": ["data/recent_drift_report.json", "data/full_ic_result.json", "data/ic_regime_analysis.json"],
+      "paths": [
+        "data/recent_drift_report.json",
+        "data/full_ic_result.json",
+        "data/ic_regime_analysis.json"
+      ],
       "purpose": "recent weighted IC, pathological windows, regime concentration"
     },
     {
       "name": "deployment_candidate_truth",
-      "paths": ["data/high_conviction_topk_oos_matrix.json", "model/topk_walkforward_precision.json"],
+      "paths": [
+        "data/high_conviction_topk_oos_matrix.json",
+        "model/topk_walkforward_precision.json"
+      ],
       "purpose": "walk-forward OOS top-k deployment gate and fail-closed candidate tier"
     },
     {
       "name": "venue_readiness_truth",
-      "paths": ["data/execution_metadata_smoke.json", "data/execution_metadata_external_monitor.json"],
+      "paths": [
+        "data/execution_metadata_smoke.json",
+        "data/execution_metadata_external_monitor.json"
+      ],
       "purpose": "venue proof state, runtime readiness blockers, operator next action"
     },
     {
       "name": "current_state_docs",
-      "paths": ["issues.json", "ISSUES.md", "ROADMAP.md", "ORID_DECISIONS.md"],
+      "paths": [
+        "issues.json",
+        "ISSUES.md",
+        "ROADMAP.md",
+        "ORID_DECISIONS.md"
+      ],
       "purpose": "machine and human current-state views"
+    },
+    {
+      "name": "anti_equilibrium_execution_truth",
+      "paths": [
+        "data/live_canary_structural_pivot.json",
+        "docs/plans/2026-05-23-live-canary-structural-pivot.md",
+        "execution/execution_service.py",
+        "tests/test_execution_service.py",
+        "ISSUES.md",
+        "ROADMAP.md",
+        "ORID_DECISIONS.md"
+      ],
+      "purpose": "forced branch evidence when support delta is zero or the same blocker/signature repeats; prevents observation-only heartbeat loops"
     }
   ],
   "mechanical_invariants": [
@@ -152,11 +242,16 @@
     {
       "id": "readme_exposes_harness_entry",
       "description": "README.md lists docs/harness as a first-class documentation entry."
+    },
+    {
+      "id": "anti_equilibrium_execution_guard",
+      "description": "HEARTBEAT.md, QA, contract, checker, and current-state docs require a forced branch when same semantic signature/support delta=0 repeats; observation-only status refresh is incomplete."
     }
   ],
   "verification_commands": [
     "python scripts/heartbeat_harness_check.py --format text",
     "python -m pytest tests/test_heartbeat_harness_contract.py -q",
-    "git diff --check -- AGENTS.md AI_AGENT_ROLE.md HEARTBEAT.md ARCHITECTURE.md README.md docs/harness scripts/heartbeat_harness_check.py tests/test_heartbeat_harness_contract.py"
+    "git diff --check -- AGENTS.md AI_AGENT_ROLE.md HEARTBEAT.md ARCHITECTURE.md README.md docs/harness scripts/heartbeat_harness_check.py tests/test_heartbeat_harness_contract.py",
+    "python -m pytest tests/test_execution_service.py -k live_canary -q"
   ]
 }

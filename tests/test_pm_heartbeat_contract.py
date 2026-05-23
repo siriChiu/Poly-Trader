@@ -51,6 +51,7 @@ REQUIRED_GATE_IDS = [
     "PMHQ8_customer_report",
     "PMHQ9_alternative_solution_review",
     "PMHQ10_anti_equilibrium_review",
+    "PMHQ11_forced_execution_pivot",
 ]
 
 
@@ -85,6 +86,13 @@ def test_pm_heartbeat_contract_is_machine_readable() -> None:
     assert anti_equilibrium["risk_name"] == "pm_convergence_to_waiting_equilibrium"
     for required in ["customer-value delta", "anti-repeat result", "cost-of-delay estimate", "hypothesis inversion", "option portfolio", "red-team PM challenge"]:
         assert required in anti_equilibrium["required_fields"]
+    forced = payload["forced_execution_pivot_guard"]
+    assert forced["risk_name"] == "pm_convergence_to_observation_only_status"
+    assert "Venue lifecycle proof" in forced["required_lanes"]
+    assert "Model shadow to decision" in forced["required_lanes"]
+    assert "Strategy micro-canary readiness" in forced["required_lanes"]
+    assert "72h" in forced["decision_clock"]
+    assert "adapter-pre cap enforcement" in forced["bounded_live_canary_boundary"]["live_buy_add_requires"]
 
     qa_text = QA_PATH.read_text(encoding="utf-8")
     for gate_id in REQUIRED_GATE_IDS:
@@ -187,6 +195,12 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     assert "hypothesis inversion" in text
     assert "option portfolio" in text
     assert "red-team PM" in text
+    assert "forced-execution" in text
+    assert "bounded live-canary" in text
+    assert "72h" in text
+    assert "Venue lifecycle proof" in text
+    assert "Model shadow to decision" in text
+    assert "Strategy micro-canary" in text
     assert "live buy/add" in text or "真實買入 / 加倉" in text
     if probe.get("deployment_blocker") == "circuit_breaker_active" or breaker.get("verdict") == "canonical_breaker_active":
         assert "breaker_clear" not in text

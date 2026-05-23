@@ -17,6 +17,8 @@ Heartbeat 的目的不是「回報狀態」，而是讓專案閉環前進：
 
 若一輪只有 summary、沒有 patch/verify/current-state sync，視為不完整。
 
+若同一 semantic signature / blocker 連續兩輪沒有 customer-value delta，heartbeat 不得再產出 observation-only status refresh；必須選擇 Map/Signal redesign、customer-safe paper/shadow proof、venue lifecycle proof、或明確 hard no-go，並把選擇同步到 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`。
+
 ### 1.1 Harness engineering / 一問一答擴充
 
 Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 記憶，而是靠可導航文件、可機械驗證的 Q&A gate、agent-readable artifacts 與回饋迴圈推進。
@@ -27,6 +29,23 @@ Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 
 - 結構檢查：`python scripts/heartbeat_harness_check.py --format text`
 
 若 heartbeat 卡在同一 blocker 超過兩輪，下一輪必須先回答：缺的是 Map / Tool / Signal / Constraint / Review 哪一種 harness 能力，而不是只重寫敘事。
+
+### 1.2 anti-equilibrium execution governor / 反平衡強制執行
+
+反平衡不是口號，而是 heartbeat completion gate。任何 run 符合下列任一條件，都必須觸發 `HQ9_anti_equilibrium_execution`：
+
+- `support_progress.delta_vs_previous=0` 且 `regression_basis=same_identity_same_semantic_signature`。
+- 同一 current-live bucket / blocker 連續兩輪以上沒有 artifact movement。
+- PM 或使用者指出「又趨近平衡 / 反反覆覆 / 太久」。
+- safe lane 仍存在但沒有新增 customer-value delta。
+
+觸發後，本輪輸出不得只是 status sync；必須留下至少一個可驗證位移：
+
+1. **Map/Signal redesign**：改 current-live bucket/support identity 或 signal map，並產出重跑 artifact。
+2. **Customer-safe shadow proof**：把 Top-K / Strategy Lab 候選轉成 paper/shadow 24h outcome 或 falsification artifact。
+3. **Venue lifecycle proof**：推進 OKX credential boolean、ack/cancel/fill/reconciliation proof；secret 只可顯示 `[REDACTED]` 或 boolean。
+4. **Bounded live-canary hard gate**：若要準備真實買入 / 加倉，必須走 `execution.live_canary.enabled=true + allowed_symbols + max_base_qty_by_symbol`，否則在 adapter 前拒單。
+5. **Hard no-go**：如果仍不能前進，必須寫明唯一失敗 gate 與下一個能解除該 gate 的 artifact；禁止再產出模糊「繼續觀察」。
 
 ---
 
@@ -51,6 +70,7 @@ Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 
    - 先說明「上一輪 PM heartbeat 要求 / 決定」如何影響本輪工程取捨；若 PM 決定與 runtime 事實衝突，先用 artifacts/tests/browser/API 驗證後再裁決。
    - 先分清 current-live blocker、venue blocker、research blocker。
    - 不把 reference-only patch 寫成 deployment closure。
+   - 若同一 blocker/support signature 沒有位移，先執行反平衡分支；不得直接進入下一段 status narrative。
 
 4. **Patch**
    - 優先修會影響 operator truth 或 live safety 的問題。
@@ -117,6 +137,7 @@ Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 
 - buy/add exposure：fail-closed。
 - automation enable：fail-closed。
 - high-conviction Top-K 候選若已通過離線 / 風控 gate、但 current-live support / venue proof 尚未解除，只能進入 `paper_shadow` 影子觀察；control plane payload 必須保留 `risk_on_order_enabled=false` 與 `runtime_binding_status=paper_shadow_runtime_blocked`，不得送單或加倉。
+- 任何 live buy/add pilot 必須先通過 bounded live-canary policy：`execution.mode=live`、`enable_live_trading=true`、`execution.live_canary.enabled=true`、explicit `allowed_symbols`、symbol-specific `max_base_qty_by_symbol`；缺 policy 或超過 cap 必須在 adapter 前拒單。
 - reduce/de-risk、manual mode、diagnostics、refresh：保持可用。
 - `/api/trade` 必須用 structured 409 告訴前端 blocked side/reason。
 
@@ -133,6 +154,7 @@ python -m pytest tests/test_heartbeat_harness_contract.py -q
 python -m pytest tests/test_repo_hygiene.py -q
 python -m pytest tests/test_server_startup.py -k 'api_trade or current_live_trade_blocker' -q
 python -m pytest tests/test_execution_run_control.py -q
+python -m pytest tests/test_execution_service.py -k live_canary -q
 python -m pytest tests/test_frontend_decision_contract.py -q
 cd web && npm run build
 ```

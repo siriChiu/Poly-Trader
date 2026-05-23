@@ -28,17 +28,21 @@ REQUIRED_GATE_IDS = [
     "HQ5_verification_loop",
     "HQ6_docs_sync",
     "HQ7_failure_escalation",
+    "HQ9_anti_equilibrium_execution",
     "HQ8_user_report",
 ]
 
 REQUIRED_DOC_REFERENCES = {
     "AGENTS.md": ["HEARTBEAT.md", "docs/harness/README.md"],
-    "AI_AGENT_ROLE.md": ["HEARTBEAT.md", "docs/harness/heartbeat-qa.md"],
+    "AI_AGENT_ROLE.md": ["HEARTBEAT.md", "docs/harness/heartbeat-qa.md", "反平衡", "bounded live-canary"],
     "HEARTBEAT.md": [
         "docs/harness/README.md",
         "docs/harness/heartbeat-qa.md",
         "PM heartbeat",
         "scripts/heartbeat_harness_check.py",
+        "anti-equilibrium",
+        "bounded live-canary",
+        "observation-only",
     ],
     "ARCHITECTURE.md": ["docs/harness", "scripts/heartbeat_harness_check.py"],
     "README.md": ["docs/harness/README.md", "scripts/heartbeat_harness_check.py"],
@@ -171,7 +175,7 @@ def _check_question_gates(contract: dict[str, Any]) -> list[CheckResult]:
     return [
         CheckResult(
             "qa_gates_complete",
-            "Contract and QA playbook include HQ0-HQ8?",
+            "Contract and QA playbook include HQ0-HQ9?",
             not missing_contract and not missing_qa,
             "ok"
             if not missing_contract and not missing_qa

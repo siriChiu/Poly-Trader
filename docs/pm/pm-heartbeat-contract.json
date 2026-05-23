@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-05-20T08:32:08+08:00",
-  "purpose": "Poly-Trader PM heartbeat contract for customer-side delivery advocacy, claim audit, framework-capture detection, anti-equilibrium review, alternative-solution review, and safety-preserving arbitration between customer urgency and engineering guardrails.",
+  "updated_at": "2026-05-23T07:54:00+08:00",
+  "purpose": "Poly-Trader PM heartbeat contract for customer-side delivery advocacy, claim audit, framework-capture detection, anti-equilibrium review, alternative-solution review, and safety-preserving arbitration between customer urgency and engineering guardrails, forced-execution pivot when no-delta repeats, and bounded live-canary governance.",
   "entrypoints": {
     "pm_charter": "PM_HEARTBEAT.md",
     "pm_readme": "docs/pm/README.md",
@@ -135,6 +135,17 @@
       ]
     },
     {
+      "id": "PMHQ11_forced_execution_pivot",
+      "question": "If the same support/blocker signature repeats, what forced execution lane moves within 72h without weakening live safety?",
+      "required_evidence": [
+        "same semantic signature or blocker repeat count",
+        "support delta=0 / stagnant_run_count",
+        "chosen lane: Venue lifecycle proof, Model shadow to decision, Strategy micro-canary readiness, Map-Signal redesign, or hard no-go single failed gate",
+        "bounded live-canary policy boundary for any live buy/add pilot",
+        "72h micro-canary-or-single-failed-gate decision"
+      ]
+    },
+    {
       "id": "PMHQ8_customer_report",
       "question": "Can the customer understand the state in 30 seconds?",
       "required_evidence": [
@@ -174,7 +185,8 @@
     "ORANGE_customer_value_gap",
     "ORANGE_framework_capture_risk",
     "ORANGE_alternative_solution_required",
-    "RED_delivery_deadlock"
+    "RED_delivery_deadlock",
+    "RED_forced_execution_required"
   ],
   "agent_readable_signals": [
     {
@@ -223,6 +235,17 @@
         "docs/pm/pm-status.md"
       ],
       "purpose": "customer-value delta, anti-repeat detection, cost-of-delay, hypothesis inversion, option portfolio, and red-team PM pressure"
+    },
+    {
+      "name": "pm_forced_execution_pivot",
+      "paths": [
+        "docs/pm/pm-status.md",
+        "docs/plans/2026-05-23-live-canary-structural-pivot.md",
+        "data/live_canary_structural_pivot.json",
+        "execution/execution_service.py",
+        "tests/test_execution_service.py"
+      ],
+      "purpose": "PM-level forced-execution truth for same-signature no-delta repeats, including bounded live-canary safety and 72h decision pressure"
     }
   ],
   "mechanical_invariants": [
@@ -261,12 +284,17 @@
     {
       "id": "pm_anti_equilibrium_guard",
       "description": "PM docs require customer-value delta, anti-repeat detection, cost-of-delay, hypothesis inversion, option portfolio, and red-team PM challenge so the agent does not converge into repeated wait/status sync."
+    },
+    {
+      "id": "pm_forced_execution_pivot_guard",
+      "description": "PM docs require forced-execution branch selection, 72h micro-canary-or-single-failed-gate decision, and bounded live-canary safety before any live buy/add pilot."
     }
   ],
   "verification_commands": [
     "python scripts/pm_heartbeat_check.py --format text",
     "python -m pytest tests/test_pm_heartbeat_contract.py -q",
-    "git diff --check -- PM_HEARTBEAT.md docs/pm scripts/pm_heartbeat_check.py tests/test_pm_heartbeat_contract.py AGENTS.md README.md ARCHITECTURE.md"
+    "git diff --check -- PM_HEARTBEAT.md docs/pm scripts/pm_heartbeat_check.py tests/test_pm_heartbeat_contract.py AGENTS.md README.md ARCHITECTURE.md",
+    "python -m pytest tests/test_execution_service.py -k live_canary -q"
   ],
   "customer_advocacy_policy": {
     "stance": "customer_side_advocate",
@@ -312,5 +340,28 @@
     "pm_action": "create productive disequilibrium: demand a safe deliverable, falsification artifact, framework patch, alternative-solution evidence, or explicit stop/pivot decision while preserving live-trading proof gates",
     "escalation": "one no-delta repeat -> ORANGE_framework_capture_risk; weeks/months/unknown proof path -> ORANGE_alternative_solution_required; three no-delta repeats -> RED_delivery_deadlock unless a verified alternative artifact exists",
     "forbidden_shortcut": "lowering live-trading thresholds, bypassing fail-closed gates, or pretending a paper/shadow lane is live deployability"
+  },
+  "forced_execution_pivot_guard": {
+    "risk_name": "pm_convergence_to_observation_only_status",
+    "trigger": "same semantic signature, same blocker, support delta=0, stagnant_run_count rising, or customer calls out repeated equilibrium",
+    "required_lanes": [
+      "Venue lifecycle proof",
+      "Model shadow to decision",
+      "Strategy micro-canary readiness",
+      "Map-Signal redesign",
+      "hard no-go single failed gate"
+    ],
+    "bounded_live_canary_boundary": {
+      "live_buy_add_requires": [
+        "execution.mode=live",
+        "enable_live_trading=true",
+        "execution.live_canary.enabled=true",
+        "explicit allowed_symbols",
+        "symbol-specific max_base_qty_by_symbol",
+        "adapter-pre cap enforcement"
+      ],
+      "forbidden_shortcut": "bypassing fail-closed gates, support/breaker/current-live blockers, or venue lifecycle proof to create artificial progress"
+    },
+    "decision_clock": "Within 72h, either execute a verified bounded micro-canary under the explicit policy or name the single failed gate and next artifact; observation-only heartbeat is forbidden."
   }
 }

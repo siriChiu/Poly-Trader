@@ -43,6 +43,7 @@ Default PM stance:
 - **time-to-evidence must be explicit.** If a blocker path cannot plausibly improve within the next one to three heartbeats, or if validation would take weeks/months, PM must trigger an `alternative-solution` review immediately instead of letting the customer wait through the engineering queue.
 - **Customer-value delta beats narrative consistency.** Every run must state what value moved for the customer; repeated “wait” wording without artifact movement is a PM failure signal, not a stable status.
 - **Anti-equilibrium pressure is mandatory.** Each run must include a hypothesis inversion, an `anti-repeat` check, and a red-team PM challenge so the PM does not converge toward engineering consensus by default.
+- **Forced-execution pivot is mandatory when no-delta repeats.** If the same semantic signature/support blocker repeats with no customer-value delta, PM must force one lane: Venue lifecycle proof, Model shadow to decision, Strategy micro-canary readiness, Map-Signal redesign, or hard no-go single failed gate; observation-only PM output is incomplete.
 - **Frameworks, docs, and custom skills are maps, not cages.** If the existing Poly-Trader skill/doc framework keeps reproducing “wait”, PM must mark `framework-capture` risk and patch/simplify the framework instead of obeying it blindly.
 - **Claims are judged by artifacts, tests, UI/API payloads, and verified current-state docs** — not by tone, seniority, repeated heartbeat wording, or the mere presence of a process rule.
 
@@ -182,7 +183,21 @@ Required anti-equilibrium checks:
 
 If the run cannot name a customer-value delta and also repeats the same blocker story, classify it at least as `ORANGE_framework_capture_risk`. If the same condition persists for three runs, escalate to `RED_delivery_deadlock` unless a verified alternative-solution artifact exists.
 
-### 4.6 PM action contract
+### 4.6 Forced-execution pivot / bounded live-canary governor
+
+When support `delta_vs_previous=0`, `stagnant_run_count` rises, or the customer says the project is repeating, PM must classify the run as `forced-execution` instead of accepting another status refresh.
+
+Allowed forced lanes:
+
+1. **Venue lifecycle proof** — credential-present boolean, order preview, ack/cancel/fill/reconciliation proof; secrets remain `[REDACTED]`.
+2. **Model shadow to decision** — Top-K / Strategy Lab candidate becomes 24h paper/shadow outcome evidence with `deployable=false` until gates pass.
+3. **Strategy micro-canary readiness** — document the exact tiny-canary policy and rejection path, not a live order unless every gate passes.
+4. **Map-Signal redesign** — change bucket/support identity or signal map and regenerate the proof artifact.
+5. **Hard no-go single failed gate** — name the one gate preventing execution and the next artifact that can clear/falsify it.
+
+bounded live-canary is the only acceptable live buy/add pilot path: `execution.mode=live`, `enable_live_trading=true`, `execution.live_canary.enabled=true`, explicit `allowed_symbols`, symbol-specific `max_base_qty_by_symbol`, and adapter-pre cap enforcement. If any part is absent, PM must report `live_canary_policy_required` / hard no-go, not approve live exposure. Within **72h**, PM expects either a verified bounded micro-canary under this policy or a single failed gate with evidence; “continue observing” is not an acceptable fallback.
+
+### 4.7 PM action contract
 
 A PM heartbeat is not complete unless it leaves one of:
 
@@ -196,7 +211,7 @@ A PM heartbeat is not complete unless it leaves one of:
 
 Do not update `docs/pm/pm-status.md` for timestamp-only churn. Update it only when the product state, blocker interpretation, delivery ask, or PM risk classification changes.
 
-### 4.7 Verification and git hygiene
+### 4.8 Verification and git hygiene
 
 - Verify PM contract changes with checker/tests.
 - Stage only PM docs/checker/test/map updates created by the PM heartbeat.

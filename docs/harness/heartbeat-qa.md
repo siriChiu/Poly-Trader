@@ -165,7 +165,24 @@ curl -fsS http://127.0.0.1:8000/api/execution/overview | python scripts/hb_compa
 
 ---
 
-## Phase 8 — User report
+## Phase 8 — Anti-equilibrium execution
+
+### HQ9_anti_equilibrium_execution
+**問：這輪是否真的打破平衡，還是只是把同一 blocker 包裝成新敘事？**
+
+**答題規則：**
+- 若 same semantic signature、support `delta_vs_previous=0`、`stagnant_run_count` 上升、或使用者指出反覆 / 趨近平衡，本輪不得輸出 observation-only status refresh。
+- 必須選一個強制分支：Map/Signal redesign、customer-safe shadow proof、venue lifecycle proof、bounded live-canary prep、或 hard no-go with single failed gate。
+- 若提到 live buy/add，必須同時證明 bounded live-canary policy 已存在：`execution.live_canary.enabled=true`、`allowed_symbols`、symbol `max_base_qty_by_symbol`，且 cap enforcement 在 adapter 前。
+- 若仍不能執行 micro-canary，必須寫出唯一 hard gate（例如 breaker / support / venue / policy）與下一個驗證 artifact；不得說「繼續觀察」作為 fallback。
+
+**證據：** `support_progress`、`data/live_canary_structural_pivot.json`、`docs/plans/*live-canary*`、`tests/test_execution_service.py -k live_canary`、`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` diff。
+
+**若失敗：** heartbeat incomplete；先修 harness/checker 或產出 hard no-go，不做 final status report。
+
+---
+
+## Phase 9 — User report
 
 ### HQ8_user_report
 **問：最後回報是否讓使用者 30 秒內知道系統前進在哪？**
@@ -196,6 +213,9 @@ A: <files + why minimal>
 
 Q: 驗證？
 A: <commands + pass/fail>
+
+Q: 是否避免又趨向穩定？
+A: <anti-repeat trigger + forced branch + artifact/hard no-go>
 
 Q: 下一輪 gate？
 A: <success condition + fallback>

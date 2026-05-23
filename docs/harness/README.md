@@ -13,6 +13,7 @@
 3. **可機械驗證**：關鍵規則不只寫在 Markdown，也由 script / pytest 檢查。
 4. **可觀測**：runtime truth、artifacts、UI/API surfaces 都要能被代理直接讀取。
 5. **可演進**：當同一 blocker 反覆出現時，修 harness 能力，而不是只換一段 prompt。
+6. **反平衡**：同一 semantic signature / support delta=0 重複時，heartbeat 必須切到 structural pivot、shadow proof、venue proof、bounded live-canary hard gate 或 hard no-go。
 
 ---
 
@@ -60,7 +61,8 @@
 5. **最小 patch 是什麼？** → 小步、可測、可回滾，真實交易 fail-closed。
 6. **我如何證明它有效？** → script / pytest / build / browser / artifact freshness。
 7. **current-state docs 是否覆寫同步？** → 不 append 歷史流水帳。
-8. **下一輪 gate 是什麼？** → 成功條件與 fallback 必須 machine-readable。
+8. **是否又趨向穩定？** → 若是，強制選 anti-equilibrium branch，不允許 observation-only。
+9. **下一輪 gate 是什麼？** → 成功條件與 fallback 必須 machine-readable。
 
 ---
 
@@ -81,5 +83,6 @@ python -m pytest tests/test_heartbeat_harness_contract.py -q
 1. 新增 heartbeat 能力時，同步更新 `heartbeat-harness-contract.json` 與 `heartbeat-qa.md`。
 2. 不把 per-run summary 追加進 `HEARTBEAT.md` 或 `docs/harness/*`；歷史交給 git history / ignored artifacts。
 3. 若代理連續兩輪只能回報同一問題，下一輪必須問：**缺少哪個 harness 能力讓我無法前進？**
-4. 若 UI/API/runtime truth 不能被腳本或 browser QA 讀到，就不是完整 harness。
-5. 若文件與 machine artifact 衝突，修同步來源；不要在 Markdown 手補相反敘事。
+4. 若 `support_progress.delta_vs_previous=0` 且 same semantic signature 重複，下一輪必須執行 `HQ9_anti_equilibrium_execution`，並更新 current-state docs 的 forced branch。
+5. 若 UI/API/runtime truth 不能被腳本或 browser QA 讀到，就不是完整 harness。
+6. 若文件與 machine artifact 衝突，修同步來源；不要在 Markdown 手補相反敘事。

@@ -18,6 +18,7 @@ REQUIRED_GATE_IDS = [
     "HQ5_verification_loop",
     "HQ6_docs_sync",
     "HQ7_failure_escalation",
+    "HQ9_anti_equilibrium_execution",
     "HQ8_user_report",
 ]
 
@@ -48,6 +49,13 @@ def test_heartbeat_harness_contract_is_machine_readable() -> None:
     hq1 = next(gate for gate in payload["question_gates"] if gate["id"] == "HQ1_goal_and_boundary")
     assert "previous PM heartbeat handoff" in hq0["required_evidence"]
     assert "previous PM heartbeat decision" in hq1["required_evidence"]
+    hq9 = next(gate for gate in payload["question_gates"] if gate["id"] == "HQ9_anti_equilibrium_execution")
+    assert "support_progress.delta_vs_previous" in hq9["required_evidence"]
+    assert any("bounded live-canary" in item for item in hq9["required_evidence"])
+    signals = {signal["name"] for signal in payload["agent_readable_signals"]}
+    assert "anti_equilibrium_execution_truth" in signals
+    invariant_ids = {item["id"] for item in payload["mechanical_invariants"]}
+    assert "anti_equilibrium_execution_guard" in invariant_ids
 
     qa_text = QA_PATH.read_text(encoding="utf-8")
     for gate_id in REQUIRED_GATE_IDS:

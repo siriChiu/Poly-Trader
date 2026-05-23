@@ -7,7 +7,7 @@
 ## Usage
 
 - Run `python scripts/pm_heartbeat_check.py --format text` at the start of PM heartbeat work.
-- The final customer report can be short, but the run must internally answer PMHQ0-PMHQ10.
+- The final customer report can be short, but the run must internally answer PMHQ0-PMHQ11.
 - If any answer lacks evidence, the PM action should be to request/produce evidence, not to invent certainty.
 - If the process itself blocks customer progress, mark `framework-capture` risk and propose a smaller safe deliverable or framework patch.
 
@@ -208,7 +208,24 @@ Every PM run must leave a concrete action contract:
 
 ---
 
-## Phase 10 — Customer report
+## Phase 10 — Forced-execution pivot
+
+### PMHQ11_forced_execution_pivot
+**Question:** If the same support/blocker signature repeats, what forced execution lane moves within 72h without weakening live safety?
+
+**Answer rules:**
+- Trigger this gate when same semantic signature, same current-live blocker, support `delta_vs_previous=0`, rising `stagnant_run_count`, or customer complaint about equilibrium/repetition appears.
+- Choose exactly one forced-execution lane: **Venue lifecycle proof**, **Model shadow to decision**, **Strategy micro-canary readiness**, **Map-Signal redesign**, or **hard no-go single failed gate**.
+- If any live buy/add pilot is mentioned, require bounded live-canary policy evidence: `execution.mode=live`, `enable_live_trading=true`, `execution.live_canary.enabled=true`, explicit `allowed_symbols`, symbol `max_base_qty_by_symbol`, and adapter-pre cap enforcement.
+- Within **72h**, require either a verified bounded micro-canary under policy or the one failed gate plus next artifact. Do not accept “continue observing” as fallback.
+
+**Evidence:** `docs/plans/2026-05-23-live-canary-structural-pivot.md`, `data/live_canary_structural_pivot.json`, `execution/execution_service.py`, `tests/test_execution_service.py -k live_canary`, current `support_progress`, PM status forced-execution section.
+
+**If fail:** classify as `RED_forced_execution_required` or `RED_delivery_deadlock`; PM report is incomplete until a lane/hard gate is named.
+
+---
+
+## Phase 11 — Customer report
 
 ### PMHQ8_customer_report
 **Question:** Can the customer understand the state in 30 seconds?
@@ -250,6 +267,9 @@ A: <next-hour/same-day/within-week/weeks-months/unknown + alternative-solution t
 
 Q: 本輪是否避免趨向平衡？
 A: <customer-value delta + anti-repeat + cost-of-delay + hypothesis inversion + option portfolio + red-team PM>
+
+Q: forced-execution lane 是什麼？
+A: <Venue lifecycle proof / Model shadow to decision / Strategy micro-canary readiness / Map-Signal redesign / hard no-go + 72h decision>
 
 Q: 若又卡住怎麼辦？
 A: <deadlock escape>
