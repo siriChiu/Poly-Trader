@@ -192,6 +192,56 @@ def _support_context(live_probe: Mapping[str, Any], support_fill: Mapping[str, A
     }
 
 
+def _breaker_context(live_probe: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize circuit-breaker release math as a first-class live gate.
+
+    Support, model, and venue gates are necessary, but PM/engineering handoff
+    treats an active circuit breaker as the immediate live-exposure blocker.
+    Preserve explicit zeros and booleans from the probe; when no breaker release
+    context is present, default to ready so legacy all-gates fixtures do not get
+    blocked by absent data.
+    """
+
+    details = live_probe.get("deployment_blocker_details") if isinstance(live_probe.get("deployment_blocker_details"), dict) else {}
+    release = details.get("release_condition") if isinstance(details.get("release_condition"), dict) else {}
+    if not release and isinstance(live_probe.get("release_condition"), dict):
+        release = live_probe.get("release_condition") or {}
+
+    deployment_blocker = live_probe.get("deployment_blocker")
+    runtime_closure_state = live_probe.get("runtime_closure_state")
+    blocker_active = deployment_blocker == "circuit_breaker_active" or runtime_closure_state == "circuit_breaker_active"
+
+    explicit_release_ready = release.get("release_ready") if "release_ready" in release else None
+    additional_wins_needed = _first_present(release.get("additional_recent_window_wins_needed"), default=None)
+    current_wins = _first_present(release.get("current_recent_window_wins"), default=None)
+    required_wins = _first_present(release.get("required_recent_window_wins"), default=None)
+    if explicit_release_ready is None and current_wins is not None and required_wins is not None:
+        explicit_release_ready = _to_int(current_wins) >= _to_int(required_wins)
+    if explicit_release_ready is None and additional_wins_needed is not None:
+        explicit_release_ready = _to_int(additional_wins_needed) == 0
+
+    release_ready = bool(explicit_release_ready) if explicit_release_ready is not None else not blocker_active
+    if blocker_active:
+        release_ready = bool(explicit_release_ready) if explicit_release_ready is not None else False
+
+    return {
+        "deployment_blocker": deployment_blocker,
+        "runtime_closure_state": runtime_closure_state,
+        "release_ready": release_ready,
+        "recent_window": _to_int(_first_present(release.get("recent_window"), 50), default=50),
+        "current_recent_window_wins": None if current_wins is None else _to_int(current_wins),
+        "required_recent_window_wins": None if required_wins is None else _to_int(required_wins),
+        "additional_recent_window_wins_needed": None
+        if additional_wins_needed is None
+        else _to_int(additional_wins_needed),
+        "operator_summary": (
+            "熔斷 gate 已解除；仍需 exact support、Top-K 與 venue runtime proof 全部通過。"
+            if release_ready
+            else "熔斷 gate 尚未解除；最近窗勝場未達門檻前，live buy/add/order submission 必須 fail-closed。"
+        ),
+    }
+
+
 def _topk_context(topk: Mapping[str, Any]) -> dict[str, Any]:
     risk_qualified = _to_int(_first_present(topk.get("risk_qualified_rows"), topk.get("risk_qualified_count")))
     runtime_blocked = _to_int(
@@ -424,17 +474,29 @@ def build_customer_safe_alternative_proof(
     recent_drift = dict(recent_drift_report or {})
 
     support = _support_context(live_probe, support_fill, topk)
+    breaker = _breaker_context(live_probe)
     topk_ctx = _topk_context(topk)
     venue = _venue_context(execution_smoke)
     recent = _recent_context(recent_drift)
     verdict = support_fill.get("verdict") if isinstance(support_fill.get("verdict"), dict) else {}
 
+    breaker_ready = bool(breaker["release_ready"])
     support_ready = bool(support["support_route_deployable"] and support["current_rows"] >= support["minimum_support_rows"] and support["gap_to_minimum"] == 0)
     topk_deployable = topk_ctx["deployable_rows"] > 0
     venue_ready = bool(venue["runtime_ready"])
-    live_exposure_allowed = bool(support_ready and topk_deployable and venue_ready)
+    live_exposure_allowed = bool(breaker_ready and support_ready and topk_deployable and venue_ready)
     order_submission_enabled = live_exposure_allowed
     canary_ready = live_exposure_allowed
+    blocking_gates: list[str] = []
+    if not breaker_ready:
+        blocking_gates.append("circuit_breaker_gate")
+    if not support_ready:
+        blocking_gates.append("current_live_support_gate")
+    if not topk_deployable:
+        blocking_gates.append("model_gate")
+    if not venue_ready:
+        blocking_gates.append("venue_gate")
+    primary_blocking_gate = blocking_gates[0] if blocking_gates else "none"
 
     customer_safe_lanes = [
         {
@@ -503,9 +565,9 @@ def build_customer_safe_alternative_proof(
     )
     next_gate = (
         "current exact support 已達標；Top-K deployable_rows>0、venue runtime lifecycle proof complete，"
-        "並通過最小 canary review 後，才可考慮 live exposure。"
+        "且 circuit_breaker release_ready=true 後，才可考慮 live exposure。"
         if support_ready
-        else f"current exact support rows {support['current_rows']}/{support['minimum_support_rows']} 必須補齊；"
+        else f"circuit_breaker release_ready={breaker_ready}，current exact support rows {support['current_rows']}/{support['minimum_support_rows']} 必須補齊；"
         "同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。"
     )
 
@@ -535,11 +597,14 @@ def build_customer_safe_alternative_proof(
             "support_ready": support_ready,
             "topk_deployable": topk_deployable,
             "venue_runtime_ready": venue_ready,
-            "blocking_gate": "none" if canary_ready else (
-                "current_live_support_gate" if not support_ready else "model_gate" if not topk_deployable else "venue_gate"
-            ),
+            "circuit_breaker_ready": breaker_ready,
+            "breaker_release_ready": breaker_ready,
+            "blocking_gate": primary_blocking_gate,
+            "primary_blocking_gate": primary_blocking_gate,
+            "blocking_gates": blocking_gates,
             "operator_summary": "可進 canary" if canary_ready else "目前只允許 customer-safe paper/shadow 與 reduce-only；買入 / 加倉 / 自動下單維持 fail-closed。",
         },
+        "circuit_breaker_gate": breaker,
         "current_live_support": support,
         "topk_shadow_candidate_context": topk_ctx,
         "venue_runtime_proof": venue,
@@ -561,6 +626,7 @@ def build_customer_safe_alternative_proof(
         "next_gate": next_gate,
         "fail_closed_invariants": {
             "support_reference_only_until_exact_rows_meet_minimum": not support_ready,
+            "circuit_breaker_blocks_live_until_release_condition_met": not breaker_ready,
             "paper_shadow_is_not_live_deployability": True,
             "credential_values_redacted": True,
             "reduce_risk_paths_remain_allowed": True,
@@ -614,6 +680,7 @@ def _nearest_candidate_markdown(nearest: Mapping[str, Any]) -> str:
 def markdown(payload: Mapping[str, Any]) -> str:
     support = payload.get("current_live_support") if isinstance(payload.get("current_live_support"), dict) else {}
     gate = payload.get("live_deployment_gate") if isinstance(payload.get("live_deployment_gate"), dict) else {}
+    breaker = payload.get("circuit_breaker_gate") if isinstance(payload.get("circuit_breaker_gate"), dict) else {}
     topk = payload.get("topk_shadow_candidate_context") if isinstance(payload.get("topk_shadow_candidate_context"), dict) else {}
     venue = payload.get("venue_runtime_proof") if isinstance(payload.get("venue_runtime_proof"), dict) else {}
 
@@ -625,6 +692,8 @@ def markdown(payload: Mapping[str, Any]) -> str:
         f"- current_live_structure_bucket: `{support.get('structure_bucket')}`",
         f"- exact support: `{support.get('current_rows')}/{support.get('minimum_support_rows')}` (gap `{support.get('gap_to_minimum')}`)",
         f"- support_route_verdict: `{support.get('support_route_verdict')}`",
+        f"- circuit_breaker_release_ready: `{breaker.get('release_ready')}` (wins `{breaker.get('current_recent_window_wins')}/{breaker.get('required_recent_window_wins')}`, gap `{breaker.get('additional_recent_window_wins_needed')}`)",
+        f"- primary_blocking_gate: `{gate.get('primary_blocking_gate') or gate.get('blocking_gate')}`",
         f"- canary_ready: **{gate.get('canary_ready')}**",
         f"- live_exposure_allowed: **{gate.get('live_exposure_allowed')}**",
         f"- order_submission_enabled: **{gate.get('order_submission_enabled')}**",
@@ -709,6 +778,7 @@ def main(argv: list[str] | None = None) -> int:
         f"support={support['current_rows']}/{support['minimum_support_rows']} "
         f"gap={support['gap_to_minimum']} "
         f"blocking_gate={gate['blocking_gate']} "
+        f"breaker_release_ready={gate.get('breaker_release_ready')} "
         f"json={args.json_out} md={args.markdown_out}"
     )
     return 0

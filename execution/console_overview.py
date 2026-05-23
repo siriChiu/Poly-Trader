@@ -563,9 +563,19 @@ def build_execution_readiness_bundle(
             "next_action": "今天可啟動影子觀察、dry-run preview、ack / cancel simulation 與減風險演練。",
         },
     ]
-    blocking_gate = next((gate for gate in gates if not gate.get("passed") and gate["key"] != "model_gate"), None)
-    if blocking_gate is None and not model_gate_passed:
-        blocking_gate = gates[0]
+    gate_by_key = {gate["key"]: gate for gate in gates}
+    blocking_gate = None
+    for gate_key in (
+        "circuit_breaker_gate",
+        "current_live_support_gate",
+        "venue_gate",
+        "model_gate",
+        "shadow_observation_gate",
+    ):
+        gate = gate_by_key.get(gate_key)
+        if gate is not None and not gate.get("passed"):
+            blocking_gate = gate
+            break
 
     what_can_do_now = [
         "啟動影子觀察並寫入 Shadow Trade Ledger",
@@ -669,9 +679,9 @@ def build_execution_readiness_bundle(
     }
 
     distance_to_canary = [
+        f"熔斷 gate：{release_summary}",
         f"即時支持 gate：{support_summary}",
         f"time-to-evidence：{time_to_evidence_summary}",
-        f"熔斷 gate：{release_summary}",
         "場館 gate：credential present、order preview、ack simulation、cancel simulation、reconciliation check 都必須 runtime-backed。",
     ]
     canary_gap_answers = {

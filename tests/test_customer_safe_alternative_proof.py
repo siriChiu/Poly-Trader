@@ -146,6 +146,58 @@ def test_customer_safe_proof_preserves_fail_closed_live_gate_with_shadow_candida
     assert payload["pm_handoff_carried_forward"]["selected_customer_safe_lane"] == "paper_shadow_decision_support_sleeve"
 
 
+def test_customer_safe_proof_prioritizes_active_circuit_breaker_before_support_model_venue():
+    payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "deployment_blocker": "circuit_breaker_active",
+            "runtime_closure_state": "circuit_breaker_active",
+            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q15",
+            "current_live_structure_bucket_rows": 50,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_governance_route": "exact_live_bucket_supported",
+            "deployment_blocker_details": {
+                "support_route_deployable": True,
+                "release_condition": {
+                    "recent_window": 50,
+                    "current_recent_window_wins": 4,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 11,
+                    "release_ready": False,
+                },
+            },
+        },
+        q15_support_fill_feasibility={"verdict": {"current_exact_bucket_rows": 50, "minimum_support_rows": 50, "gap_to_minimum": 0}},
+        high_conviction_topk_oos_matrix={"deployable_rows": 1, "risk_qualified_rows": 2, "runtime_blocked_candidate_rows": 0},
+        execution_metadata_smoke={
+            "runtime_ready": True,
+            "readiness_state": "ready",
+            "venues": [{"venue": "okx", "runtime_ready": True, "credentials_configured": True, "proof_state": "runtime_backed_proof_complete"}],
+        },
+        recent_drift_report={},
+        generated_at="2026-05-20T14:00:00Z",
+    )
+
+    gate = payload["live_deployment_gate"]
+    assert gate["support_ready"] is True
+    assert gate["topk_deployable"] is True
+    assert gate["venue_runtime_ready"] is True
+    assert gate["circuit_breaker_ready"] is False
+    assert gate["live_exposure_allowed"] is False
+    assert gate["order_submission_enabled"] is False
+    assert gate["primary_blocking_gate"] == "circuit_breaker_gate"
+    assert gate["blocking_gates"] == ["circuit_breaker_gate"]
+    breaker = payload["circuit_breaker_gate"]
+    assert breaker["current_recent_window_wins"] == 4
+    assert breaker["required_recent_window_wins"] == 15
+    assert breaker["additional_recent_window_wins_needed"] == 11
+    assert payload["fail_closed_invariants"]["circuit_breaker_blocks_live_until_release_condition_met"] is True
+    md = proof.markdown(payload)
+    assert "primary_blocking_gate: `circuit_breaker_gate`" in md
+    assert "circuit_breaker_release_ready: `False`" in md
+
+
 def test_customer_safe_proof_reads_nested_recent_shadow_falsification_without_deploying():
     payload = proof.build_customer_safe_alternative_proof(
         live_predict_probe={

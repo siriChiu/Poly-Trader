@@ -260,7 +260,7 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
     assert readiness["status"] == "shadow_reduce_only"
     assert readiness["canary_ready"] is False
     assert readiness["risk_on_order_enabled"] is False
-    assert readiness["blocking_gate_key"] == "current_live_support_gate"
+    assert readiness["blocking_gate_key"] == "circuit_breaker_gate"
     assert gates["model_gate"]["status"] == "shadow_ready"
     assert gates["current_live_support_gate"]["current"] == 2
     assert gates["current_live_support_gate"]["required"] == 50
@@ -304,7 +304,7 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
 
     answers = payload["canary_gap_answers"]
     assert answers["canary_ready"] is False
-    assert answers["blocking_gate"] == "即時支持 gate"
+    assert answers["blocking_gate"] == "熔斷 gate"
     assert any("還差 48" in item for item in answers["distance_to_canary"])
     assert any("還差 7" in item for item in answers["distance_to_canary"])
     assert any("time-to-evidence" in item for item in answers["distance_to_canary"])
