@@ -1,8 +1,8 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-23T08:21:59.235894+00:00`
-- source live probe generated_at: `2026-05-23T08:21:43.171880Z`
-- source q15 audit generated_at: `2026-05-23 08:21:28.371549`
+- generated_at: `2026-05-23T09:40:57.689019+00:00`
+- source live probe generated_at: `2026-05-23T09:40:39.474196Z`
+- source q15 audit generated_at: `2026-05-23 09:40:24.602822`
 - classification: **no_exact_bucket_history**
 - reason: no exact-bucket rows were found under current bucket semantics; this is a support-harvest/design gap, not a backtest-results gap.
 - current exact bucket rows (deployable support candidate): **0/50**
@@ -20,17 +20,17 @@ This section is the current support identity captured by the source artifacts ab
 - current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
 - regime_label: `bear`
 - regime_gate: `BLOCK`
-- entry_quality_label: `C`
+- entry_quality_label: `B`
 - calibration_window: `200`
 - bucket_semantic_signature: `live_structure_bucket:q15_support_identity:v2`
 
 ## Data coverage
 
-- joined labeled rows: **24724**
+- joined labeled rows: **24728**
 - current calibration window filled: **True**
-- features_normalized: count=25144, range=`2024-04-14 07:00:00.000000` → `2026-05-23 08:21:28.371549`
-- labels: count=67827, range=`2024-04-14 07:00:00.000000` → `2026-05-23 05:13:05.401571`
-- raw_market_data: count=34164, range=`2024-04-13 22:00:00.000000` → `2026-05-23 08:21:28.371549`
+- features_normalized: count=25150, range=`2024-04-14 07:00:00.000000` → `2026-05-23 09:40:24.602822`
+- labels: count=67835, range=`2024-04-14 07:00:00.000000` → `2026-05-23 06:29:44.463515`
+- raw_market_data: count=34171, range=`2024-04-13 22:00:00.000000` → `2026-05-23 09:40:24.602822`
 
 ## PM delivery pressure
 
@@ -53,16 +53,16 @@ This section is the current support identity captured by the source artifacts ab
 | --- | ---: | ---: | --- | --- | --- | --- |
 | 100 | 0 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
 | 200 | 0 | 0 | current_support_identity | False | None | win=None, pnl=None, quality=None |
-| 600 | 58 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
-| 1000 | 68 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
-| 5000 | 90 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
-| all | 241 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
+| 600 | 6 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
+| 1000 | 6 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
+| 5000 | 6 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
+| all | 10 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
 
 ## Recommended actions
 
 - **keep_deployment_fail_closed** (P0): 維持 deployable=false / allowed_layers=0；current support identity exact rows 0/50，未達門檻前 reference windows 不可直接算作 deployment support。
   - success: current support_identity exact rows >= minimum 且 live/execution gates 同步通過。
-- **collect_forward_exact_current_identity_rows** (P0): 繼續收集與 current calibration_window=200、regime=bear、gate=BLOCK、entry_label=C、bucket=BLOCK|bear_bias200_hard_block|q00 完全一致的真實 labeled rows。
+- **collect_forward_exact_current_identity_rows** (P0): 繼續收集與 current calibration_window=200、regime=bear、gate=BLOCK、entry_label=B、bucket=BLOCK|bear_bias200_hard_block|q00 完全一致的真實 labeled rows。
   - success: current_exact_bucket_rows >= 50
 - **semantic_rebaseline_if_using_older_windows** (P1): 若要採用 reference window=100 的 rows 或改變 calibration_window policy，必須先改 support_identity，重跑 OOS、Top-K、support audit、API/trade guardrail，而不是把舊 rows 直接補進 current identity。
   - success: 新 identity 全欄位一致且重新驗證後仍 rows>=minimum、risk metrics 合格。

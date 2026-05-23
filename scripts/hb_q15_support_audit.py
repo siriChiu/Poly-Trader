@@ -497,6 +497,14 @@ def _summarize_support_progress(
         ),
         None,
     )
+    semantic_rebaseline_reference = next(
+        (
+            item
+            for item in legacy_reference_history
+            if not _history_item_supported(item, minimum)
+        ),
+        None,
+    )
     recent_supported_rows = None if recent_supported is None else int(recent_supported.get("live_current_structure_bucket_rows") or 0)
     delta_vs_recent_supported = (
         None if recent_supported_rows is None else current_rows - recent_supported_rows
@@ -553,6 +561,22 @@ def _summarize_support_progress(
             f"{f'（heartbeat {legacy_heartbeat}）' if legacy_heartbeat else ''}，"
             f"{evidence_detail}只能當 legacy reference，不能宣稱為 same-identity regression。"
         )
+    elif semantic_rebaseline_reference is not None:
+        status = "semantic_rebaseline_under_minimum"
+        regression_basis = "legacy_or_different_semantic_signature"
+        rebaseline_rows = int(semantic_rebaseline_reference.get("live_current_structure_bucket_rows") or 0)
+        rebaseline_heartbeat = semantic_rebaseline_reference.get("heartbeat")
+        semantic_evidence = semantic_rebaseline_reference.get("semantic_identity_evidence") or {}
+        mismatched = semantic_evidence.get("mismatched_fields") or []
+        missing = semantic_evidence.get("missing_fields") or []
+        delta_vs_rebaseline = current_rows - rebaseline_rows
+        reason = (
+            f"{support_label} 目前是 {current_rows}/{minimum}，仍低於 minimum；"
+            f"最近同 bucket 但不同 support_identity 的 reference 是 {rebaseline_rows}/{minimum}"
+            f"{f'（heartbeat {rebaseline_heartbeat}）' if rebaseline_heartbeat else ''}，"
+            f"delta={delta_vs_rebaseline}，mismatched={mismatched}, missing={missing}。"
+            "這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。"
+        )
     elif previous is None:
         status = "no_recent_comparable_history"
         regression_basis = "no_same_identity_same_semantic_signature_history"
@@ -602,6 +626,23 @@ def _summarize_support_progress(
             ),
         }
 
+    semantic_rebaseline_reference_for_display = None
+    if semantic_rebaseline_reference is not None:
+        semantic_rebaseline_reference_for_display = {
+            "heartbeat": semantic_rebaseline_reference.get("heartbeat"),
+            "timestamp": semantic_rebaseline_reference.get("timestamp"),
+            "live_current_structure_bucket": semantic_rebaseline_reference.get("live_current_structure_bucket"),
+            "live_current_structure_bucket_rows": int(semantic_rebaseline_reference.get("live_current_structure_bucket_rows") or 0),
+            "minimum_support_rows": int(semantic_rebaseline_reference.get("minimum_support_rows") or 0),
+            "support_route_verdict": semantic_rebaseline_reference.get("support_route_verdict"),
+            "support_governance_route": semantic_rebaseline_reference.get("support_governance_route"),
+            "support_identity": semantic_rebaseline_reference.get("support_identity"),
+            "support_identity_backfilled": semantic_rebaseline_reference.get("support_identity_backfilled") is True,
+            "semantic_identity_evidence": semantic_rebaseline_reference.get("semantic_identity_evidence"),
+            "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields",
+            "delta_vs_current_rows": current_rows - int(semantic_rebaseline_reference.get("live_current_structure_bucket_rows") or 0),
+        }
+
     return {
         "status": status,
         "reason": reason,
@@ -621,6 +662,7 @@ def _summarize_support_progress(
         "recent_supported_timestamp": None if recent_supported is None else recent_supported.get("timestamp"),
         "delta_vs_recent_supported": delta_vs_recent_supported,
         "legacy_supported_reference": legacy_reference_for_display,
+        "semantic_rebaseline_reference": semantic_rebaseline_reference_for_display,
         "comparable_history_count": max(len(same_identity_history) - 1, 0),
         "legacy_reference_history_count": len(legacy_reference_history),
         "stagnant_run_count": stagnant_run_count,
@@ -749,6 +791,7 @@ def _active_repair_plan(
     gap_to_minimum = max(minimum_rows - current_rows, 0)
     status = str(support_progress.get("status") or "")
     legacy_ref = support_progress.get("legacy_supported_reference")
+    semantic_rebaseline_ref = support_progress.get("semantic_rebaseline_reference")
     stagnant_run_count = _as_int(support_progress.get("stagnant_run_count"), 0)
     support_ready = bool(support_route.get("deployable")) and current_rows >= minimum_rows
     current_bucket = current_live.get("current_live_structure_bucket")
@@ -777,9 +820,12 @@ def _active_repair_plan(
     elif support_ready:
         phase = "deployment_verify" if live_exposure_allowed else "support_ready_floor_or_execution_verify"
         primary_objective = "exact support 已達標；下一步驗證 floor / allowed_layers / execution guardrail，而不是再累積 support。"
-    elif status == "semantic_rebaseline_under_minimum" or legacy_ref:
+    elif status == "semantic_rebaseline_under_minimum" or legacy_ref or semantic_rebaseline_ref:
         phase = "semantic_evidence_backfill_or_exact_accumulation"
-        primary_objective = "把舊版 supported reference 轉成可審計語義證據；不能補齊 identity 前，就主動累積新版 exact rows。"
+        if semantic_rebaseline_ref and not legacy_ref:
+            primary_objective = "同 bucket 在 support_identity / entry-quality 語義重切後仍低於 minimum；保留 reference-only 比較並主動累積新版 exact rows，不能把歷史歸零成進度。"
+        else:
+            primary_objective = "把舊版 supported reference 轉成可審計語義證據；不能補齊 identity 前，就主動累積新版 exact rows。"
     elif stagnant_run_count >= 3 or status == "stalled_under_minimum":
         phase = "active_support_accumulation"
         primary_objective = "current q15 exact support 停滯；每輪都要刷新 audit 並收集新 exact rows，不能再只重用 under-minimum artifact。"
@@ -826,6 +872,22 @@ def _active_repair_plan(
                 "success_condition": "legacy artifact 的 target/horizon/bucket/regime/gate/entry_label/calibration_window/semantic signature 全部吻合 current support_identity，否則明確保留 reference-only。",
             }
         )
+    if isinstance(semantic_rebaseline_ref, dict):
+        semantic_evidence = semantic_rebaseline_ref.get("semantic_identity_evidence") or {}
+        actions.append(
+            {
+                "id": "semantic_rebaseline_reference_review",
+                "type": "evidence_boundary",
+                "priority": "P0",
+                "description": "同 bucket 但不同 support_identity 的 under-minimum reference 只能證明 support 歷史不能歸零；不可升級為 deployment support。",
+                "reference_heartbeat": semantic_rebaseline_ref.get("heartbeat"),
+                "reference_rows": semantic_rebaseline_ref.get("live_current_structure_bucket_rows"),
+                "delta_vs_current_rows": semantic_rebaseline_ref.get("delta_vs_current_rows"),
+                "mismatched_fields": semantic_evidence.get("mismatched_fields") or [],
+                "missing_fields": semantic_evidence.get("missing_fields") or [],
+                "success_condition": "docs/API/UI 顯示 semantic rebaseline reference-only，同時繼續收集 current support_identity exact rows。",
+            }
+        )
     if support_ready and not live_exposure_allowed:
         actions.append(
             {
@@ -855,6 +917,8 @@ def _active_repair_plan(
         "stagnant_run_count": stagnant_run_count,
         "legacy_reference_only": bool(legacy_ref),
         "legacy_semantic_evidence": legacy_ref.get("semantic_identity_evidence") if isinstance(legacy_ref, dict) else None,
+        "semantic_rebaseline_reference_only": bool(semantic_rebaseline_ref),
+        "semantic_rebaseline_reference": semantic_rebaseline_ref if isinstance(semantic_rebaseline_ref, dict) else None,
         "entropy_reduction_rules": [
             "引入外部能量：每輪刷新 current-live rows / venue proof / semantic evidence，而不是重用 under-minimum cache。",
             "建立系統與規則：support_identity 完全一致且 rows>=minimum 才能進入 deployment verify。",

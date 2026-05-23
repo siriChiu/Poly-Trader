@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-05-23T08:21:59.235894+00:00",
+  "generated_at": "2026-05-23T09:40:57.689019+00:00",
   "artifact": "q15_support_fill_feasibility",
   "source_artifacts": {
     "live_predict_probe_path": "data/live_predict_probe.json",
-    "live_predict_probe_generated_at": "2026-05-23T08:21:43.171880Z",
+    "live_predict_probe_generated_at": "2026-05-23T09:40:39.474196Z",
     "q15_support_audit_path": "data/q15_support_audit.json",
-    "q15_support_audit_generated_at": "2026-05-23 08:21:28.371549"
+    "q15_support_audit_generated_at": "2026-05-23 09:40:24.602822"
   },
   "support_identity": {
     "target_col": "simulated_pyramid_win",
@@ -13,28 +13,28 @@
     "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
     "regime_label": "bear",
     "regime_gate": "BLOCK",
-    "entry_quality_label": "C",
+    "entry_quality_label": "B",
     "calibration_window": 200,
     "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
   },
   "data_coverage": {
-    "joined_labeled_rows": 24724,
+    "joined_labeled_rows": 24728,
     "current_calibration_window_filled": true,
     "db_meta": {
       "features_normalized": {
-        "count": 25144,
+        "count": 25150,
         "min_ts": "2024-04-14 07:00:00.000000",
-        "max_ts": "2026-05-23 08:21:28.371549"
+        "max_ts": "2026-05-23 09:40:24.602822"
       },
       "labels": {
-        "count": 67827,
+        "count": 67835,
         "min_ts": "2024-04-14 07:00:00.000000",
-        "max_ts": "2026-05-23 05:13:05.401571"
+        "max_ts": "2026-05-23 06:29:44.463515"
       },
       "raw_market_data": {
-        "count": 34164,
+        "count": 34171,
         "min_ts": "2024-04-13 22:00:00.000000",
-        "max_ts": "2026-05-23 08:21:28.371549"
+        "max_ts": "2026-05-23 09:40:24.602822"
       }
     }
   },
@@ -144,7 +144,7 @@
     "600": {
       "calibration_window": 600,
       "scope_rows": 600,
-      "exact_identity_rows": 58,
+      "exact_identity_rows": 6,
       "exact_bucket_rows": 0,
       "same_regime_bucket_rows": 0,
       "any_scope_bucket_rows": 0,
@@ -166,7 +166,7 @@
         "avg_time_underwater": null
       },
       "exact_lane_bucket_counts": {
-        "BLOCK|structure_quality_block|q00": 58
+        "BLOCK|structure_quality_block|q00": 6
       },
       "latest_exact_bucket_timestamp": null,
       "oldest_exact_bucket_timestamp": null
@@ -174,7 +174,7 @@
     "1000": {
       "calibration_window": 1000,
       "scope_rows": 1000,
-      "exact_identity_rows": 68,
+      "exact_identity_rows": 6,
       "exact_bucket_rows": 0,
       "same_regime_bucket_rows": 0,
       "any_scope_bucket_rows": 0,
@@ -196,7 +196,7 @@
         "avg_time_underwater": null
       },
       "exact_lane_bucket_counts": {
-        "BLOCK|structure_quality_block|q00": 68
+        "BLOCK|structure_quality_block|q00": 6
       },
       "latest_exact_bucket_timestamp": null,
       "oldest_exact_bucket_timestamp": null
@@ -204,7 +204,7 @@
     "5000": {
       "calibration_window": 5000,
       "scope_rows": 5000,
-      "exact_identity_rows": 90,
+      "exact_identity_rows": 6,
       "exact_bucket_rows": 0,
       "same_regime_bucket_rows": 0,
       "any_scope_bucket_rows": 0,
@@ -226,15 +226,15 @@
         "avg_time_underwater": null
       },
       "exact_lane_bucket_counts": {
-        "BLOCK|structure_quality_block|q00": 90
+        "BLOCK|structure_quality_block|q00": 6
       },
       "latest_exact_bucket_timestamp": null,
       "oldest_exact_bucket_timestamp": null
     },
     "all": {
-      "calibration_window": 24724,
-      "scope_rows": 24724,
-      "exact_identity_rows": 241,
+      "calibration_window": 24728,
+      "scope_rows": 24728,
+      "exact_identity_rows": 10,
       "exact_bucket_rows": 0,
       "same_regime_bucket_rows": 363,
       "any_scope_bucket_rows": 363,
@@ -256,13 +256,8 @@
         "avg_time_underwater": null
       },
       "exact_lane_bucket_counts": {
-        "BLOCK|bear_bias200_hard_block|q15": 110,
-        "BLOCK|structure_quality_block|q00": 90,
-        "BLOCK|bear_bias200_hard_block|q35": 19,
-        "BLOCK|bias200_below_min|q15": 8,
-        "BLOCK|bias200_below_min|q35": 6,
-        "BLOCK|bias200_below_min|q65": 6,
-        "BLOCK|bias200_below_min|q00": 2
+        "BLOCK|structure_quality_block|q00": 6,
+        "BLOCK|bear_bias200_hard_block|q15": 4
       },
       "latest_exact_bucket_timestamp": null,
       "oldest_exact_bucket_timestamp": null
@@ -281,7 +276,7 @@
     {
       "id": "collect_forward_exact_current_identity_rows",
       "priority": "P0",
-      "description": "繼續收集與 current calibration_window=200、regime=bear、gate=BLOCK、entry_label=C、bucket=BLOCK|bear_bias200_hard_block|q00 完全一致的真實 labeled rows。",
+      "description": "繼續收集與 current calibration_window=200、regime=bear、gate=BLOCK、entry_label=B、bucket=BLOCK|bear_bias200_hard_block|q00 完全一致的真實 labeled rows。",
       "success_condition": "current_exact_bucket_rows >= 50",
       "current_rows": 0,
       "rows_needed": 50,

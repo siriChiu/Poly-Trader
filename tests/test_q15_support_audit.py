@@ -595,6 +595,91 @@ def test_summarize_support_progress_uses_current_live_copy_for_non_q15_bucket(tm
 
 
 
+def test_summarize_support_progress_keeps_same_bucket_under_minimum_reference_after_identity_shift(tmp_path):
+    previous_identity = _support_identity(
+        bucket="BLOCK|bear_bias200_hard_block|q00",
+        regime_label="bear",
+        regime_gate="BLOCK",
+        entry_quality_label="C",
+        calibration_window=200,
+    )
+    current_identity = _support_identity(
+        bucket="BLOCK|bear_bias200_hard_block|q00",
+        regime_label="bear",
+        regime_gate="BLOCK",
+        entry_quality_label="B",
+        calibration_window=200,
+    )
+    (tmp_path / "heartbeat_1457_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "1457",
+                "timestamp": "2026-05-23T08:22:05+00:00",
+                "q15_support_audit": {
+                    "current_live": {
+                        "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                        "current_live_structure_bucket_rows": 0,
+                        "regime_label": "bear",
+                        "regime_gate": "BLOCK",
+                        "entry_quality_label": "C",
+                        "decision_quality_calibration_window": 200,
+                    },
+                    "support_route": {
+                        "verdict": "insufficient_support_everywhere",
+                        "support_governance_route": "exact_live_lane_proxy_available",
+                        "minimum_support_rows": 50,
+                        "support_identity": previous_identity,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    progress = q15_support_audit._summarize_support_progress(
+        current_bucket="BLOCK|bear_bias200_hard_block|q00",
+        support_route_verdict="insufficient_support_everywhere",
+        support_governance_route="exact_live_lane_proxy_available",
+        live_bucket_rows=0,
+        minimum_support_rows=50,
+        current_label="1458",
+        support_identity=current_identity,
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "semantic_rebaseline_under_minimum"
+    assert progress["regression_basis"] == "legacy_or_different_semantic_signature"
+    assert progress["comparable_history_count"] == 0
+    assert progress["legacy_reference_history_count"] == 1
+    assert progress["semantic_rebaseline_reference"]["heartbeat"] == "1457"
+    assert progress["semantic_rebaseline_reference"]["live_current_structure_bucket_rows"] == 0
+    assert progress["semantic_rebaseline_reference"]["delta_vs_current_rows"] == 0
+    evidence = progress["semantic_rebaseline_reference"]["semantic_identity_evidence"]
+    assert evidence["supports_current_identity"] is False
+    assert evidence["mismatched_fields"] == ["entry_quality_label"]
+    assert progress["escalate_to_blocker"] is True
+    assert "不可把比較歷史歸零成進度" in progress["reason"]
+
+    repair = q15_support_audit._active_repair_plan(
+        current_live={
+            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "current_live_structure_bucket_rows": 0,
+            "allowed_layers": 0,
+            "signal": "HOLD",
+            "execution_guardrail_reason": "circuit_breaker_active",
+        },
+        support_route={"deployable": False, "minimum_support_rows": 50},
+        support_progress=progress,
+        floor_legality={},
+        component_experiment={},
+        scope_applicability={"active_for_current_live_row": True},
+    )
+    assert repair["phase"] == "semantic_evidence_backfill_or_exact_accumulation"
+    assert repair["semantic_rebaseline_reference_only"] is True
+    assert any(action["id"] == "semantic_rebaseline_reference_review" for action in repair["actions"])
+
+
+
 def test_summarize_support_progress_tracks_bucket_accumulation_across_route_change(tmp_path):
     identity = _support_identity()
     (tmp_path / "heartbeat_901_summary.json").write_text(
