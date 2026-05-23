@@ -37,7 +37,37 @@ def test_customer_safe_proof_preserves_fail_closed_live_gate_with_shadow_candida
         "runtime_blocked_candidate_rows": 6,
         "deployable_rows": 0,
         "nearest_deployable_rows": [
-            {"model": "logistic_regression", "top_k": "top_2pct", "win_rate": 0.86, "oos_roi": 0.93, "deployable_verdict": "not_deployable"}
+            {
+                "model": "logistic_regression",
+                "feature_profile": "current_full",
+                "regime": "all",
+                "top_k": "top_2pct",
+                "win_rate": 0.86,
+                "oos_roi": 0.93,
+                "profit_factor": 19.88,
+                "max_drawdown": 0.022,
+                "worst_fold": 0.2068,
+                "trade_count": 58,
+                "deployment_candidate_tier": "runtime_blocked_oos_pass",
+                "oos_gate_passed": True,
+                "blocked_only_by_live_guardrails": True,
+                "gate_failures": ["support_route_not_deployable", "deployment_blocker_active"],
+                "live_gate_failures": ["support_route_not_deployable"],
+                "support_route": "exact_bucket_unsupported_block",
+                "support_governance_route": "exact_live_lane_proxy_available",
+                "support_route_deployable": False,
+                "deployment_blocker": "circuit_breaker_active",
+                "runtime_closure_state": "circuit_breaker_active",
+                "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 50,
+                "release_ready": False,
+                "current_recent_window_wins": 0,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 15,
+                "deployable_verdict": "not_deployable",
+            }
         ],
     }
     execution_smoke = {
@@ -78,6 +108,19 @@ def test_customer_safe_proof_preserves_fail_closed_live_gate_with_shadow_candida
     assert support["minimum_support_rows"] == 50
     assert support["gap_to_minimum"] == 50
     assert support["support_route_deployable"] is False
+
+    nearest = payload["topk_shadow_candidate_context"]["nearest_candidate"]
+    assert nearest["model"] == "logistic_regression"
+    assert nearest["feature_profile"] == "current_full"
+    assert nearest["regime"] == "all"
+    assert nearest["profit_factor"] == 19.88
+    assert nearest["max_drawdown"] == 0.022
+    assert nearest["worst_fold"] == 0.2068
+    assert nearest["trade_count"] == 58
+    assert nearest["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+    assert nearest["gate_failures"] == ["support_route_not_deployable", "deployment_blocker_active"]
+    assert nearest["support_route_deployable"] is False
+    assert nearest["release_ready"] is False
 
     lanes = {lane["id"]: lane for lane in payload["customer_safe_lanes"]}
     assert lanes["paper_shadow_decision_support_sleeve"]["status"] == "available"
@@ -181,3 +224,7 @@ def test_customer_safe_markdown_names_handoff_and_forbidden_actions():
     assert "paper_shadow_decision_support_sleeve" in md
     assert "Alternative solution option portfolio" in md
     assert "selected_next_artifact" in md
+    assert "最近研究候選" in md
+    assert "最大回撤=—" in md
+    assert "runtime_blocked_oos_pass" not in md
+    assert "not_deployable" not in md

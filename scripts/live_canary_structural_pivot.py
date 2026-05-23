@@ -279,10 +279,17 @@ def _topk_context(topk: Mapping[str, Any], customer_safe: Mapping[str, Any]) -> 
     risk_qualified = _to_int(_first_present(customer_topk.get("risk_qualified_rows"), topk.get("risk_qualified_rows"), topk.get("risk_qualified_count")))
     runtime_blocked = _to_int(_first_present(customer_topk.get("runtime_blocked_candidate_rows"), topk.get("runtime_blocked_candidate_rows"), topk.get("runtime_blocked_candidate_count")))
     deployable = _to_int(_first_present(customer_topk.get("deployable_rows"), topk.get("deployable_rows"), topk.get("deployable_count")))
-    nearest = customer_topk.get("nearest_candidate") if isinstance(customer_topk.get("nearest_candidate"), dict) else {}
-    if not nearest:
-        nearest_rows = _as_list(topk.get("nearest_deployable_rows"))
-        nearest = nearest_rows[0] if nearest_rows and isinstance(nearest_rows[0], dict) else {}
+    nearest_rows = _as_list(topk.get("nearest_deployable_rows"))
+    raw_nearest = nearest_rows[0] if nearest_rows and isinstance(nearest_rows[0], dict) else {}
+    customer_nearest = customer_topk.get("nearest_candidate") if isinstance(customer_topk.get("nearest_candidate"), dict) else {}
+    nearest = dict(raw_nearest)
+    nearest.update(
+        {
+            key: value
+            for key, value in customer_nearest.items()
+            if value is not None and not (isinstance(value, str) and not value.strip())
+        }
+    )
     return {
         "risk_qualified_rows": risk_qualified,
         "runtime_blocked_candidate_rows": runtime_blocked,
@@ -291,10 +298,33 @@ def _topk_context(topk: Mapping[str, Any], customer_safe: Mapping[str, Any]) -> 
         "paper_shadow_available": bool(risk_qualified > 0 and runtime_blocked > 0 and deployable == 0),
         "nearest_candidate": {
             "model": _first_present(nearest.get("model"), nearest.get("model_name")),
+            "feature_profile": nearest.get("feature_profile"),
+            "regime": nearest.get("regime"),
             "top_k": _first_present(nearest.get("top_k"), nearest.get("threshold_name")),
             "win_rate": nearest.get("win_rate"),
             "oos_roi": nearest.get("oos_roi"),
+            "profit_factor": nearest.get("profit_factor"),
             "max_drawdown": nearest.get("max_drawdown"),
+            "worst_fold": nearest.get("worst_fold"),
+            "trade_count": nearest.get("trade_count"),
+            "deployment_candidate_tier": nearest.get("deployment_candidate_tier"),
+            "oos_gate_passed": nearest.get("oos_gate_passed"),
+            "blocked_only_by_live_guardrails": nearest.get("blocked_only_by_live_guardrails"),
+            "gate_failures": [str(item) for item in _as_list(nearest.get("gate_failures"))],
+            "live_gate_failures": [str(item) for item in _as_list(nearest.get("live_gate_failures"))],
+            "support_route": nearest.get("support_route"),
+            "support_governance_route": nearest.get("support_governance_route"),
+            "support_route_deployable": nearest.get("support_route_deployable"),
+            "deployment_blocker": nearest.get("deployment_blocker"),
+            "runtime_closure_state": nearest.get("runtime_closure_state"),
+            "current_live_structure_bucket": nearest.get("current_live_structure_bucket"),
+            "current_live_structure_bucket_rows": nearest.get("current_live_structure_bucket_rows"),
+            "minimum_support_rows": nearest.get("minimum_support_rows"),
+            "current_live_structure_bucket_gap_to_minimum": nearest.get("current_live_structure_bucket_gap_to_minimum"),
+            "release_ready": nearest.get("release_ready"),
+            "current_recent_window_wins": nearest.get("current_recent_window_wins"),
+            "required_recent_window_wins": nearest.get("required_recent_window_wins"),
+            "additional_recent_window_wins_needed": nearest.get("additional_recent_window_wins_needed"),
             "verdict": _first_present(nearest.get("verdict"), nearest.get("deployable_verdict")),
         },
     }

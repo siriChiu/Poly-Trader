@@ -1,6 +1,6 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-23T02:22:25.553944Z`
+- generated_at: `2026-05-23T03:28:02.361348Z`
 - current_live_blocker: `circuit_breaker_active`
 - current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
 - exact support: `0/50` (gap `50`)
@@ -16,6 +16,7 @@
 - Top-K risk-qualified rows: `6`
 - Runtime-blocked candidates: `6`
 - Deployable rows: `0`
+- 最近研究候選：`logistic_regression` / `top_2pct` / OOS ROI=0.9324 / 勝率=0.8621 / profit factor=19.8864 / 最大回撤=0.022 / 最差 fold=0.2068 / 交易數=58 / 候選層級=OOS 已過、即時 gate 阻塞（paper-shadow only） / 部署判定=不可部署 / 僅允許 paper-shadow，直到 live gates 全部通過
 - Venue runtime_ready: `False` / `blocked_until_runtime_lifecycle_proof`
 - Allowed today:
   - 啟動 paper-shadow 訊號帳本並追蹤 24h pyramid outcome

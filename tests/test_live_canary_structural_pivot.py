@@ -45,7 +45,18 @@ def _blocked_payload():
             "runtime_blocked_candidate_rows": 6,
             "deployable_rows": 0,
             "nearest_deployable_rows": [
-                {"model": "logistic_regression", "top_k": "top_2pct", "win_rate": 0.8621, "oos_roi": 0.9324, "deployable_verdict": "not_deployable"}
+                {
+                    "model": "logistic_regression",
+                    "top_k": "top_2pct",
+                    "win_rate": 0.8621,
+                    "oos_roi": 0.9324,
+                    "profit_factor": 19.8864,
+                    "max_drawdown": 0.022,
+                    "worst_fold": 0.2068,
+                    "trade_count": 58,
+                    "deployment_candidate_tier": "runtime_blocked_oos_pass",
+                    "deployable_verdict": "not_deployable",
+                }
             ],
         },
         execution_metadata_smoke={
@@ -91,6 +102,9 @@ def test_live_canary_pivot_refreshes_current_zero_truth_and_names_one_primary_ga
     assert truth["deployable_rows"] == 0
     assert truth["venue_runtime_ready"] is False
     assert truth["live_canary_policy_ready"] is False
+    assert truth["nearest_candidate"]["max_drawdown"] == 0.022
+    assert truth["nearest_candidate"]["profit_factor"] == 19.8864
+    assert truth["nearest_candidate"]["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
 
     gate = payload["micro_canary_gate"]
     assert gate["micro_canary_ready"] is False

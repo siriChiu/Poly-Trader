@@ -209,9 +209,33 @@ def _topk_context(topk: Mapping[str, Any]) -> dict[str, Any]:
         "paper_shadow_available": bool(risk_qualified > 0 and runtime_blocked > 0 and deployable == 0),
         "nearest_candidate": {
             "model": _first_present(nearest.get("model"), nearest.get("model_name")),
+            "feature_profile": nearest.get("feature_profile"),
+            "regime": nearest.get("regime"),
             "top_k": _first_present(nearest.get("top_k"), nearest.get("threshold_name")),
             "win_rate": nearest.get("win_rate"),
             "oos_roi": nearest.get("oos_roi"),
+            "profit_factor": nearest.get("profit_factor"),
+            "max_drawdown": nearest.get("max_drawdown"),
+            "worst_fold": nearest.get("worst_fold"),
+            "trade_count": nearest.get("trade_count"),
+            "deployment_candidate_tier": nearest.get("deployment_candidate_tier"),
+            "oos_gate_passed": nearest.get("oos_gate_passed"),
+            "blocked_only_by_live_guardrails": nearest.get("blocked_only_by_live_guardrails"),
+            "gate_failures": [str(item) for item in _as_list(nearest.get("gate_failures"))],
+            "live_gate_failures": [str(item) for item in _as_list(nearest.get("live_gate_failures"))],
+            "support_route": nearest.get("support_route"),
+            "support_governance_route": nearest.get("support_governance_route"),
+            "support_route_deployable": nearest.get("support_route_deployable"),
+            "deployment_blocker": nearest.get("deployment_blocker"),
+            "runtime_closure_state": nearest.get("runtime_closure_state"),
+            "current_live_structure_bucket": nearest.get("current_live_structure_bucket"),
+            "current_live_structure_bucket_rows": nearest.get("current_live_structure_bucket_rows"),
+            "minimum_support_rows": nearest.get("minimum_support_rows"),
+            "current_live_structure_bucket_gap_to_minimum": nearest.get("current_live_structure_bucket_gap_to_minimum"),
+            "release_ready": nearest.get("release_ready"),
+            "current_recent_window_wins": nearest.get("current_recent_window_wins"),
+            "required_recent_window_wins": nearest.get("required_recent_window_wins"),
+            "additional_recent_window_wins_needed": nearest.get("additional_recent_window_wins_needed"),
             "verdict": _first_present(nearest.get("deployable_verdict"), nearest.get("verdict")),
         },
     }
@@ -497,6 +521,49 @@ def build_customer_safe_alternative_proof(
     }
 
 
+def _format_optional_metric(label: str, value: Any) -> str:
+    return f"{label}=—" if value is None else f"{label}={value}"
+
+
+def _candidate_tier_label(value: Any) -> str:
+    labels = {
+        "runtime_blocked_oos_pass": "OOS 已過、即時 gate 阻塞（paper-shadow only）",
+    }
+    return labels.get(str(value), "—" if value is None else str(value))
+
+
+def _candidate_verdict_label(value: Any) -> str:
+    labels = {
+        "not_deployable": "不可部署",
+        "deployable": "可部署",
+        "runtime_blocked": "即時 gate 阻塞",
+    }
+    return labels.get(str(value), "—" if value is None else str(value))
+
+
+def _nearest_candidate_markdown(nearest: Mapping[str, Any]) -> str:
+    if not nearest:
+        return "- 最近研究候選：`—`"
+    model = _first_present(nearest.get("model"), "—")
+    top_k = _first_present(nearest.get("top_k"), "—")
+    metrics = " / ".join(
+        [
+            _format_optional_metric("OOS ROI", nearest.get("oos_roi")),
+            _format_optional_metric("勝率", nearest.get("win_rate")),
+            _format_optional_metric("profit factor", nearest.get("profit_factor")),
+            _format_optional_metric("最大回撤", nearest.get("max_drawdown")),
+            _format_optional_metric("最差 fold", nearest.get("worst_fold")),
+            _format_optional_metric("交易數", nearest.get("trade_count")),
+        ]
+    )
+    return (
+        f"- 最近研究候選：`{model}` / `{top_k}` / {metrics} / "
+        f"候選層級={_candidate_tier_label(nearest.get('deployment_candidate_tier'))} / "
+        f"部署判定={_candidate_verdict_label(nearest.get('verdict'))} / "
+        "僅允許 paper-shadow，直到 live gates 全部通過"
+    )
+
+
 def markdown(payload: Mapping[str, Any]) -> str:
     support = payload.get("current_live_support") if isinstance(payload.get("current_live_support"), dict) else {}
     gate = payload.get("live_deployment_gate") if isinstance(payload.get("live_deployment_gate"), dict) else {}
@@ -522,6 +589,7 @@ def markdown(payload: Mapping[str, Any]) -> str:
         f"- Top-K risk-qualified rows: `{topk.get('risk_qualified_rows')}`",
         f"- Runtime-blocked candidates: `{topk.get('runtime_blocked_candidate_rows')}`",
         f"- Deployable rows: `{topk.get('deployable_rows')}`",
+        _nearest_candidate_markdown(topk.get("nearest_candidate") if isinstance(topk.get("nearest_candidate"), dict) else {}),
         f"- Venue runtime_ready: `{venue.get('runtime_ready')}` / `{venue.get('readiness_state')}`",
         "- Allowed today:",
     ]
