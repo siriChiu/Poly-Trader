@@ -230,3 +230,12 @@ def test_strategy_lab_prefers_same_origin_strategy_fetches_for_dev_runtime():
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+def test_strategy_lab_initializes_model_leaderboard_before_slow_strategy_leaderboard():
+    source = (Path(__file__).resolve().parents[1] / "web/src/pages/StrategyLab.tsx").read_text(encoding="utf-8")
+    model_first = 'await loadModelLeaderboard();\n        updateBackgroundStage({\n          mode: "initial",\n          label: "策略實驗室初始化中",\n          detail: "模型排行榜已同步；先顯示部署/阻塞真相，再同步較慢的策略回測排行榜。"'
+    strategy_after = "const list = await loadLeaderboard();"
+
+    assert model_first in source
+    assert source.index(model_first) < source.index(strategy_after)

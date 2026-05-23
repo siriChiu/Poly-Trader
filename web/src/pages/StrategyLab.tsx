@@ -2439,18 +2439,18 @@ export default function StrategyLab() {
     });
     (async () => {
       try {
-        const list = await loadLeaderboard();
-        updateBackgroundStage({
-          mode: "initial",
-          label: "策略實驗室初始化中",
-          detail: `策略排行榜已載入 ${list.length} 筆，正在同步模型排行榜。`,
-          progress: toStageProgress(1, STAGE_TOTALS.initial),
-        });
         await loadModelLeaderboard();
         updateBackgroundStage({
           mode: "initial",
           label: "策略實驗室初始化中",
-          detail: "模型排行榜已同步，正在載入模型統計、技術競爭力與資料區間。",
+          detail: "模型排行榜已同步；先顯示部署/阻塞真相，再同步較慢的策略回測排行榜。",
+          progress: toStageProgress(1, STAGE_TOTALS.initial),
+        });
+        const list = await loadLeaderboard();
+        updateBackgroundStage({
+          mode: "initial",
+          label: "策略實驗室初始化中",
+          detail: `策略排行榜已載入 ${list.length} 筆，正在載入模型統計、技術競爭力與資料區間。`,
           progress: toStageProgress(2, STAGE_TOTALS.initial),
         });
         const dataRange = await Promise.all([loadModelStats(), loadStrategyDataRange()]).then(([, range]) => range);
