@@ -853,7 +853,9 @@ def sync_current_state_governance_issues(
             else "熔斷解除條件未達"
         )
         breaker_action = (
-            "先把即時部署阻塞語義切回熔斷解除條件；在熔斷未解除前，不要把 q15/q35 support 或 floor-gap 當成本輪主阻塞。"
+            "先把熔斷解除條件視為當前 immediate hard gate；同時保留 current exact support rows/minimum/gap、"
+            "support_route、Top-K deployable=0 與 venue runtime proof 作為後續 live gates。"
+            "熔斷期間不得把 support/proxy/reference rows 或 venue checklist 包裝成 deploy-ready，也不得把它們從 live gate 清單移除。"
             f" {release_text}"
         )
         breaker_summary = {
@@ -890,7 +892,7 @@ def sync_current_state_governance_issues(
             tracker,
             "P0",
             CURRENT_LIVE_BLOCKER_ISSUE_ID,
-            "熔斷解除條件仍是唯一即時部署阻塞點",
+            "熔斷仍是當前 primary blocker；exact support / venue proof 仍未閉合",
             breaker_action,
             summary=breaker_summary,
         )

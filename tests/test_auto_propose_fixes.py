@@ -2287,6 +2287,91 @@ def test_sync_current_state_governance_issues_marks_toxic_under_minimum_as_secon
     assert issue["summary"]["toxic_primary_blocker"] is False
 
 
+def test_sync_current_state_governance_issues_breaker_copy_preserves_downstream_live_gates():
+    class DummyTracker:
+        def __init__(self):
+            self.issues = []
+
+        def add(self, priority, issue_id, title, action="", status="open"):
+            for issue in self.issues:
+                if issue["id"] == issue_id:
+                    issue.update(
+                        {
+                            "priority": priority,
+                            "title": title,
+                            "action": action,
+                            "status": status,
+                        }
+                    )
+                    return
+            self.issues.append(
+                {
+                    "id": issue_id,
+                    "priority": priority,
+                    "title": title,
+                    "action": action,
+                    "status": status,
+                }
+            )
+
+        def resolve(self, issue_id):
+            return True
+
+    tracker = DummyTracker()
+    auto_propose_fixes.sync_current_state_governance_issues(
+        tracker,
+        {
+            "alignment": {
+                "governance_contract": {
+                    "support_governance_route": "exact_live_lane_proxy_available",
+                    "support_route_verdict": "exact_bucket_unsupported_block",
+                    "minimum_support_rows": 50,
+                    "live_current_structure_bucket_rows": 0,
+                }
+            }
+        },
+        {
+            "signal": "CIRCUIT_BREAKER",
+            "deployment_blocker": "circuit_breaker_active",
+            "runtime_closure_state": "circuit_breaker_active",
+            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "current_recent_window_wins": 0,
+                    "required_recent_window_wins": 15,
+                    "recent_window": 50,
+                    "additional_recent_window_wins_needed": 15,
+                    "streak_must_be_below": 50,
+                }
+            },
+        },
+        {"cv_accuracy": 0.49, "cv_std": 0.03, "cv_worst": 0.45},
+    )
+
+    issue = next(
+        issue
+        for issue in tracker.issues
+        if issue["id"] == auto_propose_fixes.CURRENT_LIVE_BLOCKER_ISSUE_ID
+    )
+    assert "唯一" not in issue["title"]
+    assert "exact support" in issue["title"]
+    assert "venue proof" in issue["title"]
+    assert "immediate hard gate" in issue["action"]
+    assert "current exact support rows/minimum/gap" in issue["action"]
+    assert "Top-K deployable=0" in issue["action"]
+    assert "venue runtime proof" in issue["action"]
+    assert "deploy-ready" in issue["action"]
+    assert issue["summary"]["current_live_structure_bucket_rows"] == 0
+    assert issue["summary"]["minimum_support_rows"] == 50
+    assert issue["summary"]["support_route_verdict"] == "exact_bucket_unsupported_block"
+    assert issue["summary"]["support_governance_route"] == "exact_live_lane_proxy_available"
+    assert issue["summary"]["additional_recent_window_wins_needed"] == 15
+
+
 def test_sync_current_state_governance_issues_refreshes_leaderboard_recent_window_issue_summary():
     class DummyTracker:
         def __init__(self):

@@ -200,7 +200,7 @@ def test_execution_surfaces_show_structured_circuit_breaker_release_math_before_
         'const currentLiveSupportScopeLabel = runtimeStatusPending',
         'humanizeCurrentLiveSupportScopeLabel(',
         'const breakerSupportCaveatLabel = `${currentLiveSupportScopeLabel}支持樣本 / 候選修補不可取代熔斷解除條件。`;',
-        '這是目前即時路徑唯一部署阻塞點；{breakerSupportCaveatLabel}',
+        '熔斷是目前即時路徑的 primary hard gate；精準支持與場館生命週期仍是後續 live gate；{breakerSupportCaveatLabel}',
     ]
     for snippet in shared_snippets:
         assert snippet in status_source
@@ -208,6 +208,7 @@ def test_execution_surfaces_show_structured_circuit_breaker_release_math_before_
     for leaked_copy in [
         '支持樣本 / q15 修補不可取代熔斷解除條件',
         'current-live 唯一部署 blocker',
+        '這是目前即時路徑唯一部署阻塞點',
         'breaker release',
         'canonical 1440m breaker',
         'circuit-breaker release math blocker',

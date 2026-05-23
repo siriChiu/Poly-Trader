@@ -2000,7 +2000,7 @@ export default function ExecutionConsole() {
                   <div className="mt-1 font-semibold text-white">{breakerReleaseSummaryLabel}</div>
                   <div className="text-[11px]">最近 {breakerRecentWindow ?? 50} 筆目前 {breakerWins ?? "—"}/{breakerRecentWindow ?? 50} 勝；解除門檻 {breakerRequiredWins ?? "—"} 勝</div>
                   <div className="text-[11px]">至少還差 {breakerWinsGap ?? "—"} 勝；連敗需低於 {breakerStreakLimit ?? 50}。</div>
-                  <div className="mt-1 text-[11px] text-amber-50/80">這是目前即時路徑唯一部署阻塞點；{breakerSupportCaveatLabel}</div>
+                  <div className="mt-1 text-[11px] text-amber-50/80">熔斷是目前即時路徑的 primary hard gate；精準支持與場館生命週期仍是後續 live gate；{breakerSupportCaveatLabel}</div>
                 </div>
               )}
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">

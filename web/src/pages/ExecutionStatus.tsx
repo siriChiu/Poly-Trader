@@ -858,7 +858,7 @@ export default function ExecutionStatus() {
                   <div className="mt-2 font-semibold text-white">{breakerReleaseSummaryLabel}</div>
                   <div className="mt-2">最近 {breakerRecentWindow ?? 50} 筆目前 {breakerWins ?? "—"}/{breakerRecentWindow ?? 50} 勝；解除門檻 {breakerRequiredWins ?? "—"} 勝</div>
                   <div>至少還差 {breakerWinsGap ?? "—"} 勝；連敗需低於 {breakerStreakLimit ?? 50}。</div>
-                  <div className="mt-2 text-amber-50/80">這是目前即時路徑唯一部署阻塞點；{breakerSupportCaveatLabel}</div>
+                  <div className="mt-2 text-amber-50/80">熔斷是目前即時路徑的 primary hard gate；精準支持與場館生命週期仍是後續 live gate；{breakerSupportCaveatLabel}</div>
                 </div>
               )}
               <div className="rounded-[20px] border border-white/8 bg-[#0f1528] p-4 text-sm">
