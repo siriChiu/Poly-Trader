@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-05-23 16:03 CST_
+_最後更新：2026-05-23 16:06 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; this file is generated from current runtime artifacts by `scripts/sync_pm_status.py` so PM checks fail on real drift, not stale literals.
 
@@ -8,7 +8,7 @@ _最後更新：2026-05-23 16:03 CST_
 
 ## 1. PM decision
 
-**State：`ORANGE_framework_capture_risk` governance overlay；safe lane remains `YELLOW_shadow_or_paper_usable`；`ORANGE_alternative_solution_required` remains active.**
+**State：`ORANGE_framework_capture_risk` governance overlay；safe lane remains `YELLOW_shadow_or_paper_usable`；`ORANGE_alternative_solution_required` remains active；`ORANGE_customer_value_gap` applies to Top-K freshness / stale-labeling pressure.**
 
 PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被 customer urgency 推翻。承接上一輪 PM handoff：維持 current-live exact-support blocker、交付 paper/shadow / dry-run / falsification / support-fill proof，且不可降低 live gate。fresh runtime truth 顯示 current-live bucket 是 `BLOCK|bear_bias200_hard_block|q00`；PM 決策不變：current exact support 是 `0/50`、`gap=50`、`support_route_verdict=exact_bucket_unsupported_block`，`support_governance_route=exact_live_lane_proxy_available` 只能當治理 / proxy reference，不是部署閉環。
 
@@ -38,11 +38,11 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Research-to-delivery candidates / Top-K
 
-- `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-23T07:03:04.706177+00:00`；`artifact_freshness_status=fresh`, `artifact_deployment_blocking=false`, `samples=24985`, `row_count=24`, `runtime_blocked_candidate_rows=6`。
+- `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-23T07:03:04.706177+00:00`；artifact self-report still says `artifact_freshness_status=fresh`, `artifact_deployment_blocking=false`, `samples=24985`, `row_count=24`, `runtime_blocked_candidate_rows=6`，但 PM wall-clock audit at `2026-05-23 16:05 CST` shows it has crossed the `artifact_stale_after_minutes=60` target；treat as last-known fail-closed reference until refreshed or UI/API labels it stale/reference-only。
 - Matrix payload: `deployable_rows=0`, `risk_qualified_rows=6`, `support_route=exact_bucket_unsupported_block`, `deployment_blocker=circuit_breaker_active`, `current_live_structure_bucket=BLOCK|bear_bias200_hard_block|q00`, bucket rows `0/50`, `gap=50`。
 - Nearest research candidate: `model=logistic_regression`, `feature_profile=current_full`, `top_k=top_2pct`, `oos_roi=0.9324`, `win_rate=0.8621`, `profit_factor=19.8864`, `max_drawdown=0.0220`, `worst_fold=0.2068`, `trade_count=58`, `deployment_candidate_tier=runtime_blocked_oos_pass`, `deployable_verdict=not_deployable`。
 
-**PM verdict：Top-K remains fresh research / paper-shadow evidence. Strategy Lab 可優先顯示 nearest-deployable research rows，但 `deployable_rows=0` means no risk-on live action.**
+**PM verdict：Top-K is wall-clock stale and remains last-known research / paper-shadow reference only. Strategy Lab 可優先顯示 nearest-deployable research rows only if stale/reference-only is explicit；`deployable_rows=0` means no live order exposure.**
 
 ### Venue readiness
 
@@ -89,7 +89,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 Customer-usable lanes now:
 1. **Dashboard**：看 current-live blocker、breaker release context、4H context、decision quality、feature/source blockers；主阻塞是 `circuit_breaker_active`，support 邊界是 `BLOCK|bear_bias200_hard_block|q00` `0/50 gap=50`。
-2. **Strategy Lab**：看 Top-K / leaderboard 研究候選、OOS ROI、win rate、drawdown、profit factor、worst fold 與 runtime-blocked 原因；`deployable_rows=0` 時只能作 research / paper-shadow evidence。
+2. **Strategy Lab**：看 Top-K / leaderboard 研究候選、OOS ROI、win rate、drawdown、profit factor、worst fold 與 runtime-blocked 原因；`deployable_rows=0` 時只能作 research / paper-shadow evidence；本輪 Top-K 已跨過 PM wall-clock freshness target，需標示 stale/reference-only 或重新整理。
 3. **Execution Console**：使用 paper/shadow selective sleeve、Shadow Trade Ledger、dry-run readiness、等待 / 觀望、減風險；不可做真實買入 / 加倉。
 4. **Venue readiness checklist**：追 OKX/Binance 還差哪些 proof；credential 只顯示布林 / proof-state，不洩漏 secret。
 
@@ -97,7 +97,7 @@ Customer-usable lanes now:
 
 ## 4. framework-capture / alternative-solution / anti-equilibrium guard
 
-本輪維持 **`ORANGE_framework_capture_risk` governance overlay** 與 **`ORANGE_alternative_solution_required`**，不是因為安全 gate 可被推翻，而是避免 PM 被工程 blocker 敘事捕獲。`customer-value delta`：PM status 已承認最新 bucket `BLOCK|bear_bias200_hard_block|q00`、exact support `0/50 gap=50`、breaker `release_ready=false` / `0/50`、Top-K `artifact_freshness_status=fresh` / `samples=24985`，並保留 Execution Console / Strategy Lab 的 paper-shadow lane；但 no live exposure。
+本輪維持 **`ORANGE_framework_capture_risk` governance overlay**、**`ORANGE_alternative_solution_required`**，並加上 **`ORANGE_customer_value_gap` Top-K freshness overlay**；不是因為安全 gate 可被推翻，而是避免 PM 被工程 blocker 或 stale research evidence 捕獲。`customer-value delta`：PM status 已承認最新 bucket `BLOCK|bear_bias200_hard_block|q00`、exact support `0/50 gap=50`、breaker `release_ready=false` / `0/50`、Top-K artifact self-report `artifact_freshness_status=fresh` / `samples=24985` 但 PM wall-clock 已超過 60m freshness target，並保留 Execution Console / Strategy Lab 的 paper-shadow lane；但 no live exposure。
 
 **time-to-evidence：** `unknown_until_bucket_map_or_signal_redesign` for exact support movement；`same_day` for venue dry-run metadata proof if credentials/config are supplied；`within_week_or_unknown` for true venue lifecycle proof without credentials。PM 不把「治理參考」包裝成 deploy-ready；下輪必須產出 exact-row accumulation proof、missing-capability proof、recent-tail no-new-risk artifact、venue dry-run proof，或一個可驗證的 alternative-solution artifact。
 
@@ -111,7 +111,7 @@ Customer-usable lanes now:
 
 1. **Exact current support lane**：刷新 live probe / support audit / support-fill feasibility，直接顯示 current exact bucket rows 是否從 `0/50` 開始 movement，並同時列出 identity rows / non-current-bucket rows，避免把 near-lane/proxy/reference rows 誤包成 deployable；若 `delta_vs_previous=0` 或 `stagnant_run_count` 持續增加，必須說明缺的是 Map / Tool / Signal / Constraint / Review 哪一類能力。
 2. **Recent tail root-cause lane**：針對 recent canonical pocket（window `100` win_rate `20.0%`）交付一個 no-new-risk / shadow-only falsification artifact；不可把 shadow-only artifact 誤寫成 release patch。
-3. **Top-K freshness lane**：維持 `data/high_conviction_topk_oos_matrix.json` 在 freshness target 內，或讓 `/api/models/leaderboard` / Strategy Lab 明確標示 stale/reference-only。
+3. **Top-K freshness lane**：本輪 PM wall-clock 已判定 `data/high_conviction_topk_oos_matrix.json` 超過 60m freshness target；工程需刷新 matrix，或讓 `/api/models/leaderboard` / Strategy Lab 明確標示 stale/reference-only，避免把 last-known OOS rows 包裝成當下可操作證據。
 4. **Customer-usable lane**：用 route/API/test/browser proof 證明 `/execution` paper/shadow selective sleeve、Shadow Trade Ledger、range-chop playbook 或 dry-run readiness 可操作。
 5. **Venue proof lane**：產出 OKX sandbox/dry-run 或 metadata-to-runtime proof checklist；credential present 只可顯示布林，不可洩漏 secret。
 6. **PM drift harness lane**：維持 `scripts/pm_heartbeat_check.py` 以 current runtime artifacts 驗證 `docs/pm/pm-status.md`，避免 stale literals 誤通過。
@@ -122,6 +122,6 @@ Customer-usable lanes now:
 
 ## 6. Next-hour gate
 
-**Next-hour gate / Success gate：** 下次 PM heartbeat 應能回答：客戶此刻可以打開哪個頁面或模式、做什麼安全操作、看到什麼證據。最低可接受證據是：current exact support rows 從目前 `0/50` 開始 movement 或明確證明 stagnation 的 missing capability；recent drift no-new-risk / shadow-only falsification artifact clearly labels `deployable=false`；Top-K matrix 保持 fresh；`/execution` paper/shadow 或 dry-run readiness 可操作 proof；venue dry-run proof；或 forced-execution lane 的 72h bounded live-canary / single failed gate artifact。除此之外，PM 必須交付 time-to-evidence bucket 與 `alternative-solution` 候選。
+**Next-hour gate / Success gate：** 下次 PM heartbeat 應能回答：客戶此刻可以打開哪個頁面或模式、做什麼安全操作、看到什麼證據。最低可接受證據是：current exact support rows 從目前 `0/50` 開始 movement 或明確證明 stagnation 的 missing capability；recent drift no-new-risk / shadow-only falsification artifact clearly labels `deployable=false`；Top-K matrix 重新刷新回 freshness target 內，或 `/api/models/leaderboard` / Strategy Lab 明確標示 stale/reference-only；`/execution` paper/shadow 或 dry-run readiness 可操作 proof；venue dry-run proof；或 forced-execution lane 的 72h bounded live-canary / single failed gate artifact。除此之外，PM 必須交付 time-to-evidence bucket 與 `alternative-solution` 候選。
 
 **Fallback：** 若下次仍只有「wait」且沒有 safe deliverable，PM 維持 `ORANGE_framework_capture_risk` 並升級 `ORANGE_alternative_solution_required`；若 same semantic signature + support delta=0 重複卻沒有 forced-execution lane，升級 `RED_forced_execution_required`；若連續三次沒有 artifact movement、safe product proof 或替代解法驗證，升級為 `RED_delivery_deadlock`。
