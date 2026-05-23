@@ -270,17 +270,64 @@ def _venue_context(execution_smoke: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _recent_context(recent_drift: Mapping[str, Any]) -> dict[str, Any]:
-    replay = recent_drift.get("no_new_risk_shadow_replay") if isinstance(recent_drift.get("no_new_risk_shadow_replay"), dict) else {}
-    primary = recent_drift.get("primary_summary") if isinstance(recent_drift.get("primary_summary"), dict) else {}
+    """Normalize recent-tail no-new-risk proof from current and legacy shapes.
+
+    `recent_drift_report.py` writes the shadow replay under
+    `canonical_tail_root_cause.no_new_risk_shadow_replay`.  Older tests and
+    hand-authored payloads may still put it at top level.  Preserve explicit
+    false/zero values and never promote the replay to deployability.
+    """
+
+    root_cause = (
+        recent_drift.get("canonical_tail_root_cause")
+        if isinstance(recent_drift.get("canonical_tail_root_cause"), dict)
+        else {}
+    )
+    replay = recent_drift.get("no_new_risk_shadow_replay")
+    if not isinstance(replay, dict):
+        replay = root_cause.get("no_new_risk_shadow_replay")
+    if not isinstance(replay, dict):
+        replay = {}
+
+    primary = recent_drift.get("primary_summary")
+    if not isinstance(primary, dict):
+        primary = recent_drift.get("primary_window")
+    if not isinstance(primary, dict):
+        primary = root_cause.get("primary_summary")
+    if not isinstance(primary, dict):
+        primary = {}
+
+    baseline = replay.get("baseline") if isinstance(replay.get("baseline"), dict) else {}
+    best_gate = replay.get("best_gate") if isinstance(replay.get("best_gate"), dict) else {}
+    gate_summary = best_gate.get("summary") if isinstance(best_gate.get("summary"), dict) else {}
+    operator_message = (
+        replay.get("operator_message")
+        or replay.get("operator")
+        or gate_summary.get("operator_message")
+        or replay.get("deployment_verdict")
+    )
+
     return {
-        "latest_window": _first_present(recent_drift.get("latest_window"), recent_drift.get("primary_window")),
-        "win_rate": primary.get("win_rate"),
-        "dominant_regime": primary.get("dominant_regime"),
-        "alerts": recent_drift.get("primary_alerts") or [],
+        "latest_window": _first_present(
+            recent_drift.get("latest_window"),
+            recent_drift.get("primary_window_name"),
+            primary.get("window"),
+            baseline.get("rows"),
+        ),
+        "win_rate": _first_present(primary.get("win_rate"), baseline.get("win_rate")),
+        "dominant_regime": _first_present(primary.get("dominant_regime"), root_cause.get("dominant_loss_regime")),
+        "alerts": recent_drift.get("primary_alerts") or primary.get("alerts") or [],
         "shadow_falsification_mode": replay.get("mode"),
         "shadow_falsification_deployable": _as_bool(replay.get("deployable")),
         "shadow_falsification_order_submission_enabled": _as_bool(replay.get("order_submission_enabled")),
-        "shadow_falsification_summary": replay.get("operator_message") or replay.get("operator"),
+        "shadow_falsification_summary": operator_message,
+        "shadow_falsification_best_gate": _first_present(best_gate.get("id"), gate_summary.get("id")),
+        "shadow_falsification_kept_rows": _first_present(best_gate.get("kept_rows"), gate_summary.get("kept_rows")),
+        "shadow_falsification_kept_win_rate": _first_present(best_gate.get("kept_win_rate"), gate_summary.get("kept_win_rate")),
+        "shadow_falsification_loss_capture_share": _first_present(
+            best_gate.get("loss_capture_share"),
+            gate_summary.get("loss_capture_share"),
+        ),
     }
 
 

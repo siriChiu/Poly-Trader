@@ -146,6 +146,64 @@ def test_customer_safe_proof_preserves_fail_closed_live_gate_with_shadow_candida
     assert payload["pm_handoff_carried_forward"]["selected_customer_safe_lane"] == "paper_shadow_decision_support_sleeve"
 
 
+def test_customer_safe_proof_reads_nested_recent_shadow_falsification_without_deploying():
+    payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "deployment_blocker": "circuit_breaker_active",
+            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+        },
+        q15_support_fill_feasibility={"verdict": {"classification": "no_exact_bucket_history"}},
+        high_conviction_topk_oos_matrix={"risk_qualified_rows": 6, "runtime_blocked_candidate_rows": 6, "deployable_rows": 0},
+        execution_metadata_smoke={"runtime_ready": False},
+        recent_drift_report={
+            "primary_window": {"window": "100", "win_rate": 0.24, "dominant_regime": "chop", "alerts": ["regime_shift"]},
+            "canonical_tail_root_cause": {
+                "no_new_risk_shadow_replay": {
+                    "mode": "shadow_only_no_new_risk_falsification",
+                    "deployable": False,
+                    "order_submission_enabled": False,
+                    "baseline": {"rows": 100, "win_rate": 0.24},
+                    "best_gate": {
+                        "id": "dominant_regime_shadow_gate",
+                        "kept_rows": 6,
+                        "kept_win_rate": 0.8333,
+                        "loss_capture_share": 0.9868,
+                        "summary": {"operator_message": "僅限 paper/shadow；不可送單"},
+                    },
+                }
+            },
+        },
+        generated_at="2026-05-20T14:00:00Z",
+    )
+
+    recent = payload["recent_window_context"]
+    assert recent["latest_window"] == "100"
+    assert recent["win_rate"] == 0.24
+    assert recent["dominant_regime"] == "chop"
+    assert recent["shadow_falsification_mode"] == "shadow_only_no_new_risk_falsification"
+    assert recent["shadow_falsification_best_gate"] == "dominant_regime_shadow_gate"
+    assert recent["shadow_falsification_kept_rows"] == 6
+    assert recent["shadow_falsification_kept_win_rate"] == 0.8333
+    assert recent["shadow_falsification_deployable"] is False
+    assert recent["shadow_falsification_order_submission_enabled"] is False
+
+    lanes = {lane["id"]: lane for lane in payload["customer_safe_lanes"]}
+    falsification = lanes["recent_window_no_new_risk_falsification"]
+    assert falsification["status"] == "shadow_only_no_new_risk_falsification"
+    assert falsification["deployable"] is False
+    assert falsification["order_submission_enabled"] is False
+
+    portfolio = payload["alternative_solution_portfolio"]
+    assert portfolio["evidence_summary"]["recent_shadow_mode"] == "shadow_only_no_new_risk_falsification"
+    md = proof.markdown(payload)
+    assert "recent_window_no_new_risk_falsification" in md
+    assert "shadow_only_no_new_risk_falsification" in md
+
+
 def test_customer_safe_proof_requires_all_gates_before_canary():
     payload = proof.build_customer_safe_alternative_proof(
         live_predict_probe={

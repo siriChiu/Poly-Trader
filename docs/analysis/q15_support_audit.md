@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-23 05:13:05.401571**
+- generated_at: **2026-05-23 07:15:41.953740**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -21,16 +21,16 @@
 
 ## Support route verdict
 - support_governance_route: **exact_live_lane_proxy_available**
-- verdict: **exact_bucket_missing_exact_lane_proxy_only**
+- verdict: **insufficient_support_everywhere**
 - deployable: **False**
 - governance_reference_only: **True**
-- preferred_support_cohort: **bull_exact_live_lane_proxy**
+- preferred_support_cohort: **None**
 - current bucket gap to minimum: **50**
 - exact-bucket proxy rows: **0**
-- exact-lane proxy rows: **216**
+- exact-lane proxy rows: **10**
 - supported neighbor rows: **0**
-- reason: current live exact bucket 缺樣本，只剩 same-lane proxy；這仍不足以解除 runtime blocker。
-- release_condition: 必須先生成 current live exact bucket 真樣本，proxy 不可直接轉成 deployment allowance。
+- reason: current live path 在 exact bucket / proxy / neighbor 都沒有 deployment 級支撐。
+- release_condition: 先擴充 exact bucket 或縮小治理範圍，否則不得調整 runtime gate。
 - support_progress.status: **stalled_under_minimum**
 - support_progress.regression_basis: **same_identity_same_semantic_signature**
 - support_progress.current_rows / minimum: **0 / 50**
@@ -51,7 +51,7 @@
 - best_single_component: **None**
 - best_single_component_required_score_delta: **None**
 - best_single_component_can_cross_floor: **False**
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 68 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 80 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
@@ -61,14 +61,14 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5573**
+- current_entry_quality: **0.6348**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.0073**
+- current_trade_floor_gap: **0.0848**
 - current_entry_quality_ge_0_55: **True**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 68 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 80 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
 - verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Active repair plan
