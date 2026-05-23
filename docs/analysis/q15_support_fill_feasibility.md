@@ -1,12 +1,12 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-23T18:20:18.498690+00:00`
-- source live probe generated_at: `2026-05-23T18:20:14.819141Z`
-- source q15 audit generated_at: `2026-05-23 18:19:42.413188`
+- generated_at: `2026-05-23T19:14:18.566912+00:00`
+- source live probe generated_at: `2026-05-23T19:14:14.772809Z`
+- source q15 audit generated_at: `2026-05-23 19:13:41.389213`
 - classification: **semantic_window_gap_not_raw_backfill_gap**
 - reason: older calibration windows have enough exact-bucket rows by count, but they mismatch the current support_identity on calibration_window; they are reference-only unless governance deliberately rebaselines the identity.
 - current exact bucket rows (deployable support candidate): **0/50**
-- current exact identity rows before bucket filter: **0** (non-current-bucket: **0**; reference only, not deployment support)
+- current exact identity rows before bucket filter: **4** (non-current-bucket: **4**; reference only, not deployment support)
 - gap_to_minimum: **50**
 - historical backfill can close current identity: **False**
 - reference windows deployable by count alone: **False**
@@ -26,11 +26,11 @@ This section is the current support identity captured by the source artifacts ab
 
 ## Data coverage
 
-- joined labeled rows: **24767**
+- joined labeled rows: **24771**
 - current calibration window filled: **True**
-- features_normalized: count=25191, range=`2024-04-14 07:00:00.000000` → `2026-05-23 18:19:42.413188`
-- labels: count=67914, range=`2024-04-14 07:00:00.000000` → `2026-05-23 15:01:45.601010`
-- raw_market_data: count=34219, range=`2024-04-13 22:00:00.000000` → `2026-05-23 18:19:42.413188`
+- features_normalized: count=25195, range=`2024-04-14 07:00:00.000000` → `2026-05-23 19:13:41.389213`
+- labels: count=67920, range=`2024-04-14 07:00:00.000000` → `2026-05-23 16:02:25.365278`
+- raw_market_data: count=34224, range=`2024-04-13 22:00:00.000000` → `2026-05-23 19:13:41.389213`
 
 ## PM delivery pressure
 
@@ -51,12 +51,12 @@ This section is the current support identity captured by the source artifacts ab
 
 | window | exact identity rows | exact bucket rows | role | promotable | latest exact bucket | metrics |
 | --- | ---: | ---: | --- | --- | --- | --- |
-| 100 | 0 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
-| 200 | 0 | 0 | current_support_identity | False | None | win=None, pnl=None, quality=None |
-| 600 | 53 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
-| 1000 | 68 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
-| 5000 | 90 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
-| all | 241 | 110 | reference_only_calibration_window_mismatch | False | 2026-04-04 10:33:02.726298 | win=0.9727, pnl=0.0077, quality=0.5046 |
+| 100 | 4 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
+| 200 | 4 | 0 | current_support_identity | False | None | win=None, pnl=None, quality=None |
+| 600 | 57 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
+| 1000 | 72 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
+| 5000 | 94 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
+| all | 245 | 110 | reference_only_calibration_window_mismatch | False | 2026-04-04 10:33:02.726298 | win=0.9727, pnl=0.0077, quality=0.5046 |
 
 ## Recommended actions
 
