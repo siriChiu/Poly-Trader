@@ -1,31 +1,31 @@
 {
-  "generated_at": "2026-05-23T07:16:11.225741Z",
+  "generated_at": "2026-05-23T08:22:02.486847Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-23T07:15:58.916374Z"
+      "generated_at": "2026-05-23T08:21:43.171880Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-23T07:16:07.992288+00:00"
+      "generated_at": "2026-05-23T08:21:59.235894+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-23T07:03:04.706177+00:00"
+      "generated_at": "2026-05-23T08:21:47.628570+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-23T07:16:10.251934Z"
+      "generated_at": "2026-05-23T08:22:01.552124Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-23T07:15:55.145630+00:00"
+      "generated_at": "2026-05-23T08:21:39.399024+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -54,7 +54,7 @@
     "minimum_support_rows": 50,
     "gap_to_minimum": 50,
     "support_route_deployable": false,
-    "reference_only_rows": 216,
+    "reference_only_rows": 10,
     "operator_summary": "目前 current-live 精準支持 0/50，缺口 50；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
   },
   "topk_shadow_candidate_context": {
@@ -154,11 +154,10 @@
   },
   "recent_window_context": {
     "latest_window": "100",
-    "win_rate": 0.2,
+    "win_rate": 0.15,
     "dominant_regime": "chop",
     "alerts": [
       "label_imbalance",
-      "regime_concentration",
       "regime_shift"
     ],
     "shadow_falsification_mode": "shadow_only_no_new_risk_falsification",
@@ -308,11 +307,10 @@
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
       "latest_window": "100",
-      "win_rate": 0.2,
+      "win_rate": 0.15,
       "dominant_regime": "chop",
       "alerts": [
         "label_imbalance",
-        "regime_concentration",
         "regime_shift"
       ],
       "operator_message": "not_deployable_shadow_only_runtime_blocked"
