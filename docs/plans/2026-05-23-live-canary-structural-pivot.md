@@ -1,12 +1,12 @@
 # Live canary structural pivot
 
-- generated_at: `2026-05-23T22:11:32.354680Z`
+- generated_at: `2026-05-23T23:11:10.669306Z`
 - PM handoff carried forward: `PM 強制反平衡：若 72h 內不能執行 bounded micro-canary，必須寫明單一失敗 gate 與下一個驗證 artifact；不得再只做 observation-only heartbeat。`
-- deployment_blocker: `circuit_breaker_active`
+- deployment_blocker: `unsupported_exact_live_structure_bucket`
 - current bucket: `CAUTION|base_caution_regime_or_bias|q35`
-- support: `0/50` (gap `50`, delta `0`, stagnant `2`)
-- semantic-signature progress: delta `0`, stagnant `2` (does not relax strict support_identity)
-- release_ready: `False` / recent wins `13/50`, required `15`, needed `2`
+- support: `0/50` (gap `50`, delta `0`, stagnant `4`)
+- semantic-signature progress: delta `0`, stagnant `4` (does not relax strict support_identity)
+- release_ready: `True` / recent wins `16/50`, required `15`, needed `0`
 - venue_runtime_ready: `False` / OKX credentials configured: `False`
 - top-k: risk-qualified `6`, runtime-blocked `6`, deployable `0`
 - local execution mode: `paper` / live_canary_policy_ready: `False`
@@ -22,13 +22,13 @@
 
 ## Gates
 - `current_live_support_gate`: ready=`False`, reason=current-live exact support must reach the minimum with matching support_identity.
-- `circuit_breaker_gate`: ready=`False`, reason=recent canonical 24h outcomes must clear streak and win-rate release math.
+- `circuit_breaker_gate`: ready=`True`, reason=recent canonical 24h outcomes must clear streak and win-rate release math.
 - `model_shadow_outcome_gate`: ready=`False`, reason=OOS pass / paper-shadow rows are not live deployability until deployable_rows>0 under current gates.
 - `venue_lifecycle_gate`: ready=`False`, reason=exchange credential boolean plus ack/fill/cancel/reconciliation proof must be runtime-backed.
 - `live_canary_policy_gate`: ready=`False`, reason=local config must opt into explicit live_canary with symbol cap before adapter order submission.
 
 ## Supplementary blockers
-`circuit_breaker_gate`, `model_shadow_outcome_gate`, `venue_lifecycle_gate`, `live_canary_policy_gate`
+`model_shadow_outcome_gate`, `venue_lifecycle_gate`, `live_canary_policy_gate`
 
 ## Lanes
 - `A_venue_lifecycle_proof`: status=`blocked_missing_runtime_backed_proof`, can_start_now=`True`, live_exposure=`none_or_min_exchange_probe_only`

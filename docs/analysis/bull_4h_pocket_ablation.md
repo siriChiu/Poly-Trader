@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-23 22:11:07 UTC**
+- generated_at: **2026-05-23 23:02:08 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -10,8 +10,8 @@
 
 ## Cohorts
 
-- bull_all rows: **2499** / win_rate **0.4982** / recommended **`current_full_minus_4h_structure_shift`**
-- bull_collapse_q35 rows: **920** / win_rate **0.3913** / recommended **`core_plus_macro_plus_all_4h`**
+- bull_all rows: **2498** / win_rate **0.4980** / recommended **`current_full_minus_4h_structure_shift`**
+- bull_collapse_q35 rows: **919** / win_rate **0.3906** / recommended **`core_plus_macro_plus_all_4h`**
 - bull_exact_live_lane_proxy rows: **8** / win_rate **0.7500** / recommended **`None`**
 - bull_live_exact_lane_bucket_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
 - bull_supported_neighbor_buckets_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
@@ -103,7 +103,7 @@
 ## Notes
 
 - collapse features under inspection: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
-- thresholds (bull q35): {"feat_4h_dist_swing_low": 4.7892, "feat_4h_dist_bb_lower": 4.0379, "feat_4h_bb_pct_b": 0.6991}
+- thresholds (bull q35): {"feat_4h_dist_swing_low": 4.7887, "feat_4h_dist_bb_lower": 4.0372, "feat_4h_bb_pct_b": 0.6991}
 - exact live structure bucket: `CAUTION|base_caution_regime_or_bias|q35` rows=0
 - supported neighbor buckets from exact scope: ["CAUTION|base_caution_regime_or_bias|q00", "CAUTION|base_caution_regime_or_bias|q15"]
 - best bull-all profile: **current_full_minus_4h_structure_shift**
