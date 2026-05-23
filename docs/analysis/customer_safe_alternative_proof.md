@@ -1,6 +1,6 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-23T09:41:00.957561Z`
+- generated_at: `2026-05-23T10:19:41.361037Z`
 - current_live_blocker: `circuit_breaker_active`
 - current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
 - exact support: `0/50` (gap `50`)

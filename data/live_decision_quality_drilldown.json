@@ -1,67 +1,67 @@
 {
-  "generated_at": "2026-05-23 09:40:24.602822",
+  "generated_at": "2026-05-23 10:18:05.927569",
   "target_col": "simulated_pyramid_win",
   "signal": "CIRCUIT_BREAKER",
   "confidence": 0.5,
   "should_trade": false,
   "regime_label": "bear",
   "regime_gate": "BLOCK",
-  "entry_quality": 0.6906,
-  "entry_quality_label": "B",
+  "entry_quality": 0.6783,
+  "entry_quality_label": "C",
   "entry_quality_components": {
     "base_components": [
       {
         "feature": "feat_4h_bias50",
         "weight": 0.4,
-        "raw_value": -3.6396,
+        "raw_value": -3.563,
         "normalized_score": 1.0,
         "weighted_contribution": 0.4
       },
       {
         "feature": "feat_nose",
         "weight": 0.18,
-        "raw_value": 0.0469,
-        "normalized_score": 0.9531,
-        "weighted_contribution": 0.1716
+        "raw_value": 0.1062,
+        "normalized_score": 0.8938,
+        "weighted_contribution": 0.1609
       },
       {
         "feature": "feat_pulse",
         "weight": 0.27,
-        "raw_value": 0.7668,
-        "normalized_score": 0.7668,
-        "weighted_contribution": 0.207
+        "raw_value": 0.7363,
+        "normalized_score": 0.7363,
+        "weighted_contribution": 0.1988
       },
       {
         "feature": "feat_ear",
         "weight": 0.15,
-        "raw_value": -0.0104,
-        "normalized_score": 0.9479,
-        "weighted_contribution": 0.1422
+        "raw_value": -0.0098,
+        "normalized_score": 0.9511,
+        "weighted_contribution": 0.1427
       }
     ],
-    "base_quality": 0.9208,
+    "base_quality": 0.9024,
     "base_quality_weight": 0.75,
-    "structure_quality": 0.0,
+    "structure_quality": 0.0062,
     "structure_quality_weight": 0.25,
     "structure_components": [
       {
         "feature": "feat_4h_bb_pct_b",
         "weight": 0.34,
-        "raw_value": -0.0105,
-        "normalized_score": 0.0,
-        "weighted_contribution": 0.0
+        "raw_value": 0.0138,
+        "normalized_score": 0.0138,
+        "weighted_contribution": 0.0047
       },
       {
         "feature": "feat_4h_dist_bb_lower",
         "weight": 0.33,
-        "raw_value": -0.0273,
-        "normalized_score": 0.0,
-        "weighted_contribution": 0.0
+        "raw_value": 0.0357,
+        "normalized_score": 0.0045,
+        "weighted_contribution": 0.0015
       },
       {
         "feature": "feat_4h_dist_swing_low",
         "weight": 0.33,
-        "raw_value": -2.7332,
+        "raw_value": -2.6499,
         "normalized_score": 0.0,
         "weighted_contribution": 0.0
       }
@@ -78,54 +78,40 @@
       "exact_p90": null,
       "reference_p90": null
     },
-    "entry_quality": 0.6906,
+    "entry_quality": 0.6783,
     "trade_floor": 0.55,
-    "trade_floor_gap": 0.1406
+    "trade_floor_gap": 0.1283
   },
   "component_gap_attribution": {
     "trade_floor": 0.55,
-    "entry_quality": 0.6906,
+    "entry_quality": 0.6783,
     "remaining_gap_to_floor": 0.0,
     "reconstructed_from_q15_patch": false,
     "runtime_entry_quality_after_patch": null,
     "runtime_trade_floor_gap_after_patch": null,
-    "base_group_max_entry_gain": 0.0594,
-    "structure_group_max_entry_gain": 0.25,
+    "base_group_max_entry_gain": 0.0732,
+    "structure_group_max_entry_gain": 0.2484,
     "best_single_component": null,
     "single_component_floor_crossers": [],
     "components_by_headroom": [
       {
         "group": "structure",
         "feature": "feat_4h_bb_pct_b",
-        "raw_value": -0.0105,
-        "normalized_score": 0.0,
+        "raw_value": 0.0138,
+        "normalized_score": 0.0138,
         "weight": 0.34,
         "outer_weight": 0.25,
         "effective_weight": 0.085,
-        "weighted_contribution": 0.0,
-        "headroom_to_perfect_score": 1.0,
-        "max_entry_gain_if_perfect": 0.085,
-        "required_score_delta_to_cross_floor": null,
-        "can_single_component_cross_floor": false
-      },
-      {
-        "group": "structure",
-        "feature": "feat_4h_dist_bb_lower",
-        "raw_value": -0.0273,
-        "normalized_score": 0.0,
-        "weight": 0.33,
-        "outer_weight": 0.25,
-        "effective_weight": 0.0825,
-        "weighted_contribution": 0.0,
-        "headroom_to_perfect_score": 1.0,
-        "max_entry_gain_if_perfect": 0.0825,
+        "weighted_contribution": 0.0047,
+        "headroom_to_perfect_score": 0.9862,
+        "max_entry_gain_if_perfect": 0.0838,
         "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_dist_swing_low",
-        "raw_value": -2.7332,
+        "raw_value": -2.6499,
         "normalized_score": 0.0,
         "weight": 0.33,
         "outer_weight": 0.25,
@@ -137,51 +123,65 @@
         "can_single_component_cross_floor": false
       },
       {
+        "group": "structure",
+        "feature": "feat_4h_dist_bb_lower",
+        "raw_value": 0.0357,
+        "normalized_score": 0.0045,
+        "weight": 0.33,
+        "outer_weight": 0.25,
+        "effective_weight": 0.0825,
+        "weighted_contribution": 0.0015,
+        "headroom_to_perfect_score": 0.9955,
+        "max_entry_gain_if_perfect": 0.0821,
+        "required_score_delta_to_cross_floor": null,
+        "can_single_component_cross_floor": false
+      },
+      {
         "group": "base",
         "feature": "feat_pulse",
-        "raw_value": 0.7668,
-        "normalized_score": 0.7668,
+        "raw_value": 0.7363,
+        "normalized_score": 0.7363,
         "weight": 0.27,
         "outer_weight": 0.75,
         "effective_weight": 0.2025,
-        "weighted_contribution": 0.207,
-        "headroom_to_perfect_score": 0.2332,
-        "max_entry_gain_if_perfect": 0.0472,
+        "weighted_contribution": 0.1988,
+        "headroom_to_perfect_score": 0.2637,
+        "max_entry_gain_if_perfect": 0.0534,
         "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       },
       {
         "group": "base",
         "feature": "feat_nose",
-        "raw_value": 0.0469,
-        "normalized_score": 0.9531,
+        "raw_value": 0.1062,
+        "normalized_score": 0.8938,
         "weight": 0.18,
         "outer_weight": 0.75,
         "effective_weight": 0.135,
-        "weighted_contribution": 0.1716,
-        "headroom_to_perfect_score": 0.0469,
-        "max_entry_gain_if_perfect": 0.0063,
+        "weighted_contribution": 0.1609,
+        "headroom_to_perfect_score": 0.1062,
+        "max_entry_gain_if_perfect": 0.0143,
         "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       },
       {
         "group": "base",
         "feature": "feat_ear",
-        "raw_value": -0.0104,
-        "normalized_score": 0.9479,
+        "raw_value": -0.0098,
+        "normalized_score": 0.9511,
         "weight": 0.15,
         "outer_weight": 0.75,
         "effective_weight": 0.1125,
-        "weighted_contribution": 0.1422,
-        "headroom_to_perfect_score": 0.0521,
-        "max_entry_gain_if_perfect": 0.0059,
+        "weighted_contribution": 0.1427,
+        "headroom_to_perfect_score": 0.0489,
+        "max_entry_gain_if_perfect": 0.0055,
         "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       },
       {
         "group": "base",
         "feature": "feat_4h_bias50",
-        "raw_value": -3.6396,
+        "raw_value": -3.563,
         "normalized_score": 1.0,
         "weight": 0.4,
         "outer_weight": 0.75,
@@ -197,15 +197,15 @@
       "entry_if_bias50_fully_relaxed": null,
       "layers_if_bias50_fully_relaxed": 0,
       "required_bias50_cap_for_floor": null,
-      "current_bias50_value": -3.6396
+      "current_bias50_value": -3.563
     }
   },
   "runtime_blocker": {
     "type": "circuit_breaker",
     "signal": "CIRCUIT_BREAKER",
     "model_type": "circuit_breaker",
-    "reason": "Consecutive loss streak: 89 >= 50; Recent 50-sample win rate: 0.00% < 30%",
-    "streak": 89,
+    "reason": "Consecutive loss streak: 93 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+    "streak": 93,
     "win_rate": 0.0,
     "recent_window_win_rate": 0.0,
     "recent_window_wins": 0,
@@ -225,7 +225,7 @@
       "streak_release_ready": false,
       "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 89,
+      "current_streak": 93,
       "recent_window": 50,
       "recent_win_rate_must_be_at_least": 0.3,
       "current_recent_window_win_rate": 0.0,
@@ -242,7 +242,7 @@
   },
   "deployment_blocker": {
     "type": "circuit_breaker_active",
-    "reason": "Consecutive loss streak: 89 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+    "reason": "Consecutive loss streak: 93 >= 50; Recent 50-sample win rate: 0.00% < 30%",
     "source": "circuit_breaker",
     "details": {
       "triggered_by": [
@@ -265,7 +265,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 89,
+        "current_streak": 93,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -276,9 +276,9 @@
       "type": "circuit_breaker_active",
       "signal": "CIRCUIT_BREAKER",
       "model_type": "circuit_breaker",
-      "reason": "Consecutive loss streak: 89 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+      "reason": "Consecutive loss streak: 93 >= 50; Recent 50-sample win rate: 0.00% < 30%",
       "source": "circuit_breaker",
-      "streak": 89,
+      "streak": 93,
       "win_rate": 0.0,
       "recent_window_win_rate": 0.0,
       "recent_window_wins": 0,
@@ -301,13 +301,13 @@
         "current_rows": 0,
         "minimum_support_rows": 50,
         "gap_to_minimum": 50,
-        "stagnant_run_count": 2,
+        "stagnant_run_count": 5,
         "legacy_reference_only": false,
         "legacy_semantic_evidence": null,
         "semantic_rebaseline_reference_only": true,
         "semantic_rebaseline_reference": {
-          "heartbeat": "1457",
-          "timestamp": "2026-05-23T08:22:05.536785+00:00",
+          "heartbeat": "1458",
+          "timestamp": "2026-05-23T09:41:04.003459+00:00",
           "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
           "live_current_structure_bucket_rows": 0,
           "minimum_support_rows": 50,
@@ -319,7 +319,7 @@
             "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
             "regime_label": "bear",
             "regime_gate": "BLOCK",
-            "entry_quality_label": "C",
+            "entry_quality_label": "B",
             "calibration_window": 200,
             "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
           },
@@ -335,7 +335,7 @@
               "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
               "regime_label": "bear",
               "regime_gate": "BLOCK",
-              "entry_quality_label": "C",
+              "entry_quality_label": "B",
               "calibration_window": 200,
               "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
             },
@@ -345,7 +345,7 @@
               "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
               "regime_label": "bear",
               "regime_gate": "BLOCK",
-              "entry_quality_label": "C",
+              "entry_quality_label": "B",
               "calibration_window": 200,
               "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
             },
@@ -397,7 +397,7 @@
             "type": "evidence_boundary",
             "priority": "P0",
             "description": "同 bucket 但不同 support_identity 的 under-minimum reference 只能證明 support 歷史不能歸零；不可升級為 deployment support。",
-            "reference_heartbeat": "1457",
+            "reference_heartbeat": "1458",
             "reference_rows": 0,
             "delta_vs_current_rows": 0,
             "mismatched_fields": [
@@ -411,7 +411,7 @@
       "component_experiment": {
         "verdict": "runtime_blocker_preempts_component_experiment",
         "feature": null,
-        "reason": "目前先被 runtime blocker 擋下（Consecutive loss streak: 89 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。",
+        "reason": "目前先被 runtime blocker 擋下（Consecutive loss streak: 93 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。",
         "machine_read_answer": {
           "support_ready": false,
           "entry_quality_ge_0_55": false,
@@ -420,9 +420,9 @@
           "allowed_layers_gt_0": false,
           "preserves_positive_discrimination": null,
           "preserves_positive_discrimination_status": "not_measured_runtime_blocked",
-          "current_entry_quality": 0.6906,
+          "current_entry_quality": 0.6783,
           "trade_floor": 0.55,
-          "current_trade_floor_gap": 0.1406,
+          "current_trade_floor_gap": 0.1283,
           "current_entry_quality_ge_0_55": true,
           "current_entry_quality_ge_trade_floor": true
         },
@@ -439,7 +439,7 @@
       "component_experiment_verify_next": "先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。",
       "support_progress": {
         "status": "semantic_rebaseline_under_minimum",
-        "reason": "current live exact support 目前是 0/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1457），delta=0，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
+        "reason": "current live exact support 目前是 0/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1458），delta=0，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
         "regression_basis": "legacy_or_different_semantic_signature",
         "support_identity": {
           "target_col": "simulated_pyramid_win",
@@ -447,7 +447,7 @@
           "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
           "regime_label": "bear",
           "regime_gate": "BLOCK",
-          "entry_quality_label": "B",
+          "entry_quality_label": "C",
           "calibration_window": 200,
           "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
         },
@@ -466,8 +466,8 @@
         "delta_vs_recent_supported": null,
         "legacy_supported_reference": null,
         "semantic_rebaseline_reference": {
-          "heartbeat": "1457",
-          "timestamp": "2026-05-23T08:22:05.536785+00:00",
+          "heartbeat": "1458",
+          "timestamp": "2026-05-23T09:41:04.003459+00:00",
           "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
           "live_current_structure_bucket_rows": 0,
           "minimum_support_rows": 50,
@@ -479,7 +479,7 @@
             "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
             "regime_label": "bear",
             "regime_gate": "BLOCK",
-            "entry_quality_label": "C",
+            "entry_quality_label": "B",
             "calibration_window": 200,
             "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
           },
@@ -495,7 +495,7 @@
               "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
               "regime_label": "bear",
               "regime_gate": "BLOCK",
-              "entry_quality_label": "C",
+              "entry_quality_label": "B",
               "calibration_window": 200,
               "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
             },
@@ -505,7 +505,7 @@
               "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
               "regime_label": "bear",
               "regime_gate": "BLOCK",
-              "entry_quality_label": "C",
+              "entry_quality_label": "B",
               "calibration_window": 200,
               "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
             },
@@ -530,15 +530,15 @@
           "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields",
           "delta_vs_current_rows": 0
         },
-        "comparable_history_count": 1,
-        "legacy_reference_history_count": 13,
-        "stagnant_run_count": 2,
+        "comparable_history_count": 13,
+        "legacy_reference_history_count": 1,
+        "stagnant_run_count": 5,
         "stalled_support_accumulation": false,
         "escalate_to_blocker": true,
         "history": [
           {
             "heartbeat": "current",
-            "timestamp": "2026-05-23T09:40:38.758236+00:00",
+            "timestamp": "2026-05-23T10:18:21.171381+00:00",
             "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
             "live_current_structure_bucket_rows": 0,
             "minimum_support_rows": 50,
@@ -550,14 +550,14 @@
               "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
               "regime_label": "bear",
               "regime_gate": "BLOCK",
-              "entry_quality_label": "B",
+              "entry_quality_label": "C",
               "calibration_window": 200,
               "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
             }
           },
           {
-            "heartbeat": "1458",
-            "timestamp": "2026-05-23T09:20:54.693247+00:00",
+            "heartbeat": "1457",
+            "timestamp": "2026-05-23T08:22:05.536785+00:00",
             "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
             "live_current_structure_bucket_rows": 0,
             "minimum_support_rows": 50,
@@ -569,7 +569,7 @@
               "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
               "regime_label": "bear",
               "regime_gate": "BLOCK",
-              "entry_quality_label": "B",
+              "entry_quality_label": "C",
               "calibration_window": 200,
               "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
             },
@@ -585,7 +585,7 @@
                 "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
                 "regime_label": "bear",
                 "regime_gate": "BLOCK",
-                "entry_quality_label": "B",
+                "entry_quality_label": "C",
                 "calibration_window": 200,
                 "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
               },
@@ -595,7 +595,7 @@
                 "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
                 "regime_label": "bear",
                 "regime_gate": "BLOCK",
-                "entry_quality_label": "B",
+                "entry_quality_label": "C",
                 "calibration_window": 200,
                 "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
               },
@@ -616,7 +616,196 @@
               "promotable_to_same_identity_history": true,
               "verdict": "same_identity_evidence_backfilled"
             },
-            "regression_basis": "legacy_or_different_semantic_signature"
+            "regression_basis": "same_identity_same_semantic_signature"
+          },
+          {
+            "heartbeat": "1456",
+            "timestamp": "2026-05-23T07:16:14.269664+00:00",
+            "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "insufficient_support_everywhere",
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "support_identity": {
+              "target_col": "simulated_pyramid_win",
+              "horizon_minutes": 1440,
+              "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+              "regime_label": "bear",
+              "regime_gate": "BLOCK",
+              "entry_quality_label": "C",
+              "calibration_window": 200,
+              "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+            },
+            "support_identity_backfilled": false,
+            "semantic_identity_evidence": {
+              "source": "explicit_support_identity",
+              "explicit_support_identity_present": true,
+              "explicit_bucket_semantic_signature_present": true,
+              "backfilled_bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+              "backfilled_support_identity": {
+                "target_col": "simulated_pyramid_win",
+                "horizon_minutes": 1440,
+                "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                "regime_label": "bear",
+                "regime_gate": "BLOCK",
+                "entry_quality_label": "C",
+                "calibration_window": 200,
+                "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+              },
+              "candidate_support_identity": {
+                "target_col": "simulated_pyramid_win",
+                "horizon_minutes": 1440,
+                "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                "regime_label": "bear",
+                "regime_gate": "BLOCK",
+                "entry_quality_label": "C",
+                "calibration_window": 200,
+                "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+              },
+              "source_fields_complete": true,
+              "matched_fields": [
+                "target_col",
+                "horizon_minutes",
+                "current_live_structure_bucket",
+                "regime_label",
+                "regime_gate",
+                "entry_quality_label",
+                "calibration_window",
+                "bucket_semantic_signature"
+              ],
+              "mismatched_fields": [],
+              "missing_fields": [],
+              "supports_current_identity": true,
+              "promotable_to_same_identity_history": true,
+              "verdict": "same_identity_evidence_backfilled"
+            },
+            "regression_basis": "same_identity_same_semantic_signature"
+          },
+          {
+            "heartbeat": "1455",
+            "timestamp": "2026-05-23T06:27:01.435300+00:00",
+            "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "support_identity": {
+              "target_col": "simulated_pyramid_win",
+              "horizon_minutes": 1440,
+              "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+              "regime_label": "bear",
+              "regime_gate": "BLOCK",
+              "entry_quality_label": "C",
+              "calibration_window": 200,
+              "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+            },
+            "support_identity_backfilled": false,
+            "semantic_identity_evidence": {
+              "source": "explicit_support_identity",
+              "explicit_support_identity_present": true,
+              "explicit_bucket_semantic_signature_present": true,
+              "backfilled_bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+              "backfilled_support_identity": {
+                "target_col": "simulated_pyramid_win",
+                "horizon_minutes": 1440,
+                "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                "regime_label": "bear",
+                "regime_gate": "BLOCK",
+                "entry_quality_label": "C",
+                "calibration_window": 200,
+                "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+              },
+              "candidate_support_identity": {
+                "target_col": "simulated_pyramid_win",
+                "horizon_minutes": 1440,
+                "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                "regime_label": "bear",
+                "regime_gate": "BLOCK",
+                "entry_quality_label": "C",
+                "calibration_window": 200,
+                "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+              },
+              "source_fields_complete": true,
+              "matched_fields": [
+                "target_col",
+                "horizon_minutes",
+                "current_live_structure_bucket",
+                "regime_label",
+                "regime_gate",
+                "entry_quality_label",
+                "calibration_window",
+                "bucket_semantic_signature"
+              ],
+              "mismatched_fields": [],
+              "missing_fields": [],
+              "supports_current_identity": true,
+              "promotable_to_same_identity_history": true,
+              "verdict": "same_identity_evidence_backfilled"
+            },
+            "regression_basis": "same_identity_same_semantic_signature"
+          },
+          {
+            "heartbeat": "1454",
+            "timestamp": "2026-05-23T05:13:50.260104+00:00",
+            "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "support_identity": {
+              "target_col": "simulated_pyramid_win",
+              "horizon_minutes": 1440,
+              "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+              "regime_label": "bear",
+              "regime_gate": "BLOCK",
+              "entry_quality_label": "C",
+              "calibration_window": 200,
+              "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+            },
+            "support_identity_backfilled": false,
+            "semantic_identity_evidence": {
+              "source": "explicit_support_identity",
+              "explicit_support_identity_present": true,
+              "explicit_bucket_semantic_signature_present": true,
+              "backfilled_bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+              "backfilled_support_identity": {
+                "target_col": "simulated_pyramid_win",
+                "horizon_minutes": 1440,
+                "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                "regime_label": "bear",
+                "regime_gate": "BLOCK",
+                "entry_quality_label": "C",
+                "calibration_window": 200,
+                "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+              },
+              "candidate_support_identity": {
+                "target_col": "simulated_pyramid_win",
+                "horizon_minutes": 1440,
+                "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                "regime_label": "bear",
+                "regime_gate": "BLOCK",
+                "entry_quality_label": "C",
+                "calibration_window": 200,
+                "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+              },
+              "source_fields_complete": true,
+              "matched_fields": [
+                "target_col",
+                "horizon_minutes",
+                "current_live_structure_bucket",
+                "regime_label",
+                "regime_gate",
+                "entry_quality_label",
+                "calibration_window",
+                "bucket_semantic_signature"
+              ],
+              "mismatched_fields": [],
+              "missing_fields": [],
+              "supports_current_identity": true,
+              "promotable_to_same_identity_history": true,
+              "verdict": "same_identity_evidence_backfilled"
+            },
+            "regression_basis": "same_identity_same_semantic_signature"
           }
         ]
       },
@@ -630,16 +819,16 @@
         "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
         "regime_label": "bear",
         "regime_gate": "BLOCK",
-        "entry_quality_label": "B",
+        "entry_quality_label": "C",
         "calibration_window": 200,
         "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
       },
       "artifact_context_freshness": {
         "verdict": "current_context",
         "mismatched_fields": [],
-        "latest_live_probe_feature_timestamp": "2026-05-23 09:40:24.602822",
-        "drilldown_generated_at": "2026-05-23 09:40:24.602822",
-        "artifact_feature_timestamp": "2026-05-23 09:40:24.602822",
+        "latest_live_probe_feature_timestamp": "2026-05-23 10:18:05.927569",
+        "drilldown_generated_at": "2026-05-23 10:18:05.927569",
+        "artifact_feature_timestamp": "2026-05-23 10:18:05.927569",
         "probe_current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
         "artifact_current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
         "support_identity": {
@@ -648,7 +837,7 @@
           "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
           "regime_label": "bear",
           "regime_gate": "BLOCK",
-          "entry_quality_label": "B",
+          "entry_quality_label": "C",
           "calibration_window": 200,
           "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
         }
@@ -657,7 +846,7 @@
       "support_route_deployable": false,
       "support_governance_route": "exact_live_lane_proxy_available",
       "q15_bucket_root_cause": {
-        "generated_at": "2026-05-23 09:20:15.037690",
+        "generated_at": "2026-05-23 09:40:24.602822",
         "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
         "bucket_scope_label": "current-live q00 bucket",
         "verdict": "runtime_blocker_preempts_bucket_root_cause",
@@ -679,7 +868,7 @@
         "near_boundary_rows": 6,
         "candidate_patch": null,
         "trade_floor": 0.55,
-        "entry_quality": 0.7064,
+        "entry_quality": 0.6906,
         "remaining_gap_to_floor": 0.0,
         "best_single_component": null,
         "single_component_floor_crossers": [],
@@ -691,7 +880,7 @@
         "reference_artifact_warning": "bull_4h_pocket_ablation live_context is stale/reference-only; root-cause used fresh live_predict_probe support truth."
       },
       "current_bucket_root_cause": {
-        "generated_at": "2026-05-23 09:20:15.037690",
+        "generated_at": "2026-05-23 09:40:24.602822",
         "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
         "bucket_scope_label": "current-live q00 bucket",
         "verdict": "runtime_blocker_preempts_bucket_root_cause",
@@ -713,7 +902,7 @@
         "near_boundary_rows": 6,
         "candidate_patch": null,
         "trade_floor": 0.55,
-        "entry_quality": 0.7064,
+        "entry_quality": 0.6906,
         "remaining_gap_to_floor": 0.0,
         "best_single_component": null,
         "single_component_floor_crossers": [],
@@ -746,7 +935,7 @@
   },
   "support_blocker_summary": {
     "deployment_blocker": "circuit_breaker_active",
-    "deployment_blocker_reason": "連續虧損筆數： 89 >= 50; 最近 50 筆勝率: 0.00% < 30%",
+    "deployment_blocker_reason": "連續虧損筆數： 93 >= 50; 最近 50 筆勝率: 0.00% < 30%",
     "deployment_blocker_source": "circuit_breaker",
     "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
     "current_live_structure_bucket_rows": 0,
@@ -754,7 +943,7 @@
     "minimum_support_rows": 50,
     "gap_to_minimum": 50,
     "support_progress_status": "semantic_rebaseline_under_minimum",
-    "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1457），delta=0，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
+    "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1458），delta=0，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
     "support_progress_regression_basis": "legacy_or_different_semantic_signature",
     "legacy_supported_reference_heartbeat": null,
     "legacy_supported_reference_rows": null,
@@ -784,7 +973,7 @@
     "operator_next_action": "保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。"
   },
   "current_bucket_root_cause": {
-    "generated_at": "2026-05-23 09:20:15.037690",
+    "generated_at": "2026-05-23 09:40:24.602822",
     "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
     "bucket_scope_label": "current-live q00 bucket",
     "verdict": "runtime_blocker_preempts_bucket_root_cause",
@@ -806,7 +995,7 @@
     "near_boundary_rows": 6,
     "candidate_patch": null,
     "trade_floor": 0.55,
-    "entry_quality": 0.7064,
+    "entry_quality": 0.6906,
     "remaining_gap_to_floor": 0.0,
     "best_single_component": null,
     "single_component_floor_crossers": [],
@@ -818,7 +1007,7 @@
     "reference_artifact_warning": "bull_4h_pocket_ablation live_context is stale/reference-only; root-cause used fresh live_predict_probe support truth."
   },
   "q15_bucket_root_cause": {
-    "generated_at": "2026-05-23 09:20:15.037690",
+    "generated_at": "2026-05-23 09:40:24.602822",
     "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
     "bucket_scope_label": "current-live q00 bucket",
     "verdict": "runtime_blocker_preempts_bucket_root_cause",
@@ -840,7 +1029,7 @@
     "near_boundary_rows": 6,
     "candidate_patch": null,
     "trade_floor": 0.55,
-    "entry_quality": 0.7064,
+    "entry_quality": 0.6906,
     "remaining_gap_to_floor": 0.0,
     "best_single_component": null,
     "single_component_floor_crossers": [],
@@ -860,7 +1049,7 @@
   "support_route_deployable": false,
   "support_progress": {
     "status": "semantic_rebaseline_under_minimum",
-    "reason": "current live exact support 目前是 0/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1457），delta=0，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
+    "reason": "current live exact support 目前是 0/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1458），delta=0，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
     "regression_basis": "legacy_or_different_semantic_signature",
     "support_identity": {
       "target_col": "simulated_pyramid_win",
@@ -868,7 +1057,7 @@
       "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
       "regime_label": "bear",
       "regime_gate": "BLOCK",
-      "entry_quality_label": "B",
+      "entry_quality_label": "C",
       "calibration_window": 200,
       "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
     },
@@ -887,8 +1076,8 @@
     "delta_vs_recent_supported": null,
     "legacy_supported_reference": null,
     "semantic_rebaseline_reference": {
-      "heartbeat": "1457",
-      "timestamp": "2026-05-23T08:22:05.536785+00:00",
+      "heartbeat": "1458",
+      "timestamp": "2026-05-23T09:41:04.003459+00:00",
       "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
       "live_current_structure_bucket_rows": 0,
       "minimum_support_rows": 50,
@@ -900,7 +1089,7 @@
         "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
         "regime_label": "bear",
         "regime_gate": "BLOCK",
-        "entry_quality_label": "C",
+        "entry_quality_label": "B",
         "calibration_window": 200,
         "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
       },
@@ -916,7 +1105,7 @@
           "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
           "regime_label": "bear",
           "regime_gate": "BLOCK",
-          "entry_quality_label": "C",
+          "entry_quality_label": "B",
           "calibration_window": 200,
           "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
         },
@@ -926,7 +1115,7 @@
           "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
           "regime_label": "bear",
           "regime_gate": "BLOCK",
-          "entry_quality_label": "C",
+          "entry_quality_label": "B",
           "calibration_window": 200,
           "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
         },
@@ -951,15 +1140,15 @@
       "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields",
       "delta_vs_current_rows": 0
     },
-    "comparable_history_count": 1,
-    "legacy_reference_history_count": 13,
-    "stagnant_run_count": 2,
+    "comparable_history_count": 13,
+    "legacy_reference_history_count": 1,
+    "stagnant_run_count": 5,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
     "history": [
       {
         "heartbeat": "current",
-        "timestamp": "2026-05-23T09:40:38.758236+00:00",
+        "timestamp": "2026-05-23T10:18:21.171381+00:00",
         "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
         "live_current_structure_bucket_rows": 0,
         "minimum_support_rows": 50,
@@ -971,14 +1160,14 @@
           "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
           "regime_label": "bear",
           "regime_gate": "BLOCK",
-          "entry_quality_label": "B",
+          "entry_quality_label": "C",
           "calibration_window": 200,
           "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
         }
       },
       {
-        "heartbeat": "1458",
-        "timestamp": "2026-05-23T09:20:54.693247+00:00",
+        "heartbeat": "1457",
+        "timestamp": "2026-05-23T08:22:05.536785+00:00",
         "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
         "live_current_structure_bucket_rows": 0,
         "minimum_support_rows": 50,
@@ -990,7 +1179,7 @@
           "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
           "regime_label": "bear",
           "regime_gate": "BLOCK",
-          "entry_quality_label": "B",
+          "entry_quality_label": "C",
           "calibration_window": 200,
           "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
         },
@@ -1006,7 +1195,7 @@
             "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
             "regime_label": "bear",
             "regime_gate": "BLOCK",
-            "entry_quality_label": "B",
+            "entry_quality_label": "C",
             "calibration_window": 200,
             "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
           },
@@ -1016,7 +1205,7 @@
             "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
             "regime_label": "bear",
             "regime_gate": "BLOCK",
-            "entry_quality_label": "B",
+            "entry_quality_label": "C",
             "calibration_window": 200,
             "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
           },
@@ -1037,7 +1226,196 @@
           "promotable_to_same_identity_history": true,
           "verdict": "same_identity_evidence_backfilled"
         },
-        "regression_basis": "legacy_or_different_semantic_signature"
+        "regression_basis": "same_identity_same_semantic_signature"
+      },
+      {
+        "heartbeat": "1456",
+        "timestamp": "2026-05-23T07:16:14.269664+00:00",
+        "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+        "live_current_structure_bucket_rows": 0,
+        "minimum_support_rows": 50,
+        "support_route_verdict": "insufficient_support_everywhere",
+        "support_governance_route": "exact_live_lane_proxy_available",
+        "support_identity": {
+          "target_col": "simulated_pyramid_win",
+          "horizon_minutes": 1440,
+          "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+          "regime_label": "bear",
+          "regime_gate": "BLOCK",
+          "entry_quality_label": "C",
+          "calibration_window": 200,
+          "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+        },
+        "support_identity_backfilled": false,
+        "semantic_identity_evidence": {
+          "source": "explicit_support_identity",
+          "explicit_support_identity_present": true,
+          "explicit_bucket_semantic_signature_present": true,
+          "backfilled_bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+          "backfilled_support_identity": {
+            "target_col": "simulated_pyramid_win",
+            "horizon_minutes": 1440,
+            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "regime_label": "bear",
+            "regime_gate": "BLOCK",
+            "entry_quality_label": "C",
+            "calibration_window": 200,
+            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+          },
+          "candidate_support_identity": {
+            "target_col": "simulated_pyramid_win",
+            "horizon_minutes": 1440,
+            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "regime_label": "bear",
+            "regime_gate": "BLOCK",
+            "entry_quality_label": "C",
+            "calibration_window": 200,
+            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+          },
+          "source_fields_complete": true,
+          "matched_fields": [
+            "target_col",
+            "horizon_minutes",
+            "current_live_structure_bucket",
+            "regime_label",
+            "regime_gate",
+            "entry_quality_label",
+            "calibration_window",
+            "bucket_semantic_signature"
+          ],
+          "mismatched_fields": [],
+          "missing_fields": [],
+          "supports_current_identity": true,
+          "promotable_to_same_identity_history": true,
+          "verdict": "same_identity_evidence_backfilled"
+        },
+        "regression_basis": "same_identity_same_semantic_signature"
+      },
+      {
+        "heartbeat": "1455",
+        "timestamp": "2026-05-23T06:27:01.435300+00:00",
+        "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+        "live_current_structure_bucket_rows": 0,
+        "minimum_support_rows": 50,
+        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+        "support_governance_route": "exact_live_lane_proxy_available",
+        "support_identity": {
+          "target_col": "simulated_pyramid_win",
+          "horizon_minutes": 1440,
+          "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+          "regime_label": "bear",
+          "regime_gate": "BLOCK",
+          "entry_quality_label": "C",
+          "calibration_window": 200,
+          "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+        },
+        "support_identity_backfilled": false,
+        "semantic_identity_evidence": {
+          "source": "explicit_support_identity",
+          "explicit_support_identity_present": true,
+          "explicit_bucket_semantic_signature_present": true,
+          "backfilled_bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+          "backfilled_support_identity": {
+            "target_col": "simulated_pyramid_win",
+            "horizon_minutes": 1440,
+            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "regime_label": "bear",
+            "regime_gate": "BLOCK",
+            "entry_quality_label": "C",
+            "calibration_window": 200,
+            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+          },
+          "candidate_support_identity": {
+            "target_col": "simulated_pyramid_win",
+            "horizon_minutes": 1440,
+            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "regime_label": "bear",
+            "regime_gate": "BLOCK",
+            "entry_quality_label": "C",
+            "calibration_window": 200,
+            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+          },
+          "source_fields_complete": true,
+          "matched_fields": [
+            "target_col",
+            "horizon_minutes",
+            "current_live_structure_bucket",
+            "regime_label",
+            "regime_gate",
+            "entry_quality_label",
+            "calibration_window",
+            "bucket_semantic_signature"
+          ],
+          "mismatched_fields": [],
+          "missing_fields": [],
+          "supports_current_identity": true,
+          "promotable_to_same_identity_history": true,
+          "verdict": "same_identity_evidence_backfilled"
+        },
+        "regression_basis": "same_identity_same_semantic_signature"
+      },
+      {
+        "heartbeat": "1454",
+        "timestamp": "2026-05-23T05:13:50.260104+00:00",
+        "live_current_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+        "live_current_structure_bucket_rows": 0,
+        "minimum_support_rows": 50,
+        "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+        "support_governance_route": "exact_live_lane_proxy_available",
+        "support_identity": {
+          "target_col": "simulated_pyramid_win",
+          "horizon_minutes": 1440,
+          "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+          "regime_label": "bear",
+          "regime_gate": "BLOCK",
+          "entry_quality_label": "C",
+          "calibration_window": 200,
+          "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+        },
+        "support_identity_backfilled": false,
+        "semantic_identity_evidence": {
+          "source": "explicit_support_identity",
+          "explicit_support_identity_present": true,
+          "explicit_bucket_semantic_signature_present": true,
+          "backfilled_bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+          "backfilled_support_identity": {
+            "target_col": "simulated_pyramid_win",
+            "horizon_minutes": 1440,
+            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "regime_label": "bear",
+            "regime_gate": "BLOCK",
+            "entry_quality_label": "C",
+            "calibration_window": 200,
+            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+          },
+          "candidate_support_identity": {
+            "target_col": "simulated_pyramid_win",
+            "horizon_minutes": 1440,
+            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "regime_label": "bear",
+            "regime_gate": "BLOCK",
+            "entry_quality_label": "C",
+            "calibration_window": 200,
+            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+          },
+          "source_fields_complete": true,
+          "matched_fields": [
+            "target_col",
+            "horizon_minutes",
+            "current_live_structure_bucket",
+            "regime_label",
+            "regime_gate",
+            "entry_quality_label",
+            "calibration_window",
+            "bucket_semantic_signature"
+          ],
+          "mismatched_fields": [],
+          "missing_fields": [],
+          "supports_current_identity": true,
+          "promotable_to_same_identity_history": true,
+          "verdict": "same_identity_evidence_backfilled"
+        },
+        "regression_basis": "same_identity_same_semantic_signature"
       }
     ]
   },
@@ -1049,7 +1427,7 @@
   "q15_exact_supported_component_patch_applied": false,
   "q15_exact_supported_component_patch": null,
   "runtime_closure_state": "circuit_breaker_active",
-  "runtime_closure_summary": "風控熔斷啟用中：連續虧損筆數： 89 >= 50; 最近 50 筆勝率: 0.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 0/50，至少還差 15 勝。 同時近期病態=近期範圍切片 100 筆 顯示 分佈病態 警示=['標籤失衡'] win_rate=0.11 avg_pnl=-0.0108 avg_品質=-0.2198 window=2026-05-21 13:08:02.506654->2026-05-22 10:12:46.467502 adverse_連續虧損筆數=89x0 (2026-05-21 15:13:35.056906->2026-05-22 10:12:46.467502) vs sibling prev_win_rate=0.33 Δwin_rate=-0.22 prev_品質=0.0314 Δ品質=-0.2512 prev_pnl=-0.002 Δpnl=-0.0088 top_shifts=feat_4h_dist_bb_lower(1.4934→1.145), feat_4h_dist_swing_low(2.0707→1.7599), feat_4h_bb_pct_b(0.6082→0.4726)。 精準路徑與外溢對照：同 regime 寬範圍出現 熊市｜觀察 外溢，11 筆 / 勝率 45.5% / 品質 0.026，明顯劣於 精準即時路徑 勝率 — / 品質 —。",
+  "runtime_closure_summary": "風控熔斷啟用中：連續虧損筆數： 93 >= 50; 最近 50 筆勝率: 0.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 0/50，至少還差 15 勝。 同時近期病態=近期範圍切片 100 筆 顯示 分佈病態 警示=['標籤失衡'] win_rate=0.07 avg_pnl=-0.0117 avg_品質=-0.2544 window=2026-05-21 14:01:25.932251->2026-05-22 11:12:34.311190 adverse_連續虧損筆數=93x0 (2026-05-21 15:13:35.056906->2026-05-22 11:12:34.311190) vs sibling prev_win_rate=0.37 Δwin_rate=-0.3 prev_品質=0.0534 Δ品質=-0.3078 prev_pnl=-0.0017 Δpnl=-0.01 top_shifts=feat_4h_dist_swing_low(2.0588→1.7263), feat_4h_dist_bb_lower(1.4631→1.1472), feat_4h_bb_pct_b(0.596→0.4735)。 精準路徑與外溢對照：同 regime 寬範圍出現 熊市｜觀察 外溢，13 筆 / 勝率 38.5% / 品質 -0.042，明顯劣於 精準即時路徑 勝率 — / 品質 —。",
   "support_route_verdict": "exact_bucket_unsupported_block",
   "floor_cross_verdict": "runtime_blocker_preempts_floor_analysis",
   "chosen_scope": "global",
@@ -1057,14 +1435,14 @@
     "scope": "global",
     "rows": 200,
     "win_rate": 0.22,
-    "avg_pnl": -0.0064,
-    "avg_quality": -0.0942,
-    "avg_drawdown_penalty": 0.247,
-    "avg_time_underwater": 0.6371,
+    "avg_pnl": -0.0067,
+    "avg_quality": -0.1005,
+    "avg_drawdown_penalty": 0.253,
+    "avg_time_underwater": 0.6477,
     "alerts": [],
     "recent_pathology_applied": true,
     "recent_pathology_window": 100,
-    "recent_pathology_reason": "recent scope slice 100 rows shows distribution_pathology alerts=['label_imbalance'] win_rate=0.11 avg_pnl=-0.0108 avg_quality=-0.2198 window=2026-05-21 13:08:02.506654->2026-05-22 10:12:46.467502 adverse_streak=89x0 (2026-05-21 15:13:35.056906->2026-05-22 10:12:46.467502) vs sibling prev_win_rate=0.33 Δwin_rate=-0.22 prev_quality=0.0314 Δquality=-0.2512 prev_pnl=-0.002 Δpnl=-0.0088 top_shifts=feat_4h_dist_bb_lower(1.4934→1.145), feat_4h_dist_swing_low(2.0707→1.7599), feat_4h_bb_pct_b(0.6082→0.4726)",
+    "recent_pathology_reason": "recent scope slice 100 rows shows distribution_pathology alerts=['label_imbalance'] win_rate=0.07 avg_pnl=-0.0117 avg_quality=-0.2544 window=2026-05-21 14:01:25.932251->2026-05-22 11:12:34.311190 adverse_streak=93x0 (2026-05-21 15:13:35.056906->2026-05-22 11:12:34.311190) vs sibling prev_win_rate=0.37 Δwin_rate=-0.3 prev_quality=0.0534 Δquality=-0.3078 prev_pnl=-0.0017 Δpnl=-0.01 top_shifts=feat_4h_dist_swing_low(2.0588→1.7263), feat_4h_dist_bb_lower(1.4631→1.1472), feat_4h_bb_pct_b(0.596→0.4735)",
     "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
     "current_live_structure_bucket_rows": 0,
     "current_live_structure_bucket_share": 0.0,
@@ -1075,75 +1453,75 @@
       "regime_gate": "chop|CAUTION",
       "regime": "chop",
       "gate": "CAUTION",
-      "rows": 189,
-      "win_rate": 0.2063,
-      "avg_pnl": -0.0063,
-      "avg_quality": -0.1012,
-      "avg_drawdown_penalty": 0.2496,
-      "avg_time_underwater": 0.6522
+      "rows": 187,
+      "win_rate": 0.2086,
+      "avg_pnl": -0.0065,
+      "avg_quality": -0.1046,
+      "avg_drawdown_penalty": 0.2542,
+      "avg_time_underwater": 0.661
     },
     "spillover_top_shifts": [
       {
         "feature": "feat_4h_dist_swing_low",
-        "current_mean": 1.9676,
-        "reference_mean": -2.7332,
-        "mean_delta": 4.7008
+        "current_mean": 1.9566,
+        "reference_mean": -2.6499,
+        "mean_delta": 4.6065
       },
       {
         "feature": "feat_4h_bias200",
-        "current_mean": -1.0776,
-        "reference_mean": -4.8581,
-        "mean_delta": 3.7805
+        "current_mean": -1.0797,
+        "reference_mean": -4.7813,
+        "mean_delta": 3.7016
       },
       {
         "feature": "feat_4h_dist_bb_lower",
-        "current_mean": 1.3526,
-        "reference_mean": -0.0273,
-        "mean_delta": 1.3799
+        "current_mean": 1.3423,
+        "reference_mean": 0.0357,
+        "mean_delta": 1.3066
       }
     ],
     "exact_gate_path": null,
     "spillover_gate_path": {
-      "rows": 189,
+      "rows": 187,
       "final_gate_counts": {
-        "CAUTION": 189
+        "CAUTION": 187
       },
       "final_reason_counts": {
-        "base_caution_regime_or_bias": 189
+        "base_caution_regime_or_bias": 187
       },
       "base_gate_counts": {
-        "CAUTION": 189
+        "CAUTION": 187
       },
-      "avg_structure_quality": 0.309,
+      "avg_structure_quality": 0.3068,
       "structure_quality_distribution": {
         "min": 0.1821,
-        "p25": 0.2616,
-        "p50": 0.3173,
-        "p75": 0.3536,
+        "p25": 0.2538,
+        "p50": 0.3149,
+        "p75": 0.3517,
         "max": 0.4327
       },
       "structure_quality_gate_bands": {
         "block_lt_0.15": 0,
-        "caution_0.15_to_0.35": 136,
-        "allow_ge_0.35": 53
+        "caution_0.15_to_0.35": 138,
+        "allow_ge_0.35": 49
       },
-      "avg_bias200": -1.0776,
+      "avg_bias200": -1.0797,
       "target_counts": {
-        "loss": 150,
+        "loss": 148,
         "win": 39
       },
       "pnl_sign_counts": {
         "positive": 39,
         "zero": 0,
-        "negative": 150
+        "negative": 148
       },
       "quality_sign_counts": {
         "positive": 39,
         "zero": 0,
-        "negative": 150
+        "negative": 148
       },
-      "canonical_true_negative_rows": 150,
-      "canonical_true_negative_share": 0.7937,
+      "canonical_true_negative_rows": 148,
+      "canonical_true_negative_share": 0.7914,
       "missing_input_rows": 0,
       "missing_input_feature_counts": {}
     }
@@ -1185,28 +1563,98 @@
   "decision_quality_exact_live_lane_toxic_bucket": null,
   "narrow_same_regime_summary": {
     "scope": "regime_label+entry_quality_label",
-    "rows": 0,
-    "win_rate": null,
-    "avg_pnl": null,
-    "avg_quality": null,
-    "avg_drawdown_penalty": null,
-    "avg_time_underwater": null,
-    "alerts": [
-      "no_rows"
-    ],
+    "rows": 12,
+    "win_rate": 0.4167,
+    "avg_pnl": -0.0089,
+    "avg_quality": -0.0112,
+    "avg_drawdown_penalty": 0.2215,
+    "avg_time_underwater": 0.4273,
+    "alerts": [],
     "recent_pathology_applied": false,
-    "recent_pathology_window": 0,
+    "recent_pathology_window": 12,
     "recent_pathology_reason": null,
     "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
     "current_live_structure_bucket_rows": 0,
-    "current_live_structure_bucket_share": null,
+    "current_live_structure_bucket_share": 0.0,
     "current_live_structure_bucket_metrics": null,
-    "spillover_extra_rows": 0,
-    "spillover_extra_row_share": null,
-    "spillover_worst_extra_regime_gate": null,
-    "spillover_top_shifts": [],
+    "spillover_extra_rows": 12,
+    "spillover_extra_row_share": 1.0,
+    "spillover_worst_extra_regime_gate": {
+      "regime_gate": "bear|CAUTION",
+      "regime": "bear",
+      "gate": "CAUTION",
+      "rows": 12,
+      "win_rate": 0.4167,
+      "avg_pnl": -0.0089,
+      "avg_quality": -0.0112,
+      "avg_drawdown_penalty": 0.2215,
+      "avg_time_underwater": 0.4273
+    },
+    "spillover_top_shifts": [
+      {
+        "feature": "feat_4h_dist_swing_low",
+        "current_mean": 0.994,
+        "reference_mean": -2.6499,
+        "mean_delta": 3.6439
+      },
+      {
+        "feature": "feat_4h_bias200",
+        "current_mean": -1.6671,
+        "reference_mean": -4.7813,
+        "mean_delta": 3.1142
+      },
+      {
+        "feature": "feat_4h_dist_bb_lower",
+        "current_mean": 0.76,
+        "reference_mean": 0.0357,
+        "mean_delta": 0.7243
+      }
+    ],
     "exact_gate_path": null,
-    "spillover_gate_path": null
+    "spillover_gate_path": {
+      "rows": 12,
+      "final_gate_counts": {
+        "CAUTION": 12
+      },
+      "final_reason_counts": {
+        "base_caution_regime_or_bias": 12
+      },
+      "base_gate_counts": {
+        "CAUTION": 12
+      },
+      "avg_structure_quality": 0.1715,
+      "structure_quality_distribution": {
+        "min": 0.13,
+        "p25": 0.1653,
+        "p50": 0.1771,
+        "p75": 0.1795,
+        "max": 0.1926
+      },
+      "structure_quality_gate_bands": {
+        "block_lt_0.15": 1,
+        "caution_0.15_to_0.35": 11,
+        "allow_ge_0.35": 0
+      },
+      "avg_bias200": -1.6671,
+      "target_counts": {
+        "loss": 7,
+        "win": 5
+      },
+      "pnl_sign_counts": {
+        "positive": 5,
+        "zero": 0,
+        "negative": 7
+      },
+      "quality_sign_counts": {
+        "positive": 5,
+        "zero": 0,
+        "negative": 7
+      },
+      "canonical_true_negative_rows": 7,
+      "canonical_true_negative_share": 0.5833,
+      "missing_input_rows": 0,
+      "missing_input_feature_counts": {}
+    }
   },
   "broad_same_gate_summary": {
     "scope": "regime_gate+entry_quality_label",
@@ -1233,60 +1681,60 @@
     "exact_gate_path": null,
     "spillover_gate_path": null
   },
-  "recent_pathology_reason": "recent scope slice 100 rows shows distribution_pathology alerts=['label_imbalance'] win_rate=0.11 avg_pnl=-0.0108 avg_quality=-0.2198 window=2026-05-21 13:08:02.506654->2026-05-22 10:12:46.467502 adverse_streak=89x0 (2026-05-21 15:13:35.056906->2026-05-22 10:12:46.467502) vs sibling prev_win_rate=0.33 Δwin_rate=-0.22 prev_quality=0.0314 Δquality=-0.2512 prev_pnl=-0.002 Δpnl=-0.0088 top_shifts=feat_4h_dist_bb_lower(1.4934→1.145), feat_4h_dist_swing_low(2.0707→1.7599), feat_4h_bb_pct_b(0.6082→0.4726)",
+  "recent_pathology_reason": "recent scope slice 100 rows shows distribution_pathology alerts=['label_imbalance'] win_rate=0.07 avg_pnl=-0.0117 avg_quality=-0.2544 window=2026-05-21 14:01:25.932251->2026-05-22 11:12:34.311190 adverse_streak=93x0 (2026-05-21 15:13:35.056906->2026-05-22 11:12:34.311190) vs sibling prev_win_rate=0.37 Δwin_rate=-0.3 prev_quality=0.0534 Δquality=-0.3078 prev_pnl=-0.0017 Δpnl=-0.01 top_shifts=feat_4h_dist_swing_low(2.0588→1.7263), feat_4h_dist_bb_lower(1.4631→1.1472), feat_4h_bb_pct_b(0.596→0.4735)",
   "recent_pathology_summary": {
     "rows": 100,
-    "win_rate": 0.11,
-    "avg_pnl": -0.0108,
-    "avg_quality": -0.2198,
-    "avg_drawdown_penalty": 0.3085,
-    "avg_time_underwater": 0.7241,
-    "start_timestamp": "2026-05-21 13:08:02.506654",
-    "end_timestamp": "2026-05-22 10:12:46.467502",
+    "win_rate": 0.07,
+    "avg_pnl": -0.0117,
+    "avg_quality": -0.2544,
+    "avg_drawdown_penalty": 0.322,
+    "avg_time_underwater": 0.75,
+    "start_timestamp": "2026-05-21 14:01:25.932251",
+    "end_timestamp": "2026-05-22 11:12:34.311190",
     "adverse_target_streak": {
       "target": 0,
-      "count": 89,
+      "count": 93,
       "start_timestamp": "2026-05-21 15:13:35.056906",
-      "end_timestamp": "2026-05-22 10:12:46.467502"
+      "end_timestamp": "2026-05-22 11:12:34.311190"
     },
     "reference_window_comparison": {
       "current_quality": {
-        "win_rate": 0.11,
-        "avg_simulated_pnl": -0.0108,
-        "avg_simulated_quality": -0.2198,
-        "avg_drawdown_penalty": 0.3085,
-        "avg_time_underwater": 0.7241
+        "win_rate": 0.07,
+        "avg_simulated_pnl": -0.0117,
+        "avg_simulated_quality": -0.2544,
+        "avg_drawdown_penalty": 0.322,
+        "avg_time_underwater": 0.75
       },
       "reference_quality": {
-        "win_rate": 0.33,
-        "avg_simulated_pnl": -0.002,
-        "avg_simulated_quality": 0.0314,
-        "avg_drawdown_penalty": 0.1854,
-        "avg_time_underwater": 0.5501
+        "win_rate": 0.37,
+        "avg_simulated_pnl": -0.0017,
+        "avg_simulated_quality": 0.0534,
+        "avg_drawdown_penalty": 0.1839,
+        "avg_time_underwater": 0.5453
       },
-      "win_rate_delta_vs_reference": -0.22,
-      "avg_simulated_pnl_delta_vs_reference": -0.0088,
-      "avg_simulated_quality_delta_vs_reference": -0.2512,
-      "avg_drawdown_penalty_delta_vs_reference": 0.1231,
-      "avg_time_underwater_delta_vs_reference": 0.174,
+      "win_rate_delta_vs_reference": -0.3,
+      "avg_simulated_pnl_delta_vs_reference": -0.01,
+      "avg_simulated_quality_delta_vs_reference": -0.3078,
+      "avg_drawdown_penalty_delta_vs_reference": 0.1381,
+      "avg_time_underwater_delta_vs_reference": 0.2047,
       "top_mean_shift_features": [
         {
-          "feature": "feat_4h_dist_bb_lower",
-          "current_mean": 1.145,
-          "reference_mean": 1.4934,
-          "mean_delta": -0.3484
+          "feature": "feat_4h_dist_swing_low",
+          "current_mean": 1.7263,
+          "reference_mean": 2.0588,
+          "mean_delta": -0.3325
         },
         {
-          "feature": "feat_4h_dist_swing_low",
-          "current_mean": 1.7599,
-          "reference_mean": 2.0707,
-          "mean_delta": -0.3108
+          "feature": "feat_4h_dist_bb_lower",
+          "current_mean": 1.1472,
+          "reference_mean": 1.4631,
+          "mean_delta": -0.3159
         },
         {
           "feature": "feat_4h_bb_pct_b",
-          "current_mean": 0.4726,
-          "reference_mean": 0.6082,
-          "mean_delta": -0.1356
+          "current_mean": 0.4735,
+          "reference_mean": 0.596,
+          "mean_delta": -0.1225
         }
       ]
     }
@@ -1296,9 +1744,9 @@
   "decision_quality_scope_pathology_summary": {
     "focus_scope": "regime_label",
     "focus_scope_label": "同 regime 寬 scope",
-    "focus_scope_rows": 11,
+    "focus_scope_rows": 13,
     "spillover": {
-      "extra_rows": 11,
+      "extra_rows": 13,
       "extra_row_share": 1.0,
       "win_rate_delta_vs_exact": null,
       "avg_pnl_delta_vs_exact": null,
@@ -1309,31 +1757,31 @@
         "regime_gate": "bear|CAUTION",
         "regime": "bear",
         "gate": "CAUTION",
-        "rows": 11,
-        "win_rate": 0.4545,
-        "avg_pnl": -0.008,
-        "avg_quality": 0.0262,
-        "avg_drawdown_penalty": 0.2022,
-        "avg_time_underwater": 0.3773
+        "rows": 13,
+        "win_rate": 0.3846,
+        "avg_pnl": -0.0098,
+        "avg_quality": -0.0422,
+        "avg_drawdown_penalty": 0.2357,
+        "avg_time_underwater": 0.4558
       },
       "top_mean_shift_features": [
         {
           "feature": "feat_4h_dist_swing_low",
-          "current_mean": 1.0162,
-          "reference_mean": -2.7332,
-          "mean_delta": 3.7494
+          "current_mean": 0.9717,
+          "reference_mean": -2.6499,
+          "mean_delta": 3.6216
         },
         {
           "feature": "feat_4h_bias200",
-          "current_mean": -1.6824,
-          "reference_mean": -4.8581,
-          "mean_delta": 3.1757
+          "current_mean": -1.6577,
+          "reference_mean": -4.7813,
+          "mean_delta": 3.1236
         },
         {
           "feature": "feat_4h_dist_bb_lower",
-          "current_mean": 0.7441,
-          "reference_mean": -0.0273,
-          "mean_delta": 0.7714
+          "current_mean": 0.7704,
+          "reference_mean": 0.0357,
+          "mean_delta": 0.7347
         }
       ]
     },
@@ -1349,7 +1797,7 @@
       "current_live_structure_bucket_rows": 0,
       "dominant_structure_bucket": null
     },
-    "summary": "同 regime 寬 scope 出現 bear|CAUTION spillover，11 rows / WR 45.5% / 品質 0.026，明顯劣於 exact live lane WR — / 品質 —。"
+    "summary": "同 regime 寬 scope 出現 bear|CAUTION spillover，13 rows / WR 38.5% / 品質 -0.042，明顯劣於 exact live lane WR — / 品質 —。"
   },
   "recommended_patch": null,
   "recommended_patch_profile": null,
