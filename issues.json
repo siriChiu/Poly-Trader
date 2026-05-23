@@ -3,16 +3,16 @@
     {
       "id": "#H_AUTO_STREAK",
       "priority": "P0",
-      "title": "連續 115 筆 1440m simulated_pyramid_win=0",
+      "title": "連續 122 筆 1440m simulated_pyramid_win=0",
       "action": "檢查 recent canonical labels / regime breakdown / circuit breaker；必要時升級為 distribution-aware drift 調查",
       "status": "open",
       "created_at": "2026-05-22T21:09:56.531561",
-      "updated_at": "2026-05-23T15:42:43.784124",
+      "updated_at": "2026-05-23T17:09:55.706344",
       "hb_detected": null,
       "next_action": "檢查 recent canonical labels / regime breakdown / circuit breaker；必要時升級為 distribution-aware drift 調查",
       "summary": {
         "canonical_horizon_minutes": 1440,
-        "losing_streak": 115,
+        "losing_streak": 122,
         "all_horizon_losing_streak": 0
       }
     },
@@ -23,7 +23,7 @@
       "action": "即時部署阻塞語義切回熔斷解除條件：先把熔斷解除條件視為當前 immediate hard gate；同時保留 current exact support rows/minimum/gap、support_route、Top-K deployable=0 與 venue runtime proof 作為後續 live gates。熔斷期間不得把 support/proxy/reference rows 或 venue checklist 包裝成 deploy-ready，也不得把它們從 live gate 清單移除。 最近 50 筆目前 0/50 勝，解除至少需要 15 勝，還差 15 勝；同時連續虧損必須 < 50。",
       "status": "open",
       "created_at": "2026-05-21T15:09:06.428661",
-      "updated_at": "2026-05-23T15:42:44.749922",
+      "updated_at": "2026-05-23T17:09:56.667303",
       "hb_detected": null,
       "next_action": "即時部署阻塞語義切回熔斷解除條件：先把熔斷解除條件視為當前 immediate hard gate；同時保留 current exact support rows/minimum/gap、support_route、Top-K deployable=0 與 venue runtime proof 作為後續 live gates。熔斷期間不得把 support/proxy/reference rows 或 venue checklist 包裝成 deploy-ready，也不得把它們從 live gate 清單移除。 最近 50 筆目前 0/50 勝，解除至少需要 15 勝，還差 15 勝；同時連續虧損必須 < 50。",
       "summary": {
@@ -33,7 +33,7 @@
         "current_recent_window_wins": 0,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 15,
-        "streak": 115,
+        "streak": 122,
         "streak_must_be_below": 50,
         "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q15",
         "current_live_structure_bucket_rows": 0,
@@ -73,7 +73,7 @@
           "mode_toggle"
         ],
         "api_trade_guardrail_context": "買入 / 加倉會在 ExecutionService.submit_order 前先檢查即時部署阻塞點；阻塞期間等待 / 觀望不送單，減倉 / 賣出可作風險降低路徑",
-        "deployment_blocker_reason": "Consecutive loss streak: 115 >= 50; Recent 50-sample win rate: 0.00% < 30%",
+        "deployment_blocker_reason": "Consecutive loss streak: 122 >= 50; Recent 50-sample win rate: 0.00% < 30%",
         "deployment_blocker_source": "circuit_breaker",
         "signal": "CIRCUIT_BREAKER",
         "support_route_deployable": false,
@@ -122,9 +122,9 @@
           "recent_supported_timestamp": null,
           "delta_vs_recent_supported": null,
           "legacy_supported_reference": null,
-          "comparable_history_count": 2,
+          "comparable_history_count": 3,
           "legacy_reference_history_count": 0,
-          "stagnant_run_count": 3,
+          "stagnant_run_count": 4,
           "stalled_support_accumulation": true,
           "escalate_to_blocker": true
         },
@@ -146,7 +146,10 @@
           "current_rows": 0,
           "minimum_support_rows": 50,
           "gap_to_minimum": 50,
-          "stagnant_run_count": 3,
+          "stagnant_run_count": 4,
+          "semantic_signature_delta_vs_previous": 0,
+          "semantic_signature_stagnant_run_count": 4,
+          "semantic_signature_stalled_support_accumulation": true,
           "legacy_reference_only": false,
           "legacy_semantic_evidence": null,
           "semantic_rebaseline_reference_only": false,
@@ -172,6 +175,18 @@
               "priority": "P0",
               "description": "fast heartbeat 在 q15 under-minimum / semantic rebaseline / stagnant 狀態下不得重用舊 q15 support artifact。",
               "success_condition": "每輪 support_progress.history / stagnant_run_count 反映最新 heartbeat truth。"
+            },
+            {
+              "id": "semantic_signature_map_signal_redesign_or_row_harvest",
+              "type": "forced_execution_branch",
+              "priority": "P0",
+              "description": "同 bucket semantic signature 支持行數仍無進展；entry-quality label 變動不得重置 PM 反平衡時鐘。",
+              "semantic_signature_delta_vs_previous": 0,
+              "semantic_signature_stagnant_run_count": 4,
+              "ignored_strict_identity_fields": [
+                "entry_quality_label"
+              ],
+              "success_condition": "下一輪交付 Map/Signal redesign proof 或 exact-bucket row harvest artifact，而不是只回報 support still 0/50。"
             }
           ]
         },
@@ -189,7 +204,8 @@
           "active_repair_gap_to_minimum": 50,
           "active_repair_action_ids": [
             "collect_exact_current_bucket_rows",
-            "force_q15_support_audit_refresh"
+            "force_q15_support_audit_refresh",
+            "semantic_signature_map_signal_redesign_or_row_harvest"
           ]
         }
       }
@@ -201,7 +217,7 @@
       "action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "status": "open",
       "created_at": "2026-04-29T18:00:00+08:00",
-      "updated_at": "2026-05-23T15:42:44.766627",
+      "updated_at": "2026-05-23T17:09:56.683096",
       "hb_detected": null,
       "next_action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "summary": {
@@ -249,14 +265,14 @@
         "strategy_lab_contract": "Strategy Lab 必須優先顯示 nearest_deployable_rows，並把離線驗證 / 模型門檻失敗與即時分桶 / 支持阻塞分開呈現；此研究 gate 不暴露 live automation 按鈕。",
         "execution_contract": "current-live blocker / unsupported support route keeps buy/add exposure fail-closed; reduce/sell diagnostics remain available",
         "latest_matrix": {
-          "generated_at": "2026-05-23T15:42:22.229512+00:00",
+          "generated_at": "2026-05-23T17:09:37.130340+00:00",
           "artifact_freshness_status": "fresh",
           "artifact_freshness_reason": "artifact_within_policy",
-          "artifact_age_minutes": 0.3756165166666667,
+          "artifact_age_minutes": 0.32587679999999997,
           "artifact_stale_after_minutes": 60.0,
           "artifact_deployment_blocking": false,
           "artifact": "data/high_conviction_topk_oos_matrix.json",
-          "samples": 25023,
+          "samples": 25030,
           "rows": 24,
           "evaluated_models": [
             "logistic_regression",
@@ -294,7 +310,7 @@
           "minimum_support_rows": 50,
           "current_live_structure_bucket_gap_to_minimum": 50,
           "release_ready": false,
-          "current_streak": 115,
+          "current_streak": 122,
           "recent_window": 50,
           "current_recent_window_win_rate": 0.0,
           "current_recent_window_wins": 0,
@@ -303,10 +319,10 @@
           "support_progress_status": "stalled_under_minimum",
           "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
           "support_progress_regression_basis": "same_identity_same_semantic_signature",
-          "support_progress_stagnant_run_count": 3,
+          "support_progress_stagnant_run_count": 4,
           "support_progress_stalled_support_accumulation": true,
           "support_progress_escalate_to_blocker": true,
-          "stagnant_run_count": 3,
+          "stagnant_run_count": 4,
           "stalled_support_accumulation": true,
           "escalate_to_blocker": true,
           "support_delta_vs_previous": 0,
@@ -322,7 +338,8 @@
           "active_repair_support_status": "stalled_under_minimum",
           "active_repair_action_ids": [
             "collect_exact_current_bucket_rows",
-            "force_q15_support_audit_refresh"
+            "force_q15_support_audit_refresh",
+            "semantic_signature_map_signal_redesign_or_row_harvest"
           ],
           "nearest_deployable_candidate": {
             "model": "logistic_regression",
@@ -370,7 +387,7 @@
               "streak_release_ready": false,
               "recent_win_rate_release_ready": false,
               "streak_must_be_below": 50,
-              "current_streak": 115,
+              "current_streak": 122,
               "recent_window": 50,
               "recent_win_rate_must_be_at_least": 0.3,
               "current_recent_window_win_rate": 0.0,
@@ -379,7 +396,7 @@
               "additional_recent_window_wins_needed": 15
             },
             "release_ready": false,
-            "current_streak": 115,
+            "current_streak": 122,
             "recent_window": 50,
             "current_recent_window_win_rate": 0.0,
             "current_recent_window_wins": 0,
@@ -388,10 +405,10 @@
             "support_progress_status": "stalled_under_minimum",
             "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
             "support_progress_regression_basis": "same_identity_same_semantic_signature",
-            "support_progress_stagnant_run_count": 3,
+            "support_progress_stagnant_run_count": 4,
             "support_progress_stalled_support_accumulation": true,
             "support_progress_escalate_to_blocker": true,
-            "stagnant_run_count": 3,
+            "stagnant_run_count": 4,
             "stalled_support_accumulation": true,
             "escalate_to_blocker": true,
             "support_delta_vs_previous": 0,
@@ -407,7 +424,8 @@
             "active_repair_support_status": "stalled_under_minimum",
             "active_repair_action_ids": [
               "collect_exact_current_bucket_rows",
-              "force_q15_support_audit_refresh"
+              "force_q15_support_audit_refresh",
+              "semantic_signature_map_signal_redesign_or_row_harvest"
             ],
             "support_governance_reference_evidence": {
               "support_governance_route": "exact_live_lane_proxy_available",
@@ -479,7 +497,7 @@
               "streak_release_ready": false,
               "recent_win_rate_release_ready": false,
               "streak_must_be_below": 50,
-              "current_streak": 115,
+              "current_streak": 122,
               "recent_window": 50,
               "recent_win_rate_must_be_at_least": 0.3,
               "current_recent_window_win_rate": 0.0,
@@ -488,7 +506,7 @@
               "additional_recent_window_wins_needed": 15
             },
             "release_ready": false,
-            "current_streak": 115,
+            "current_streak": 122,
             "recent_window": 50,
             "current_recent_window_win_rate": 0.0,
             "current_recent_window_wins": 0,
@@ -497,10 +515,10 @@
             "support_progress_status": "stalled_under_minimum",
             "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
             "support_progress_regression_basis": "same_identity_same_semantic_signature",
-            "support_progress_stagnant_run_count": 3,
+            "support_progress_stagnant_run_count": 4,
             "support_progress_stalled_support_accumulation": true,
             "support_progress_escalate_to_blocker": true,
-            "stagnant_run_count": 3,
+            "stagnant_run_count": 4,
             "stalled_support_accumulation": true,
             "escalate_to_blocker": true,
             "support_delta_vs_previous": 0,
@@ -516,7 +534,8 @@
             "active_repair_support_status": "stalled_under_minimum",
             "active_repair_action_ids": [
               "collect_exact_current_bucket_rows",
-              "force_q15_support_audit_refresh"
+              "force_q15_support_audit_refresh",
+              "semantic_signature_map_signal_redesign_or_row_harvest"
             ],
             "support_governance_reference_evidence": {
               "support_governance_route": "exact_live_lane_proxy_available",
@@ -583,7 +602,7 @@
               "streak_release_ready": false,
               "recent_win_rate_release_ready": false,
               "streak_must_be_below": 50,
-              "current_streak": 115,
+              "current_streak": 122,
               "recent_window": 50,
               "recent_win_rate_must_be_at_least": 0.3,
               "current_recent_window_win_rate": 0.0,
@@ -592,7 +611,7 @@
               "additional_recent_window_wins_needed": 15
             },
             "release_ready": false,
-            "current_streak": 115,
+            "current_streak": 122,
             "recent_window": 50,
             "current_recent_window_win_rate": 0.0,
             "current_recent_window_wins": 0,
@@ -601,10 +620,10 @@
             "support_progress_status": "stalled_under_minimum",
             "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
             "support_progress_regression_basis": "same_identity_same_semantic_signature",
-            "support_progress_stagnant_run_count": 3,
+            "support_progress_stagnant_run_count": 4,
             "support_progress_stalled_support_accumulation": true,
             "support_progress_escalate_to_blocker": true,
-            "stagnant_run_count": 3,
+            "stagnant_run_count": 4,
             "stalled_support_accumulation": true,
             "escalate_to_blocker": true,
             "support_delta_vs_previous": 0,
@@ -620,7 +639,8 @@
             "active_repair_support_status": "stalled_under_minimum",
             "active_repair_action_ids": [
               "collect_exact_current_bucket_rows",
-              "force_q15_support_audit_refresh"
+              "force_q15_support_audit_refresh",
+              "semantic_signature_map_signal_redesign_or_row_harvest"
             ],
             "support_governance_reference_evidence": {
               "support_governance_route": "exact_live_lane_proxy_available",
@@ -691,30 +711,9 @@
       "action": "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數",
       "status": "open",
       "created_at": "2026-05-18T10:03:34.597479",
-      "updated_at": "2026-05-23T15:42:43.784154",
+      "updated_at": "2026-05-23T17:09:55.706375",
       "hb_detected": null,
       "next_action": "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數"
-    },
-    {
-      "id": "#H_AUTO_LIVE_DQ_PATHOLOGY",
-      "priority": "P1",
-      "title": "live predictor decision-quality contract is runtime-blocked by recent pathology, a toxic exact live lane, or a severe narrowed pathology lane",
-      "action": "把 hb_predict_probe 納入每輪 heartbeat 驗證，對 exact live lane、當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；優先檢查 exact lane 是否仍是 ALLOW 但 canonical true-negative share 已偏高，並交叉比對 recent same-scope / narrowed-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。 live_scope=global, regime=bear/BLOCK, label=D, sample_size=200, window=100, alerts=['constant_target'], expected_win_rate=0.0, expected_pnl=-0.0139, expected_quality=-0.3395, layers=0→0, top_shifts=feat_4h_dist_swing_low(2.0194→1.4807)/feat_4h_dist_bb_lower(1.3347→1.1151)/feat_4h_bb_pct_b(0.5448→0.4598), exact_live_lane=(rows=0,wr=None,q=None,dd=None,tuw=None), scope_brief=regime_label+regime_gate+entry_quality_label:rows=0|wr=None|q=None|alerts=['no_rows']; regime_gate+entry_quality_label:rows=0|wr=None|q=None|alerts=['no_rows']; regime_label+entry_quality_label:rows=20|wr=0.25|q=-0.101|dom=bear|CAUTION@1.0|spillover=bear|CAUTION:rows=20,wr=0.25,q=-0.101; entry_quality_label:rows=122|wr=0.2705|q=-0.071|dom=chop|CAUTION@0.8361|spillover=bear|CAUTION:rows=20,wr=0.25,q=-0.101",
-      "status": "open",
-      "created_at": "2026-05-23T07:16:13.245923",
-      "updated_at": "2026-05-23T15:42:43.784146",
-      "hb_detected": null,
-      "next_action": "把 hb_predict_probe 納入每輪 heartbeat 驗證，對 exact live lane、當前 calibration scope 與 worst narrowed scope 做 root-cause drill-down；優先檢查 exact lane 是否仍是 ALLOW 但 canonical true-negative share 已偏高，並交叉比對 recent same-scope / narrowed-scope 4H shifts、scope selection、與 execution guardrail 是否只是正確地把壞 pocket 擋下。 live_scope=global, regime=bear/BLOCK, label=D, sample_size=200, window=100, alerts=['constant_target'], expected_win_rate=0.0, expected_pnl=-0.0139, expected_quality=-0.3395, layers=0→0, top_shifts=feat_4h_dist_swing_low(2.0194→1.4807)/feat_4h_dist_bb_lower(1.3347→1.1151)/feat_4h_bb_pct_b(0.5448→0.4598), exact_live_lane=(rows=0,wr=None,q=None,dd=None,tuw=None), scope_brief=regime_label+regime_gate+entry_quality_label:rows=0|wr=None|q=None|alerts=['no_rows']; regime_gate+entry_quality_label:rows=0|wr=None|q=None|alerts=['no_rows']; regime_label+entry_quality_label:rows=20|wr=0.25|q=-0.101|dom=bear|CAUTION@1.0|spillover=bear|CAUTION:rows=20,wr=0.25,q=-0.101; entry_quality_label:rows=122|wr=0.2705|q=-0.071|dom=chop|CAUTION@0.8361|spillover=bear|CAUTION:rows=20,wr=0.25,q=-0.101",
-      "summary": {
-        "live_scope": "global",
-        "deployment_blocker": "circuit_breaker_active",
-        "window": "100",
-        "alerts": [
-          "constant_target",
-          "regime_shift"
-        ],
-        "allowed_layers": 0
-      }
     },
     {
       "id": "#H_AUTO_MODEL_STABILITY",
@@ -723,7 +722,7 @@
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-05-23T15:42:43.784119",
+      "updated_at": "2026-05-23T17:09:55.706339",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
@@ -735,16 +734,16 @@
     {
       "id": "#H_AUTO_REGIME_DRIFT",
       "priority": "P1",
-      "title": "TW-IC 26 vs Global IC 16 — 信號強依賴近期資料",
+      "title": "TW-IC 22 vs Global IC 16 — 信號強依賴近期資料",
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-05-22T03:03:23.365823",
-      "updated_at": "2026-05-23T15:42:43.784149",
+      "updated_at": "2026-05-23T17:09:55.706369",
       "hb_detected": null,
       "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "summary": {
         "global_pass": 16,
-        "tw_pass": 26,
+        "tw_pass": 22,
         "total_features": 30
       }
     },
@@ -773,7 +772,7 @@
         ],
         "api_ui_contract": "execution_metadata_smoke top-level and venues[] expose runtime_ready/readiness_state/proof_state/blockers/operator_next_action/verify_next/readiness_scope for OKX proof-gap rendering and Binance unsupported/disabled blocker visibility; metadata OK does not imply live-ready",
         "execution_metadata_smoke": {
-          "generated_at": "2026-05-23T15:42:40.896331Z",
+          "generated_at": "2026-05-23T17:09:52.864768Z",
           "venues_checked": 2,
           "ok_count": 1,
           "runtime_ready": false,
@@ -833,7 +832,7 @@
         "PYTHONPATH=. /home/kazuha/Poly-Trader/venv/bin/python -m pytest tests/test_execution_metadata_smoke.py tests/test_server_startup.py -k 'execution_metadata_smoke or venue_runtime_proof' tests/test_frontend_decision_contract.py -k 'venue_readiness or runtime_copy_humanizes_execution_governance' -q",
         "cd web && npm run build"
       ],
-      "updated_at": "2026-05-23T15:42:44.766648",
+      "updated_at": "2026-05-23T17:09:56.683119",
       "action": "Keep OKX runtime-proof blockers and Binance unsupported/disabled blockers explicitly visible on Dashboard, /lab, and /execution/status until credentials, order ack lifecycle, and fill lifecycle each have runtime-backed proof; unsupported venues must stay fail-closed; any readiness UI must require runtime_ready=true plus no blockers."
     },
     {
@@ -845,7 +844,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 4617,
+        "forward_archive_rows": 4622,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure [REDACTED], then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -853,7 +852,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-05-23T15:42:44.749861",
+      "updated_at": "2026-05-23T17:09:56.667257",
       "action": "Configure [REDACTED], then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -873,7 +872,7 @@
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": false,
         "leaderboard_payload_cache_age_sec": 6,
-        "leaderboard_payload_updated_at": "2026-05-23T15:42:20.657424Z",
+        "leaderboard_payload_updated_at": "2026-05-23T17:09:35.591206Z",
         "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
@@ -882,7 +881,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-05-23T15:42:43.784113",
+      "updated_at": "2026-05-23T17:09:55.706333",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -917,7 +916,7 @@
       "action": "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible in probe/API/UI/docs even when circuit_breaker_active is the primary blocker.",
       "status": "open",
       "created_at": "2026-05-23T14:32:40.945135",
-      "updated_at": "2026-05-23T15:42:43.784076",
+      "updated_at": "2026-05-23T17:09:55.706293",
       "hb_detected": null,
       "next_action": "Keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum visible in probe/API/UI/docs even when circuit_breaker_active is the primary blocker.",
       "summary": {
@@ -950,6 +949,54 @@
         "leaderboard_selected_profile": "core_only",
         "train_selected_profile": "current_full_no_bull_collapse_4h",
         "governance_contract": "dual_role_governance_active"
+      }
+    },
+    {
+      "id": "P1_recent_distribution_pathology_monitoring",
+      "priority": "P1",
+      "title": "recent canonical window 100 rows = distribution_pathology but current live regime is outside the blocker pocket",
+      "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
+      "status": "open",
+      "created_at": "2026-05-23T17:09:55.706361",
+      "updated_at": "2026-05-23T17:09:55.706363",
+      "hb_detected": null,
+      "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
+      "summary": {
+        "window": "100",
+        "interpretation": "distribution_pathology",
+        "win_rate": 0.0,
+        "dominant_regime": "chop",
+        "dominant_regime_share": 0.74,
+        "avg_pnl": -0.0132,
+        "avg_quality": -0.3338,
+        "avg_drawdown_penalty": 0.3944,
+        "spot_long_win_rate": 0.0,
+        "avg_time_underwater": 0.8966,
+        "alerts": [
+          "constant_target",
+          "regime_shift"
+        ],
+        "top_shift_features": [
+          "feat_volume_exhaustion",
+          "feat_bb_pct_b",
+          "feat_nq_return_24h"
+        ],
+        "new_compressed_feature": null,
+        "tail_streak": "100x0",
+        "adverse_streak": "100x0",
+        "live_regime_label": "bear",
+        "current_live_scope": false,
+        "blocking_basis": [
+          "avg_pnl<=0",
+          "avg_quality<=0",
+          "spot_long_win_rate<=0.20"
+        ],
+        "next_falsification_test": {
+          "id": "tp_miss_not_stop_loss",
+          "priority": "P0",
+          "hypothesis": "recent canonical losses are primarily profit-target misses, not stop-loss/drawdown breaches",
+          "pass_condition": "loss_rate falls and recent_window_wins moves toward the breaker release floor without increasing dd_breach_share."
+        }
       }
     }
   ]

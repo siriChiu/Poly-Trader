@@ -126,6 +126,53 @@ def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
 
 
 
+def test_summarize_support_progress_tracks_semantic_signature_stagnation_across_entry_label_rebaseline(tmp_path):
+    current_identity = _support_identity(entry_quality_label="D")
+    previous_identity = _support_identity(entry_quality_label="C")
+    (tmp_path / "heartbeat_1464_summary.json").write_text(
+        json.dumps(
+            {
+                "heartbeat": "1464",
+                "timestamp": "2026-05-23T15:42:44+00:00",
+                "q15_support_audit": {
+                    "current_live": {
+                        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+                        "current_live_structure_bucket_rows": 0,
+                    },
+                    "support_identity": previous_identity,
+                    "support_route": {
+                        "verdict": "insufficient_support_everywhere",
+                        "support_governance_route": "exact_live_lane_proxy_available",
+                        "minimum_support_rows": 50,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    progress = q15_support_audit._summarize_support_progress(
+        current_bucket="CAUTION|structure_quality_caution|q15",
+        support_route_verdict="insufficient_support_everywhere",
+        support_governance_route="exact_live_lane_proxy_available",
+        live_bucket_rows=0,
+        minimum_support_rows=50,
+        current_label="1465",
+        support_identity=current_identity,
+        data_dir=tmp_path,
+    )
+
+    assert progress["status"] == "semantic_rebaseline_under_minimum"
+    assert progress["delta_vs_previous"] is None
+    assert progress["stagnant_run_count"] == 0
+    assert progress["semantic_signature_delta_vs_previous"] == 0
+    assert progress["semantic_signature_stagnant_run_count"] == 2
+    assert progress["semantic_signature_stalled_support_accumulation"] is True
+    assert progress["semantic_signature_progress"]["ignored_strict_identity_fields"] == ["entry_quality_label"]
+    assert progress["semantic_rebaseline_reference"]["delta_vs_current_rows"] == 0
+
+
+
 def test_build_report_emits_active_repair_plan_for_stalled_q15_support(monkeypatch):
     identity = _support_identity()
 

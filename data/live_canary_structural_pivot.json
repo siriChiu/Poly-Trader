@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-23T15:42:42.762025Z",
+  "generated_at": "2026-05-23T17:09:54.689632Z",
   "artifact": "live_canary_structural_pivot",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-23T15:42:34.905946Z"
+      "generated_at": "2026-05-23T17:09:46.710896Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-23T15:41:35.075115Z"
+      "generated_at": "2026-05-23T17:09:00.298244Z"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-23T15:42:22.229512+00:00"
+      "generated_at": "2026-05-23T17:09:37.130340+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-23T15:42:40.896331Z"
+      "generated_at": "2026-05-23T17:09:52.864768Z"
     },
     "customer_safe_alternative_proof": {
       "path": "data/customer_safe_alternative_proof.json",
       "exists": true,
-      "generated_at": "2026-05-23T15:42:41.764943Z"
+      "generated_at": "2026-05-23T17:09:53.686417Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-23T15:42:38.382650+00:00"
+      "generated_at": "2026-05-23T17:09:50.459381+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -47,13 +47,15 @@
     "support_route_verdict": "insufficient_support_everywhere",
     "support_governance_route": "exact_live_lane_proxy_available",
     "support_delta_vs_previous": 0,
-    "stagnant_run_count": 3,
+    "stagnant_run_count": 4,
+    "semantic_signature_delta_vs_previous": 0,
+    "semantic_signature_stagnant_run_count": 4,
     "release_ready": false,
     "recent_window_size": 50,
     "recent_window_wins": 0,
     "required_recent_window_wins": 15,
     "additional_recent_window_wins_needed": 15,
-    "current_streak": 115,
+    "current_streak": 122,
     "venue_runtime_ready": false,
     "okx_credentials_configured": false,
     "risk_qualified_rows": 6,
@@ -140,7 +142,7 @@
         "current_recent_window_wins": 0,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 15,
-        "current_streak": 115,
+        "current_streak": 122,
         "reason": "recent canonical 24h outcomes must clear streak and win-rate release math."
       },
       "model_shadow_outcome_gate": {
@@ -226,6 +228,8 @@
       "blocks_strategy_risk": true,
       "live_exposure": "none",
       "exit_gate": "A new support identity / semantic bucket map is proposed, replayed, and proven without reclassifying reference rows as deployable support.",
+      "semantic_signature_delta_vs_previous": 0,
+      "semantic_signature_stagnant_run_count": 4,
       "next_artifact": "data/q15_support_fill_feasibility.json + data/live_predict_probe.json after Map/Signal redesign or exact-bucket row harvest"
     }
   ],

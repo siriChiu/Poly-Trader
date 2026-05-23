@@ -268,6 +268,26 @@ def _support_context(
                 0,
             )
         ),
+        "semantic_signature_delta_vs_previous": _to_int(
+            _first_present(
+                support_progress.get("semantic_signature_delta_vs_previous"),
+                (support_progress.get("semantic_signature_progress") or {}).get("delta_vs_previous")
+                if isinstance(support_progress.get("semantic_signature_progress"), Mapping)
+                else None,
+                topk_support.get("semantic_signature_delta_vs_previous"),
+                0,
+            )
+        ),
+        "semantic_signature_stagnant_run_count": _to_int(
+            _first_present(
+                support_progress.get("semantic_signature_stagnant_run_count"),
+                (support_progress.get("semantic_signature_progress") or {}).get("stagnant_run_count")
+                if isinstance(support_progress.get("semantic_signature_progress"), Mapping)
+                else None,
+                topk_support.get("semantic_signature_stagnant_run_count"),
+                0,
+            )
+        ),
         "time_to_evidence_bucket": verdict.get("time_to_evidence_bucket"),
         "missing_capability_class": verdict.get("missing_capability_class"),
         "alternative_solution_required": _as_bool(verdict.get("alternative_solution_required", True)),
@@ -521,6 +541,8 @@ def build_live_canary_structural_pivot(
             "support_governance_route": support.get("support_governance_route"),
             "support_delta_vs_previous": support.get("support_delta_vs_previous"),
             "stagnant_run_count": support.get("stagnant_run_count"),
+            "semantic_signature_delta_vs_previous": support.get("semantic_signature_delta_vs_previous"),
+            "semantic_signature_stagnant_run_count": support.get("semantic_signature_stagnant_run_count"),
             "release_ready": release.get("release_ready"),
             "recent_window_size": release.get("recent_window"),
             "recent_window_wins": release.get("current_recent_window_wins"),
@@ -599,11 +621,22 @@ def build_live_canary_structural_pivot(
             {
                 "lane": "D_map_signal_redesign_for_current_bucket",
                 "goal": "When exact current bucket support stays 0/50 with support delta=0, stop waiting for rows and produce a Map/Signal redesign proof path.",
-                "can_start_now": bool(support.get("support_gap", 0) > 0 and support.get("support_delta_vs_previous") == 0),
-                "status": "required" if support.get("support_gap", 0) > 0 and support.get("support_delta_vs_previous") == 0 else "standby",
+                "can_start_now": bool(
+                    support.get("support_gap", 0) > 0
+                    and (
+                        support.get("support_delta_vs_previous") == 0
+                        or support.get("semantic_signature_delta_vs_previous") == 0
+                    )
+                ),
+                "status": "required" if support.get("support_gap", 0) > 0 and (
+                    support.get("support_delta_vs_previous") == 0
+                    or support.get("semantic_signature_delta_vs_previous") == 0
+                ) else "standby",
                 "blocks_strategy_risk": True,
                 "live_exposure": "none",
                 "exit_gate": "A new support identity / semantic bucket map is proposed, replayed, and proven without reclassifying reference rows as deployable support.",
+                "semantic_signature_delta_vs_previous": support.get("semantic_signature_delta_vs_previous"),
+                "semantic_signature_stagnant_run_count": support.get("semantic_signature_stagnant_run_count"),
                 "next_artifact": next_artifact,
             },
         ],
@@ -662,6 +695,7 @@ def markdown(payload: Mapping[str, Any]) -> str:
         f"- deployment_blocker: `{truth.get('deployment_blocker')}`",
         f"- current bucket: `{truth.get('structure_bucket')}`",
         f"- support: `{truth.get('support_rows')}/{truth.get('minimum_support_rows')}` (gap `{truth.get('support_gap')}`, delta `{truth.get('support_delta_vs_previous')}`, stagnant `{truth.get('stagnant_run_count')}`)",
+        f"- semantic-signature progress: delta `{truth.get('semantic_signature_delta_vs_previous')}`, stagnant `{truth.get('semantic_signature_stagnant_run_count')}` (does not relax strict support_identity)",
         f"- release_ready: `{truth.get('release_ready')}` / recent wins `{truth.get('recent_window_wins')}/{truth.get('recent_window_size')}`, required `{truth.get('required_recent_window_wins')}`, needed `{truth.get('additional_recent_window_wins_needed')}`",
         f"- venue_runtime_ready: `{truth.get('venue_runtime_ready')}` / OKX credentials configured: `{truth.get('okx_credentials_configured')}`",
         f"- top-k: risk-qualified `{truth.get('risk_qualified_rows')}`, runtime-blocked `{truth.get('runtime_blocked_candidate_rows')}`, deployable `{truth.get('deployable_rows')}`",

@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-23T15:42:22.229512+00:00",
+  "generated_at": "2026-05-23T17:09:37.130340+00:00",
   "artifact_freshness_status": "fresh",
   "artifact_freshness_reason": "artifact_within_policy",
-  "artifact_age_minutes": 0.37671445,
+  "artifact_age_minutes": 0.32698565,
   "artifact_stale_after_minutes": 60.0,
   "artifact_deployment_blocking": false,
-  "artifact_freshness_checked_at": "2026-05-23T15:42:44.832379+00:00",
+  "artifact_freshness_checked_at": "2026-05-23T17:09:56.749479+00:00",
   "target_col": "simulated_pyramid_win",
-  "samples": 25023,
+  "samples": 25030,
   "top_k_grid": [
     "top_1pct",
     "top_2pct",
@@ -54,7 +54,7 @@
     "signal": "CIRCUIT_BREAKER",
     "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
     "release_ready": false,
-    "current_streak": 115,
+    "current_streak": 122,
     "recent_window": 50,
     "current_recent_window_win_rate": 0.0,
     "current_recent_window_wins": 0,
@@ -69,7 +69,7 @@
       "streak_release_ready": false,
       "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "recent_win_rate_must_be_at_least": 0.3,
       "current_recent_window_win_rate": 0.0,
@@ -80,16 +80,16 @@
     "support_progress_status": "stalled_under_minimum",
     "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
     "support_progress_regression_basis": "same_identity_same_semantic_signature",
-    "support_progress_stagnant_run_count": 3,
+    "support_progress_stagnant_run_count": 4,
     "support_progress_stalled_support_accumulation": true,
     "support_progress_escalate_to_blocker": true,
     "support_delta_vs_previous": 0,
     "support_previous_rows": 0,
     "support_rows_needed": 50,
-    "stagnant_run_count": 3,
+    "stagnant_run_count": 4,
     "stalled_support_accumulation": true,
     "escalate_to_blocker": true,
-    "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+    "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
     "live_truth_source_artifact": "data/live_predict_probe.json",
     "active_repair_plan": {
       "phase": "active_support_accumulation",
@@ -109,7 +109,10 @@
       "current_rows": 0,
       "minimum_support_rows": 50,
       "gap_to_minimum": 50,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
+      "semantic_signature_delta_vs_previous": 0,
+      "semantic_signature_stagnant_run_count": 4,
+      "semantic_signature_stalled_support_accumulation": true,
       "legacy_reference_only": false,
       "legacy_semantic_evidence": null,
       "semantic_rebaseline_reference_only": false,
@@ -135,6 +138,18 @@
           "priority": "P0",
           "description": "fast heartbeat 在 q15 under-minimum / semantic rebaseline / stagnant 狀態下不得重用舊 q15 support artifact。",
           "success_condition": "每輪 support_progress.history / stagnant_run_count 反映最新 heartbeat truth。"
+        },
+        {
+          "id": "semantic_signature_map_signal_redesign_or_row_harvest",
+          "type": "forced_execution_branch",
+          "priority": "P0",
+          "description": "同 bucket semantic signature 支持行數仍無進展；entry-quality label 變動不得重置 PM 反平衡時鐘。",
+          "semantic_signature_delta_vs_previous": 0,
+          "semantic_signature_stagnant_run_count": 4,
+          "ignored_strict_identity_fields": [
+            "entry_quality_label"
+          ],
+          "success_condition": "下一輪交付 Map/Signal redesign proof 或 exact-bucket row harvest artifact，而不是只回報 support still 0/50。"
         }
       ]
     },
@@ -151,9 +166,10 @@
     "active_repair_gap_to_minimum": 50,
     "active_repair_action_ids": [
       "collect_exact_current_bucket_rows",
-      "force_q15_support_audit_refresh"
+      "force_q15_support_audit_refresh",
+      "semantic_signature_map_signal_redesign_or_row_harvest"
     ],
-    "support_context_current_as_of": "2026-05-23T15:42:34.905946Z"
+    "support_context_current_as_of": "2026-05-23T17:09:46.710896Z"
   },
   "artifact": "data/high_conviction_topk_oos_matrix.json",
   "rows": [
@@ -195,7 +211,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -204,7 +220,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -213,16 +229,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -262,7 +278,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -303,7 +320,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -312,7 +329,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -321,16 +338,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -368,7 +385,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -409,7 +427,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -418,7 +436,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -427,16 +445,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -476,7 +494,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -517,7 +536,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -526,7 +545,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -535,16 +554,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -584,7 +603,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -625,7 +645,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -634,7 +654,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -643,16 +663,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -692,7 +712,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -733,7 +754,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -742,7 +763,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -751,16 +772,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -798,7 +819,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -839,7 +861,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -848,7 +870,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -857,16 +879,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -906,7 +928,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -947,7 +970,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -956,7 +979,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -965,16 +988,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1014,7 +1037,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1055,7 +1079,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1064,7 +1088,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1073,16 +1097,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1120,7 +1144,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1161,7 +1186,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1170,7 +1195,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1179,16 +1204,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1223,7 +1248,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1264,7 +1290,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1273,7 +1299,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1282,16 +1308,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1326,7 +1352,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1367,7 +1394,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1376,7 +1403,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1385,16 +1412,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1432,7 +1459,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1473,7 +1501,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1482,7 +1510,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1491,16 +1519,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1538,7 +1566,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1579,7 +1608,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1588,7 +1617,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1597,16 +1626,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1641,7 +1670,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1682,7 +1712,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1691,7 +1721,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1700,16 +1730,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1744,7 +1774,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1785,7 +1816,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1794,7 +1825,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1803,16 +1834,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1850,7 +1881,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1891,7 +1923,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1900,7 +1932,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1909,16 +1941,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1956,7 +1988,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1997,7 +2030,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2006,7 +2039,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2015,16 +2048,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2059,7 +2092,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2100,7 +2134,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2109,7 +2143,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2118,16 +2152,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2165,7 +2199,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2206,7 +2241,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2215,7 +2250,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2224,16 +2259,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2271,7 +2306,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2312,7 +2348,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2321,7 +2357,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2330,16 +2366,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2377,7 +2413,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2418,7 +2455,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2427,7 +2464,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2436,16 +2473,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2480,7 +2517,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2521,7 +2559,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2530,7 +2568,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2539,16 +2577,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2586,7 +2624,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2627,7 +2666,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2636,7 +2675,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2645,16 +2684,16 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
       "support_previous_rows": 0,
       "support_rows_needed": 50,
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2692,7 +2731,8 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     }
   ],
@@ -4637,7 +4677,7 @@
     "streak_release_ready": false,
     "recent_win_rate_release_ready": false,
     "streak_must_be_below": 50,
-    "current_streak": 115,
+    "current_streak": 122,
     "recent_window": 50,
     "recent_win_rate_must_be_at_least": 0.3,
     "current_recent_window_win_rate": 0.0,
@@ -4646,7 +4686,7 @@
     "additional_recent_window_wins_needed": 15
   },
   "release_ready": false,
-  "current_streak": 115,
+  "current_streak": 122,
   "recent_window": 50,
   "current_recent_window_win_rate": 0.0,
   "current_recent_window_wins": 0,
@@ -4655,16 +4695,16 @@
   "support_progress_status": "stalled_under_minimum",
   "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
   "support_progress_regression_basis": "same_identity_same_semantic_signature",
-  "support_progress_stagnant_run_count": 3,
+  "support_progress_stagnant_run_count": 4,
   "support_progress_stalled_support_accumulation": true,
   "support_progress_escalate_to_blocker": true,
-  "stagnant_run_count": 3,
+  "stagnant_run_count": 4,
   "stalled_support_accumulation": true,
   "escalate_to_blocker": true,
   "support_delta_vs_previous": 0,
   "support_previous_rows": 0,
   "support_rows_needed": 50,
-  "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+  "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
   "live_truth_source_artifact": "data/live_predict_probe.json",
   "live_gate_summary": {
     "support_route_verdict": "insufficient_support_everywhere",
@@ -4706,7 +4746,7 @@
       "streak_release_ready": false,
       "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "recent_win_rate_must_be_at_least": 0.3,
       "current_recent_window_win_rate": 0.0,
@@ -4715,7 +4755,7 @@
       "additional_recent_window_wins_needed": 15
     },
     "release_ready": false,
-    "current_streak": 115,
+    "current_streak": 122,
     "recent_window": 50,
     "current_recent_window_win_rate": 0.0,
     "current_recent_window_wins": 0,
@@ -4724,10 +4764,10 @@
     "support_progress_status": "stalled_under_minimum",
     "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
     "support_progress_regression_basis": "same_identity_same_semantic_signature",
-    "support_progress_stagnant_run_count": 3,
+    "support_progress_stagnant_run_count": 4,
     "support_progress_stalled_support_accumulation": true,
     "support_progress_escalate_to_blocker": true,
-    "stagnant_run_count": 3,
+    "stagnant_run_count": 4,
     "stalled_support_accumulation": true,
     "escalate_to_blocker": true,
     "support_delta_vs_previous": 0,
@@ -4743,10 +4783,11 @@
     "active_repair_support_status": "stalled_under_minimum",
     "active_repair_action_ids": [
       "collect_exact_current_bucket_rows",
-      "force_q15_support_audit_refresh"
+      "force_q15_support_audit_refresh",
+      "semantic_signature_map_signal_redesign_or_row_harvest"
     ],
-    "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
-    "support_context_current_as_of": "2026-05-23T15:42:34.905946Z",
+    "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
+    "support_context_current_as_of": "2026-05-23T17:09:46.710896Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "nearest_deployable_rows": [
@@ -4797,7 +4838,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -4806,7 +4847,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -4815,10 +4856,10 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
@@ -4834,9 +4875,10 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ],
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -4886,7 +4928,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -4895,7 +4937,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -4904,10 +4946,10 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
@@ -4923,9 +4965,10 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ],
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -4975,7 +5018,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -4984,7 +5027,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -4993,10 +5036,10 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
@@ -5012,9 +5055,10 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ],
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -5064,7 +5108,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -5073,7 +5117,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -5082,10 +5126,10 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
@@ -5101,9 +5145,10 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ],
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -5153,7 +5198,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -5162,7 +5207,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -5171,10 +5216,10 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
@@ -5190,9 +5235,10 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ],
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -5242,7 +5288,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 115,
+        "current_streak": 122,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -5251,7 +5297,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -5260,10 +5306,10 @@
       "support_progress_status": "stalled_under_minimum",
       "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
       "support_progress_regression_basis": "same_identity_same_semantic_signature",
-      "support_progress_stagnant_run_count": 3,
+      "support_progress_stagnant_run_count": 4,
       "support_progress_stalled_support_accumulation": true,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 3,
+      "stagnant_run_count": 4,
       "stalled_support_accumulation": true,
       "escalate_to_blocker": true,
       "support_delta_vs_previous": 0,
@@ -5279,9 +5325,10 @@
       "active_repair_support_status": "stalled_under_minimum",
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
-        "force_q15_support_audit_refresh"
+        "force_q15_support_audit_refresh",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ],
-      "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+      "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     }
   ],
@@ -5332,7 +5379,7 @@
       "streak_release_ready": false,
       "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "recent_win_rate_must_be_at_least": 0.3,
       "current_recent_window_win_rate": 0.0,
@@ -5341,7 +5388,7 @@
       "additional_recent_window_wins_needed": 15
     },
     "release_ready": false,
-    "current_streak": 115,
+    "current_streak": 122,
     "recent_window": 50,
     "current_recent_window_win_rate": 0.0,
     "current_recent_window_wins": 0,
@@ -5350,10 +5397,10 @@
     "support_progress_status": "stalled_under_minimum",
     "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
     "support_progress_regression_basis": "same_identity_same_semantic_signature",
-    "support_progress_stagnant_run_count": 3,
+    "support_progress_stagnant_run_count": 4,
     "support_progress_stalled_support_accumulation": true,
     "support_progress_escalate_to_blocker": true,
-    "stagnant_run_count": 3,
+    "stagnant_run_count": 4,
     "stalled_support_accumulation": true,
     "escalate_to_blocker": true,
     "support_delta_vs_previous": 0,
@@ -5369,9 +5416,10 @@
     "active_repair_support_status": "stalled_under_minimum",
     "active_repair_action_ids": [
       "collect_exact_current_bucket_rows",
-      "force_q15_support_audit_refresh"
+      "force_q15_support_audit_refresh",
+      "semantic_signature_map_signal_redesign_or_row_harvest"
     ],
-    "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+    "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "best_not_deployable": {
@@ -5421,7 +5469,7 @@
       "streak_release_ready": false,
       "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "recent_win_rate_must_be_at_least": 0.3,
       "current_recent_window_win_rate": 0.0,
@@ -5430,7 +5478,7 @@
       "additional_recent_window_wins_needed": 15
     },
     "release_ready": false,
-    "current_streak": 115,
+    "current_streak": 122,
     "recent_window": 50,
     "current_recent_window_win_rate": 0.0,
     "current_recent_window_wins": 0,
@@ -5439,10 +5487,10 @@
     "support_progress_status": "stalled_under_minimum",
     "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
     "support_progress_regression_basis": "same_identity_same_semantic_signature",
-    "support_progress_stagnant_run_count": 3,
+    "support_progress_stagnant_run_count": 4,
     "support_progress_stalled_support_accumulation": true,
     "support_progress_escalate_to_blocker": true,
-    "stagnant_run_count": 3,
+    "stagnant_run_count": 4,
     "stalled_support_accumulation": true,
     "escalate_to_blocker": true,
     "support_delta_vs_previous": 0,
@@ -5458,9 +5506,10 @@
     "active_repair_support_status": "stalled_under_minimum",
     "active_repair_action_ids": [
       "collect_exact_current_bucket_rows",
-      "force_q15_support_audit_refresh"
+      "force_q15_support_audit_refresh",
+      "semantic_signature_map_signal_redesign_or_row_harvest"
     ],
-    "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+    "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "highest_roi_not_deployable": {
@@ -5515,7 +5564,7 @@
       "streak_release_ready": false,
       "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 115,
+      "current_streak": 122,
       "recent_window": 50,
       "recent_win_rate_must_be_at_least": 0.3,
       "current_recent_window_win_rate": 0.0,
@@ -5524,7 +5573,7 @@
       "additional_recent_window_wins_needed": 15
     },
     "release_ready": false,
-    "current_streak": 115,
+    "current_streak": 122,
     "recent_window": 50,
     "current_recent_window_win_rate": 0.0,
     "current_recent_window_wins": 0,
@@ -5533,10 +5582,10 @@
     "support_progress_status": "stalled_under_minimum",
     "support_progress_reason": "current q15 exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
     "support_progress_regression_basis": "same_identity_same_semantic_signature",
-    "support_progress_stagnant_run_count": 3,
+    "support_progress_stagnant_run_count": 4,
     "support_progress_stalled_support_accumulation": true,
     "support_progress_escalate_to_blocker": true,
-    "stagnant_run_count": 3,
+    "stagnant_run_count": 4,
     "stalled_support_accumulation": true,
     "escalate_to_blocker": true,
     "support_delta_vs_previous": 0,
@@ -5552,13 +5601,14 @@
     "active_repair_support_status": "stalled_under_minimum",
     "active_repair_action_ids": [
       "collect_exact_current_bucket_rows",
-      "force_q15_support_audit_refresh"
+      "force_q15_support_audit_refresh",
+      "semantic_signature_map_signal_redesign_or_row_harvest"
     ],
-    "source_live_probe_generated_at": "2026-05-23T15:42:34.905946Z",
+    "source_live_probe_generated_at": "2026-05-23T17:09:46.710896Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "support_context_source": "latest_live_predict_probe",
-  "support_context_current_as_of": "2026-05-23T15:42:34.905946Z",
+  "support_context_current_as_of": "2026-05-23T17:09:46.710896Z",
   "active_repair_phase": "active_support_accumulation",
   "active_repair_component_verify_ready": false,
   "active_repair_live_exposure_allowed": false,
@@ -5569,6 +5619,7 @@
   "active_repair_support_status": "stalled_under_minimum",
   "active_repair_action_ids": [
     "collect_exact_current_bucket_rows",
-    "force_q15_support_audit_refresh"
+    "force_q15_support_audit_refresh",
+    "semantic_signature_map_signal_redesign_or_row_harvest"
   ]
 }

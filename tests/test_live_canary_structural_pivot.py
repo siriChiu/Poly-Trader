@@ -18,7 +18,12 @@ def _blocked_payload():
             "current_live_structure_bucket_gap_to_minimum": 50,
             "support_route_verdict": "exact_bucket_unsupported_block",
             "support_governance_route": "exact_live_lane_proxy_available",
-            "support_progress": {"delta_vs_previous": 0, "stagnant_run_count": 5},
+            "support_progress": {
+                "delta_vs_previous": None,
+                "stagnant_run_count": 0,
+                "semantic_signature_delta_vs_previous": 0,
+                "semantic_signature_stagnant_run_count": 2,
+            },
             "deployment_blocker_details": {
                 "release_condition": {
                     "release_ready": False,
@@ -105,6 +110,9 @@ def test_live_canary_pivot_refreshes_current_zero_truth_and_names_one_primary_ga
     assert truth["nearest_candidate"]["max_drawdown"] == 0.022
     assert truth["nearest_candidate"]["profit_factor"] == 19.8864
     assert truth["nearest_candidate"]["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+    assert truth["support_delta_vs_previous"] == 0
+    assert truth["semantic_signature_delta_vs_previous"] == 0
+    assert truth["semantic_signature_stagnant_run_count"] == 2
 
     gate = payload["micro_canary_gate"]
     assert gate["micro_canary_ready"] is False
@@ -123,6 +131,7 @@ def test_live_canary_pivot_refreshes_current_zero_truth_and_names_one_primary_ga
     assert lanes["B_model_shadow_to_decision"]["live_exposure"] == "paper_shadow_only"
     assert lanes["C_strategy_micro_canary"]["can_start_now"] is False
     assert lanes["D_map_signal_redesign_for_current_bucket"]["status"] == "required"
+    assert lanes["D_map_signal_redesign_for_current_bucket"]["semantic_signature_delta_vs_previous"] == 0
 
 
 def test_live_canary_pivot_requires_all_gates_before_order_submission():
@@ -175,6 +184,7 @@ def test_live_canary_markdown_is_operator_safe_and_secret_redacted():
     assert "single_failed_gate_for_72h_decision" in md
     assert "current_live_support_gate" in md
     assert "support: `0/50`" in md
+    assert "semantic-signature progress" in md
     assert "recent wins `0/50`" in md
     assert "order_submission_enabled: **False**" in md
     assert "credential_values_redacted: `True`" in md

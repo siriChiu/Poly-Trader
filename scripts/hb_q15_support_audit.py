@@ -174,6 +174,86 @@ def _support_identity_matches(left: Any, right: Any) -> bool:
     return True
 
 
+SEMANTIC_SIGNATURE_PROGRESS_FIELDS = (
+    "target_col",
+    "horizon_minutes",
+    "current_live_structure_bucket",
+    "regime_label",
+    "regime_gate",
+    "calibration_window",
+    "bucket_semantic_signature",
+)
+
+
+def _support_semantic_signature_matches(left: Any, right: Any) -> bool:
+    """Compare same semantic lane while keeping full support identity strict.
+
+    `entry_quality_label` can move at the C/D boundary without creating deployable
+    support.  PM forced-execution gates still need to see that the same bucket
+    semantic signature is repeating with zero support movement; track that as a
+    separate progress signal rather than promoting it to same-identity history.
+    """
+
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return False
+    if not left.get("bucket_semantic_signature") or not right.get("bucket_semantic_signature"):
+        return False
+    for key in SEMANTIC_SIGNATURE_PROGRESS_FIELDS:
+        if _identity_value(left.get(key)) != _identity_value(right.get(key)):
+            return False
+    return True
+
+
+def _stagnant_run_count_for_history(history: list[dict[str, Any]], current_rows: int) -> int:
+    previous = history[1] if len(history) > 1 else None
+    if previous is None or int(previous.get("live_current_structure_bucket_rows") or 0) != current_rows:
+        return 0
+    count = 1
+    for item in history[1:]:
+        if int(item.get("live_current_structure_bucket_rows") or 0) == current_rows:
+            count += 1
+            continue
+        break
+    return count
+
+
+def _semantic_signature_progress(
+    *,
+    history: list[dict[str, Any]],
+    support_identity: dict[str, Any] | None,
+    current_rows: int,
+    minimum_support_rows: int,
+) -> dict[str, Any]:
+    if not isinstance(support_identity, dict):
+        return {
+            "comparable_history_count": 0,
+            "previous_rows": None,
+            "delta_vs_previous": None,
+            "stagnant_run_count": 0,
+            "stalled_support_accumulation": False,
+            "history": [],
+        }
+    same_signature_history = [history[0]] + [
+        item
+        for item in history[1:]
+        if _support_semantic_signature_matches(item.get("support_identity"), support_identity)
+    ]
+    recent = same_signature_history[:5]
+    previous = recent[1] if len(recent) > 1 else None
+    previous_rows = None if previous is None else int(previous.get("live_current_structure_bucket_rows") or 0)
+    delta_vs_previous = None if previous_rows is None else current_rows - previous_rows
+    stagnant_run_count = _stagnant_run_count_for_history(recent, current_rows)
+    return {
+        "comparable_history_count": max(len(same_signature_history) - 1, 0),
+        "previous_rows": previous_rows,
+        "delta_vs_previous": delta_vs_previous,
+        "stagnant_run_count": stagnant_run_count,
+        "stalled_support_accumulation": delta_vs_previous == 0 and current_rows < minimum_support_rows,
+        "history": recent,
+        "ignored_strict_identity_fields": ["entry_quality_label"],
+    }
+
+
 def _semantic_identity_evidence(
     *,
     payload: dict[str, Any],
@@ -471,16 +551,15 @@ def _summarize_support_progress(
             or previous.get("support_governance_route") != support_governance_route
         )
 
-    stagnant_run_count = 0
-    if previous is not None and int(previous.get("live_current_structure_bucket_rows") or 0) == current_rows:
-        stagnant_run_count = 1
-        for item in recent_history[1:]:
-            if int(item.get("live_current_structure_bucket_rows") or 0) == current_rows:
-                stagnant_run_count += 1
-                continue
-            break
-
+    stagnant_run_count = _stagnant_run_count_for_history(recent_history, current_rows)
     minimum = int(minimum_support_rows or 0)
+    semantic_signature_progress = _semantic_signature_progress(
+        history=history,
+        support_identity=support_identity,
+        current_rows=current_rows,
+        minimum_support_rows=minimum,
+    )
+
     recent_supported = next(
         (
             item
@@ -667,6 +746,10 @@ def _summarize_support_progress(
         "legacy_reference_history_count": len(legacy_reference_history),
         "stagnant_run_count": stagnant_run_count,
         "stalled_support_accumulation": status == "stalled_under_minimum",
+        "semantic_signature_progress": semantic_signature_progress,
+        "semantic_signature_delta_vs_previous": semantic_signature_progress.get("delta_vs_previous"),
+        "semantic_signature_stagnant_run_count": semantic_signature_progress.get("stagnant_run_count"),
+        "semantic_signature_stalled_support_accumulation": semantic_signature_progress.get("stalled_support_accumulation"),
         "escalate_to_blocker": status in {"regressed_under_minimum", "semantic_rebaseline_under_minimum"} or (status == "stalled_under_minimum" and stagnant_run_count >= 3),
         "history": history_for_display,
     }
@@ -793,6 +876,13 @@ def _active_repair_plan(
     legacy_ref = support_progress.get("legacy_supported_reference")
     semantic_rebaseline_ref = support_progress.get("semantic_rebaseline_reference")
     stagnant_run_count = _as_int(support_progress.get("stagnant_run_count"), 0)
+    semantic_signature_progress = (
+        support_progress.get("semantic_signature_progress")
+        if isinstance(support_progress.get("semantic_signature_progress"), dict)
+        else {}
+    )
+    semantic_signature_delta = semantic_signature_progress.get("delta_vs_previous")
+    semantic_signature_stagnant = _as_int(semantic_signature_progress.get("stagnant_run_count"), 0)
     support_ready = bool(support_route.get("deployable")) and current_rows >= minimum_rows
     current_bucket = current_live.get("current_live_structure_bucket")
     active_for_current_live_row = bool(scope_applicability.get("active_for_current_live_row"))
@@ -822,7 +912,9 @@ def _active_repair_plan(
         primary_objective = "exact support 已達標；下一步驗證 floor / allowed_layers / execution guardrail，而不是再累積 support。"
     elif status == "semantic_rebaseline_under_minimum" or legacy_ref or semantic_rebaseline_ref:
         phase = "semantic_evidence_backfill_or_exact_accumulation"
-        if semantic_rebaseline_ref and not legacy_ref:
+        if semantic_signature_delta == 0:
+            primary_objective = "同 bucket semantic signature 仍停在相同 exact rows；entry-quality 標籤變動不能把 support delta 歸零，下一輪必須交付 Map/Signal redesign 或 exact-bucket row harvest 證據。"
+        elif semantic_rebaseline_ref and not legacy_ref:
             primary_objective = "同 bucket 在 support_identity / entry-quality 語義重切後仍低於 minimum；保留 reference-only 比較並主動累積新版 exact rows，不能把歷史歸零成進度。"
         else:
             primary_objective = "把舊版 supported reference 轉成可審計語義證據；不能補齊 identity 前，就主動累積新版 exact rows。"
@@ -888,6 +980,19 @@ def _active_repair_plan(
                 "success_condition": "docs/API/UI 顯示 semantic rebaseline reference-only，同時繼續收集 current support_identity exact rows。",
             }
         )
+    if semantic_signature_delta == 0 and gap_to_minimum > 0:
+        actions.append(
+            {
+                "id": "semantic_signature_map_signal_redesign_or_row_harvest",
+                "type": "forced_execution_branch",
+                "priority": "P0",
+                "description": "同 bucket semantic signature 支持行數仍無進展；entry-quality label 變動不得重置 PM 反平衡時鐘。",
+                "semantic_signature_delta_vs_previous": semantic_signature_delta,
+                "semantic_signature_stagnant_run_count": semantic_signature_stagnant,
+                "ignored_strict_identity_fields": semantic_signature_progress.get("ignored_strict_identity_fields") or [],
+                "success_condition": "下一輪交付 Map/Signal redesign proof 或 exact-bucket row harvest artifact，而不是只回報 support still 0/50。",
+            }
+        )
     if support_ready and not live_exposure_allowed:
         actions.append(
             {
@@ -915,6 +1020,9 @@ def _active_repair_plan(
         "minimum_support_rows": minimum_rows,
         "gap_to_minimum": gap_to_minimum,
         "stagnant_run_count": stagnant_run_count,
+        "semantic_signature_delta_vs_previous": semantic_signature_delta,
+        "semantic_signature_stagnant_run_count": semantic_signature_stagnant,
+        "semantic_signature_stalled_support_accumulation": semantic_signature_progress.get("stalled_support_accumulation"),
         "legacy_reference_only": bool(legacy_ref),
         "legacy_semantic_evidence": legacy_ref.get("semantic_identity_evidence") if isinstance(legacy_ref, dict) else None,
         "semantic_rebaseline_reference_only": bool(semantic_rebaseline_ref),
@@ -1712,6 +1820,9 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- support_progress.previous_rows: **{support_progress.get('previous_rows')}**",
             f"- support_progress.delta_vs_previous: **{support_progress.get('delta_vs_previous')}**",
             f"- support_progress.stagnant_run_count: **{support_progress.get('stagnant_run_count')}**",
+            f"- support_progress.semantic_signature_delta_vs_previous: **{support_progress.get('semantic_signature_delta_vs_previous')}**",
+            f"- support_progress.semantic_signature_stagnant_run_count: **{support_progress.get('semantic_signature_stagnant_run_count')}**",
+            f"- support_progress.semantic_signature_stalled_support_accumulation: **{support_progress.get('semantic_signature_stalled_support_accumulation')}**",
             f"- support_progress.escalate_to_blocker: **{support_progress.get('escalate_to_blocker')}**",
             *support_identity_lines,
             *legacy_reference_lines,
@@ -1753,6 +1864,7 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- current_signal / layers / guardrail: **{repair.get('current_signal')} / {repair.get('current_allowed_layers')} / {repair.get('current_execution_guardrail_reason')}**",
             f"- support rows / minimum / gap: **{repair.get('current_rows')} / {repair.get('minimum_support_rows')} / {repair.get('gap_to_minimum')}**",
             f"- stagnant_run_count: **{repair.get('stagnant_run_count')}**",
+            f"- semantic_signature_delta_vs_previous / stagnant: **{repair.get('semantic_signature_delta_vs_previous')} / {repair.get('semantic_signature_stagnant_run_count')}**",
             f"- actions: `{[item.get('id') for item in repair_actions if isinstance(item, dict)]}`",
             f"- legacy_semantic_evidence.verdict: **{legacy_semantic_evidence.get('verdict')}**",
             f"- legacy_semantic_evidence.supports_current_identity: **{legacy_semantic_evidence.get('supports_current_identity')}**",
