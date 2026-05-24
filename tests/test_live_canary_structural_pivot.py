@@ -12,7 +12,7 @@ def _blocked_payload():
     return pivot.build_live_canary_structural_pivot(
         live_predict_probe={
             "deployment_blocker": "circuit_breaker_active",
-            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
             "current_live_structure_bucket_rows": 0,
             "minimum_support_rows": 50,
             "current_live_structure_bucket_gap_to_minimum": 50,
@@ -125,6 +125,9 @@ def test_live_canary_pivot_refreshes_current_zero_truth_and_names_one_primary_ga
     decision = payload["structural_decision"]
     assert decision["single_failed_gate_for_72h_decision"] == "current_live_support_gate"
     assert "q15_support_fill_feasibility" in decision["next_validation_artifact"]
+    assert "q15/q35 compatibility" in decision["next_validation_artifact"]
+    assert "CAUTION|base_caution_regime_or_bias|q35" in decision["next_validation_artifact"]
+    assert "Scanned q15 support identity" not in decision["next_validation_artifact"]
 
     lanes = {lane["lane"]: lane for lane in payload["lanes"]}
     assert lanes["B_model_shadow_to_decision"]["can_start_now"] is True

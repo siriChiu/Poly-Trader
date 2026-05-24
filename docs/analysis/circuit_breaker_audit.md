@@ -1,5 +1,5 @@
-# Circuit Breaker Audit（Heartbeat #1487）
-_generated_at: 2026-05-24T15:40:14.266962Z_
+# Circuit Breaker Audit（Heartbeat #1488）
+_generated_at: 2026-05-24T17:14:54.976755Z_
 
 ## 結論
 - verdict: **breaker_clear**
@@ -9,9 +9,9 @@ _generated_at: 2026-05-24T15:40:14.266962Z_
 
 ## Mixed scope（現況錯誤口徑）
 - triggered: **False** via []
-- streak: 10 / threshold 50
-- recent 50: win_rate=0.56 wins=28 losses=22
-- streak horizons: {'240': 10}
+- streak: 18 / threshold 50
+- recent 50: win_rate=0.5 wins=25 losses=25
+- streak horizons: {'240': 18}
 
 ## Aligned scope（1440m canonical live horizon）
 - triggered: **False** via []

@@ -1,18 +1,18 @@
 # Live canary structural pivot
 
-- generated_at: `2026-05-24T15:40:38.444323Z`
+- generated_at: `2026-05-24T17:15:26.874296Z`
 - PM handoff carried forward: `PM 強制反平衡：若 72h 內不能執行 bounded micro-canary，必須寫明單一失敗 gate 與下一個驗證 artifact；不得再只做 observation-only heartbeat。`
 - deployment_blocker: `under_minimum_exact_live_structure_bucket`
 - current bucket: `CAUTION|base_caution_regime_or_bias|q15`
-- support: `7/50` (gap `43`, delta `0`, stagnant `2`)
-- semantic-signature progress: delta `0`, stagnant `2` (does not relax strict support_identity)
+- support: `32/50` (gap `18`, delta `-9`, stagnant `0`)
+- semantic-signature progress: delta `26`, stagnant `0` (does not relax strict support_identity)
 - release_ready: `True` / recent wins `50/50`, required `15`, needed `0`
 - venue_runtime_ready: `False` / OKX credentials configured: `False`
 - top-k: risk-qualified `6`, runtime-blocked `6`, deployable `0`
 - local execution mode: `paper` / live_canary_policy_ready: `False`
 - micro_canary_ready: **False** / order_submission_enabled: **False**
 - single_failed_gate_for_72h_decision: `current_live_support_gate`
-- next_validation_artifact: `data/q15_support_fill_feasibility.json + data/live_predict_probe.json after Map/Signal redesign or exact-bucket row harvest`
+- next_validation_artifact: `data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|base_caution_regime_or_bias|q15 after Map/Signal redesign or exact-bucket row harvest`
 
 ## Decision
 停止重複 observation-only。每輪刷新 live-canary pivot，將 readiness 拆成 support、breaker、model-shadow、venue lifecycle、live-canary policy 五個 gate。
@@ -34,7 +34,7 @@
 - `A_venue_lifecycle_proof`: status=`blocked_missing_runtime_backed_proof`, can_start_now=`True`, live_exposure=`none_or_min_exchange_probe_only`
 - `B_model_shadow_to_decision`: status=`paper_shadow_available`, can_start_now=`True`, live_exposure=`paper_shadow_only`
 - `C_strategy_micro_canary`: status=`blocked_by_current_live_support_gate`, can_start_now=`False`, live_exposure=`max one first-layer position, tiny symbol cap, no auto-add, no pyramiding until post-trade proof is clean`
-- `D_map_signal_redesign_for_current_bucket`: status=`required`, can_start_now=`True`, live_exposure=`none`
+- `D_map_signal_redesign_for_current_bucket`: status=`standby`, can_start_now=`False`, live_exposure=`none`
 
 ## Local config snapshot (secret-safe)
 - config: `config.yaml` exists=`True`
@@ -54,4 +54,4 @@
 
 ## Hard no-go now
 micro_canary_ready=`False`, live_exposure_allowed=`False`, order_submission_enabled=`False`.
-primary_failed_gate=current_live_support_gate; next_validation_artifact=data/q15_support_fill_feasibility.json + data/live_predict_probe.json after Map/Signal redesign or exact-bucket row harvest
+primary_failed_gate=current_live_support_gate; next_validation_artifact=data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|base_caution_regime_or_bias|q15 after Map/Signal redesign or exact-bucket row harvest

@@ -474,16 +474,23 @@ def _gate_summary(
     }
 
 
-def _next_validation_artifact(primary_gate: str) -> str:
+def _next_validation_artifact(primary_gate: str, structure_bucket: str | None = None) -> str:
+    current_bucket_hint = f" for current bucket {structure_bucket}" if structure_bucket else ""
+    current_support_artifact = (
+        "data/q15_support_fill_feasibility.json "
+        "(current support-fill q15/q35 compatibility artifact) + "
+        f"data/live_predict_probe.json{current_bucket_hint} "
+        "after Map/Signal redesign or exact-bucket row harvest"
+    )
     mapping = {
-        "current_live_support_gate": "data/q15_support_fill_feasibility.json + data/live_predict_probe.json after Map/Signal redesign or exact-bucket row harvest",
+        "current_live_support_gate": current_support_artifact,
         "circuit_breaker_gate": "data/circuit_breaker_audit.json after 24h canonical tail outcomes improve",
         "model_shadow_outcome_gate": "data/high_conviction_topk_oos_matrix.json + Shadow Trade Ledger 24h pyramid outcome rows",
         "venue_lifecycle_gate": "data/execution_metadata_smoke.json with runtime-backed OKX ack/cancel/fill/reconciliation proof",
         "live_canary_policy_gate": "config.yaml secret-safe live_canary policy diff + execution_service canary tests",
         "none": "first bounded micro-canary runbook + post-trade reconciliation artifact",
     }
-    return mapping.get(primary_gate, mapping["current_live_support_gate"])
+    return mapping.get(primary_gate, current_support_artifact)
 
 
 def build_live_canary_structural_pivot(
@@ -511,7 +518,7 @@ def build_live_canary_structural_pivot(
     venue = _venue_context(execution, customer)
     gates = _gate_summary(support, release, topk, venue, config)
     primary_gate = gates["single_failed_gate_for_72h_decision"]
-    next_artifact = _next_validation_artifact(primary_gate)
+    next_artifact = _next_validation_artifact(primary_gate, support.get("structure_bucket"))
 
     payloads = {
         "live_predict_probe": live,
