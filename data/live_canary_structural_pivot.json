@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-24T14:11:03.957819Z",
+  "generated_at": "2026-05-24T15:40:38.444323Z",
   "artifact": "live_canary_structural_pivot",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-24T14:10:54.109276Z"
+      "generated_at": "2026-05-24T15:40:26.743991Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-24T14:10:41.758870Z"
+      "generated_at": "2026-05-24T15:40:14.266962Z"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-24T14:10:44.120486+00:00"
+      "generated_at": "2026-05-24T15:40:17.011241+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-24T14:11:02.067936Z"
+      "generated_at": "2026-05-24T15:40:33.838614Z"
     },
     "customer_safe_alternative_proof": {
       "path": "data/customer_safe_alternative_proof.json",
       "exists": true,
-      "generated_at": "2026-05-24T14:11:02.955327Z"
+      "generated_at": "2026-05-24T15:40:37.445003Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-24T14:10:58.966343+00:00"
+      "generated_at": "2026-05-24T15:40:30.561508+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -39,15 +39,15 @@
     "forbidden_shortcut": "不可降低 live gate；不可把 proxy/reference/OOS/shadow/dry-run 包裝成 live deployability。"
   },
   "current_truth": {
-    "deployment_blocker": "unsupported_exact_live_structure_bucket",
-    "structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-    "support_rows": 0,
+    "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+    "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+    "support_rows": 7,
     "minimum_support_rows": 50,
-    "support_gap": 50,
-    "support_route_verdict": "exact_bucket_unsupported_block",
-    "support_governance_route": "exact_live_lane_proxy_available",
+    "support_gap": 43,
+    "support_route_verdict": "exact_bucket_present_but_below_minimum",
+    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
     "support_delta_vs_previous": 0,
-    "stagnant_run_count": 5,
+    "stagnant_run_count": 2,
     "semantic_signature_delta_vs_previous": 0,
     "semantic_signature_stagnant_run_count": 2,
     "release_ready": true,
@@ -86,15 +86,15 @@
         "support_route_not_deployable",
         "deployment_blocker_active"
       ],
-      "support_route": "exact_bucket_unsupported_block",
-      "support_governance_route": "exact_live_lane_proxy_available",
+      "support_route": "exact_bucket_present_but_below_minimum",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
       "support_route_deployable": false,
-      "deployment_blocker": "unsupported_exact_live_structure_bucket",
+      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
       "runtime_closure_state": "patch_inactive_or_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-      "current_live_structure_bucket_rows": 0,
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+      "current_live_structure_bucket_rows": 7,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 50,
+      "current_live_structure_bucket_gap_to_minimum": 43,
       "release_ready": null,
       "current_recent_window_wins": null,
       "required_recent_window_wins": null,
@@ -128,9 +128,9 @@
     "gates": {
       "current_live_support_gate": {
         "ready": false,
-        "current": 0,
+        "current": 7,
         "required": 50,
-        "gap": 50,
+        "gap": 43,
         "reason": "current-live exact support must reach the minimum with matching support_identity."
       },
       "circuit_breaker_gate": {
