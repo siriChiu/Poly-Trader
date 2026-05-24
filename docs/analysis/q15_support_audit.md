@@ -1,11 +1,11 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-24 08:27:54.560854**
+- generated_at: **2026-05-24 09:30:06.572983**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
-- signal: **HOLD**
+- signal: **ABSTAIN**
 - regime / gate / label: **chop / CAUTION / C**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q35**
 - current_live_structure_bucket_rows: **0**
@@ -36,9 +36,9 @@
 - support_progress.current_rows / minimum: **0 / 50**
 - support_progress.previous_rows: **0**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **4**
+- support_progress.stagnant_run_count: **5**
 - support_progress.semantic_signature_delta_vs_previous: **0**
-- support_progress.semantic_signature_stagnant_run_count: **4**
+- support_progress.semantic_signature_stagnant_run_count: **5**
 - support_progress.semantic_signature_stalled_support_accumulation: **True**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
@@ -68,9 +68,9 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5651**
+- current_entry_quality: **0.5676**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.0151**
+- current_trade_floor_gap: **0.0176**
 - current_entry_quality_ge_0_55: **True**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
@@ -84,10 +84,10 @@
 - component_verify_ready: **False**
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
-- current_signal / layers / guardrail: **HOLD / 0 / unsupported_exact_live_structure_bucket**
+- current_signal / layers / guardrail: **ABSTAIN / 0 / unsupported_exact_live_structure_bucket**
 - support rows / minimum / gap: **0 / 50 / 50**
-- stagnant_run_count: **4**
-- semantic_signature_delta_vs_previous / stagnant: **0 / 4**
+- stagnant_run_count: **5**
+- semantic_signature_delta_vs_previous / stagnant: **0 / 5**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill', 'semantic_rebaseline_reference_review', 'semantic_signature_map_signal_redesign_or_row_harvest']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**
