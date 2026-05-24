@@ -320,6 +320,44 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
 
 
 
+def test_high_conviction_shadow_contract_preserves_zero_support_rows_needed():
+    status_payload = _status_payload()
+    status_payload["execution"]["live_runtime_truth"]["deployment_blocker"] = "current_live_deployment_blocker"
+    high_conviction_topk = {
+        "deployment_readiness_status": "paper_shadow_only",
+        "risk_qualified_count": 3,
+        "runtime_blocked_candidate_count": 3,
+        "deployable_count": 0,
+        "support_context": {
+            "current_live_structure_bucket_rows": 50,
+            "minimum_support_rows": 50,
+            "support_rows_needed": 0,
+            # Stale fallback from an older artifact must not override the explicit zero.
+            "current_live_structure_bucket_gap_to_minimum": 48,
+        },
+        "nearest_deployable_rows": [
+            {
+                "model_name": "random_forest",
+                "deployment_candidate_tier": "runtime_blocked_oos_pass",
+                "blocked_only_by_live_guardrails": True,
+                "deployable": False,
+            }
+        ],
+    }
+    status_payload["execution_surface_contract"]["high_conviction_topk"] = high_conviction_topk
+    status_payload["execution"]["high_conviction_topk"] = high_conviction_topk
+
+    payload = build_execution_overview(status_payload, config={"trading": {"max_position_ratio": 0.10}})
+
+    cards = {card["key"]: card for card in payload["profile_cards"]}
+    selective_contract = cards["selective"]["control_contract"]["high_conviction_topk"]
+    assert selective_contract["support_context"]["support_rows_needed"] == 0
+    assert selective_contract["support_summary"] == "支持 50/50 · 缺 0"
+    assert "缺 0" in selective_contract["start_reason"]
+    assert "缺 48" not in selective_contract["start_reason"]
+
+
+
 def test_execution_readiness_uses_circuit_breaker_audit_when_exact_support_is_active_blocker():
     status_payload = _status_payload()
     live_truth = status_payload["execution"]["live_runtime_truth"]

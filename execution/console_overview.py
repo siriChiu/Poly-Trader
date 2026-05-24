@@ -112,9 +112,9 @@ def _build_high_conviction_shadow_contract(status_payload: Dict[str, Any]) -> Di
     )
     support_rows = _to_int(support_context.get("current_live_structure_bucket_rows"))
     minimum_rows = _to_int(support_context.get("minimum_support_rows"))
-    gap_rows = _to_int(
-        support_context.get("support_rows_needed")
-        or support_context.get("current_live_structure_bucket_gap_to_minimum")
+    gap_rows = _first_int(
+        support_context.get("support_rows_needed"),
+        support_context.get("current_live_structure_bucket_gap_to_minimum"),
     )
     stalled_runs = _to_int(support_context.get("stagnant_run_count"))
     start_reason = (
