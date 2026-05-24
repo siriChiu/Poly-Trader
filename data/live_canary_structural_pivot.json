@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-24T13:13:12.026276Z",
+  "generated_at": "2026-05-24T14:11:03.957819Z",
   "artifact": "live_canary_structural_pivot",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-24T13:13:02.202612Z"
+      "generated_at": "2026-05-24T14:10:54.109276Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-24T13:12:49.852879Z"
+      "generated_at": "2026-05-24T14:10:41.758870Z"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-24T13:12:52.190670+00:00"
+      "generated_at": "2026-05-24T14:10:44.120486+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-24T13:13:10.293066Z"
+      "generated_at": "2026-05-24T14:11:02.067936Z"
     },
     "customer_safe_alternative_proof": {
       "path": "data/customer_safe_alternative_proof.json",
       "exists": true,
-      "generated_at": "2026-05-24T13:13:11.020065Z"
+      "generated_at": "2026-05-24T14:11:02.955327Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-24T13:13:07.250692+00:00"
+      "generated_at": "2026-05-24T14:10:58.966343+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -39,17 +39,17 @@
     "forbidden_shortcut": "不可降低 live gate；不可把 proxy/reference/OOS/shadow/dry-run 包裝成 live deployability。"
   },
   "current_truth": {
-    "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+    "deployment_blocker": "unsupported_exact_live_structure_bucket",
     "structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-    "support_rows": 1,
+    "support_rows": 0,
     "minimum_support_rows": 50,
-    "support_gap": 49,
-    "support_route_verdict": "exact_bucket_present_but_below_minimum",
-    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+    "support_gap": 50,
+    "support_route_verdict": "exact_bucket_unsupported_block",
+    "support_governance_route": "exact_live_lane_proxy_available",
     "support_delta_vs_previous": 0,
-    "stagnant_run_count": 4,
+    "stagnant_run_count": 5,
     "semantic_signature_delta_vs_previous": 0,
-    "semantic_signature_stagnant_run_count": 3,
+    "semantic_signature_stagnant_run_count": 2,
     "release_ready": true,
     "recent_window_size": 50,
     "recent_window_wins": 50,
@@ -86,15 +86,15 @@
         "support_route_not_deployable",
         "deployment_blocker_active"
       ],
-      "support_route": "exact_bucket_present_but_below_minimum",
-      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route": "exact_bucket_unsupported_block",
+      "support_governance_route": "exact_live_lane_proxy_available",
       "support_route_deployable": false,
-      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+      "deployment_blocker": "unsupported_exact_live_structure_bucket",
       "runtime_closure_state": "patch_inactive_or_blocked",
       "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-      "current_live_structure_bucket_rows": 1,
+      "current_live_structure_bucket_rows": 0,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 49,
+      "current_live_structure_bucket_gap_to_minimum": 50,
       "release_ready": null,
       "current_recent_window_wins": null,
       "required_recent_window_wins": null,
@@ -128,9 +128,9 @@
     "gates": {
       "current_live_support_gate": {
         "ready": false,
-        "current": 1,
+        "current": 0,
         "required": 50,
-        "gap": 49,
+        "gap": 50,
         "reason": "current-live exact support must reach the minimum with matching support_identity."
       },
       "circuit_breaker_gate": {
@@ -225,7 +225,7 @@
       "live_exposure": "none",
       "exit_gate": "A new support identity / semantic bucket map is proposed, replayed, and proven without reclassifying reference rows as deployable support.",
       "semantic_signature_delta_vs_previous": 0,
-      "semantic_signature_stagnant_run_count": 3,
+      "semantic_signature_stagnant_run_count": 2,
       "next_artifact": "data/q15_support_fill_feasibility.json + data/live_predict_probe.json after Map/Signal redesign or exact-bucket row harvest"
     }
   ],
