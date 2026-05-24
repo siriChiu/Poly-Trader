@@ -1,31 +1,36 @@
 {
-  "generated_at": "2026-05-24T09:31:00.276210Z",
+  "generated_at": "2026-05-24T10:24:34.312191Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-24T09:30:49.172677Z"
+      "generated_at": "2026-05-24T10:24:25.435322Z"
+    },
+    "circuit_breaker_audit": {
+      "path": "data/circuit_breaker_audit.json",
+      "exists": true,
+      "generated_at": "2026-05-24T10:24:13.121900Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-24T09:30:54.094528+00:00"
+      "generated_at": "2026-05-24T10:24:30.262645+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-24T09:30:39.561299+00:00"
+      "generated_at": "2026-05-24T10:24:15.822124+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-24T09:30:57.087991Z"
+      "generated_at": "2026-05-24T10:24:33.373165Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-24T09:30:18.684426+00:00"
+      "generated_at": "2026-05-24T10:23:55.615454+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -58,9 +63,9 @@
     "runtime_closure_state": "patch_inactive_or_blocked",
     "release_ready": true,
     "recent_window": 50,
-    "current_recent_window_wins": null,
-    "required_recent_window_wins": null,
-    "additional_recent_window_wins_needed": null,
+    "current_recent_window_wins": 50,
+    "required_recent_window_wins": 15,
+    "additional_recent_window_wins_needed": 0,
     "operator_summary": "熔斷 gate 已解除；仍需 exact support、Top-K 與 venue runtime proof 全部通過。"
   },
   "current_live_support": {
@@ -169,10 +174,11 @@
     ]
   },
   "recent_window_context": {
-    "latest_window": "500",
-    "win_rate": 0.504,
+    "latest_window": "100",
+    "win_rate": 0.63,
     "dominant_regime": "bear",
     "alerts": [
+      "regime_concentration",
       "regime_shift"
     ],
     "shadow_falsification_mode": "shadow_only_no_new_risk_falsification",
@@ -321,10 +327,11 @@
       "deployable": false,
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
-      "latest_window": "500",
-      "win_rate": 0.504,
+      "latest_window": "100",
+      "win_rate": 0.63,
       "dominant_regime": "bear",
       "alerts": [
+        "regime_concentration",
         "regime_shift"
       ],
       "operator_message": "not_deployable_shadow_only_runtime_blocked"

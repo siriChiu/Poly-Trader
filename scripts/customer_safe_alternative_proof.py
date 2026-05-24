@@ -25,6 +25,7 @@ DEFAULT_MARKDOWN_OUT = DOCS_ANALYSIS_DIR / "customer_safe_alternative_proof.md"
 
 SOURCE_PATHS = {
     "live_predict_probe": DATA_DIR / "live_predict_probe.json",
+    "circuit_breaker_audit": DATA_DIR / "circuit_breaker_audit.json",
     "q15_support_fill_feasibility": DATA_DIR / "q15_support_fill_feasibility.json",
     "high_conviction_topk_oos_matrix": DATA_DIR / "high_conviction_topk_oos_matrix.json",
     "execution_metadata_smoke": DATA_DIR / "execution_metadata_smoke.json",
@@ -192,7 +193,7 @@ def _support_context(live_probe: Mapping[str, Any], support_fill: Mapping[str, A
     }
 
 
-def _breaker_context(live_probe: Mapping[str, Any]) -> dict[str, Any]:
+def _breaker_context(live_probe: Mapping[str, Any], circuit_breaker_audit: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Normalize circuit-breaker release math as a first-class live gate.
 
     Support, model, and venue gates are necessary, but PM/engineering handoff
@@ -202,10 +203,26 @@ def _breaker_context(live_probe: Mapping[str, Any]) -> dict[str, Any]:
     blocked by absent data.
     """
 
+    circuit_breaker_audit = circuit_breaker_audit or {}
     details = live_probe.get("deployment_blocker_details") if isinstance(live_probe.get("deployment_blocker_details"), dict) else {}
     release = details.get("release_condition") if isinstance(details.get("release_condition"), dict) else {}
     if not release and isinstance(live_probe.get("release_condition"), dict):
         release = live_probe.get("release_condition") or {}
+    if not release and isinstance(circuit_breaker_audit.get("release_condition"), dict):
+        release = circuit_breaker_audit.get("release_condition") or {}
+    if not release and isinstance(circuit_breaker_audit.get("canonical_scope"), dict):
+        canonical_scope = circuit_breaker_audit.get("canonical_scope") or {}
+        release = {
+            key: canonical_scope.get(key)
+            for key in (
+                "release_ready",
+                "recent_window",
+                "current_recent_window_wins",
+                "required_recent_window_wins",
+                "additional_recent_window_wins_needed",
+            )
+            if key in canonical_scope
+        }
 
     deployment_blocker = live_probe.get("deployment_blocker")
     runtime_closure_state = live_probe.get("runtime_closure_state")
@@ -476,6 +493,7 @@ def _alternative_solution_portfolio(
 def build_customer_safe_alternative_proof(
     *,
     live_predict_probe: Mapping[str, Any] | None = None,
+    circuit_breaker_audit: Mapping[str, Any] | None = None,
     q15_support_fill_feasibility: Mapping[str, Any] | None = None,
     high_conviction_topk_oos_matrix: Mapping[str, Any] | None = None,
     execution_metadata_smoke: Mapping[str, Any] | None = None,
@@ -483,13 +501,14 @@ def build_customer_safe_alternative_proof(
     generated_at: str | None = None,
 ) -> dict[str, Any]:
     live_probe = dict(live_predict_probe or {})
+    breaker_audit = dict(circuit_breaker_audit or {})
     support_fill = dict(q15_support_fill_feasibility or {})
     topk = dict(high_conviction_topk_oos_matrix or {})
     execution_smoke = dict(execution_metadata_smoke or {})
     recent_drift = dict(recent_drift_report or {})
 
     support = _support_context(live_probe, support_fill, topk)
-    breaker = _breaker_context(live_probe)
+    breaker = _breaker_context(live_probe, breaker_audit)
     topk_ctx = _topk_context(topk)
     venue = _venue_context(execution_smoke)
     recent = _recent_context(recent_drift)
@@ -588,6 +607,7 @@ def build_customer_safe_alternative_proof(
 
     payloads = {
         "live_predict_probe": live_probe,
+        "circuit_breaker_audit": breaker_audit,
         "q15_support_fill_feasibility": support_fill,
         "high_conviction_topk_oos_matrix": topk,
         "execution_metadata_smoke": execution_smoke,
@@ -778,6 +798,7 @@ def main(argv: list[str] | None = None) -> int:
     payloads = load_default_payloads()
     proof = build_customer_safe_alternative_proof(
         live_predict_probe=payloads["live_predict_probe"],
+        circuit_breaker_audit=payloads["circuit_breaker_audit"],
         q15_support_fill_feasibility=payloads["q15_support_fill_feasibility"],
         high_conviction_topk_oos_matrix=payloads["high_conviction_topk_oos_matrix"],
         execution_metadata_smoke=payloads["execution_metadata_smoke"],

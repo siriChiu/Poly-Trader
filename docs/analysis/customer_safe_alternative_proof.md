@@ -1,11 +1,11 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-24T09:31:00.276210Z`
+- generated_at: `2026-05-24T10:24:34.312191Z`
 - current_live_blocker: `unsupported_exact_live_structure_bucket`
 - current_live_structure_bucket: `CAUTION|base_caution_regime_or_bias|q35`
 - exact support: `0/50` (gap `50`)
 - support_route_verdict: `exact_bucket_unsupported_block`
-- circuit_breaker_release_ready: `True` (wins `None/None`, gap `None`)
+- circuit_breaker_release_ready: `True` (wins `50/15`, gap `0`)
 - primary_blocking_gate: `current_live_support_gate`
 - canary_ready: **False**
 - live_exposure_allowed: **False**

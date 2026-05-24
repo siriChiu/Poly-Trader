@@ -198,6 +198,43 @@ def test_customer_safe_proof_prioritizes_active_circuit_breaker_before_support_m
     assert "circuit_breaker_release_ready: `False`" in md
 
 
+def test_customer_safe_proof_falls_back_to_circuit_breaker_audit_release_math():
+    payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+        },
+        circuit_breaker_audit={
+            "release_condition": {
+                "release_ready": True,
+                "recent_window": 50,
+                "current_recent_window_wins": 50,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 0,
+            }
+        },
+        q15_support_fill_feasibility={"verdict": {"current_exact_bucket_rows": 0, "minimum_support_rows": 50, "gap_to_minimum": 50}},
+        high_conviction_topk_oos_matrix={"risk_qualified_rows": 6, "runtime_blocked_candidate_rows": 6, "deployable_rows": 0},
+        execution_metadata_smoke={"runtime_ready": False},
+        recent_drift_report={},
+        generated_at="2026-05-24T10:00:00Z",
+    )
+
+    breaker = payload["circuit_breaker_gate"]
+    assert breaker["release_ready"] is True
+    assert breaker["current_recent_window_wins"] == 50
+    assert breaker["required_recent_window_wins"] == 15
+    assert breaker["additional_recent_window_wins_needed"] == 0
+    assert payload["live_deployment_gate"]["blocking_gate"] == "current_live_support_gate"
+    md = proof.markdown(payload)
+    assert "circuit_breaker_release_ready: `True` (wins `50/15`, gap `0`)" in md
+    assert "wins `None/None`" not in md
+
+
 def test_customer_safe_proof_reads_nested_recent_shadow_falsification_without_deploying():
     payload = proof.build_customer_safe_alternative_proof(
         live_predict_probe={
