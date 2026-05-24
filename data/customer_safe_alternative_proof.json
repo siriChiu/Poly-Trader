@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-24T22:09:26.210611Z",
+  "generated_at": "2026-05-24T23:18:22.014201Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-24T22:09:17.917450Z"
+      "generated_at": "2026-05-24T23:18:13.256621Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-24T22:09:04.370982Z"
+      "generated_at": "2026-05-24T23:17:56.957831Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-24T22:09:22.433657+00:00"
+      "generated_at": "2026-05-24T23:18:18.186403+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-24T22:09:07.321651+00:00"
+      "generated_at": "2026-05-24T23:18:03.212584+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-24T22:09:25.276637Z"
+      "generated_at": "2026-05-24T23:18:21.053577Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-24T22:08:55.615333+00:00"
+      "generated_at": "2026-05-24T23:17:42.184781+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -70,15 +70,15 @@
   },
   "current_live_support": {
     "deployment_blocker": "under_minimum_exact_live_structure_bucket",
-    "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+    "structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
     "support_route_verdict": "exact_bucket_present_but_below_minimum",
     "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-    "current_rows": 24,
+    "current_rows": 4,
     "minimum_support_rows": 50,
-    "gap_to_minimum": 26,
+    "gap_to_minimum": 46,
     "support_route_deployable": false,
     "reference_only_rows": 8,
-    "operator_summary": "目前 current-live 精準支持 24/50，缺口 26；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
+    "operator_summary": "目前 current-live 精準支持 4/50，缺口 46；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
   },
   "topk_shadow_candidate_context": {
     "artifact_freshness_status": "fresh",
@@ -114,10 +114,10 @@
       "support_route_deployable": false,
       "deployment_blocker": "under_minimum_exact_live_structure_bucket",
       "runtime_closure_state": "patch_inactive_or_blocked",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 24,
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+      "current_live_structure_bucket_rows": 4,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 26,
+      "current_live_structure_bucket_gap_to_minimum": 46,
       "release_ready": null,
       "current_recent_window_wins": null,
       "required_recent_window_wins": null,
@@ -187,7 +187,7 @@
     "shadow_falsification_order_submission_enabled": false,
     "shadow_falsification_summary": "not_deployable_shadow_only_runtime_blocked",
     "shadow_falsification_best_gate": "observable_4h_shift_shadow_gate",
-    "shadow_falsification_kept_rows": 82,
+    "shadow_falsification_kept_rows": 78,
     "shadow_falsification_kept_win_rate": 1.0,
     "shadow_falsification_loss_capture_share": 1.0
   },
@@ -219,7 +219,7 @@
         "order_submission_enabled": false,
         "risk_on_order_enabled": false,
         "reference_window": "all",
-        "reference_rows": 385
+        "reference_rows": 605
       },
       {
         "id": "venue_dry_run_readiness_proof",
@@ -235,9 +235,9 @@
     ],
     "safety_invariant": "All alternatives are customer-safe only: deployable=false, live_exposure_allowed=false, order_submission_enabled=false until exact support, Top-K deployability, and venue runtime proof all pass.",
     "evidence_summary": {
-      "support_rows": 24,
+      "support_rows": 4,
       "minimum_support_rows": 50,
-      "support_gap": 26,
+      "support_gap": 46,
       "topk_risk_qualified_rows": 6,
       "topk_deployable_rows": 0,
       "venue_runtime_ready": false,
@@ -257,9 +257,9 @@
         "risk_qualified_rows": 6,
         "runtime_blocked_candidate_rows": 6,
         "deployable_rows": 0,
-        "support_rows": 24,
+        "support_rows": 4,
         "support_minimum": 50,
-        "support_gap": 26
+        "support_gap": 46
       },
       "operator_message": "可用作客戶決策支援 / 影子觀察：記錄訊號、假想 entry、24h outcome；不送單、不加倉。"
     },
@@ -314,9 +314,9 @@
       "status": "semantic_window_gap_not_raw_backfill_gap",
       "deployable": false,
       "live_exposure_allowed": false,
-      "current_rows": 24,
+      "current_rows": 4,
       "minimum_support_rows": 50,
-      "gap_to_minimum": 26,
+      "gap_to_minimum": 46,
       "time_to_evidence_bucket": "semantic_rebaseline_review_required_before_reference_rows_count",
       "missing_capability_class": "Constraint/Review",
       "alternative_solution_required": true
@@ -329,7 +329,7 @@
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
       "best_gate": "observable_4h_shift_shadow_gate",
-      "kept_rows": 82,
+      "kept_rows": 78,
       "kept_win_rate": 1.0,
       "loss_capture_share": 1.0,
       "latest_window": "100",
@@ -355,7 +355,7 @@
     "把 exact-live-lane proxy、reference windows、OOS pass、paper/shadow 或 dry-run 證據包裝成 live deployment closure",
     "輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]"
   ],
-  "next_gate": "circuit_breaker release_ready=True，current exact support rows 24/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。",
+  "next_gate": "circuit_breaker release_ready=True，current exact support rows 4/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。",
   "fail_closed_invariants": {
     "support_reference_only_until_exact_rows_meet_minimum": true,
     "circuit_breaker_blocks_live_until_release_condition_met": false,
