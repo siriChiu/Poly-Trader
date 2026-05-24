@@ -1,12 +1,12 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-23 23:10:26.702615**
+- generated_at: **2026-05-24 00:12:29.917754**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
 - signal: **HOLD**
-- regime / gate / label: **bear / CAUTION / C**
+- regime / gate / label: **bear / CAUTION / D**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q35**
 - current_live_structure_bucket_rows: **0**
 - allowed_layers: **0** (unsupported_exact_live_structure_bucket)
@@ -21,58 +21,58 @@
 
 ## Support route verdict
 - support_governance_route: **exact_live_lane_proxy_available**
-- verdict: **insufficient_support_everywhere**
+- verdict: **exact_bucket_missing_exact_lane_proxy_only**
 - deployable: **False**
 - governance_reference_only: **True**
-- preferred_support_cohort: **None**
+- preferred_support_cohort: **bull_exact_live_lane_proxy**
 - current bucket gap to minimum: **50**
 - exact-bucket proxy rows: **0**
-- exact-lane proxy rows: **8**
+- exact-lane proxy rows: **860**
 - supported neighbor rows: **0**
-- reason: current live path 在 exact bucket / proxy / neighbor 都沒有 deployment 級支撐。
-- release_condition: 先擴充 exact bucket 或縮小治理範圍，否則不得調整 runtime gate。
+- reason: current live exact bucket 缺樣本，只剩 same-lane proxy；這仍不足以解除 runtime blocker。
+- release_condition: 必須先生成 current live exact bucket 真樣本，proxy 不可直接轉成 deployment allowance。
 - support_progress.status: **semantic_rebaseline_under_minimum**
 - support_progress.regression_basis: **legacy_or_different_semantic_signature**
 - support_progress.current_rows / minimum: **0 / 50**
 - support_progress.previous_rows: **0**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **4**
+- support_progress.stagnant_run_count: **2**
 - support_progress.semantic_signature_delta_vs_previous: **0**
-- support_progress.semantic_signature_stagnant_run_count: **4**
+- support_progress.semantic_signature_stagnant_run_count: **5**
 - support_progress.semantic_signature_stalled_support_accumulation: **True**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
-- support_identity.path: **bear / CAUTION / C**
+- support_identity.path: **bear / CAUTION / D**
 - support_identity.bucket/window/signature: **CAUTION|base_caution_regime_or_bias|q35 / 200 / live_structure_bucket:q15_support_identity:v2**
 - legacy_supported_reference: **reference-only; not deployment closure**
 - legacy reference heartbeat/rows/minimum: **1238 / 0 / 50**
 - legacy semantic verdict: **reference_only_semantic_mismatch_or_missing_fields**; supports_current_identity=**False**; promotable=**False**
-- legacy semantic mismatch/missing fields: `['calibration_window', 'entry_quality_label', 'regime_label']` / `[]`
+- legacy semantic mismatch/missing fields: `['calibration_window', 'regime_label']` / `[]`
 - legacy reference_only_reason: **semantic_evidence_mismatch_or_missing_fields**
-- support_progress.reason: current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。
+- support_progress.reason: current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。
 
 ## Floor-cross legality
-- verdict: **floor_crossed_but_support_not_ready**
+- verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0**
-- best_single_component: **None**
-- best_single_component_required_score_delta: **None**
-- best_single_component_can_cross_floor: **False**
-- reason: 即使 entry floor 已跨過，exact q15 support 仍未達標，不能把 proxy/neighbor 當 deployment 放行證據。
+- remaining_gap_to_floor: **0.0139**
+- best_single_component: **feat_4h_bias50**
+- best_single_component_required_score_delta: **0.0463**
+- best_single_component_can_cross_floor: **True**
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.0463），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_current_live_not_q15_and_support_not_ready**
-- feature: **None**
+- feature: **feat_4h_bias50**
 - mode: **reference_only_non_current_live_scope**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5842**
+- current_entry_quality: **0.5361**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.0342**
-- current_entry_quality_ge_0_55: **True**
-- current_entry_quality_ge_trade_floor: **True**
+- current_trade_floor_gap: **-0.0139**
+- current_entry_quality_ge_0_55: **False**
+- current_entry_quality_ge_trade_floor: **False**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_applicable_current_live_not_q15_lane)
 - reason: current live row 目前停在 CAUTION|base_caution_regime_or_bias|q35，不在 q15 target lane CAUTION|structure_quality_caution|q15；本 artifact 只能描述非 current-live 的 q15/reference route，不得當成 current-live deployment closure。
@@ -86,12 +86,12 @@
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **HOLD / 0 / unsupported_exact_live_structure_bucket**
 - support rows / minimum / gap: **0 / 50 / 50**
-- stagnant_run_count: **4**
-- semantic_signature_delta_vs_previous / stagnant: **0 / 4**
+- stagnant_run_count: **2**
+- semantic_signature_delta_vs_previous / stagnant: **0 / 5**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill', 'semantic_rebaseline_reference_review', 'semantic_signature_map_signal_redesign_or_row_harvest']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**
-- legacy_semantic_evidence.mismatched_fields: `['calibration_window', 'entry_quality_label', 'regime_label']`
+- legacy_semantic_evidence.mismatched_fields: `['calibration_window', 'regime_label']`
 - legacy_semantic_evidence.missing_fields: `[]`
 - entropy_reduction_rules: `['引入外部能量：每輪刷新 current-live rows / venue proof / semantic evidence，而不是重用 under-minimum cache。', '建立系統與規則：support_identity 完全一致且 rows>=minimum 才能進入 deployment verify。', '主動代謝與清理：proxy、neighbor、legacy reference 未補齊語義證據前全部標記 reference-only。']`
 

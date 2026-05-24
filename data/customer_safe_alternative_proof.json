@@ -1,31 +1,31 @@
 {
-  "generated_at": "2026-05-23T23:11:09.672918Z",
+  "generated_at": "2026-05-24T00:13:11.505850Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-23T23:10:49.390262Z"
+      "generated_at": "2026-05-24T00:12:52.396480Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-23T23:11:05.659806+00:00"
+      "generated_at": "2026-05-24T00:13:07.494383+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-23T23:10:53.796368+00:00"
+      "generated_at": "2026-05-24T00:12:56.721331+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-23T23:11:08.765645Z"
+      "generated_at": "2026-05-24T00:13:10.570743Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-23T23:10:39.627011+00:00"
+      "generated_at": "2026-05-24T00:12:41.578500+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -72,7 +72,7 @@
     "minimum_support_rows": 50,
     "gap_to_minimum": 50,
     "support_route_deployable": false,
-    "reference_only_rows": 8,
+    "reference_only_rows": 860,
     "operator_summary": "目前 current-live 精準支持 0/50，缺口 50；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
   },
   "topk_shadow_candidate_context": {
@@ -170,10 +170,10 @@
   },
   "recent_window_context": {
     "latest_window": "100",
-    "win_rate": 0.16,
+    "win_rate": 0.21,
     "dominant_regime": "chop",
     "alerts": [
-      "label_imbalance"
+      "regime_shift"
     ],
     "shadow_falsification_mode": "shadow_only_no_new_risk_falsification",
     "shadow_falsification_deployable": false,
@@ -211,8 +211,8 @@
         "deployable": false,
         "order_submission_enabled": false,
         "risk_on_order_enabled": false,
-        "reference_window": "600",
-        "reference_rows": 3
+        "reference_window": "all",
+        "reference_rows": 1
       },
       {
         "id": "venue_dry_run_readiness_proof",
@@ -322,10 +322,10 @@
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
       "latest_window": "100",
-      "win_rate": 0.16,
+      "win_rate": 0.21,
       "dominant_regime": "chop",
       "alerts": [
-        "label_imbalance"
+        "regime_shift"
       ],
       "operator_message": "not_deployable_shadow_only_runtime_blocked"
     }
