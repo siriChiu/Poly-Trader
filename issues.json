@@ -3,40 +3,40 @@
     {
       "id": "P0_current_live_deployment_blocker",
       "priority": "P0",
-      "title": "current live bucket CAUTION|base_caution_regime_or_bias|q35 exact support is missing and remains the deployment blocker (0/50)",
+      "title": "current live bucket CAUTION|base_caution_regime_or_bias|q35 exact support remains under minimum and remains the deployment blocker (9/50)",
       "action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "status": "open",
       "created_at": "2026-05-21T15:09:06.428661",
-      "updated_at": "2026-05-24T00:13:14.490510",
+      "updated_at": "2026-05-24T01:17:57.583506",
       "hb_detected": null,
       "next_action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "summary": {
-        "deployment_blocker": "unsupported_exact_live_structure_bucket",
+        "deployment_blocker": "under_minimum_exact_live_structure_bucket",
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-        "current_live_structure_bucket_rows": 0,
+        "current_live_structure_bucket_rows": 9,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 50,
-        "support_route_verdict": "exact_bucket_unsupported_block",
-        "support_governance_route": "exact_live_lane_proxy_available",
+        "gap_to_minimum": 41,
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
         "runtime_closure_state": "patch_inactive_or_blocked",
-        "deployment_blocker_reason": "當前即時結構分桶 `觀察｜基線觀察（市場狀態 / 偏離）｜q35` 的精準支持樣本仍停在 0/50（缺 50），支持路徑=精準樣本尚未建立，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 D / 品質分數 0.0648；目前維持不可部署治理。",
+        "deployment_blocker_reason": "當前即時結構分桶 `觀察｜基線觀察（市場狀態 / 偏離）｜q35` 的精準支持樣本仍停在 9/50（缺 41），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 D / 品質分數 -0.2102；目前維持不可部署治理。",
         "deployment_blocker_source": "decision_quality_contract",
         "signal": "HOLD",
         "support_governance_reference_evidence": {
-          "support_governance_route": "exact_live_lane_proxy_available",
-          "support_route_verdict": "exact_bucket_unsupported_block",
+          "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+          "support_route_verdict": "exact_bucket_present_but_below_minimum",
           "support_route_deployable": false,
           "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-          "current_rows": 0,
+          "current_rows": 9,
           "minimum_support_rows": 50,
-          "gap_to_minimum": 50,
+          "gap_to_minimum": 41,
           "reference_only": true,
           "deployment_closure_allowed": false,
           "exact_live_lane_proxy_rows": 860,
           "supported_neighbor_rows": 0,
           "preferred_support_cohort": "bull_exact_live_lane_proxy",
-          "exact_bucket_root_cause": "cross_regime_spillover_dominates_q65",
-          "route_hint": "exact_live_lane_proxy_available",
+          "exact_bucket_root_cause": "exact_bucket_present_but_below_minimum",
+          "route_hint": "exact_live_bucket_present_but_below_minimum",
           "governance_reference_only": true,
           "legacy_supported_reference": {
             "heartbeat": "1238",
@@ -46,32 +46,32 @@
             "support_governance_route": "exact_live_bucket_supported"
           },
           "reference_only_reason": "proxy_or_under_minimum_support_not_deployment_closure",
-          "operator_summary": "governance lane exact_live_lane_proxy_available 提供 exact-live-lane proxy rows=860 作為參考；current exact support=0/50，不可視為部署閉環。"
+          "operator_summary": "governance lane exact_live_bucket_present_but_below_minimum 提供 exact-live-lane proxy rows=860 作為參考；current exact support=9/50，不可視為部署閉環。"
         },
         "support_route_deployable": false,
-        "allowed_layers_raw": 0,
-        "allowed_layers_raw_reason": "entry_quality_below_trade_floor",
+        "allowed_layers_raw": 1,
+        "allowed_layers_raw_reason": "entry_quality_C_single_layer",
         "allowed_layers": 0,
-        "allowed_layers_reason": "unsupported_exact_live_structure_bucket",
-        "entry_quality_label": "D",
+        "allowed_layers_reason": "under_minimum_exact_live_structure_bucket",
+        "entry_quality_label": "C",
         "support_progress": {
           "status": "semantic_rebaseline_under_minimum",
-          "reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+          "reason": "current live exact support 目前是 9/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
           "regression_basis": "legacy_or_different_semantic_signature",
           "support_identity": {
             "target_col": "simulated_pyramid_win",
             "horizon_minutes": 1440,
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-            "regime_label": "bear",
+            "regime_label": "chop",
             "regime_gate": "CAUTION",
-            "entry_quality_label": "D",
+            "entry_quality_label": "C",
             "calibration_window": 200,
             "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
           },
-          "current_rows": 0,
+          "current_rows": 9,
           "minimum_support_rows": 50,
-          "gap_to_minimum": 50,
-          "previous_rows": 0,
+          "gap_to_minimum": 41,
+          "previous_rows": 9,
           "delta_vs_previous": 0,
           "recent_supported_rows": null,
           "recent_supported_heartbeat": null,
@@ -126,13 +126,13 @@
                 "target_col",
                 "horizon_minutes",
                 "current_live_structure_bucket",
+                "regime_label",
                 "regime_gate",
-                "entry_quality_label",
                 "bucket_semantic_signature"
               ],
               "mismatched_fields": [
                 "calibration_window",
-                "regime_label"
+                "entry_quality_label"
               ],
               "missing_fields": [],
               "supports_current_identity": false,
@@ -141,8 +141,8 @@
             },
             "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields"
           },
-          "comparable_history_count": 1,
-          "legacy_reference_history_count": 73,
+          "comparable_history_count": 17,
+          "legacy_reference_history_count": 58,
           "stagnant_run_count": 2,
           "stalled_support_accumulation": false,
           "escalate_to_blocker": true
@@ -159,15 +159,15 @@
           ],
           "current_signal": "HOLD",
           "current_allowed_layers": 0,
-          "current_execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+          "current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
           "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
           "support_status": "semantic_rebaseline_under_minimum",
-          "current_rows": 0,
+          "current_rows": 9,
           "minimum_support_rows": 50,
-          "gap_to_minimum": 50,
+          "gap_to_minimum": 41,
           "stagnant_run_count": 2,
           "semantic_signature_delta_vs_previous": 0,
-          "semantic_signature_stagnant_run_count": 5,
+          "semantic_signature_stagnant_run_count": 2,
           "semantic_signature_stalled_support_accumulation": true,
           "legacy_reference_only": true,
           "legacy_semantic_evidence": {
@@ -200,13 +200,13 @@
               "target_col",
               "horizon_minutes",
               "current_live_structure_bucket",
+              "regime_label",
               "regime_gate",
-              "entry_quality_label",
               "bucket_semantic_signature"
             ],
             "mismatched_fields": [
               "calibration_window",
-              "regime_label"
+              "entry_quality_label"
             ],
             "missing_fields": [],
             "supports_current_identity": false,
@@ -215,12 +215,12 @@
           },
           "semantic_rebaseline_reference_only": true,
           "semantic_rebaseline_reference": {
-            "heartbeat": "1471",
-            "timestamp": "2026-05-23T23:11:12.713350+00:00",
+            "heartbeat": "1472",
+            "timestamp": "2026-05-24T00:13:14.563794+00:00",
             "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
             "live_current_structure_bucket_rows": 0,
             "minimum_support_rows": 50,
-            "support_route_verdict": "insufficient_support_everywhere",
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
             "support_governance_route": "exact_live_lane_proxy_available",
             "support_identity": {
               "target_col": "simulated_pyramid_win",
@@ -228,7 +228,7 @@
               "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
               "regime_label": "bear",
               "regime_gate": "CAUTION",
-              "entry_quality_label": "C",
+              "entry_quality_label": "D",
               "calibration_window": 200,
               "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
             },
@@ -244,7 +244,7 @@
                 "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
                 "regime_label": "bear",
                 "regime_gate": "CAUTION",
-                "entry_quality_label": "C",
+                "entry_quality_label": "D",
                 "calibration_window": 200,
                 "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
               },
@@ -254,7 +254,7 @@
                 "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
                 "regime_label": "bear",
                 "regime_gate": "CAUTION",
-                "entry_quality_label": "C",
+                "entry_quality_label": "D",
                 "calibration_window": 200,
                 "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
               },
@@ -263,13 +263,13 @@
                 "target_col",
                 "horizon_minutes",
                 "current_live_structure_bucket",
-                "regime_label",
                 "regime_gate",
                 "calibration_window",
                 "bucket_semantic_signature"
               ],
               "mismatched_fields": [
-                "entry_quality_label"
+                "entry_quality_label",
+                "regime_label"
               ],
               "missing_fields": [],
               "supports_current_identity": false,
@@ -277,7 +277,7 @@
               "verdict": "reference_only_semantic_mismatch_or_missing_fields"
             },
             "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields",
-            "delta_vs_current_rows": 0
+            "delta_vs_current_rows": 9
           },
           "entropy_reduction_rules": [
             "引入外部能量：每輪刷新 current-live rows / venue proof / semantic evidence，而不是重用 under-minimum cache。",
@@ -291,8 +291,8 @@
               "priority": "P0",
               "description": "持續收集與 current support_identity 完全一致的 exact live rows。",
               "success_condition": "current_rows >= 50",
-              "current_rows": 0,
-              "rows_needed": 50
+              "current_rows": 9,
+              "rows_needed": 41
             },
             {
               "id": "force_q15_support_audit_refresh",
@@ -312,7 +312,7 @@
               "supports_current_identity": false,
               "mismatched_fields": [
                 "calibration_window",
-                "regime_label"
+                "entry_quality_label"
               ],
               "missing_fields": [],
               "success_condition": "legacy artifact 的 target/horizon/bucket/regime/gate/entry_label/calibration_window/semantic signature 全部吻合 current support_identity，否則明確保留 reference-only。"
@@ -322,11 +322,12 @@
               "type": "evidence_boundary",
               "priority": "P0",
               "description": "同 bucket 但不同 support_identity 的 under-minimum reference 只能證明 support 歷史不能歸零；不可升級為 deployment support。",
-              "reference_heartbeat": "1471",
+              "reference_heartbeat": "1472",
               "reference_rows": 0,
-              "delta_vs_current_rows": 0,
+              "delta_vs_current_rows": 9,
               "mismatched_fields": [
-                "entry_quality_label"
+                "entry_quality_label",
+                "regime_label"
               ],
               "missing_fields": [],
               "success_condition": "docs/API/UI 顯示 semantic rebaseline reference-only，同時繼續收集 current support_identity exact rows。"
@@ -337,7 +338,7 @@
               "priority": "P0",
               "description": "同 bucket semantic signature 支持行數仍無進展；entry-quality label 變動不得重置 PM 反平衡時鐘。",
               "semantic_signature_delta_vs_previous": 0,
-              "semantic_signature_stagnant_run_count": 5,
+              "semantic_signature_stagnant_run_count": 2,
               "ignored_strict_identity_fields": [
                 "entry_quality_label"
               ],
@@ -352,11 +353,11 @@
           "active_repair_shadow_or_paper_allowed": true,
           "active_repair_current_signal": "HOLD",
           "active_repair_current_allowed_layers": 0,
-          "active_repair_current_execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+          "active_repair_current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
           "active_repair_support_status": "semantic_rebaseline_under_minimum",
-          "active_repair_current_rows": 0,
+          "active_repair_current_rows": 9,
           "active_repair_minimum_support_rows": 50,
-          "active_repair_gap_to_minimum": 50,
+          "active_repair_gap_to_minimum": 41,
           "active_repair_action_ids": [
             "collect_exact_current_bucket_rows",
             "force_q15_support_audit_refresh",
@@ -369,7 +370,7 @@
           "legacy_semantic_evidence_promotable_to_same_identity_history": false,
           "legacy_semantic_evidence_mismatched_fields": [
             "calibration_window",
-            "regime_label"
+            "entry_quality_label"
           ],
           "legacy_semantic_evidence_missing_fields": []
         }
@@ -382,7 +383,7 @@
       "action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "status": "open",
       "created_at": "2026-04-29T18:00:00+08:00",
-      "updated_at": "2026-05-24T00:13:14.507860",
+      "updated_at": "2026-05-24T01:17:57.600044",
       "hb_detected": null,
       "next_action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "summary": {
@@ -430,14 +431,14 @@
         "strategy_lab_contract": "Strategy Lab 必須優先顯示 nearest_deployable_rows，並把離線驗證 / 模型門檻失敗與即時分桶 / 支持阻塞分開呈現；此研究 gate 不暴露 live automation 按鈕。",
         "execution_contract": "current-live blocker / unsupported support route keeps buy/add exposure fail-closed; reduce/sell diagnostics remain available",
         "latest_matrix": {
-          "generated_at": "2026-05-24T00:12:56.721331+00:00",
+          "generated_at": "2026-05-24T01:02:51.994802+00:00",
           "artifact_freshness_status": "fresh",
           "artifact_freshness_reason": "artifact_within_policy",
-          "artifact_age_minutes": 0.29643935,
+          "artifact_age_minutes": 15.0934182,
           "artifact_stale_after_minutes": 60.0,
           "artifact_deployment_blocking": false,
           "artifact": "data/high_conviction_topk_oos_matrix.json",
-          "samples": 25059,
+          "samples": 25062,
           "rows": 24,
           "evaluated_models": [
             "logistic_regression",
@@ -447,23 +448,23 @@
           "deployable_rows": 0,
           "risk_qualified_rows": 6,
           "runtime_blocked_candidate_rows": 6,
-          "support_route": "exact_bucket_unsupported_block",
-          "support_governance_route": "exact_live_lane_proxy_available",
+          "support_route": "exact_bucket_present_but_below_minimum",
+          "support_governance_route": "exact_live_bucket_present_but_below_minimum",
           "support_governance_reference_evidence": {
-            "support_governance_route": "exact_live_lane_proxy_available",
-            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
             "support_route_deployable": false,
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-            "current_rows": 0,
+            "current_rows": 9,
             "minimum_support_rows": 50,
-            "gap_to_minimum": 50,
+            "gap_to_minimum": 41,
             "reference_only": true,
             "deployment_closure_allowed": false,
             "exact_live_lane_proxy_rows": 860,
             "supported_neighbor_rows": 0,
             "preferred_support_cohort": "bull_exact_live_lane_proxy",
-            "exact_bucket_root_cause": "cross_regime_spillover_dominates_q65",
-            "route_hint": "exact_live_lane_proxy_available",
+            "exact_bucket_root_cause": "exact_bucket_present_but_below_minimum",
+            "route_hint": "exact_live_bucket_present_but_below_minimum",
             "governance_reference_only": true,
             "legacy_supported_reference": {
               "heartbeat": "1238",
@@ -473,17 +474,17 @@
               "support_governance_route": "exact_live_bucket_supported"
             },
             "reference_only_reason": "proxy_or_under_minimum_support_not_deployment_closure",
-            "operator_summary": "governance lane exact_live_lane_proxy_available 提供 exact-live-lane proxy rows=860 作為參考；current exact support=0/50，不可視為部署閉環。"
+            "operator_summary": "governance lane exact_live_bucket_present_but_below_minimum 提供 exact-live-lane proxy rows=860 作為參考；current exact support=9/50，不可視為部署閉環。"
           },
           "support_route_deployable": false,
-          "deployment_blocker": "unsupported_exact_live_structure_bucket",
+          "deployment_blocker": "under_minimum_exact_live_structure_bucket",
           "runtime_closure_state": "patch_inactive_or_blocked",
           "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-          "current_live_structure_bucket_rows": 0,
+          "current_live_structure_bucket_rows": 9,
           "minimum_support_rows": 50,
-          "current_live_structure_bucket_gap_to_minimum": 50,
+          "current_live_structure_bucket_gap_to_minimum": 41,
           "support_progress_status": "semantic_rebaseline_under_minimum",
-          "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+          "support_progress_reason": "current live exact support 目前是 9/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
           "support_progress_regression_basis": "legacy_or_different_semantic_signature",
           "support_progress_stagnant_run_count": 2,
           "support_progress_stalled_support_accumulation": false,
@@ -492,15 +493,15 @@
           "stalled_support_accumulation": false,
           "escalate_to_blocker": true,
           "support_delta_vs_previous": 0,
-          "support_previous_rows": 0,
-          "support_rows_needed": 50,
+          "support_previous_rows": 9,
+          "support_rows_needed": 41,
           "active_repair_phase": "current_bucket_first",
           "active_repair_component_verify_ready": false,
           "active_repair_live_exposure_allowed": false,
           "active_repair_shadow_or_paper_allowed": true,
           "active_repair_current_signal": "HOLD",
           "active_repair_current_allowed_layers": 0,
-          "active_repair_current_execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+          "active_repair_current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
           "active_repair_support_status": "semantic_rebaseline_under_minimum",
           "active_repair_action_ids": [
             "collect_exact_current_bucket_rows",
@@ -514,7 +515,7 @@
           "legacy_semantic_evidence_promotable_to_same_identity_history": false,
           "legacy_semantic_evidence_mismatched_fields": [
             "calibration_window",
-            "regime_label"
+            "entry_quality_label"
           ],
           "legacy_semantic_evidence_missing_fields": [],
           "nearest_deployable_candidate": {
@@ -541,17 +542,17 @@
             ],
             "oos_gate_passed": true,
             "blocked_only_by_live_guardrails": true,
-            "support_route": "exact_bucket_unsupported_block",
-            "support_governance_route": "exact_live_lane_proxy_available",
-            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "support_route": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
             "runtime_closure_state": "patch_inactive_or_blocked",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-            "current_live_structure_bucket_rows": 0,
+            "current_live_structure_bucket_rows": 9,
             "minimum_support_rows": 50,
-            "current_live_structure_bucket_gap_to_minimum": 50,
+            "current_live_structure_bucket_gap_to_minimum": 41,
             "support_route_deployable": false,
             "allowed_layers": 0,
-            "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+            "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
             "release_condition": {},
             "release_ready": null,
             "current_streak": null,
@@ -561,7 +562,7 @@
             "required_recent_window_wins": null,
             "additional_recent_window_wins_needed": null,
             "support_progress_status": "semantic_rebaseline_under_minimum",
-            "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+            "support_progress_reason": "current live exact support 目前是 9/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
             "support_progress_regression_basis": "legacy_or_different_semantic_signature",
             "support_progress_stagnant_run_count": 2,
             "support_progress_stalled_support_accumulation": false,
@@ -570,15 +571,15 @@
             "stalled_support_accumulation": false,
             "escalate_to_blocker": true,
             "support_delta_vs_previous": 0,
-            "support_previous_rows": 0,
-            "support_rows_needed": 50,
+            "support_previous_rows": 9,
+            "support_rows_needed": 41,
             "active_repair_phase": "current_bucket_first",
             "active_repair_component_verify_ready": false,
             "active_repair_live_exposure_allowed": false,
             "active_repair_shadow_or_paper_allowed": true,
             "active_repair_current_signal": "HOLD",
             "active_repair_current_allowed_layers": 0,
-            "active_repair_current_execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+            "active_repair_current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
             "active_repair_support_status": "semantic_rebaseline_under_minimum",
             "active_repair_action_ids": [
               "collect_exact_current_bucket_rows",
@@ -592,24 +593,24 @@
             "legacy_semantic_evidence_promotable_to_same_identity_history": false,
             "legacy_semantic_evidence_mismatched_fields": [
               "calibration_window",
-              "regime_label"
+              "entry_quality_label"
             ],
             "legacy_semantic_evidence_missing_fields": [],
             "support_governance_reference_evidence": {
-              "support_governance_route": "exact_live_lane_proxy_available",
-              "support_route_verdict": "exact_bucket_unsupported_block",
+              "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+              "support_route_verdict": "exact_bucket_present_but_below_minimum",
               "support_route_deployable": false,
               "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-              "current_rows": 0,
+              "current_rows": 9,
               "minimum_support_rows": 50,
-              "gap_to_minimum": 50,
+              "gap_to_minimum": 41,
               "reference_only": true,
               "deployment_closure_allowed": false,
               "exact_live_lane_proxy_rows": 860,
               "supported_neighbor_rows": 0,
               "preferred_support_cohort": "bull_exact_live_lane_proxy",
-              "exact_bucket_root_cause": "cross_regime_spillover_dominates_q65",
-              "route_hint": "exact_live_lane_proxy_available",
+              "exact_bucket_root_cause": "exact_bucket_present_but_below_minimum",
+              "route_hint": "exact_live_bucket_present_but_below_minimum",
               "governance_reference_only": true,
               "legacy_supported_reference": {
                 "heartbeat": "1238",
@@ -619,7 +620,7 @@
                 "support_governance_route": "exact_live_bucket_supported"
               },
               "reference_only_reason": "proxy_or_under_minimum_support_not_deployment_closure",
-              "operator_summary": "governance lane exact_live_lane_proxy_available 提供 exact-live-lane proxy rows=860 作為參考；current exact support=0/50，不可視為部署閉環。"
+              "operator_summary": "governance lane exact_live_bucket_present_but_below_minimum 提供 exact-live-lane proxy rows=860 作為參考；current exact support=9/50，不可視為部署閉環。"
             }
           },
           "highest_roi_not_deployable": {
@@ -651,17 +652,17 @@
             ],
             "oos_gate_passed": false,
             "blocked_only_by_live_guardrails": false,
-            "support_route": "exact_bucket_unsupported_block",
-            "support_governance_route": "exact_live_lane_proxy_available",
-            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "support_route": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
             "runtime_closure_state": "patch_inactive_or_blocked",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-            "current_live_structure_bucket_rows": 0,
+            "current_live_structure_bucket_rows": 9,
             "minimum_support_rows": 50,
-            "current_live_structure_bucket_gap_to_minimum": 50,
+            "current_live_structure_bucket_gap_to_minimum": 41,
             "support_route_deployable": false,
             "allowed_layers": 0,
-            "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+            "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
             "release_condition": {},
             "release_ready": null,
             "current_streak": null,
@@ -671,7 +672,7 @@
             "required_recent_window_wins": null,
             "additional_recent_window_wins_needed": null,
             "support_progress_status": "semantic_rebaseline_under_minimum",
-            "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+            "support_progress_reason": "current live exact support 目前是 9/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
             "support_progress_regression_basis": "legacy_or_different_semantic_signature",
             "support_progress_stagnant_run_count": 2,
             "support_progress_stalled_support_accumulation": false,
@@ -680,15 +681,15 @@
             "stalled_support_accumulation": false,
             "escalate_to_blocker": true,
             "support_delta_vs_previous": 0,
-            "support_previous_rows": 0,
-            "support_rows_needed": 50,
+            "support_previous_rows": 9,
+            "support_rows_needed": 41,
             "active_repair_phase": "current_bucket_first",
             "active_repair_component_verify_ready": false,
             "active_repair_live_exposure_allowed": false,
             "active_repair_shadow_or_paper_allowed": true,
             "active_repair_current_signal": "HOLD",
             "active_repair_current_allowed_layers": 0,
-            "active_repair_current_execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+            "active_repair_current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
             "active_repair_support_status": "semantic_rebaseline_under_minimum",
             "active_repair_action_ids": [
               "collect_exact_current_bucket_rows",
@@ -702,24 +703,24 @@
             "legacy_semantic_evidence_promotable_to_same_identity_history": false,
             "legacy_semantic_evidence_mismatched_fields": [
               "calibration_window",
-              "regime_label"
+              "entry_quality_label"
             ],
             "legacy_semantic_evidence_missing_fields": [],
             "support_governance_reference_evidence": {
-              "support_governance_route": "exact_live_lane_proxy_available",
-              "support_route_verdict": "exact_bucket_unsupported_block",
+              "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+              "support_route_verdict": "exact_bucket_present_but_below_minimum",
               "support_route_deployable": false,
               "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-              "current_rows": 0,
+              "current_rows": 9,
               "minimum_support_rows": 50,
-              "gap_to_minimum": 50,
+              "gap_to_minimum": 41,
               "reference_only": true,
               "deployment_closure_allowed": false,
               "exact_live_lane_proxy_rows": 860,
               "supported_neighbor_rows": 0,
               "preferred_support_cohort": "bull_exact_live_lane_proxy",
-              "exact_bucket_root_cause": "cross_regime_spillover_dominates_q65",
-              "route_hint": "exact_live_lane_proxy_available",
+              "exact_bucket_root_cause": "exact_bucket_present_but_below_minimum",
+              "route_hint": "exact_live_bucket_present_but_below_minimum",
               "governance_reference_only": true,
               "legacy_supported_reference": {
                 "heartbeat": "1238",
@@ -729,7 +730,7 @@
                 "support_governance_route": "exact_live_bucket_supported"
               },
               "reference_only_reason": "proxy_or_under_minimum_support_not_deployment_closure",
-              "operator_summary": "governance lane exact_live_lane_proxy_available 提供 exact-live-lane proxy rows=860 作為參考；current exact support=0/50，不可視為部署閉環。"
+              "operator_summary": "governance lane exact_live_bucket_present_but_below_minimum 提供 exact-live-lane proxy rows=860 作為參考；current exact support=9/50，不可視為部署閉環。"
             }
           },
           "best_not_deployable": {
@@ -756,17 +757,17 @@
             ],
             "oos_gate_passed": true,
             "blocked_only_by_live_guardrails": true,
-            "support_route": "exact_bucket_unsupported_block",
-            "support_governance_route": "exact_live_lane_proxy_available",
-            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "support_route": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
             "runtime_closure_state": "patch_inactive_or_blocked",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-            "current_live_structure_bucket_rows": 0,
+            "current_live_structure_bucket_rows": 9,
             "minimum_support_rows": 50,
-            "current_live_structure_bucket_gap_to_minimum": 50,
+            "current_live_structure_bucket_gap_to_minimum": 41,
             "support_route_deployable": false,
             "allowed_layers": 0,
-            "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+            "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
             "release_condition": {},
             "release_ready": null,
             "current_streak": null,
@@ -776,7 +777,7 @@
             "required_recent_window_wins": null,
             "additional_recent_window_wins_needed": null,
             "support_progress_status": "semantic_rebaseline_under_minimum",
-            "support_progress_reason": "current live exact support 目前是 0/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'regime_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
+            "support_progress_reason": "current live exact support 目前是 9/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window', 'entry_quality_label'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
             "support_progress_regression_basis": "legacy_or_different_semantic_signature",
             "support_progress_stagnant_run_count": 2,
             "support_progress_stalled_support_accumulation": false,
@@ -785,15 +786,15 @@
             "stalled_support_accumulation": false,
             "escalate_to_blocker": true,
             "support_delta_vs_previous": 0,
-            "support_previous_rows": 0,
-            "support_rows_needed": 50,
+            "support_previous_rows": 9,
+            "support_rows_needed": 41,
             "active_repair_phase": "current_bucket_first",
             "active_repair_component_verify_ready": false,
             "active_repair_live_exposure_allowed": false,
             "active_repair_shadow_or_paper_allowed": true,
             "active_repair_current_signal": "HOLD",
             "active_repair_current_allowed_layers": 0,
-            "active_repair_current_execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+            "active_repair_current_execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
             "active_repair_support_status": "semantic_rebaseline_under_minimum",
             "active_repair_action_ids": [
               "collect_exact_current_bucket_rows",
@@ -807,24 +808,24 @@
             "legacy_semantic_evidence_promotable_to_same_identity_history": false,
             "legacy_semantic_evidence_mismatched_fields": [
               "calibration_window",
-              "regime_label"
+              "entry_quality_label"
             ],
             "legacy_semantic_evidence_missing_fields": [],
             "support_governance_reference_evidence": {
-              "support_governance_route": "exact_live_lane_proxy_available",
-              "support_route_verdict": "exact_bucket_unsupported_block",
+              "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+              "support_route_verdict": "exact_bucket_present_but_below_minimum",
               "support_route_deployable": false,
               "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-              "current_rows": 0,
+              "current_rows": 9,
               "minimum_support_rows": 50,
-              "gap_to_minimum": 50,
+              "gap_to_minimum": 41,
               "reference_only": true,
               "deployment_closure_allowed": false,
               "exact_live_lane_proxy_rows": 860,
               "supported_neighbor_rows": 0,
               "preferred_support_cohort": "bull_exact_live_lane_proxy",
-              "exact_bucket_root_cause": "cross_regime_spillover_dominates_q65",
-              "route_hint": "exact_live_lane_proxy_available",
+              "exact_bucket_root_cause": "exact_bucket_present_but_below_minimum",
+              "route_hint": "exact_live_bucket_present_but_below_minimum",
               "governance_reference_only": true,
               "legacy_supported_reference": {
                 "heartbeat": "1238",
@@ -834,7 +835,7 @@
                 "support_governance_route": "exact_live_bucket_supported"
               },
               "reference_only_reason": "proxy_or_under_minimum_support_not_deployment_closure",
-              "operator_summary": "governance lane exact_live_lane_proxy_available 提供 exact-live-lane proxy rows=860 作為參考；current exact support=0/50，不可視為部署閉環。"
+              "operator_summary": "governance lane exact_live_bucket_present_but_below_minimum 提供 exact-live-lane proxy rows=860 作為參考；current exact support=9/50，不可視為部署閉環。"
             }
           }
         },
@@ -887,7 +888,7 @@
       "action": "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數",
       "status": "open",
       "created_at": "2026-05-18T10:03:34.597479",
-      "updated_at": "2026-05-24T00:13:13.537881",
+      "updated_at": "2026-05-24T01:17:56.637755",
       "hb_detected": null,
       "next_action": "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數"
     },
@@ -898,7 +899,7 @@
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-05-24T00:13:13.537837",
+      "updated_at": "2026-05-24T01:17:56.637715",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
@@ -914,7 +915,7 @@
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-05-22T03:03:23.365823",
-      "updated_at": "2026-05-24T00:13:13.537873",
+      "updated_at": "2026-05-24T01:17:56.637748",
       "hb_detected": null,
       "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "summary": {
@@ -948,7 +949,7 @@
         ],
         "api_ui_contract": "execution_metadata_smoke top-level and venues[] expose runtime_ready/readiness_state/proof_state/blockers/operator_next_action/verify_next/readiness_scope for OKX proof-gap rendering and Binance unsupported/disabled blocker visibility; metadata OK does not imply live-ready",
         "execution_metadata_smoke": {
-          "generated_at": "2026-05-24T00:13:10.570743Z",
+          "generated_at": "2026-05-24T01:17:53.750901Z",
           "venues_checked": 2,
           "ok_count": 1,
           "runtime_ready": false,
@@ -1008,7 +1009,7 @@
         "PYTHONPATH=. /home/kazuha/Poly-Trader/venv/bin/python -m pytest tests/test_execution_metadata_smoke.py tests/test_server_startup.py -k 'execution_metadata_smoke or venue_runtime_proof' tests/test_frontend_decision_contract.py -k 'venue_readiness or runtime_copy_humanizes_execution_governance' -q",
         "cd web && npm run build"
       ],
-      "updated_at": "2026-05-24T00:13:14.507887",
+      "updated_at": "2026-05-24T01:17:57.600066",
       "action": "Keep OKX runtime-proof blockers and Binance unsupported/disabled blockers explicitly visible on Dashboard, /lab, and /execution/status until credentials, order ack lifecycle, and fill lifecycle each have runtime-backed proof; unsupported venues must stay fail-closed; any readiness UI must require runtime_ready=true plus no blockers."
     },
     {
@@ -1020,7 +1021,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 4646,
+        "forward_archive_rows": 4652,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure [REDACTED], then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -1028,7 +1029,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-05-24T00:13:14.490458",
+      "updated_at": "2026-05-24T01:17:57.583460",
       "action": "Configure [REDACTED], then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -1047,8 +1048,8 @@
         "current_closure": "global_ranking_vs_support_aware_production_split",
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": false,
-        "leaderboard_payload_cache_age_sec": 508,
-        "leaderboard_payload_updated_at": "2026-05-24T00:04:32.607661Z",
+        "leaderboard_payload_cache_age_sec": 891,
+        "leaderboard_payload_updated_at": "2026-05-24T01:02:48.735197Z",
         "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
@@ -1057,7 +1058,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-05-24T00:13:13.537830",
+      "updated_at": "2026-05-24T01:17:56.637709",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -1089,28 +1090,75 @@
       "id": "P1_q35_scaling_no_deploy",
       "priority": "P1",
       "title": "q35 lane still needs formula review / base-stack redesign before deploy",
-      "action": "維持 q35 scaling audit 的 overall_verdict / redesign verdict / gap-to-floor 已同步到 docs/probe/issues；在 exact support 未就緒、且 redesign 未形成可執行 closure 前，禁止把 bias50 單點 uplift 或結構 uplift 當成 closure。",
+      "action": "維持 q35 scaling audit 的 runtime gap / redesign entry_quality / allowed_layers 已同步到 docs/probe/issues；本輪 discriminative redesign 只跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0，下一步只追 exact-support 與 score-only 治理，不得把 floor-cross 當成 deployment closure。",
       "status": "open",
       "created_at": "2026-05-23T23:03:02.533060",
-      "updated_at": "2026-05-24T00:13:13.537796",
+      "updated_at": "2026-05-24T01:17:56.637676",
       "hb_detected": null,
-      "next_action": "維持 q35 scaling audit 的 overall_verdict / redesign verdict / gap-to-floor 已同步到 docs/probe/issues；在 exact support 未就緒、且 redesign 未形成可執行 closure 前，禁止把 bias50 單點 uplift 或結構 uplift 當成 closure。",
+      "next_action": "維持 q35 scaling audit 的 runtime gap / redesign entry_quality / allowed_layers 已同步到 docs/probe/issues；本輪 discriminative redesign 只跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0，下一步只追 exact-support 與 score-only 治理，不得把 floor-cross 當成 deployment closure。",
       "summary": {
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
-        "current_live_structure_bucket_rows": 0,
+        "current_live_structure_bucket_rows": 9,
         "minimum_support_rows": 50,
-        "gap_to_minimum": 50,
-        "support_route_verdict": "exact_bucket_unsupported_block",
-        "overall_verdict": "broader_bull_cohort_recalibration_candidate",
-        "redesign_verdict": "base_stack_redesign_no_runtime_exact_lane_rows",
-        "runtime_remaining_gap_to_floor": 0.0139,
-        "remaining_gap_to_floor": 0.0139,
-        "entry_quality": 0.5361,
-        "redesign_entry_quality": null,
-        "redesign_allowed_layers_after": null,
-        "redesign_positive_discriminative_gap": false,
-        "redesign_execution_blocked_after_floor_cross": null,
-        "audit_recommended_action": "維持 q35=CAUTION；把本輪焦點放在 bias50 正規化是否應改成分段/分位數縮放，只有當 current bias50 落在 exact-lane 常見區間時才放寬。"
+        "gap_to_minimum": 41,
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "overall_verdict": "bias50_formula_may_be_too_harsh",
+        "redesign_verdict": "base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked",
+        "runtime_remaining_gap_to_floor": -0.0428,
+        "remaining_gap_to_floor": -0.0428,
+        "entry_quality": 0.5928,
+        "redesign_entry_quality": 0.6573,
+        "redesign_allowed_layers_after": 0,
+        "redesign_positive_discriminative_gap": true,
+        "redesign_execution_blocked_after_floor_cross": true,
+        "audit_recommended_action": "discriminative base-stack redesign 只能讓 entry_quality 跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0；下一輪必須把它治理成 score-only / execution-blocked，不得把 floor-cross 當成 deployment closure。"
+      }
+    },
+    {
+      "id": "P1_recent_distribution_pathology_monitoring",
+      "priority": "P1",
+      "title": "recent canonical window 100 rows = regime_concentration but current live regime is outside the blocker pocket",
+      "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
+      "status": "open",
+      "created_at": "2026-05-24T01:11:07.180209",
+      "updated_at": "2026-05-24T01:17:56.637742",
+      "hb_detected": null,
+      "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
+      "summary": {
+        "window": "100",
+        "interpretation": "regime_concentration",
+        "win_rate": 0.25,
+        "dominant_regime": "bear",
+        "dominant_regime_share": 0.59,
+        "avg_pnl": -0.0057,
+        "avg_quality": -0.1204,
+        "avg_drawdown_penalty": 0.3702,
+        "spot_long_win_rate": 0.13,
+        "avg_time_underwater": 0.8762,
+        "alerts": [
+          "regime_shift"
+        ],
+        "top_shift_features": [
+          "feat_eye",
+          "feat_rsi14",
+          "feat_4h_ma_order"
+        ],
+        "new_compressed_feature": "feat_vix",
+        "tail_streak": "19x1",
+        "adverse_streak": "67x0",
+        "live_regime_label": "chop",
+        "current_live_scope": false,
+        "blocking_basis": [
+          "avg_pnl<=0",
+          "avg_quality<=0",
+          "spot_long_win_rate<=0.20"
+        ],
+        "next_falsification_test": {
+          "id": "tp_miss_not_stop_loss",
+          "priority": "P0",
+          "hypothesis": "recent canonical losses are primarily profit-target misses, not stop-loss/drawdown breaches",
+          "pass_condition": "loss_rate falls and recent_window_wins moves toward the breaker release floor without increasing dd_breach_share."
+        }
       }
     }
   ]

@@ -256,6 +256,51 @@ def test_customer_safe_proof_reads_nested_recent_shadow_falsification_without_de
     assert "shadow_only_no_new_risk_falsification" in md
 
 
+def test_customer_safe_proof_reads_nested_primary_window_summary_before_loss_regime_fallback():
+    payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "current_live_structure_bucket_rows": 3,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 47,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        },
+        q15_support_fill_feasibility={"verdict": {"classification": "semantic_rebaseline_under_minimum"}},
+        high_conviction_topk_oos_matrix={"risk_qualified_rows": 6, "runtime_blocked_candidate_rows": 6, "deployable_rows": 0},
+        execution_metadata_smoke={"runtime_ready": False},
+        recent_drift_report={
+            "primary_window": {
+                "window": "100",
+                "alerts": ["regime_shift"],
+                "summary": {
+                    "rows": 100,
+                    "win_rate": 0.24,
+                    "dominant_regime": "bear",
+                    "dominant_regime_share": 0.58,
+                },
+            },
+            "canonical_tail_root_cause": {
+                "dominant_loss_regime": "chop",
+                "no_new_risk_shadow_replay": {
+                    "mode": "shadow_only_no_new_risk_falsification",
+                    "deployable": False,
+                    "order_submission_enabled": False,
+                    "baseline": {"rows": 100, "win_rate": 0.21},
+                },
+            },
+        },
+        generated_at="2026-05-24T01:10:00Z",
+    )
+
+    recent = payload["recent_window_context"]
+    assert recent["latest_window"] == "100"
+    assert recent["win_rate"] == 0.24
+    assert recent["dominant_regime"] == "bear"
+    assert recent["alerts"] == ["regime_shift"]
+    assert recent["shadow_falsification_mode"] == "shadow_only_no_new_risk_falsification"
+
+
 def test_customer_safe_proof_requires_all_gates_before_canary():
     payload = proof.build_customer_safe_alternative_proof(
         live_predict_probe={

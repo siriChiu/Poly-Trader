@@ -341,7 +341,22 @@ def _recent_context(recent_drift: Mapping[str, Any]) -> dict[str, Any]:
 
     primary = recent_drift.get("primary_summary")
     if not isinstance(primary, dict):
-        primary = recent_drift.get("primary_window")
+        primary_window = recent_drift.get("primary_window")
+        if isinstance(primary_window, dict):
+            nested_summary = primary_window.get("summary")
+            if isinstance(nested_summary, dict):
+                # recent_drift_report.py writes the operator-facing facts under
+                # primary_window.summary, while primary_window itself carries the
+                # window id / alerts.  Merge them so latest-window fields do not
+                # fall back to canonical_tail_root_cause.dominant_loss_regime and
+                # mislabel the customer-safe proof.
+                primary = {
+                    **nested_summary,
+                    "window": _first_present(primary_window.get("window"), nested_summary.get("window")),
+                    "alerts": _first_present(primary_window.get("alerts"), nested_summary.get("alerts")),
+                }
+            else:
+                primary = primary_window
     if not isinstance(primary, dict):
         primary = root_cause.get("primary_summary")
     if not isinstance(primary, dict):

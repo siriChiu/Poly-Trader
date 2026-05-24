@@ -1734,6 +1734,46 @@ def test_q15_post_root_cause_runtime_resync_reason_reports_stale_embedded_root_c
     ) is True
 
 
+def test_q15_post_root_cause_runtime_resync_reason_reports_q35_stale_embedded_root_cause():
+    live_predictor_diagnostics = {
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+        "q15_bucket_root_cause": {
+            "generated_at": "2026-05-24 00:12:29.917754",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_current_rows": 0,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 50,
+        },
+        "current_bucket_root_cause": {
+            "generated_at": "2026-05-24 00:12:29.917754",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_current_rows": 0,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 50,
+        },
+    }
+    q15_bucket_root_cause_summary = {
+        "generated_at": "2026-05-24 01:01:39.338464",
+        "current_live": {
+            "structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_current_rows": 3,
+            "support_minimum_rows": 50,
+            "support_gap_to_minimum": 47,
+        },
+    }
+
+    assert (
+        hb_parallel_runner._q15_post_root_cause_runtime_resync_reason(
+            live_predictor_diagnostics,
+            q15_bucket_root_cause_summary,
+        )
+        == "q15_root_cause_truth_changed_after_probe"
+    )
+
+
 def test_q15_post_root_cause_runtime_resync_reason_reports_stale_verdict_even_when_support_rows_match():
     live_predictor_diagnostics = {
         "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",

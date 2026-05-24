@@ -6794,9 +6794,15 @@ def _q15_post_root_cause_runtime_resync_reason(
     current_bucket = str(live_predictor_diagnostics.get("current_live_structure_bucket") or "")
     expected = q15_bucket_root_cause_summary.get("current_live") or {}
     expected_bucket = str(expected.get("structure_bucket") or "")
-    if "q15" not in current_bucket or (expected_bucket and expected_bucket != current_bucket):
+    if not expected_bucket:
+        return None
+    if current_bucket and expected_bucket != current_bucket:
         return None
 
+    # The artifact/script names are historical q15 names, but the same embedded
+    # root-cause copy is used for the active current bucket (q00/q15/q35/etc.).
+    # Resync any matching current-live bucket so q35 support refreshes do not
+    # leave live_predict_probe.json with stale embedded root-cause rows/copy.
     for root_key in ("q15_bucket_root_cause", "current_bucket_root_cause"):
         if _q15_root_cause_mismatch(
             live_predictor_diagnostics.get(root_key) or {},
