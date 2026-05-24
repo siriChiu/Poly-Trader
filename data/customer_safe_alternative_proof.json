@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-24T12:30:18.434647Z",
+  "generated_at": "2026-05-24T13:13:11.020065Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-24T12:30:06.976080Z"
+      "generated_at": "2026-05-24T13:13:02.202612Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-24T12:29:51.759879Z"
+      "generated_at": "2026-05-24T13:12:49.852879Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-24T12:30:14.768519+00:00"
+      "generated_at": "2026-05-24T13:13:07.250692+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-24T12:29:57.428412+00:00"
+      "generated_at": "2026-05-24T13:12:52.190670+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-24T12:30:17.480541Z"
+      "generated_at": "2026-05-24T13:13:10.293066Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-24T12:29:33.473051+00:00"
+      "generated_at": "2026-05-24T13:12:32.881747+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -175,9 +175,10 @@
   },
   "recent_window_context": {
     "latest_window": "100",
-    "win_rate": 0.78,
+    "win_rate": 0.8,
     "dominant_regime": "bear",
     "alerts": [
+      "label_imbalance",
       "regime_concentration",
       "regime_shift"
     ],
@@ -185,10 +186,10 @@
     "shadow_falsification_deployable": false,
     "shadow_falsification_order_submission_enabled": false,
     "shadow_falsification_summary": "not_deployable_shadow_only_runtime_blocked",
-    "shadow_falsification_best_gate": null,
-    "shadow_falsification_kept_rows": null,
-    "shadow_falsification_kept_win_rate": null,
-    "shadow_falsification_loss_capture_share": null
+    "shadow_falsification_best_gate": "observable_4h_shift_shadow_gate",
+    "shadow_falsification_kept_rows": 70,
+    "shadow_falsification_kept_win_rate": 1.0,
+    "shadow_falsification_loss_capture_share": 1.0
   },
   "alternative_solution_portfolio": {
     "pm_challenge_answered": true,
@@ -327,10 +328,15 @@
       "deployable": false,
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
+      "best_gate": "observable_4h_shift_shadow_gate",
+      "kept_rows": 70,
+      "kept_win_rate": 1.0,
+      "loss_capture_share": 1.0,
       "latest_window": "100",
-      "win_rate": 0.78,
+      "win_rate": 0.8,
       "dominant_regime": "bear",
       "alerts": [
+        "label_imbalance",
         "regime_concentration",
         "regime_shift"
       ],

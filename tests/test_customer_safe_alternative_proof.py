@@ -293,6 +293,80 @@ def test_customer_safe_proof_reads_nested_recent_shadow_falsification_without_de
     assert "shadow_only_no_new_risk_falsification" in md
 
 
+def test_customer_safe_proof_selects_best_runtime_gate_from_recent_replay_list():
+    payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+            "current_live_structure_bucket_rows": 1,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 49,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        },
+        q15_support_fill_feasibility={"verdict": {"classification": "semantic_window_gap_not_raw_backfill_gap"}},
+        high_conviction_topk_oos_matrix={"risk_qualified_rows": 6, "runtime_blocked_candidate_rows": 6, "deployable_rows": 0},
+        execution_metadata_smoke={"runtime_ready": False},
+        recent_drift_report={
+            "primary_window": {"window": "100", "summary": {"win_rate": 0.79, "dominant_regime": "bear"}, "alerts": ["regime_shift"]},
+            "canonical_tail_root_cause": {
+                "no_new_risk_shadow_replay": {
+                    "mode": "shadow_only_no_new_risk_falsification",
+                    "deployable": False,
+                    "order_submission_enabled": False,
+                    "baseline": {"rows": 100, "win_rate": 0.79},
+                    "gates": [
+                        {
+                            "id": "outcome_tp_miss_high_underwater",
+                            "runtime_candidate": False,
+                            "uses_future_outcome_fields": True,
+                            "falsification_verdict": "passes_shadow_metric_future_only",
+                            "kept_rows": 67,
+                            "kept_win_rate": 1.0,
+                            "loss_capture_share": 1.0,
+                        },
+                        {
+                            "id": "dominant_regime_shadow_gate",
+                            "runtime_candidate": True,
+                            "uses_future_outcome_fields": False,
+                            "falsification_verdict": "inconclusive_all_rows_blocked",
+                            "kept_rows": 0,
+                            "kept_win_rate": None,
+                            "loss_capture_share": 1.0,
+                        },
+                        {
+                            "id": "observable_4h_shift_shadow_gate",
+                            "runtime_candidate": True,
+                            "uses_future_outcome_fields": False,
+                            "falsification_verdict": "passes_shadow_metric",
+                            "kept_rows": 71,
+                            "kept_win_rate": 1.0,
+                            "loss_capture_share": 1.0,
+                        },
+                    ],
+                }
+            },
+        },
+        generated_at="2026-05-24T13:10:00Z",
+    )
+
+    recent = payload["recent_window_context"]
+    assert recent["shadow_falsification_best_gate"] == "observable_4h_shift_shadow_gate"
+    assert recent["shadow_falsification_kept_rows"] == 71
+    assert recent["shadow_falsification_kept_win_rate"] == 1.0
+    assert recent["shadow_falsification_deployable"] is False
+    assert recent["shadow_falsification_order_submission_enabled"] is False
+
+    lanes = {lane["id"]: lane for lane in payload["customer_safe_lanes"]}
+    falsification = lanes["recent_window_no_new_risk_falsification"]
+    assert falsification["best_gate"] == "observable_4h_shift_shadow_gate"
+    assert falsification["kept_rows"] == 71
+    assert falsification["deployable"] is False
+    assert falsification["order_submission_enabled"] is False
+    md = proof.markdown(payload)
+    assert "best_gate=`observable_4h_shift_shadow_gate`" in md
+    assert "outcome_tp_miss_high_underwater" not in md
+
+
 def test_customer_safe_proof_reads_nested_primary_window_summary_before_loss_regime_fallback():
     payload = proof.build_customer_safe_alternative_proof(
         live_predict_probe={

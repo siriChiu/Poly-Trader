@@ -57,6 +57,15 @@ def _to_int(value: Any, default: int = 0) -> int:
             return default
 
 
+def _to_float(value: Any, default: float | None = None) -> float | None:
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _as_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -81,6 +90,41 @@ def _first_present(*values: Any, default: Any = None) -> Any:
             continue
         return value
     return default
+
+
+def _select_shadow_replay_gate(replay: Mapping[str, Any]) -> dict[str, Any]:
+    """Pick the most operator-usable no-new-risk replay gate.
+
+    recent_drift_report.py can emit a list of replay gates without a top-level
+    best_gate.  The customer-safe proof still needs one concrete lane for PM and
+    operators, but it must not treat a future-outcome-only replay as something
+    runtime-actionable.  Prefer runtime candidates that pass the shadow metric,
+    then maximize loss capture, kept win rate, and kept rows.  The selected gate
+    remains deployable=false; it is evidence for paper/shadow only.
+    """
+
+    explicit = replay.get("best_gate")
+    if isinstance(explicit, dict):
+        return explicit
+
+    gates = [gate for gate in _as_list(replay.get("gates")) if isinstance(gate, dict)]
+    if not gates:
+        return {}
+
+    def _score(gate: Mapping[str, Any]) -> tuple[int, int, float, float, int]:
+        verdict = str(gate.get("falsification_verdict") or "")
+        runtime_candidate = _as_bool(gate.get("runtime_candidate"))
+        uses_future = _as_bool(gate.get("uses_future_outcome_fields"))
+        pass_like = verdict.startswith("passes_shadow_metric")
+        return (
+            1 if runtime_candidate and not uses_future else 0,
+            1 if pass_like else 0,
+            _to_float(gate.get("loss_capture_share"), default=0.0) or 0.0,
+            _to_float(gate.get("kept_win_rate"), default=0.0) or 0.0,
+            _to_int(gate.get("kept_rows")),
+        )
+
+    return dict(max(gates, key=_score))
 
 
 def _source_meta(payloads: Mapping[str, dict[str, Any]]) -> dict[str, Any]:
@@ -380,7 +424,7 @@ def _recent_context(recent_drift: Mapping[str, Any]) -> dict[str, Any]:
         primary = {}
 
     baseline = replay.get("baseline") if isinstance(replay.get("baseline"), dict) else {}
-    best_gate = replay.get("best_gate") if isinstance(replay.get("best_gate"), dict) else {}
+    best_gate = _select_shadow_replay_gate(replay)
     gate_summary = best_gate.get("summary") if isinstance(best_gate.get("summary"), dict) else {}
     operator_message = (
         replay.get("operator_message")
@@ -582,6 +626,10 @@ def build_customer_safe_alternative_proof(
             "deployable": False,
             "live_exposure_allowed": False,
             "order_submission_enabled": False,
+            "best_gate": recent.get("shadow_falsification_best_gate"),
+            "kept_rows": recent.get("shadow_falsification_kept_rows"),
+            "kept_win_rate": recent.get("shadow_falsification_kept_win_rate"),
+            "loss_capture_share": recent.get("shadow_falsification_loss_capture_share"),
             "latest_window": recent.get("latest_window"),
             "win_rate": recent.get("win_rate"),
             "dominant_regime": recent.get("dominant_regime"),
@@ -753,10 +801,16 @@ def markdown(payload: Mapping[str, Any]) -> str:
     for lane in payload.get("customer_safe_lanes") or []:
         if not isinstance(lane, dict):
             continue
-        lines.append(
+        lane_line = (
             f"- `{lane.get('id')}`: status=`{lane.get('status')}`, deployable=`{lane.get('deployable')}`, "
             f"live_exposure_allowed=`{lane.get('live_exposure_allowed')}`"
         )
+        if lane.get("id") == "recent_window_no_new_risk_falsification" and lane.get("best_gate"):
+            lane_line += (
+                f", best_gate=`{lane.get('best_gate')}`, kept=`{lane.get('kept_rows')}`, "
+                f"kept_win_rate=`{lane.get('kept_win_rate')}`, loss_capture=`{lane.get('loss_capture_share')}`"
+            )
+        lines.append(lane_line)
     portfolio = payload.get("alternative_solution_portfolio") if isinstance(payload.get("alternative_solution_portfolio"), dict) else {}
     if portfolio:
         lines += [
