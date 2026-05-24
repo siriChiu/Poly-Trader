@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-24 06:26:30 UTC**
+- generated_at: **2026-05-24 07:02:43 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -59,10 +59,10 @@
 - current bucket gap to minimum: **50**
 - exact-bucket proxy gap to minimum: **50**
 - exact-lane proxy gap to minimum: **42**
-- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q15` rows=54
-- bucket gap vs dominant neighbor: **54**
+- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q15` rows=53
+- bucket gap vs dominant neighbor: **53**
 - exact bucket root cause: **same_lane_shifted_to_neighbor_bucket**
-- broader q65 rows / dominant regime: **0 / chop (0.6279)**
+- broader q65 rows / dominant regime: **0 / chop (0.6235)**
 - root cause interpretation: bull exact lane 仍有同 lane 樣本，但當前結構已偏到鄰近 bucket，需先查 q65↔q85 分桶與 same-lane pathology。
 - bucket comparison takeaway: **support_gap_unresolved**
 - proxy boundary verdict: **insufficient_recent_exact_bucket_rows**
@@ -78,7 +78,7 @@
 
 | cohort | bucket | rows | win_rate | quality / cv | note |
 |---|---|---:|---:|---:|---|
-| exact live lane | CAUTION|base_caution_regime_or_bias|q15 | 54 | 0.2778 | -0.1074 | current bucket rows=0 |
+| exact live lane | CAUTION|base_caution_regime_or_bias|q15 | 53 | 0.2642 | -0.1174 | current bucket rows=0 |
 | exact bucket proxy | CAUTION|base_caution_regime_or_bias|q35 | 0 | 0.0 | None | proxy-vs-broader win Δ=None |
 | broader same bucket | CAUTION|base_caution_regime_or_bias|q35 | 0 | None | None | dominant_regime=chop |
 

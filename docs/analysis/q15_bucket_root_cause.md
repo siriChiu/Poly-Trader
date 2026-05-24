@@ -1,6 +1,6 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-24 06:26:06.211113**
+- generated_at: **2026-05-24 07:14:41.272994**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q35 bucket**
 - verdict: **current_row_already_above_q35_boundary**
@@ -12,28 +12,28 @@
 ## Current live
 - live path: **chop / CAUTION / C**
 - structure_bucket: `CAUTION|base_caution_regime_or_bias|q35`
-- structure_quality: **0.4706**
+- structure_quality: **0.5061**
 - gap_to_q35_boundary: **0.0**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `unsupported_exact_live_structure_bucket`
 - support rows/minimum/gap: **0 / 50 / 50**
 
 ## Exact live lane
-- rows: **343**
-- bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q15': 147, 'CAUTION|base_caution_regime_or_bias|q35': 80, 'CAUTION|base_caution_regime_or_bias|q00': 63, 'CAUTION|base_caution_regime_or_bias|q65': 34, 'CAUTION|base_caution_regime_or_bias|q85': 19}`
+- rows: **342**
+- bucket_counts: `{'CAUTION|base_caution_regime_or_bias|q15': 147, 'CAUTION|base_caution_regime_or_bias|q35': 80, 'CAUTION|base_caution_regime_or_bias|q00': 63, 'CAUTION|base_caution_regime_or_bias|q65': 33, 'CAUTION|base_caution_regime_or_bias|q85': 19}`
 - dominant_neighbor_bucket: **CAUTION|base_caution_regime_or_bias|q15** (147 rows)
-- near_boundary_window: `{'lower': 0.4706, 'upper': 0.35}`
+- near_boundary_window: `{'lower': 0.5061, 'upper': 0.35}`
 - near_boundary_rows: **0**
 
 ## Decision
 - reason: 目前 live row 已高於 q35 boundary，問題改成 exact support 累積，不是 bucket repair。
-- candidate_patch: `{'type': 'support_accumulation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.8241, 'current_normalized': 0.8241, 'needed_raw_delta_to_cross_q35': 0.0, 'target_bucket_p25': 0.0923, 'target_bucket_median': 0.3993, 'needed_raw_delta_to_target_p25': -0.7318, 'needed_raw_delta_to_target_median': -0.4248}`
+- candidate_patch: `{'type': 'support_accumulation', 'feature': 'feat_4h_bb_pct_b', 'current_raw': 0.8893, 'current_normalized': 0.8893, 'needed_raw_delta_to_cross_q35': 0.0, 'target_bucket_p25': 0.0923, 'target_bucket_median': 0.3993, 'needed_raw_delta_to_target_p25': -0.797, 'needed_raw_delta_to_target_median': -0.49}`
 - verify_next: 確認 current_live_structure_bucket_rows 是否增加到 minimum_support_rows。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.8241 / norm=0.8241 / Δto_cross_q35=0.0 / target_p25=0.0923 / target_median=0.3993
-- `feat_4h_dist_bb_lower`: current=2.0203 / norm=0.2525 / Δto_cross_q35=0.0 / target_p25=0.4014 / target_median=0.983
-- `feat_4h_dist_swing_low`: current=3.246 / norm=0.3246 / Δto_cross_q35=0.0 / target_p25=1.6733 / target_median=2.0107
+- `feat_4h_bb_pct_b`: current=0.8893 / norm=0.8893 / Δto_cross_q35=0.0 / target_p25=0.0923 / target_median=0.3993
+- `feat_4h_dist_bb_lower`: current=2.1876 / norm=0.2735 / Δto_cross_q35=0.0 / target_p25=0.4014 / target_median=0.983
+- `feat_4h_dist_swing_low`: current=3.4406 / norm=0.3441 / Δto_cross_q35=0.0 / target_p25=1.6733 / target_median=2.0107
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。
