@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-05-24 22:11 CST_
+_最後更新：2026-05-24 22:34 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; this file is generated from current runtime artifacts by `scripts/sync_pm_status.py` so PM checks fail on real drift, not stale literals.
 
@@ -21,7 +21,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 ### Current-live blocker
 
 - `data/live_predict_probe.json` generated at `2026-05-24T14:10:54.109276Z`；canonical target is `simulated_pyramid_win`。
-- Runtime signal: `signal=ABSTAIN` / `should_trade=false` / confidence `0.500000`；`regime_label=chop` / `regime_gate=CAUTION` / `entry_quality_label=C` / decision quality score `—`。
+- Runtime signal: `signal=ABSTAIN` / `should_trade=false` / confidence `0.500000`；`regime_label=chop` / `regime_gate=CAUTION` / `entry_quality_label=C` / `decision_quality_score=-0.2351`。
 - Primary blocker: `deployment_blocker=unsupported_exact_live_structure_bucket` / `runtime_closure_state=patch_inactive_or_blocked`。
 - Guardrail truth: `allowed_layers_raw=1` but `allowed_layers=0`；`allowed_layers_reason=unsupported_exact_live_structure_bucket`；`execution_guardrail_reason=unsupported_exact_live_structure_bucket`。
 - Current-live support: `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q35`, `support_route_verdict=exact_bucket_unsupported_block`, `support_governance_route=exact_live_lane_proxy_available`, rows `0/50`, `gap=50`。

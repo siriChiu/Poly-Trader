@@ -278,6 +278,13 @@ def build_pm_status_markdown(now: datetime | None = None) -> str:
     if not venue_lines:
         venue_lines.append("- 尚無 venue row；視為 runtime_ready=false。")
 
+    decision_quality_score = _first_present(
+        drilldown.get("decision_quality_score"),
+        drilldown.get("score"),
+        probe.get("decision_quality_score"),
+        default=None,
+    )
+
     text = f"""# PM Status — Poly-Trader Current Delivery State Only
 
 _最後更新：{updated_at}_
@@ -301,7 +308,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 ### Current-live blocker
 
 - `data/live_predict_probe.json` generated at `{probe.get('generated_at', '—')}`；canonical target is `{probe.get('target_col', 'simulated_pyramid_win')}`。
-- Runtime signal: `signal={probe.get('signal', '—')}` / `should_trade={_bool_text(probe.get('should_trade'))}` / confidence `{_num_text(probe.get('confidence'), 6)}`；`regime_label={probe.get('regime_label', '—')}` / `regime_gate={probe.get('regime_gate', '—')}` / `entry_quality_label={probe.get('entry_quality_label', '—')}` / decision quality score `{_num_text(drilldown.get('decision_quality_score') or drilldown.get('score'))}`。
+- Runtime signal: `signal={probe.get('signal', '—')}` / `should_trade={_bool_text(probe.get('should_trade'))}` / confidence `{_num_text(probe.get('confidence'), 6)}`；`regime_label={probe.get('regime_label', '—')}` / `regime_gate={probe.get('regime_gate', '—')}` / `entry_quality_label={probe.get('entry_quality_label', '—')}` / `decision_quality_score={_num_text(decision_quality_score)}`。
 - Primary blocker: `deployment_blocker={probe.get('deployment_blocker', '—')}` / `runtime_closure_state={probe.get('runtime_closure_state', '—')}`。
 - Guardrail truth: `allowed_layers_raw={probe.get('allowed_layers_raw')}` but `allowed_layers={probe.get('allowed_layers')}`；`allowed_layers_reason={probe.get('allowed_layers_reason', '—')}`；`execution_guardrail_reason={probe.get('execution_guardrail_reason', '—')}`。
 - Current-live support: `current_live_structure_bucket={current_bucket}`, `support_route_verdict={support_route}`, `support_governance_route={governance_route}`, rows `{rows}/{minimum}`, `gap={gap}`。

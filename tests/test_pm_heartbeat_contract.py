@@ -25,6 +25,20 @@ def _as_int(value):
         return None
 
 
+def _num_text(value, digits: int = 4):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if numeric.is_integer():
+        return str(int(numeric))
+    return f"{numeric:.{digits}f}"
+
+
 def _support_ready(rows, minimum, gap, support_route) -> bool:
     rows_int = _as_int(rows)
     minimum_int = _as_int(minimum)
@@ -168,6 +182,9 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     assert f"gap={gap}" in text
     assert f"allowed_layers_raw={probe['allowed_layers_raw']}" in text
     assert f"allowed_layers={probe['allowed_layers']}" in text
+    decision_quality_score = _num_text(probe.get("decision_quality_score"))
+    if decision_quality_score is not None:
+        assert f"decision_quality_score={decision_quality_score}" in text
     assert str(breaker["verdict"]) in text
     assert f"release_ready={str(release['release_ready']).lower()}" in text
     assert f"{release['current_recent_window_wins']}/{release['recent_window']}" in text

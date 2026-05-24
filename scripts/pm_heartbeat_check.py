@@ -241,6 +241,20 @@ def _bool_snippet(name: str, value: Any) -> str | None:
     return None
 
 
+def _num_text(value: Any, digits: int = 4) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if numeric.is_integer():
+        return str(int(numeric))
+    return f"{numeric:.{digits}f}"
+
+
 def _first_present(*values: Any) -> Any:
     for value in values:
         if value is not None:
@@ -321,6 +335,11 @@ def _pm_status_required_snippets() -> tuple[list[str], list[str]]:
                 str(probe.get("support_governance_route") or details.get("support_governance_route")),
                 f"allowed_layers_raw={probe.get('allowed_layers_raw')}",
                 f"allowed_layers={probe.get('allowed_layers')}",
+                (
+                    f"decision_quality_score={_num_text(probe.get('decision_quality_score'))}"
+                    if _num_text(probe.get("decision_quality_score")) is not None
+                    else None
+                ),
             ]
             if snippet and snippet != "None"
         )
