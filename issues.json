@@ -7,7 +7,7 @@
       "action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "status": "open",
       "created_at": "2026-05-21T15:09:06.428661",
-      "updated_at": "2026-05-25T04:38:20.372678",
+      "updated_at": "2026-05-25T05:40:51.217971",
       "hb_detected": null,
       "next_action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "summary": {
@@ -141,9 +141,9 @@
             },
             "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields"
           },
-          "comparable_history_count": 18,
+          "comparable_history_count": 19,
           "legacy_reference_history_count": 78,
-          "stagnant_run_count": 2,
+          "stagnant_run_count": 3,
           "stalled_support_accumulation": false,
           "escalate_to_blocker": true
         },
@@ -165,9 +165,9 @@
           "current_rows": 11,
           "minimum_support_rows": 50,
           "gap_to_minimum": 39,
-          "stagnant_run_count": 2,
+          "stagnant_run_count": 3,
           "semantic_signature_delta_vs_previous": 0,
-          "semantic_signature_stagnant_run_count": 2,
+          "semantic_signature_stagnant_run_count": 3,
           "semantic_signature_stalled_support_accumulation": true,
           "legacy_reference_only": true,
           "legacy_semantic_evidence": {
@@ -336,7 +336,7 @@
               "priority": "P0",
               "description": "同 bucket semantic signature 支持行數仍無進展；entry-quality label 變動不得重置 PM 反平衡時鐘。",
               "semantic_signature_delta_vs_previous": 0,
-              "semantic_signature_stagnant_run_count": 2,
+              "semantic_signature_stagnant_run_count": 3,
               "ignored_strict_identity_fields": [
                 "entry_quality_label"
               ],
@@ -380,7 +380,7 @@
       "action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "status": "open",
       "created_at": "2026-04-29T18:00:00+08:00",
-      "updated_at": "2026-05-25T04:38:20.389810",
+      "updated_at": "2026-05-25T05:40:51.234215",
       "hb_detected": null,
       "next_action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "summary": {
@@ -428,14 +428,14 @@
         "strategy_lab_contract": "Strategy Lab 必須優先顯示 nearest_deployable_rows，並把離線驗證 / 模型門檻失敗與即時分桶 / 支持阻塞分開呈現；此研究 gate 不暴露 live automation 按鈕。",
         "execution_contract": "current-live blocker / unsupported support route keeps buy/add exposure fail-closed; reduce/sell diagnostics remain available",
         "latest_matrix": {
-          "generated_at": "2026-05-25T04:03:45.657277+00:00",
+          "generated_at": "2026-05-25T05:40:28.067677+00:00",
           "artifact_freshness_status": "fresh",
           "artifact_freshness_reason": "artifact_within_policy",
-          "artifact_age_minutes": 34.57887298333333,
+          "artifact_age_minutes": 0.38610676666666666,
           "artifact_stale_after_minutes": 60.0,
           "artifact_deployment_blocking": false,
           "artifact": "data/high_conviction_topk_oos_matrix.json",
-          "samples": 25177,
+          "samples": 25184,
           "rows": 24,
           "evaluated_models": [
             "logistic_regression",
@@ -483,10 +483,10 @@
           "support_progress_status": "semantic_rebaseline_under_minimum",
           "support_progress_reason": "current live exact support 目前是 11/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
           "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-          "support_progress_stagnant_run_count": 2,
+          "support_progress_stagnant_run_count": 3,
           "support_progress_stalled_support_accumulation": false,
           "support_progress_escalate_to_blocker": true,
-          "stagnant_run_count": 2,
+          "stagnant_run_count": 3,
           "stalled_support_accumulation": false,
           "escalate_to_blocker": true,
           "support_delta_vs_previous": 0,
@@ -560,10 +560,10 @@
             "support_progress_status": "semantic_rebaseline_under_minimum",
             "support_progress_reason": "current live exact support 目前是 11/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
             "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-            "support_progress_stagnant_run_count": 2,
+            "support_progress_stagnant_run_count": 3,
             "support_progress_stalled_support_accumulation": false,
             "support_progress_escalate_to_blocker": true,
-            "stagnant_run_count": 2,
+            "stagnant_run_count": 3,
             "stalled_support_accumulation": false,
             "escalate_to_blocker": true,
             "support_delta_vs_previous": 0,
@@ -669,10 +669,10 @@
             "support_progress_status": "semantic_rebaseline_under_minimum",
             "support_progress_reason": "current live exact support 目前是 11/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
             "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-            "support_progress_stagnant_run_count": 2,
+            "support_progress_stagnant_run_count": 3,
             "support_progress_stalled_support_accumulation": false,
             "support_progress_escalate_to_blocker": true,
-            "stagnant_run_count": 2,
+            "stagnant_run_count": 3,
             "stalled_support_accumulation": false,
             "escalate_to_blocker": true,
             "support_delta_vs_previous": 0,
@@ -773,10 +773,10 @@
             "support_progress_status": "semantic_rebaseline_under_minimum",
             "support_progress_reason": "current live exact support 目前是 11/50，仍低於 minimum；歷史上同 bucket 曾有 0/50（heartbeat 1238），語義證據已回填但不吻合 current support_identity（mismatched=['calibration_window'], missing=[]），只能當 legacy reference，不能宣稱為 same-identity regression。",
             "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-            "support_progress_stagnant_run_count": 2,
+            "support_progress_stagnant_run_count": 3,
             "support_progress_stalled_support_accumulation": false,
             "support_progress_escalate_to_blocker": true,
-            "stagnant_run_count": 2,
+            "stagnant_run_count": 3,
             "stalled_support_accumulation": false,
             "escalate_to_blocker": true,
             "support_delta_vs_previous": 0,
@@ -881,7 +881,7 @@
       "action": "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數",
       "status": "open",
       "created_at": "2026-05-18T10:03:34.597479",
-      "updated_at": "2026-05-25T04:38:19.417505",
+      "updated_at": "2026-05-25T05:40:50.263298",
       "hb_detected": null,
       "next_action": "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數"
     },
@@ -892,7 +892,7 @@
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-05-25T04:38:19.417469",
+      "updated_at": "2026-05-25T05:40:50.263266",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
@@ -908,7 +908,7 @@
       "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "status": "open",
       "created_at": "2026-05-22T03:03:23.365823",
-      "updated_at": "2026-05-25T04:38:19.417499",
+      "updated_at": "2026-05-25T05:40:50.263293",
       "hb_detected": null,
       "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
       "summary": {
@@ -942,7 +942,7 @@
         ],
         "api_ui_contract": "execution_metadata_smoke top-level and venues[] expose runtime_ready/readiness_state/proof_state/blockers/operator_next_action/verify_next/readiness_scope for OKX proof-gap rendering and Binance unsupported/disabled blocker visibility; metadata OK does not imply live-ready",
         "execution_metadata_smoke": {
-          "generated_at": "2026-05-25T04:38:16.493018Z",
+          "generated_at": "2026-05-25T05:40:47.324676Z",
           "venues_checked": 2,
           "ok_count": 1,
           "runtime_ready": false,
@@ -1002,7 +1002,7 @@
         "PYTHONPATH=. /home/kazuha/Poly-Trader/venv/bin/python -m pytest tests/test_execution_metadata_smoke.py tests/test_server_startup.py -k 'execution_metadata_smoke or venue_runtime_proof' tests/test_frontend_decision_contract.py -k 'venue_readiness or runtime_copy_humanizes_execution_governance' -q",
         "cd web && npm run build"
       ],
-      "updated_at": "2026-05-25T04:38:20.389830",
+      "updated_at": "2026-05-25T05:40:51.234234",
       "action": "Keep OKX runtime-proof blockers and Binance unsupported/disabled blockers explicitly visible on Dashboard, /lab, and /execution/status until credentials, order ack lifecycle, and fill lifecycle each have runtime-backed proof; unsupported venues must stay fail-closed; any readiness UI must require runtime_ready=true plus no blockers."
     },
     {
@@ -1014,7 +1014,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 4735,
+        "forward_archive_rows": 4738,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure [REDACTED], then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -1022,7 +1022,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-05-25T04:38:20.372638",
+      "updated_at": "2026-05-25T05:40:51.217872",
       "action": "Configure [REDACTED], then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -1041,8 +1041,8 @@
         "current_closure": "global_ranking_vs_support_aware_production_split",
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": false,
-        "leaderboard_payload_cache_age_sec": 1,
-        "leaderboard_payload_updated_at": "2026-05-25T04:38:00.963928Z",
+        "leaderboard_payload_cache_age_sec": 16,
+        "leaderboard_payload_updated_at": "2026-05-25T05:40:15.697793Z",
         "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
@@ -1051,7 +1051,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-05-25T04:38:19.417463",
+      "updated_at": "2026-05-25T05:40:50.263261",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -1086,7 +1086,7 @@
       "action": "維持 q35 scaling audit 的 runtime gap / redesign entry_quality / allowed_layers 已同步到 docs/probe/issues；本輪 discriminative redesign 只跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0，下一步只追 exact-support 與 score-only 治理，不得把 floor-cross 當成 deployment closure。",
       "status": "open",
       "created_at": "2026-05-24T23:10:20.909350",
-      "updated_at": "2026-05-25T04:38:19.417433",
+      "updated_at": "2026-05-25T05:40:50.263235",
       "hb_detected": null,
       "next_action": "維持 q35 scaling audit 的 runtime gap / redesign entry_quality / allowed_layers 已同步到 docs/probe/issues；本輪 discriminative redesign 只跨過 scoring floor，runtime gate/support 仍讓 allowed_layers=0，下一步只追 exact-support 與 score-only 治理，不得把 floor-cross 當成 deployment closure。",
       "summary": {
@@ -1097,10 +1097,10 @@
         "support_route_verdict": "exact_bucket_present_but_below_minimum",
         "overall_verdict": "bias50_formula_may_be_too_harsh",
         "redesign_verdict": "base_stack_redesign_discriminative_reweight_crosses_floor_but_execution_blocked",
-        "runtime_remaining_gap_to_floor": 0.0621,
-        "remaining_gap_to_floor": 0.0621,
-        "entry_quality": 0.4879,
-        "redesign_entry_quality": 0.5668,
+        "runtime_remaining_gap_to_floor": 0.0449,
+        "remaining_gap_to_floor": 0.0449,
+        "entry_quality": 0.5051,
+        "redesign_entry_quality": 0.5625,
         "redesign_allowed_layers_after": 0,
         "redesign_positive_discriminative_gap": true,
         "redesign_execution_blocked_after_floor_cross": true,
@@ -1114,7 +1114,7 @@
       "action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "status": "open",
       "created_at": "2026-05-25T00:04:41.606125",
-      "updated_at": "2026-05-25T04:38:19.417493",
+      "updated_at": "2026-05-25T05:40:50.263288",
       "hb_detected": null,
       "next_action": "保留 recent canonical drift 監控與 blocker-window evidence；目前 live predictor 沒有套用 recent pathology guardrail，且 current live regime 不等於 blocker dominant regime，因此降為 P1 監控，不得當成 deployment closure。",
       "summary": {
@@ -1123,11 +1123,11 @@
         "win_rate": 0.476,
         "dominant_regime": "bear",
         "dominant_regime_share": 0.547,
-        "avg_pnl": 0.0011,
-        "avg_quality": 0.1347,
-        "avg_drawdown_penalty": 0.1934,
+        "avg_pnl": 0.001,
+        "avg_quality": 0.1344,
+        "avg_drawdown_penalty": 0.1938,
         "spot_long_win_rate": 0.145,
-        "avg_time_underwater": 0.5398,
+        "avg_time_underwater": 0.5411,
         "alerts": [
           "regime_shift"
         ],
@@ -1137,7 +1137,7 @@
           "feat_4h_bias50"
         ],
         "new_compressed_feature": "feat_body",
-        "tail_streak": "28x1",
+        "tail_streak": "32x1",
         "adverse_streak": "122x0",
         "live_regime_label": "chop",
         "current_live_scope": false,
