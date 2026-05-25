@@ -1,13 +1,13 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-25T19:11:33.768657+00:00`
-- source live probe generated_at: `2026-05-25T19:11:29.778461Z`
-- source q15 audit generated_at: `2026-05-25 19:10:56.152903`
+- generated_at: `2026-05-25T20:11:15.743519+00:00`
+- source live probe generated_at: `2026-05-25T20:11:11.781188Z`
+- source q15 audit generated_at: `2026-05-25 20:10:40.062591`
 - classification: **semantic_window_gap_not_raw_backfill_gap**
 - reason: older calibration windows have enough exact-bucket rows by count, but they mismatch the current support_identity on calibration_window; they are reference-only unless governance deliberately rebaselines the identity.
-- current exact bucket rows (deployable support candidate): **2/50**
-- current exact identity rows before bucket filter: **28** (non-current-bucket: **26**; reference only, not deployment support)
-- gap_to_minimum: **48**
+- current exact bucket rows (deployable support candidate): **7/50**
+- current exact identity rows before bucket filter: **33** (non-current-bucket: **26**; reference only, not deployment support)
+- gap_to_minimum: **43**
 - historical backfill can close current identity: **False**
 - reference windows deployable by count alone: **False**
 
@@ -26,11 +26,11 @@ This section is the current support identity captured by the source artifacts ab
 
 ## Data coverage
 
-- joined labeled rows: **24968**
+- joined labeled rows: **24973**
 - current calibration window filled: **True**
-- features_normalized: count=25385, range=`2024-04-14 07:00:00.000000` → `2026-05-25 19:10:56.152903`
-- labels: count=68299, range=`2024-04-14 07:00:00.000000` → `2026-05-25 16:07:07.398873`
-- raw_market_data: count=34454, range=`2024-04-13 22:00:00.000000` → `2026-05-25 19:10:56.152903`
+- features_normalized: count=25390, range=`2024-04-14 07:00:00.000000` → `2026-05-25 20:10:40.062591`
+- labels: count=68309, range=`2024-04-14 07:00:00.000000` → `2026-05-25 17:03:14.026026`
+- raw_market_data: count=34460, range=`2024-04-13 22:00:00.000000` → `2026-05-25 20:10:40.062591`
 
 ## PM delivery pressure
 
@@ -39,7 +39,7 @@ This section is the current support identity captured by the source artifacts ab
 - alternative_solution_required: **True**
 - selected_next_alternative_artifact: data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy
 - customer_safe_lane: paper/shadow decision-support; no buy/add live exposure
-- engineering_next_gate: exact current support rows 2/50 must reach minimum; gap=48; reference rows stay non-deployable until identity is deliberately rebaselined and reverified
+- engineering_next_gate: exact current support rows 7/50 must reach minimum; gap=43; reference rows stay non-deployable until identity is deliberately rebaselined and reverified
 
 ### Alternative-solution candidates
 
@@ -51,16 +51,16 @@ This section is the current support identity captured by the source artifacts ab
 
 | window | exact identity rows | exact bucket rows | role | promotable | latest exact bucket | metrics |
 | --- | ---: | ---: | --- | --- | --- | --- |
-| 100 | 28 | 2 | reference_only_calibration_window_mismatch | False | 2026-05-24 20:06:32.247363 | win=1.0, pnl=0.0102, quality=0.5559 |
-| 200 | 28 | 2 | current_support_identity | False | 2026-05-24 20:06:32.247363 | win=1.0, pnl=0.0102, quality=0.5559 |
-| 600 | 106 | 63 | reference_only_calibration_window_mismatch | False | 2026-05-24 20:06:32.247363 | win=0.0794, pnl=-0.0116, quality=-0.2508 |
-| 1000 | 211 | 85 | reference_only_calibration_window_mismatch | False | 2026-05-24 20:06:32.247363 | win=0.0706, pnl=-0.0117, quality=-0.2617 |
-| 5000 | 1560 | 532 | reference_only_calibration_window_mismatch | False | 2026-05-24 20:06:32.247363 | win=0.6861, pnl=0.0076, quality=0.3178 |
-| all | 9676 | 2646 | reference_only_calibration_window_mismatch | False | 2026-05-24 20:06:32.247363 | win=0.661, pnl=0.0056, quality=0.2899 |
+| 100 | 32 | 7 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=1.0, pnl=0.01, quality=0.5537 |
+| 200 | 33 | 7 | current_support_identity | False | 2026-05-24 21:01:43.922619 | win=1.0, pnl=0.01, quality=0.5537 |
+| 600 | 111 | 68 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=0.1471, pnl=-0.01, quality=-0.1917 |
+| 1000 | 212 | 90 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=0.1222, pnl=-0.0105, quality=-0.2165 |
+| 5000 | 1560 | 537 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=0.689, pnl=0.0076, quality=0.32 |
+| all | 9681 | 2651 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=0.6616, pnl=0.0056, quality=0.2904 |
 
 ## Recommended actions
 
-- **keep_deployment_fail_closed** (P0): 維持 deployable=false / allowed_layers=0；current support identity exact rows 2/50，未達門檻前 reference windows 不可直接算作 deployment support。
+- **keep_deployment_fail_closed** (P0): 維持 deployable=false / allowed_layers=0；current support identity exact rows 7/50，未達門檻前 reference windows 不可直接算作 deployment support。
   - success: current support_identity exact rows >= minimum 且 live/execution gates 同步通過。
 - **collect_forward_exact_current_identity_rows** (P0): 繼續收集與 current calibration_window=200、regime=chop、gate=CAUTION、entry_label=D、bucket=CAUTION|base_caution_regime_or_bias|q15 完全一致的真實 labeled rows。
   - success: current_exact_bucket_rows >= 50

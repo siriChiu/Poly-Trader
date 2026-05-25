@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-25 19:10:56.152903**
+- generated_at: **2026-05-25 20:10:40.062591**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -8,7 +8,7 @@
 - signal: **HOLD**
 - regime / gate / label: **chop / CAUTION / D**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q15**
-- current_live_structure_bucket_rows: **2**
+- current_live_structure_bucket_rows: **7**
 - allowed_layers: **0** (under_minimum_exact_live_structure_bucket)
 - execution_guardrail_reason: **under_minimum_exact_live_structure_bucket**
 
@@ -25,7 +25,7 @@
 - deployable: **False**
 - governance_reference_only: **True**
 - preferred_support_cohort: **bull_exact_live_lane_proxy**
-- current bucket gap to minimum: **48**
+- current bucket gap to minimum: **43**
 - exact-bucket proxy rows: **0**
 - exact-lane proxy rows: **860**
 - supported neighbor rows: **0**
@@ -33,13 +33,13 @@
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
 - support_progress.status: **regressed_under_minimum**
 - support_progress.regression_basis: **same_identity_same_semantic_signature**
-- support_progress.current_rows / minimum: **2 / 50**
-- support_progress.previous_rows: **1**
-- support_progress.delta_vs_previous: **1**
-- support_progress.stagnant_run_count: **0**
-- support_progress.semantic_signature_delta_vs_previous: **1**
-- support_progress.semantic_signature_stagnant_run_count: **0**
-- support_progress.semantic_signature_stalled_support_accumulation: **False**
+- support_progress.current_rows / minimum: **7 / 50**
+- support_progress.previous_rows: **7**
+- support_progress.delta_vs_previous: **0**
+- support_progress.stagnant_run_count: **2**
+- support_progress.semantic_signature_delta_vs_previous: **0**
+- support_progress.semantic_signature_stagnant_run_count: **2**
+- support_progress.semantic_signature_stalled_support_accumulation: **True**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
 - support_identity.path: **chop / CAUTION / D**
@@ -49,16 +49,16 @@
 - legacy semantic verdict: **reference_only_semantic_mismatch_or_missing_fields**; supports_current_identity=**False**; promotable=**False**
 - legacy semantic mismatch/missing fields: `['entry_quality_label', 'regime_label']` / `[]`
 - legacy reference_only_reason: **semantic_evidence_mismatch_or_missing_fields**
-- support_progress.reason: current q15 exact support 最近曾達 minimum support（最近一次 121/50，heartbeat 1067），目前雖較上一輪回補，但仍低於門檻。
+- support_progress.reason: current q15 exact support 最近曾達 minimum support（最近一次 121/50，heartbeat 1067），但目前仍停在 7/50；這不是一般停滯，而是 support regression。
 
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0329**
+- remaining_gap_to_floor: **0.1142**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.1097**
+- best_single_component_required_score_delta: **0.3807**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.1097），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.3807），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**
@@ -68,9 +68,9 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5171**
+- current_entry_quality: **0.4358**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.0329**
+- current_trade_floor_gap: **-0.1142**
 - current_entry_quality_ge_0_55: **False**
 - current_entry_quality_ge_trade_floor: **False**
 - allowed_layers_gt_0: **False**
@@ -80,15 +80,15 @@
 
 ## Active repair plan
 - phase: **semantic_evidence_backfill_or_exact_accumulation**
-- primary_objective: 把舊版 supported reference 轉成可審計語義證據；不能補齊 identity 前，就主動累積新版 exact rows。
+- primary_objective: 同 bucket semantic signature 仍停在相同 exact rows；entry-quality 標籤變動不能把 support delta 歸零，下一輪必須交付 Map/Signal redesign 或 exact-bucket row harvest 證據。
 - component_verify_ready: **False**
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **HOLD / 0 / under_minimum_exact_live_structure_bucket**
-- support rows / minimum / gap: **2 / 50 / 48**
-- stagnant_run_count: **0**
-- semantic_signature_delta_vs_previous / stagnant: **1 / 0**
-- actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill', 'semantic_rebaseline_reference_review']`
+- support rows / minimum / gap: **7 / 50 / 43**
+- stagnant_run_count: **2**
+- semantic_signature_delta_vs_previous / stagnant: **0 / 2**
+- actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill', 'semantic_rebaseline_reference_review', 'semantic_signature_map_signal_redesign_or_row_harvest']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**
 - legacy_semantic_evidence.supports_current_identity: **False**
 - legacy_semantic_evidence.mismatched_fields: `['entry_quality_label', 'regime_label']`
