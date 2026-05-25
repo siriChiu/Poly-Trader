@@ -913,6 +913,90 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
     return line
 
 
+def _truthy_doc_value(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "active"}
+
+
+def _anti_equilibrium_doc_context(support_context: Dict[str, Any] | None) -> Dict[str, str]:
+    """Describe forced-execution guard state without pinning stale delta=0 language.
+
+    PM handoff can demand the forced-execution guard, but fresh engineering runs may
+    show exact-support movement. Current-state docs must then say the guard is on
+    standby rather than claiming the current run is still delta=0/stagnant.
+    """
+    support_context = support_context or {}
+    delta = _int_or_none(support_context.get("support_delta_vs_previous"))
+    stagnant = _int_or_none(support_context.get("support_progress_stagnant_run_count"))
+    stalled = _truthy_doc_value(support_context.get("support_progress_stalled_support_accumulation"))
+    previous_rows = support_context.get("support_previous_rows")
+    current_rows = support_context.get("current_rows")
+    if current_rows is None:
+        current_rows = support_context.get("current_live_structure_bucket_rows")
+
+    movement = delta is not None and delta > 0 and not stalled and (stagnant is None or stagnant <= 0)
+    if movement:
+        state_line = (
+            "本輪 exact support 有位移："
+            f"`delta_vs_previous={delta}` / `previous_rows={previous_rows if previous_rows is not None else '—'}` / "
+            f"`current_rows={current_rows if current_rows is not None else '—'}` / `stagnant_run_count={stagnant if stagnant is not None else 0}`；"
+            "forced-execution 不升級為本輪主分支，但 guardrail 保持啟用：下一輪若 delta 回到 0、stagnant repeats，或使用者指出趨近平衡，必須選 Venue lifecycle proof / Model shadow to decision / Strategy micro-canary readiness / Map-Signal redesign / hard no-go single failed gate。"
+        )
+        contract_line = (
+            "本輪因 exact support 已有位移而不把 forced branch 誤寫成已觸發；"
+            "但 anti-equilibrium contract 仍維持，delta=0 / stagnant repeats 時不得回到 observation-only heartbeat。"
+        )
+        success_line = (
+            "- anti-equilibrium guard 維持：本輪 support delta > 0 時不誤報 forced branch 已觸發；"
+            "若 delta=0 / stagnant repeats，bounded live-canary policy / single failed gate 必須 machine-readable，禁止 observation-only heartbeat"
+        )
+        orid_fact_line = (
+            f"- anti-equilibrium forced execution：本輪 support 已有位移（delta={delta}，"
+            f"previous={previous_rows if previous_rows is not None else '—'} → current={current_rows if current_rows is not None else '—'}，stagnant={stagnant if stagnant is not None else 0}）；"
+            "forced branch 保持待命，不把本輪 current-state docs 誤寫成 delta=0，但下一輪若停滯仍必須留下 Venue lifecycle proof、Model shadow to decision、Strategy micro-canary readiness、Map-Signal redesign 或 hard no-go single failed gate。"
+        )
+        return {
+            "state_line": state_line,
+            "contract_line": contract_line,
+            "success_line": success_line,
+            "orid_fact_line": orid_fact_line,
+        }
+
+    active_reason_parts: list[str] = []
+    if delta == 0:
+        active_reason_parts.append("`delta_vs_previous=0`")
+    elif delta is not None:
+        active_reason_parts.append(f"`delta_vs_previous={delta}`")
+    if stagnant is not None and stagnant > 0:
+        active_reason_parts.append(f"`stagnant_run_count={stagnant}`")
+    if stalled:
+        active_reason_parts.append("`stalled_support_accumulation=true`")
+    active_reason = " / ".join(active_reason_parts) if active_reason_parts else "same semantic signature / support movement 尚未證明"
+    state_line = (
+        f"trigger：{active_reason} 或使用者指出趨近平衡時，heartbeat 不得只刷新 observation-only status；"
+        "必須選 Venue lifecycle proof / Model shadow to decision / Strategy micro-canary readiness / Map-Signal redesign / hard no-go single failed gate。"
+    )
+    contract_line = (
+        f"forced branch 由 {active_reason} 觸發或保持待命；下一輪不得只輸出狀態刷新，"
+        "必須留下 bounded micro-canary policy proof 或 single failed gate artifact。"
+    )
+    success_line = (
+        "- anti-equilibrium forced execution 維持：delta=0 / stagnant repeats 觸發 forced branch；"
+        "bounded live-canary policy / single failed gate 必須 machine-readable，禁止 observation-only heartbeat"
+    )
+    orid_fact_line = (
+        f"- anti-equilibrium forced execution：{active_reason}；下輪必須留下 Venue lifecycle proof、"
+        "Model shadow to decision、Strategy micro-canary readiness、Map-Signal redesign 或 hard no-go single failed gate。"
+    )
+    return {
+        "state_line": state_line,
+        "contract_line": contract_line,
+        "success_line": success_line,
+        "orid_fact_line": orid_fact_line,
+    }
+
+
 def _high_conviction_support_progress_doc_fragment(source: Dict[str, Any] | None) -> str:
     """Compact row/local support-progress truth for Top-K docs and issue details."""
     if not isinstance(source, dict):
@@ -3862,6 +3946,7 @@ def overwrite_current_state_docs(
     support_route_verdict = support_context.get("support_route_verdict") or "—"
     support_progress_line = _support_progress_docs_line(support_context)
     support_progress_doc_lines = [support_progress_line] if support_progress_line else []
+    anti_equilibrium_context = _anti_equilibrium_doc_context(support_context)
     support_fill_feasibility = collect_q15_support_fill_feasibility_diagnostics()
     support_fill_doc_lines: list[str] = []
     support_fill_roadmap_lines: list[str] = []
@@ -4368,7 +4453,7 @@ def overwrite_current_state_docs(
         *[f"  - {line}" for line in support_progress_doc_lines],
         *support_fill_doc_lines,
         "- **anti-equilibrium forced execution governor 已啟用**",
-        "  - trigger：`same_identity_same_semantic_signature` + `delta_vs_previous=0` / stagnant support 或使用者指出趨近平衡時，heartbeat 不得只刷新 observation-only status。",
+        f"  - {anti_equilibrium_context['state_line']}",
         "  - forced branches：Venue lifecycle proof / Model shadow to decision / Strategy micro-canary readiness / Map-Signal redesign / hard no-go single failed gate。",
         "  - bounded live-canary：任何 live buy/add pilot 必須有 `execution.live_canary.enabled=true`、explicit `allowed_symbols`、symbol-specific `max_base_qty_by_symbol`，缺 policy 或超 cap 會在 adapter 前拒單。",
         "- **recent canonical diagnostics 已刷新**",
@@ -4517,13 +4602,13 @@ def overwrite_current_state_docs(
         *range_chop_roadmap_lines,
         *m5_readiness_roadmap_lines,
         "- **anti-equilibrium forced execution governor 已成為 current plan contract**",
-        "  - same semantic signature / support delta=0 / stagnant repeats 不能再產生 observation-only heartbeat；必須選 Venue lifecycle proof、Model shadow to decision、Strategy micro-canary readiness、Map-Signal redesign 或 hard no-go single failed gate。",
+        f"  - {anti_equilibrium_context['state_line']}",
         "  - bounded live-canary guard 已在 execution service 形成 hard gate：live buy/add 若缺 explicit `execution.live_canary` allowlist 與 symbol qty cap，adapter 前拒單；reduce/sell 風險降低路徑保留。",
         "- **本輪 current-state docs 已同步到最新 artifacts**",
         "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/q15_support_fill_feasibility.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json` 的 current-state truth 已對齊",
         *support_fill_roadmap_lines,
         "- **反平衡強制執行 contract**",
-        "  - 目前 same semantic signature + support delta=0 已觸發 forced branch：Venue lifecycle proof / Model shadow to decision / Strategy micro-canary readiness / Map-Signal redesign / hard no-go single failed gate；下一輪不得只輸出狀態刷新。",
+        f"  - {anti_equilibrium_context['contract_line']}",
         *parallel_failure_roadmap_lines,
         "",
         "---",
@@ -4605,7 +4690,7 @@ def overwrite_current_state_docs(
         f"- {support_truth_label} 維持：**{support_truth_ratio} + {support_success_verdict} + {support_success_status}**",
         "- recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋",
         *support_fill_success_lines,
-        "- anti-equilibrium forced execution 維持：same semantic signature + support delta=0 觸發 forced branch；bounded live-canary policy / single failed gate 必須 machine-readable，禁止 observation-only heartbeat",
+        anti_equilibrium_context["success_line"],
         f"- {leaderboard_governance_label} 維持；venue/source blockers 持續可見",
         "- heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**",
         "- `/api/trade` 直接 API 不能繞過即時部署阻塞點：買入 / 加倉在 no-deploy 狀態必須 409，減倉 / 賣出仍可用",
@@ -4655,7 +4740,7 @@ def overwrite_current_state_docs(
         f"- leaderboard / governance：{leaderboard_line}。",
         f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；top source blockers={top_source_blockers_line}；fin_netflow={fin_line}；venue={execution_venue_line}；metadata smoke venue rows 已帶 adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next。",
         *high_conviction_shadow_orid_lines,
-        "- anti-equilibrium forced execution：same semantic signature + support `delta_vs_previous=0` / stagnant repeats 已觸發；下輪必須留下 Venue lifecycle proof、Model shadow to decision、Strategy micro-canary readiness、Map-Signal redesign 或 hard no-go single failed gate。",
+        anti_equilibrium_context["orid_fact_line"],
         "- bounded live-canary hard gate：live buy/add pilot 必須 `execution.live_canary.enabled=true` + explicit `allowed_symbols` + symbol-specific `max_base_qty_by_symbol`，缺 policy / 超 cap 會 adapter-pre 拒單；reduce/sell 風險降低路徑保留。",
         *range_chop_orid_lines,
         *m5_readiness_orid_lines,

@@ -291,6 +291,44 @@ def test_support_progress_reason_compacts_semantic_evidence_for_docs():
     assert len(compacted) < 260
 
 
+def test_anti_equilibrium_docs_do_not_claim_forced_branch_when_support_moves():
+    context = hb_parallel_runner._anti_equilibrium_doc_context(
+        {
+            "support_delta_vs_previous": 1,
+            "support_previous_rows": 25,
+            "current_rows": 26,
+            "support_progress_stagnant_run_count": 0,
+            "support_progress_stalled_support_accumulation": False,
+        }
+    )
+
+    assert "delta_vs_previous=1" in context["state_line"]
+    assert "previous_rows=25" in context["state_line"]
+    assert "current_rows=26" in context["state_line"]
+    assert "不升級" in context["state_line"]
+    assert "不把 forced branch 誤寫成已觸發" in context["contract_line"]
+    assert "不誤報 forced branch 已觸發" in context["success_line"]
+    assert "不把本輪 current-state docs 誤寫成 delta=0" in context["orid_fact_line"]
+
+
+def test_anti_equilibrium_docs_trigger_forced_branch_on_stagnant_support():
+    context = hb_parallel_runner._anti_equilibrium_doc_context(
+        {
+            "support_delta_vs_previous": 0,
+            "support_previous_rows": 26,
+            "current_rows": 26,
+            "support_progress_stagnant_run_count": 2,
+            "support_progress_stalled_support_accumulation": True,
+        }
+    )
+
+    assert "delta_vs_previous=0" in context["state_line"]
+    assert "stagnant_run_count=2" in context["state_line"]
+    assert "stalled_support_accumulation=true" in context["state_line"]
+    assert "不得只刷新 observation-only" in context["state_line"]
+    assert "下輪必須留下" in context["orid_fact_line"]
+
+
 def test_high_conviction_release_math_without_explicit_ready_still_blocks_deployable_rows():
     support_context = {
         "support_route_verdict": "exact_bucket_supported",
