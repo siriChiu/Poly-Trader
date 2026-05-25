@@ -1,54 +1,54 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-24 23:17:30.543918**
+- feature_timestamp: **2026-05-25 00:10:56.242670**
 - target: `simulated_pyramid_win`
-- live path: **盤整 / 觀察 / C**
-- signal: **ABSTAIN** @ confidence **0.5000**
-- layers: **1 → 0**
-- allowed_layers_raw_reason: 進場品質_C_single_layer
+- live path: **盤整 / 觀察 / D**
+- signal: **觀望** @ confidence **0.4390**
+- layers: **0 → 0**
+- allowed_layers_raw_reason: 進場品質低於交易門檻
 - allowed_layers_reason: 精準樣本未達最小門檻
 - execution_guardrail_reason: 精準樣本未達最小門檻
 - runtime_blocker: None | reason: None
-- deployment_blocker: 精準樣本未達最小門檻 | reason: 當前即時結構分桶 `觀察｜基線觀察（市場狀態 / 偏離）｜q35` 的精準支持樣本仍停在 4/50（缺 46），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 D / 品質分數 -0.2549；目前維持不可部署治理。
-- support blocker summary: **精準樣本 4/50（缺口 46） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1238 0/50僅能當歷史參考，因校準視窗、進場品質不吻合目前支持語義，不可宣稱同一語義已閉環。**
+- deployment_blocker: 精準樣本未達最小門檻 | reason: 當前即時結構分桶 `觀察｜基線觀察（市場狀態 / 偏離）｜q35` 的精準支持樣本仍停在 6/50（缺 44），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 D / 品質分數 -0.2220；目前維持不可部署治理。
+- support blocker summary: **精準樣本 6/50（缺口 44） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1238 0/50僅能當歷史參考，因校準視窗不吻合目前支持語義，不可宣稱同一語義已閉環。**
 - support next action: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。
-- current-bucket root cause: verdict=current_exact_support_under_minimum / patch=support_accumulation_or_semantic_rebaseline / feature=None / exact_support=4/50 / gap=46 / neighbor=觀察｜基線觀察（市場狀態 / 偏離）｜q15
-- 精準樣本修補: **未啟用** | 支持路徑 **精準樣本未達最小門檻** | 跨越門檻 **已跨越門檻但精準樣本未就緒**
-- runtime closure summary: **當前即時分桶 觀察｜基線觀察（市場狀態 / 偏離）｜q35 的精準樣本仍未就緒（4/50，路徑=精準樣本未達最小門檻 / 治理=目前即時分桶精準樣本未達最小門檻）；較寬範圍 / 近似樣本 目前都只屬僅供治理參考，不可視為部署閉環。 阻塞點=當前即時結構分桶 `觀察｜基線觀察（市場狀態 / 偏離）｜q35` 的精準支持樣本仍停在 4/50（缺 46），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 D / 品質分數 -0.2549；目前維持不可部署治理。 精準路徑與外溢對照：同 gate 寬範圍出現 盤整｜觀察 外溢，73 筆 / 勝率 0.0% / 品質 -0.382，明顯劣於 精準即時路徑 勝率 0.0% / 品質 -0.324。**
-- q35 scaling audit: overall=bias50_formula_may_be_too_harsh / redesign=base_stack_redesign_discriminative_reweight_crosses_floor_but_執行_blocked / runtime_gap=-0.0186 / mode=exact_lane_formula_review / next_patch=feat_4h_bias50_formula
-- q35 runtime truth: redesign_entry_quality=0.5555 / redesign_layers_after=0 / runtime_layers=0 / blocker=精準樣本未達最小門檻 / exact_support=4/50 / support_gap=46
+- current-bucket root cause: verdict=current_exact_support_under_minimum / patch=support_accumulation_or_semantic_rebaseline / feature=None / exact_support=6/50 / gap=44 / neighbor=觀察｜基線觀察（市場狀態 / 偏離）｜q15
+- 精準樣本修補: **未啟用** | 支持路徑 **精準樣本未達最小門檻** | 跨越門檻 **數學上可跨門檻，但精準樣本未達標前不可啟用**
+- runtime closure summary: **當前即時分桶 觀察｜基線觀察（市場狀態 / 偏離）｜q35 的精準樣本仍未就緒（6/50，路徑=精準樣本未達最小門檻 / 治理=目前即時分桶精準樣本未達最小門檻）；較寬範圍 / 近似樣本 目前都只屬僅供治理參考，不可視為部署閉環。 阻塞點=當前即時結構分桶 `觀察｜基線觀察（市場狀態 / 偏離）｜q35` 的精準支持樣本仍停在 6/50（缺 44），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 D / 品質分數 -0.2220；目前維持不可部署治理。 精準路徑與外溢對照：同 gate 寬範圍出現 盤整｜觀察 外溢，64 筆 / 勝率 4.8% / 品質 -0.284，明顯劣於 精準即時路徑 勝率 6.5% / 品質 -0.332。**
+- q35 scaling audit: overall=bias50_formula_may_be_too_harsh / redesign=base_stack_redesign_discriminative_reweight_crosses_floor_but_執行_blocked / runtime_gap=0.0829 / mode=exact_lane_formula_review / next_patch=feat_4h_bias50_formula
+- q35 runtime truth: redesign_entry_quality=0.5605 / redesign_layers_after=0 / runtime_layers=0 / blocker=精準樣本未達最小門檻 / exact_support=6/50 / support_gap=44
 - q35 audit action: discriminative base-stack redesign 只能讓 進場品質 跨過 評分門檻，執行期 gate/樣本支持 仍讓 allowed_layers=0；下一輪必須把它治理成 僅限評分 / 執行仍阻塞，不得把 跨越門檻 當成 部署閉環。
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=None
 - 建議修補方案: **None** — 狀態：None；精準樣本缺口 `None`；適用範圍 None；來源 None
 - 建議修補特徵: None
-- 建議修補說明: 精準樣本 4/50（缺口 46） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1238 0/50僅能當歷史參考，因校準視窗、進場品質不吻合目前支持語義，不可宣稱同一語義已閉環。
+- 建議修補說明: 精準樣本 6/50（缺口 44） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1238 0/50僅能當歷史參考，因校準視窗不吻合目前支持語義，不可宣稱同一語義已閉環。
 - 下一步: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5686** / trade_floor **0.55** / gap **0.0186**
-- 基礎品質: **0.6286** × 權重 **0.75**
-- 結構品質: **0.3885** × 權重 **0.25**
-- base components: feat_4h_bias50=0.5118 (w=0.4, contrib=0.2047), feat_nose=0.3719 (w=0.18, contrib=0.0669), feat_pulse=0.7707 (w=0.27, contrib=0.2081), feat_ear=0.9927 (w=0.15, contrib=0.1489)
-- structure components: feat_4h_bb_pct_b=0.6233 (w=0.34, contrib=0.2119), feat_4h_dist_bb_lower=0.1886 (w=0.33, contrib=0.0622), feat_4h_dist_swing_low=0.3465 (w=0.33, contrib=0.1144)
+- final entry_quality: **0.4671** / trade_floor **0.55** / gap **-0.0829**
+- 基礎品質: **0.4786** × 權重 **0.75**
+- 結構品質: **0.4326** × 權重 **0.25**
+- base components: feat_4h_bias50=0.4331 (w=0.4, contrib=0.1732), feat_nose=0.2801 (w=0.18, contrib=0.0504), feat_pulse=0.4158 (w=0.27, contrib=0.1123), feat_ear=0.9512 (w=0.15, contrib=0.1427)
+- structure components: feat_4h_bb_pct_b=0.7009 (w=0.34, contrib=0.2383), feat_4h_dist_bb_lower=0.2066 (w=0.33, contrib=0.0682), feat_4h_dist_swing_low=0.3822 (w=0.33, contrib=0.1261)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.2785** | structure_group_max_entry_gain: **0.1528**
-- best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
-- single-component floor crossers: None
-- bias50 fully relaxed: entry≈**0.715** / layers≈**2** / required_bias50_cap≈**-0.159**
+- remaining_gap_to_floor: **0.0829**
+- base_group_max_entry_gain: **0.3911** | structure_group_max_entry_gain: **0.1419**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.2763, max_gain≈0.1701）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.2763), feat_pulse (Δscore≈0.4094), feat_nose (Δscore≈0.6141)
+- bias50 fully relaxed: entry≈**0.6372** / layers≈**1** / required_bias50_cap≈**-1.147**
 - unavailable_reason: `None`
 
 ## Scope comparison
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label` | 52 | 0.0 | -0.3575 | 0.3761 | 0.9033 | 8 | True |
-| exact `regime_label+regime_gate+entry_quality_label` | 22 | 0.0 | -0.3242 | 0.3493 | 0.8553 | 4 | False |
-| narrow `regime_label+entry_quality_label` | 22 | 0.0 | -0.3242 | 0.3493 | 0.8553 | 4 | False |
-| broad `regime_gate+entry_quality_label` | 52 | 0.1538 | -0.1949 | 0.3399 | 0.8364 | 8 | True |
+| chosen `entry_quality_label` | 54 | 0.3333 | -0.0589 | 0.2812 | 0.6841 | 13 | False |
+| exact `regime_label+regime_gate+entry_quality_label` | 31 | 0.0645 | -0.3324 | 0.3793 | 0.9208 | 6 | True |
+| narrow `regime_label+entry_quality_label` | 31 | 0.0645 | -0.3324 | 0.3793 | 0.9208 | 6 | True |
+| broad `regime_gate+entry_quality_label` | 44 | 0.1818 | -0.2169 | 0.3326 | 0.7959 | 13 | True |
 
 ## Exact live-lane bucket diagnostic
 
