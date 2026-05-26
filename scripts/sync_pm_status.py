@@ -299,7 +299,7 @@ _最後更新：{updated_at}_
 
 PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被 customer urgency 推翻。承接上一輪 PM handoff：{support_handoff_clause}、交付 paper/shadow / dry-run / falsification / support-fill proof，且不可降低 live gate。fresh runtime truth 顯示 current-live bucket 是 `{current_bucket}`；PM 決策不變：current exact support 是 `{rows}/{minimum}`、`gap={gap}`、`support_route_verdict={support_route}`，`support_governance_route={governance_route}` {governance_route_interpretation}。
 
-安全答案：`signal={probe.get('signal', '—')}` / `should_trade={_bool_text(probe.get('should_trade'))}` / `deployment_blocker={probe.get('deployment_blocker', '—')}` / `runtime_closure_state={probe.get('runtime_closure_state', '—')}` / `allowed_layers_raw={probe.get('allowed_layers_raw')}` / `allowed_layers={probe.get('allowed_layers')}` / `allowed_layers_reason={probe.get('allowed_layers_reason', '—')}` / `execution_guardrail_reason={probe.get('execution_guardrail_reason', '—')}` / `api_trade_guardrail_active={_bool_text(probe.get('api_trade_guardrail_active'))}` / `api_trade_buy_guardrail={probe.get('api_trade_buy_guardrail', '—')}`。客戶可以使用 Dashboard、Strategy Lab、Execution Console、paper/shadow decision-support、Shadow Trade Ledger、venue readiness checklist、range-chop playbook 與 canary rehearsal；**真實買入 / 加倉 / live buy/add / 自動送單 / 小額 live canary 仍不可放行**，除非 bounded live-canary policy、current-live gate、support/breaker gate 與 venue lifecycle proof 全部通過。
+安全答案：`signal={probe.get('signal', '—')}` / `should_trade={_bool_text(probe.get('should_trade'))}` / `deployment_blocker={probe.get('deployment_blocker', '—')}` / `runtime_closure_state={probe.get('runtime_closure_state', '—')}` / `allowed_layers_raw={probe.get('allowed_layers_raw')}` / `allowed_layers={probe.get('allowed_layers')}` / `allowed_layers_reason={probe.get('allowed_layers_reason', '—')}` / `execution_guardrail_reason={probe.get('execution_guardrail_reason', '—')}` / `api_trade_guardrail_active={_bool_text(probe.get('api_trade_guardrail_active'))}` / `api_trade_buy_guardrail={probe.get('api_trade_buy_guardrail', '—')}`。客戶可以使用 Dashboard、Strategy Lab、Execution Console、paper/shadow decision-support、Shadow Trade Ledger、venue readiness checklist、range-chop playbook 與 canary rehearsal；Execution API 只允許 `shadow_buy` / `paper_buy` 以強制 dry-run paper/shadow 模式寫入演練證據，不可繞過 current-live guardrail；**真實買入 / 加倉 / live buy/add / 自動送單 / 小額 live canary 仍不可放行**，除非 bounded live-canary policy、current-live gate、support/breaker gate 與 venue lifecycle proof 全部通過。
 
 ---
 
@@ -313,7 +313,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 - Guardrail truth: `allowed_layers_raw={probe.get('allowed_layers_raw')}` but `allowed_layers={probe.get('allowed_layers')}`；`allowed_layers_reason={probe.get('allowed_layers_reason', '—')}`；`execution_guardrail_reason={probe.get('execution_guardrail_reason', '—')}`。
 - Current-live support: `current_live_structure_bucket={current_bucket}`, `support_route_verdict={support_route}`, `support_governance_route={governance_route}`, rows `{rows}/{minimum}`, `gap={gap}`。
 - Support progress: `support_progress_status={progress.get('status', '—')}` / `regression_basis={progress.get('regression_basis', '—')}` / `previous_rows={progress.get('previous_rows', '—')}` / `delta_vs_previous={progress.get('delta_vs_previous', '—')}` / `stagnant_run_count={progress.get('stagnant_run_count', '—')}` / legacy reference is reference-only because support identity does not close current deployment.
-- Direct action truth: `api_trade_guardrail_active={_bool_text(probe.get('api_trade_guardrail_active'))}`; `api_trade_buy_guardrail={probe.get('api_trade_buy_guardrail', '—')}`; risk-off sides remain `{_safe_join(probe.get('api_trade_allowed_risk_off_sides'))}` only。
+- Direct action truth: `api_trade_guardrail_active={_bool_text(probe.get('api_trade_guardrail_active'))}`; `api_trade_buy_guardrail={probe.get('api_trade_buy_guardrail', '—')}`; live risk-off sides remain `{_safe_join(probe.get('api_trade_allowed_risk_off_sides'))}`；paper/shadow rehearsal sides are `shadow_buy,paper_buy` and must return `dry_run=true`, `live_order_submitted=false`。
 
 **PM verdict：接受「{breaker_verdict_line}」。不可把 legacy rows、exact-live-lane proxy rows、Top-K OOS pass、或單一 support/governance gate 包裝成 deployable。**
 
@@ -357,7 +357,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 - `data/customer_safe_alternative_proof.json` generated at `{alt.get('generated_at', '—')}`。
 - Live gate: `canary_ready={_bool_text(alt_gate.get('canary_ready'))}`, `live_exposure_allowed={_bool_text(alt_gate.get('live_exposure_allowed'))}`, `order_submission_enabled={_bool_text(alt_gate.get('order_submission_enabled'))}`, `risk_on_order_enabled={_bool_text(alt_gate.get('risk_on_order_enabled'))}`, `support_ready={_bool_text(alt_gate.get('support_ready'))}`, `topk_deployable={_bool_text(alt_gate.get('topk_deployable'))}`, `venue_runtime_ready={_bool_text(alt_gate.get('venue_runtime_ready'))}`。
-- Allowed today: paper/shadow decision-support, Shadow Trade Ledger, venue dry-run checklist, reduce-only / wait modes. Not allowed: buy/add live exposure, automatic order submission, canary live order without exact support and runtime venue proof.
+- Allowed today: paper/shadow decision-support, API `shadow_buy` / `paper_buy` dry-run rehearsal, Shadow Trade Ledger, venue dry-run checklist, reduce-only / wait modes. Not allowed: buy/add live exposure, automatic live order submission, canary live order without exact support and runtime venue proof.
 
 ### Forced-execution / bounded live-canary structural pivot
 
@@ -376,7 +376,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 Customer-usable lanes now:
 1. **Dashboard**：看 current-live blocker、breaker release context、4H context、decision quality、feature/source blockers；主阻塞是 `{probe.get('deployment_blocker', '—')}`，support 邊界是 `{current_bucket}` `{rows}/{minimum} gap={gap}`。
 2. **Strategy Lab**：看 Top-K / leaderboard 研究候選、OOS ROI、win rate、drawdown、profit factor、worst fold 與 runtime-blocked 原因；`deployable_rows={topk.get('deployable_rows', '—')}` 時只能作 research / paper-shadow evidence。
-3. **Execution Console**：使用 paper/shadow selective sleeve、Shadow Trade Ledger、dry-run readiness、等待 / 觀望、減風險；不可做真實買入 / 加倉。
+3. **Execution Console**：使用 paper/shadow selective sleeve、API `shadow_buy` / `paper_buy` dry-run rehearsal、Shadow Trade Ledger、dry-run readiness、等待 / 觀望、減風險；不可做真實買入 / 加倉。
 4. **Venue readiness checklist**：追 OKX/Binance 還差哪些 proof；credential 只顯示布林 / proof-state，不洩漏 secret。
 
 ---

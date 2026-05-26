@@ -1061,6 +1061,7 @@ export default function ExecutionConsole() {
   const executionVenueLabel = runtimeStatusPending ? "同步中" : humanizeExecutionVenueLabel(executionSummary?.venue || "unknown");
   const automationStatusLabel = runtimeStatusPending ? "自動交易同步中" : `自動交易 ${automationEnabled ? "開啟" : "關閉"}`;
   const operatorQuickCommands = [
+    { label: "Paper 買入 0.001 BTC", disabled: operatorActionState.tone === "pending" },
     { label: manualBuyBlocked ? "買入暫停" : "買入 0.001 BTC", disabled: operatorActionState.tone === "pending" || manualBuyBlocked },
     { label: "減碼 0.001 BTC", disabled: operatorActionState.tone === "pending" },
     { label: "等待 / 觀望", disabled: operatorActionState.tone === "pending" },
@@ -1149,8 +1150,9 @@ export default function ExecutionConsole() {
       ? "border-rose-500/20 bg-rose-500/10 text-rose-100"
       : "border-cyan-500/20 bg-cyan-500/10 text-cyan-100";
 
-  const handleOperatorTrade = async (side: "buy" | "reduce" | "wait", qty = 0.001) => {
-    const label = side === "buy" ? "買入" : (side === "wait" ? "等待 / 觀望" : "減碼");
+  const handleOperatorTrade = async (side: "buy" | "paper_buy" | "reduce" | "wait", qty = 0.001) => {
+    const paperBuy = side === "paper_buy";
+    const label = paperBuy ? "Paper 買入" : (side === "buy" ? "買入" : (side === "wait" ? "等待 / 觀望" : "減碼"));
     if (side === "buy" && manualBuyBlocked) {
       setOperatorActionState({
         tone: "error",
@@ -1163,7 +1165,9 @@ export default function ExecutionConsole() {
       tone: "pending",
       message: side === "wait"
         ? `${label} 指令記錄中… 不送單，只同步 ${executionSymbol} 的執行狀態。`
-        : `${label} 指令送出中… ${executionSymbol} 會送到 /api/trade，數量 ${formatNumber(normalizedQty, 6)}，完成後自動刷新 runtime。`,
+        : (paperBuy
+          ? `${label} 指令送出中… ${executionSymbol} 只送 paper/shadow 到 /api/trade，數量 ${formatNumber(normalizedQty, 6)}；不送 OKX live 買入。`
+          : `${label} 指令送出中… ${executionSymbol} 會送到 /api/trade，數量 ${formatNumber(normalizedQty, 6)}，完成後自動刷新 runtime。`),
     });
     try {
       const resp = await fetchApi<any>("/api/trade", {
@@ -1188,6 +1192,13 @@ export default function ExecutionConsole() {
         setOperatorActionState({
           tone: "success",
           message: resp?.operator_message || "已切到等待 / 觀望：沒有送出 OKX 委託；請持續看執行狀態頁的阻塞點與解除條件。",
+        });
+        return;
+      }
+      if (resp?.shadow_trade) {
+        setOperatorActionState({
+          tone: "success",
+          message: resp?.operator_message || `${label} 已提交 paper/shadow 委託；真實買入仍需 current-live support、場館生命週期與 bounded canary gate 通過。`,
         });
         return;
       }
@@ -1309,6 +1320,11 @@ export default function ExecutionConsole() {
       return;
     }
 
+    if (/(paper|shadow|模擬|影子|演練).*(買入|買|加碼|buy)|(買入|買|加碼|buy).*(paper|shadow|模擬|影子|演練)/i.test(command)) {
+      await handleOperatorTrade("paper_buy", qty);
+      return;
+    }
+
     if (/(買入|買|加碼|buy)/i.test(command)) {
       await handleOperatorTrade("buy", qty);
       return;
@@ -1316,7 +1332,7 @@ export default function ExecutionConsole() {
 
     setOperatorActionState({
       tone: "error",
-      message: "暫時只支援：買入 / 減碼 / 等待或觀望 / 切到自動 / 切到手動 / 查看阻塞原因 / 前往策略實驗室 / 重新整理。",
+      message: "暫時支援：Paper 買入 / 減碼 / 等待或觀望 / 切到自動 / 切到手動 / 查看阻塞原因 / 前往策略實驗室 / 重新整理。真實買入需先解除阻塞。",
     });
   };
 
@@ -1945,7 +1961,7 @@ export default function ExecutionConsole() {
                   }
                 }}
                 className="execution-command-input"
-                placeholder="例如：買 0.001 BTC / 減碼 0.001 / 等待觀望 / 切到自動 / 查看阻塞原因"
+                placeholder="例如：Paper 買入 0.001 BTC / 減碼 0.001 / 等待觀望 / 切到自動 / 查看阻塞原因"
               />
               <div className="flex flex-wrap gap-2">
                 {operatorQuickCommands.map((command) => (

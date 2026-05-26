@@ -685,7 +685,7 @@ def build_customer_safe_alternative_proof(
             "blocking_gate": primary_blocking_gate,
             "primary_blocking_gate": primary_blocking_gate,
             "blocking_gates": blocking_gates,
-            "operator_summary": "可進 canary" if canary_ready else "目前只允許 customer-safe paper/shadow 與 reduce-only；買入 / 加倉 / 自動下單維持 fail-closed。",
+            "operator_summary": "可進 canary" if canary_ready else "目前只允許 customer-safe paper/shadow dry-run 演練與 reduce-only；真實買入 / 加倉 / 自動下單維持 fail-closed。",
         },
         "circuit_breaker_gate": breaker,
         "current_live_support": support,
@@ -696,12 +696,13 @@ def build_customer_safe_alternative_proof(
         "customer_safe_lanes": customer_safe_lanes,
         "allowed_today": [
             "啟動 paper-shadow 訊號帳本並追蹤 24h pyramid outcome",
+            "透過 /api/trade shadow_buy / paper_buy 強制 dry-run，產出 paper/shadow 委託演練證據且不送 live order",
             "展示 Strategy Lab / Execution Console 的高信心 OOS 候選，但標示 deployable=false",
             "做 venue dry-run preview / ack simulation / cancel simulation / reconciliation checklist",
             "保留等待 / 觀望、減碼 / 取消掛單 / 賣出風險降低路徑",
         ],
         "not_allowed": [
-            "買入 / 加倉",
+            "真實/live 買入 / 加倉",
             "啟用風險進攻自動下單或完整實單自動化",
             "把 exact-live-lane proxy、reference windows、OOS pass、paper/shadow 或 dry-run 證據包裝成 live deployment closure",
             "輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]",

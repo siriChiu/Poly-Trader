@@ -2735,7 +2735,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "Live DQ drilldown operator-facing markdown 已 enum-safe" in roadmap_md
     assert "operator markdown 不再洩漏後端 bucket / route / source / reference raw token" in roadmap_md
     assert "operator-workspace timeout" in roadmap_md
-    assert "直接呼叫 `POST /api/trade` 的買入 / 加倉也必須依即時部署阻塞點以 409 暫停" in roadmap_md
+    assert "直接呼叫 `POST /api/trade` 的真實買入 / 加倉也必須依即時部署阻塞點以 409 暫停" in roadmap_md
+    assert "shadow_buy` / `paper_buy` 強制 dry-run paper/shadow 演練路徑仍可用" in roadmap_md
     assert "`/api/trade` 直接 API 不能繞過即時部署阻塞點" in roadmap_md
     assert "Execution Status / Bot 營運 已顯示熔斷解除條件" in roadmap_md
     assert "初次同步前或部署阻塞存在時" in roadmap_md

@@ -1,12 +1,12 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-26T10:26:26.917234Z`
-- current_live_blocker: `under_minimum_exact_live_structure_bucket`
+- generated_at: `2026-05-26T13:28:57.926564Z`
+- current_live_blocker: `circuit_breaker_active`
 - current_live_structure_bucket: `CAUTION|base_caution_regime_or_bias|q15`
 - exact support: `7/50` (gap `43`)
 - support_route_verdict: `exact_bucket_present_but_below_minimum`
-- circuit_breaker_release_ready: `True` (wins `17/15`, gap `0`)
-- primary_blocking_gate: `current_live_support_gate`
+- circuit_breaker_release_ready: `False` (wins `8/15`, gap `7`)
+- primary_blocking_gate: `circuit_breaker_gate`
 - canary_ready: **False**
 - live_exposure_allowed: **False**
 - order_submission_enabled: **False**
@@ -22,12 +22,13 @@
 - Venue runtime_ready: `False` / `blocked_until_runtime_lifecycle_proof`
 - Allowed today:
   - 啟動 paper-shadow 訊號帳本並追蹤 24h pyramid outcome
+  - 透過 /api/trade shadow_buy / paper_buy 強制 dry-run，產出 paper/shadow 委託演練證據且不送 live order
   - 展示 Strategy Lab / Execution Console 的高信心 OOS 候選，但標示 deployable=false
   - 做 venue dry-run preview / ack simulation / cancel simulation / reconciliation checklist
   - 保留等待 / 觀望、減碼 / 取消掛單 / 賣出風險降低路徑
 
 ## Not allowed
-- 買入 / 加倉
+- 真實/live 買入 / 加倉
 - 啟用風險進攻自動下單或完整實單自動化
 - 把 exact-live-lane proxy、reference windows、OOS pass、paper/shadow 或 dry-run 證據包裝成 live deployment closure
 - 輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]
@@ -36,7 +37,7 @@
 - `paper_shadow_decision_support_sleeve`: status=`available`, deployable=`False`, live_exposure_allowed=`False`
 - `venue_dry_run_readiness_proof`: status=`blocked_missing_runtime_backed_proof`, deployable=`False`, live_exposure_allowed=`False`
 - `support_fill_feasibility`: status=`semantic_window_gap_not_raw_backfill_gap`, deployable=`False`, live_exposure_allowed=`False`
-- `recent_window_no_new_risk_falsification`: status=`shadow_only_no_new_risk_falsification`, deployable=`False`, live_exposure_allowed=`False`, best_gate=`dominant_regime_shadow_gate`, kept=`6`, kept_win_rate=`1.0`, loss_capture=`1.0`
+- `recent_window_no_new_risk_falsification`: status=`shadow_only_no_new_risk_falsification`, deployable=`False`, live_exposure_allowed=`False`, best_gate=`observable_4h_shift_shadow_gate`, kept=`50`, kept_win_rate=`0.94`, loss_capture=`0.9286`
 
 ## Alternative solution option portfolio
 - option_count: `3`
@@ -48,5 +49,5 @@
 - `venue_dry_run_readiness_proof`: role=`delivery_risk_reduction`, deployable=`False`, live_exposure_allowed=`False`, next=`OKX/Binance dry-run lifecycle proof checklist with credential state as boolean only`
 
 ## Next gate
-circuit_breaker release_ready=True，current exact support rows 7/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
+circuit_breaker release_ready=False，current exact support rows 7/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
 

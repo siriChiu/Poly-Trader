@@ -141,7 +141,8 @@ def test_customer_safe_proof_preserves_fail_closed_live_gate_with_shadow_candida
         assert option["order_submission_enabled"] is False
         assert option["risk_on_order_enabled"] is False
 
-    assert "買入 / 加倉" in payload["not_allowed"]
+    assert any("透過 /api/trade shadow_buy / paper_buy 強制 dry-run" in item for item in payload["allowed_today"])
+    assert "真實/live 買入 / 加倉" in payload["not_allowed"]
     assert payload["fail_closed_invariants"]["paper_shadow_is_not_live_deployability"] is True
     assert payload["pm_handoff_carried_forward"]["selected_customer_safe_lane"] == "paper_shadow_decision_support_sleeve"
 

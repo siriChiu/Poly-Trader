@@ -834,12 +834,13 @@ def test_api_trade_rejects_buy_when_current_live_blocker_active(monkeypatch):
         assert exc.detail["blocked_side"] == "buy"
         assert exc.detail["reason"] == "manual_buy_blocked_by_current_live_blocker"
         assert exc.detail["runtime_blocker"] == "circuit_breaker_active"
-        assert exc.detail["allowed_actions"] == ["wait", "reduce", "sell", "diagnostics", "mode_toggle"]
+        assert exc.detail["allowed_actions"] == ["wait", "reduce", "sell", "shadow_buy", "paper_buy", "diagnostics", "mode_toggle"]
         assert exc.detail["code"] == "current_live_deployment_blocker"
         assert "目前即時部署阻塞" in exc.detail["message"]
         assert "Current live" not in exc.detail["message"]
         assert exc.detail["context"]["blocked_side"] == "buy"
         assert exc.detail["context"]["allowed_sides"] == ["reduce", "sell"]
+        assert exc.detail["context"]["allowed_paper_shadow_sides"] == ["shadow_buy", "paper_buy"]
         assert exc.detail["context"]["reduce_only_allowed"] is True
         assert exc.detail["context"]["deployment_blocker"] == "circuit_breaker_active"
         assert exc.detail["context"]["runtime_closure_state"] == "circuit_breaker_active"
@@ -874,12 +875,13 @@ def test_api_trade_rejects_buy_with_chinese_copy_when_current_live_guardrail_una
         assert exc.detail["blocked_side"] == "buy"
         assert exc.detail["reason"] == "manual_buy_blocked_by_current_live_guardrail_unavailable"
         assert exc.detail["runtime_blocker"] == "current_live_guardrail_unavailable"
-        assert exc.detail["allowed_actions"] == ["wait", "reduce", "sell", "diagnostics", "mode_toggle"]
+        assert exc.detail["allowed_actions"] == ["wait", "reduce", "sell", "shadow_buy", "paper_buy", "diagnostics", "mode_toggle"]
         assert exc.detail["code"] == "current_live_guardrail_unavailable"
         assert "目前即時風控無法取得" in exc.detail["message"]
         assert "Current live" not in exc.detail["message"]
         assert exc.detail["context"]["blocked_side"] == "buy"
         assert exc.detail["context"]["allowed_sides"] == ["reduce", "sell"]
+        assert exc.detail["context"]["allowed_paper_shadow_sides"] == ["shadow_buy", "paper_buy"]
         assert exc.detail["context"]["reduce_only_allowed"] is True
         assert "重新整理 /execution/status" in exc.detail["context"]["operator_action"]
         assert "Refresh /execution/status" not in exc.detail["context"]["operator_action"]
@@ -900,9 +902,11 @@ def test_current_live_trade_blocker_is_add_exposure_only():
 
     assert buy_blocker["trade_blocked"] is True
     assert buy_blocker["reason"] == "manual_buy_blocked_by_current_live_blocker"
-    assert buy_blocker["allowed_actions"] == ["wait", "reduce", "sell", "diagnostics", "mode_toggle"]
+    assert buy_blocker["allowed_actions"] == ["wait", "reduce", "sell", "shadow_buy", "paper_buy", "diagnostics", "mode_toggle"]
     assert api_module._current_live_trade_blocker(live_runtime_truth, "wait") is None
     assert api_module._current_live_trade_blocker(live_runtime_truth, "hold") is None
+    assert api_module._current_live_trade_blocker(live_runtime_truth, "shadow_buy") is None
+    assert api_module._current_live_trade_blocker(live_runtime_truth, "paper_buy") is None
     assert api_module._current_live_trade_blocker(live_runtime_truth, "reduce") is None
     assert api_module._current_live_trade_blocker(live_runtime_truth, "sell") is None
 
@@ -933,7 +937,7 @@ def test_api_trade_wait_is_no_order_action_without_predictor_or_execution_servic
     assert result["venue"] == "okx"
     assert result["mode"] == "paper"
     assert "沒有送出 OKX 委託" in result["operator_message"]
-    assert result["allowed_actions"] == ["wait", "reduce", "sell", "diagnostics", "mode_toggle"]
+    assert result["allowed_actions"] == ["wait", "reduce", "sell", "shadow_buy", "paper_buy", "diagnostics", "mode_toggle"]
 
 
 def test_api_trade_allows_reduce_when_current_live_blocker_active(monkeypatch):
@@ -974,6 +978,90 @@ def test_api_trade_allows_reduce_when_current_live_blocker_active(monkeypatch):
         "order_type": "market",
         "reduce_only": True,
     }]
+
+
+def test_api_trade_shadow_buy_places_paper_order_without_current_live_bypass(monkeypatch):
+    calls = []
+    captured_cfg = {}
+
+    def _confidence_should_not_run():
+        raise AssertionError("shadow_buy must not depend on or bypass current-live buy guardrail")
+
+    class FakeExecutionService:
+        def __init__(self, cfg, db_session=None):
+            captured_cfg.update(cfg)
+            self.db_session = db_session
+
+        def submit_order(self, **kwargs):
+            calls.append(kwargs)
+            return {
+                "success": True,
+                "dry_run": True,
+                "venue": "okx",
+                "mode": "paper",
+                "guardrails": {"last_reject": None},
+                "order": {"id": "shadow_buy_1", "status": "accepted", "symbol": "BTC/USDT", "side": "buy"},
+            }
+
+    monkeypatch.setattr(api_module, "get_confidence_prediction", _confidence_should_not_run)
+    monkeypatch.setattr(
+        api_module,
+        "get_config",
+        lambda: {"execution": {"mode": "live", "venue": "okx", "enable_live_trading": True}, "trading": {"dry_run": False}},
+    )
+    monkeypatch.setattr(api_module, "get_db", lambda: DummySession())
+    monkeypatch.setattr(api_module, "ExecutionService", FakeExecutionService)
+
+    import asyncio
+
+    req = api_module.TradeRequest(side="shadow_buy", symbol="BTCUSDT", qty=0.001)
+    result = asyncio.run(api_module.api_trade(req, request=_local_request()))
+
+    assert captured_cfg["execution"]["mode"] == "paper"
+    assert captured_cfg["execution"]["enable_live_trading"] is False
+    assert captured_cfg["execution"]["shadow_trade_lane"] is True
+    assert captured_cfg["trading"]["dry_run"] is True
+    assert calls == [{
+        "side": "buy",
+        "symbol": "BTCUSDT",
+        "qty": 0.001,
+        "order_type": "market",
+        "reduce_only": False,
+    }]
+    assert result["success"] is True
+    assert result["order_id"] == "shadow_buy_1"
+    assert result["shadow_trade"] is True
+    assert result["paper_order_submitted"] is True
+    assert result["live_order_submitted"] is False
+    assert result["live_exposure_allowed"] is False
+    assert result["current_live_buy_add_bypass"] is False
+    assert "paper/shadow 買入委託" in result["operator_message"]
+
+
+def test_api_trade_shadow_buy_rejects_non_dry_run_result(monkeypatch):
+    class FakeExecutionService:
+        def __init__(self, cfg, db_session=None):
+            self.cfg = cfg
+
+        def submit_order(self, **kwargs):
+            return {"success": True, "dry_run": False, "venue": "okx", "order": {"id": "live-leak"}}
+
+    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"mode": "live", "venue": "okx", "enable_live_trading": True}})
+    monkeypatch.setattr(api_module, "get_db", lambda: DummySession())
+    monkeypatch.setattr(api_module, "ExecutionService", FakeExecutionService)
+
+    import asyncio
+
+    req = api_module.TradeRequest(side="paper_buy", symbol="BTCUSDT", qty=0.001)
+    try:
+        asyncio.run(api_module.api_trade(req, request=_local_request()))
+    except HTTPException as exc:
+        assert exc.status_code == 409
+        assert exc.detail["code"] == "shadow_trade_live_order_guardrail"
+        assert exc.detail["blocked_side"] == "shadow_buy"
+        assert exc.detail["context"]["live_order_submitted"] is False
+    else:
+        raise AssertionError("shadow/paper buy must fail closed if a non-dry-run order result appears")
 
 
 def test_overlay_confidence_with_live_predict_probe_prefers_fresh_probe_truth(tmp_path):
@@ -1659,6 +1747,13 @@ def test_build_live_runtime_closure_surface_marks_circuit_breaker_as_runtime_blo
     assert payload["allowed_layers_reason"] == "circuit_breaker_blocks_trade"
     assert payload["execution_guardrail_reason"] == "circuit_breaker_blocks_trade"
     assert payload["deployment_blocker"] == "circuit_breaker_active"
+    assert payload["api_trade_guardrail_active"] is True
+    assert payload["api_trade_buy_guardrail"] == "current_live_deployment_blocker_409"
+    assert payload["api_trade_allowed_risk_off_sides"] == ["reduce", "sell"]
+    assert payload["api_trade_allowed_paper_shadow_sides"] == ["shadow_buy", "paper_buy"]
+    assert payload["api_trade_allowed_actions"] == ["wait", "reduce", "sell", "shadow_buy", "paper_buy", "diagnostics", "mode_toggle"]
+    assert "shadow_buy / paper_buy" in payload["api_trade_guardrail_context"]
+    assert "ExecutionService.submit_order" in payload["api_trade_guardrail_context"]
     assert payload["decision_quality_recent_pathology_applied"] is True
     assert payload["decision_quality_recent_pathology_window"] == 100
     assert payload["decision_quality_recent_pathology_alerts"] == ["label_imbalance", "regime_concentration"]

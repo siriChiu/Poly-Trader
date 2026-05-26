@@ -1,41 +1,41 @@
 {
-  "generated_at": "2026-05-26T10:26:26.917234Z",
+  "generated_at": "2026-05-26T13:28:57.926564Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-26T10:26:16.359672Z"
+      "generated_at": "2026-05-26T13:28:50.117475Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-26T10:25:56.093582Z"
+      "generated_at": "2026-05-26T13:28:35.722297Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-26T10:26:20.543900+00:00"
+      "generated_at": "2026-05-26T13:28:54.370761+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-26T10:26:02.605028+00:00"
+      "generated_at": "2026-05-26T13:28:40.373814+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-26T10:26:25.990276Z"
+      "generated_at": "2026-05-26T13:28:57.143323Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-26T10:25:44.619714+00:00"
+      "generated_at": "2026-05-26T13:28:24.042018+00:00"
     }
   },
   "pm_handoff_carried_forward": {
     "decision": "維持 current-live exact-support blocker；若 exact rows 仍不足，交付 paper/shadow、dry-run、falsification 與 support-fill proof，不降低 live gate。",
-    "current_live_blocker": "under_minimum_exact_live_structure_bucket",
+    "current_live_blocker": "circuit_breaker_active",
     "selected_customer_safe_lane": "paper_shadow_decision_support_sleeve",
     "forbidden_shortcut": "不可降低 live-trading 門檻、不可把 proxy/reference/OOS/shadow 包裝成 live deployability。"
   },
@@ -47,29 +47,30 @@
     "support_ready": false,
     "topk_deployable": false,
     "venue_runtime_ready": false,
-    "circuit_breaker_ready": true,
-    "breaker_release_ready": true,
-    "blocking_gate": "current_live_support_gate",
-    "primary_blocking_gate": "current_live_support_gate",
+    "circuit_breaker_ready": false,
+    "breaker_release_ready": false,
+    "blocking_gate": "circuit_breaker_gate",
+    "primary_blocking_gate": "circuit_breaker_gate",
     "blocking_gates": [
+      "circuit_breaker_gate",
       "current_live_support_gate",
       "model_gate",
       "venue_gate"
     ],
-    "operator_summary": "目前只允許 customer-safe paper/shadow 與 reduce-only；買入 / 加倉 / 自動下單維持 fail-closed。"
+    "operator_summary": "目前只允許 customer-safe paper/shadow dry-run 演練與 reduce-only；真實買入 / 加倉 / 自動下單維持 fail-closed。"
   },
   "circuit_breaker_gate": {
-    "deployment_blocker": "under_minimum_exact_live_structure_bucket",
-    "runtime_closure_state": "patch_inactive_or_blocked",
-    "release_ready": true,
+    "deployment_blocker": "circuit_breaker_active",
+    "runtime_closure_state": "circuit_breaker_active",
+    "release_ready": false,
     "recent_window": 50,
-    "current_recent_window_wins": 17,
+    "current_recent_window_wins": 8,
     "required_recent_window_wins": 15,
-    "additional_recent_window_wins_needed": 0,
-    "operator_summary": "熔斷 gate 已解除；仍需 exact support、Top-K 與 venue runtime proof 全部通過。"
+    "additional_recent_window_wins_needed": 7,
+    "operator_summary": "熔斷 gate 尚未解除；最近窗勝場未達門檻前，live buy/add/order submission 必須 fail-closed。"
   },
   "current_live_support": {
-    "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+    "deployment_blocker": "circuit_breaker_active",
     "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
     "support_route_verdict": "exact_bucket_present_but_below_minimum",
     "support_governance_route": "exact_live_bucket_present_but_below_minimum",
@@ -103,25 +104,27 @@
       "blocked_only_by_live_guardrails": true,
       "gate_failures": [
         "support_route_not_deployable",
-        "deployment_blocker_active"
+        "deployment_blocker_active",
+        "breaker_release_not_ready"
       ],
       "live_gate_failures": [
         "support_route_not_deployable",
-        "deployment_blocker_active"
+        "deployment_blocker_active",
+        "breaker_release_not_ready"
       ],
       "support_route": "exact_bucket_present_but_below_minimum",
-      "support_governance_route": "exact_live_lane_proxy_available",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
       "support_route_deployable": false,
-      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
-      "runtime_closure_state": "patch_inactive_or_blocked",
+      "deployment_blocker": "circuit_breaker_active",
+      "runtime_closure_state": "circuit_breaker_active",
       "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
       "current_live_structure_bucket_rows": 7,
       "minimum_support_rows": 50,
       "current_live_structure_bucket_gap_to_minimum": 43,
-      "release_ready": null,
-      "current_recent_window_wins": null,
-      "required_recent_window_wins": null,
-      "additional_recent_window_wins_needed": null,
+      "release_ready": false,
+      "current_recent_window_wins": 8,
+      "required_recent_window_wins": 15,
+      "additional_recent_window_wins_needed": 7,
       "verdict": "not_deployable"
     }
   },
@@ -174,20 +177,21 @@
     ]
   },
   "recent_window_context": {
-    "latest_window": "250",
-    "win_rate": 0.816,
+    "latest_window": "100",
+    "win_rate": 0.58,
     "dominant_regime": "chop",
     "alerts": [
-      "label_imbalance"
+      "regime_concentration",
+      "regime_shift"
     ],
     "shadow_falsification_mode": "shadow_only_no_new_risk_falsification",
     "shadow_falsification_deployable": false,
     "shadow_falsification_order_submission_enabled": false,
     "shadow_falsification_summary": "not_deployable_shadow_only_runtime_blocked",
-    "shadow_falsification_best_gate": "dominant_regime_shadow_gate",
-    "shadow_falsification_kept_rows": 6,
-    "shadow_falsification_kept_win_rate": 1.0,
-    "shadow_falsification_loss_capture_share": 1.0
+    "shadow_falsification_best_gate": "observable_4h_shift_shadow_gate",
+    "shadow_falsification_kept_rows": 50,
+    "shadow_falsification_kept_win_rate": 0.94,
+    "shadow_falsification_loss_capture_share": 0.9286
   },
   "alternative_solution_portfolio": {
     "pm_challenge_answered": true,
@@ -326,35 +330,37 @@
       "deployable": false,
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
-      "best_gate": "dominant_regime_shadow_gate",
-      "kept_rows": 6,
-      "kept_win_rate": 1.0,
-      "loss_capture_share": 1.0,
-      "latest_window": "250",
-      "win_rate": 0.816,
+      "best_gate": "observable_4h_shift_shadow_gate",
+      "kept_rows": 50,
+      "kept_win_rate": 0.94,
+      "loss_capture_share": 0.9286,
+      "latest_window": "100",
+      "win_rate": 0.58,
       "dominant_regime": "chop",
       "alerts": [
-        "label_imbalance"
+        "regime_concentration",
+        "regime_shift"
       ],
       "operator_message": "not_deployable_shadow_only_runtime_blocked"
     }
   ],
   "allowed_today": [
     "啟動 paper-shadow 訊號帳本並追蹤 24h pyramid outcome",
+    "透過 /api/trade shadow_buy / paper_buy 強制 dry-run，產出 paper/shadow 委託演練證據且不送 live order",
     "展示 Strategy Lab / Execution Console 的高信心 OOS 候選，但標示 deployable=false",
     "做 venue dry-run preview / ack simulation / cancel simulation / reconciliation checklist",
     "保留等待 / 觀望、減碼 / 取消掛單 / 賣出風險降低路徑"
   ],
   "not_allowed": [
-    "買入 / 加倉",
+    "真實/live 買入 / 加倉",
     "啟用風險進攻自動下單或完整實單自動化",
     "把 exact-live-lane proxy、reference windows、OOS pass、paper/shadow 或 dry-run 證據包裝成 live deployment closure",
     "輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]"
   ],
-  "next_gate": "circuit_breaker release_ready=True，current exact support rows 7/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。",
+  "next_gate": "circuit_breaker release_ready=False，current exact support rows 7/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。",
   "fail_closed_invariants": {
     "support_reference_only_until_exact_rows_meet_minimum": true,
-    "circuit_breaker_blocks_live_until_release_condition_met": false,
+    "circuit_breaker_blocks_live_until_release_condition_met": true,
     "paper_shadow_is_not_live_deployability": true,
     "credential_values_redacted": true,
     "reduce_risk_paths_remain_allowed": true

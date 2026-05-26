@@ -1,12 +1,12 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-26T10:26:20.543900+00:00`
-- source live probe generated_at: `2026-05-26T10:26:16.359672Z`
-- source q15 audit generated_at: `2026-05-26 10:25:33.328728`
+- generated_at: `2026-05-26T13:28:54.370761+00:00`
+- source live probe generated_at: `2026-05-26T13:28:50.117475Z`
+- source q15 audit generated_at: `2026-05-26 13:28:12.189411`
 - classification: **semantic_window_gap_not_raw_backfill_gap**
 - reason: older calibration windows have enough exact-bucket rows by count, but they mismatch the current support_identity on calibration_window; they are reference-only unless governance deliberately rebaselines the identity.
 - current exact bucket rows (deployable support candidate): **7/50**
-- current exact identity rows before bucket filter: **73** (non-current-bucket: **66**; reference only, not deployment support)
+- current exact identity rows before bucket filter: **82** (non-current-bucket: **75**; reference only, not deployment support)
 - gap_to_minimum: **43**
 - historical backfill can close current identity: **False**
 - reference windows deployable by count alone: **False**
@@ -26,11 +26,11 @@ This section is the current support identity captured by the source artifacts ab
 
 ## Data coverage
 
-- joined labeled rows: **25022**
+- joined labeled rows: **25031**
 - current calibration window filled: **True**
-- features_normalized: count=25442, range=`2024-04-14 07:00:00.000000` → `2026-05-26 10:25:33.328728`
-- labels: count=68416, range=`2024-04-14 07:00:00.000000` → `2026-05-26 07:00:00.000000`
-- raw_market_data: count=34523, range=`2024-04-13 22:00:00.000000` → `2026-05-26 10:25:33.328728`
+- features_normalized: count=25448, range=`2024-04-14 07:00:00.000000` → `2026-05-26 13:28:12.189411`
+- labels: count=68432, range=`2024-04-14 07:00:00.000000` → `2026-05-26 10:25:33.328728`
+- raw_market_data: count=34532, range=`2024-04-13 22:00:00.000000` → `2026-05-26 13:28:12.189411`
 
 ## PM delivery pressure
 
@@ -73,12 +73,12 @@ Promotion requirements before any live buy/add:
 
 | window | exact identity rows | exact bucket rows | role | promotable | latest exact bucket | metrics |
 | --- | ---: | ---: | --- | --- | --- | --- |
-| 100 | 60 | 7 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=1.0, pnl=0.01, quality=0.5537 |
-| 200 | 73 | 7 | current_support_identity | False | 2026-05-24 21:01:43.922619 | win=1.0, pnl=0.01, quality=0.5537 |
-| 600 | 151 | 68 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=0.1471, pnl=-0.01, quality=-0.1917 |
-| 1000 | 220 | 86 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=0.1163, pnl=-0.011, quality=-0.2257 |
+| 100 | 68 | 7 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=1.0, pnl=0.01, quality=0.5537 |
+| 200 | 82 | 7 | current_support_identity | False | 2026-05-24 21:01:43.922619 | win=1.0, pnl=0.01, quality=0.5537 |
+| 600 | 160 | 68 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=0.1471, pnl=-0.01, quality=-0.1917 |
+| 1000 | 226 | 86 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=0.1163, pnl=-0.011, quality=-0.2257 |
 | 5000 | 1553 | 537 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=0.689, pnl=0.0076, quality=0.32 |
-| all | 9721 | 2651 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=0.6616, pnl=0.0056, quality=0.2904 |
+| all | 9730 | 2651 | reference_only_calibration_window_mismatch | False | 2026-05-24 21:01:43.922619 | win=0.6616, pnl=0.0056, quality=0.2904 |
 
 ## Recommended actions
 

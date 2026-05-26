@@ -1,41 +1,41 @@
 {
-  "generated_at": "2026-05-26T10:26:27.913864Z",
+  "generated_at": "2026-05-26T13:28:58.928926Z",
   "artifact": "live_canary_structural_pivot",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-26T10:26:16.359672Z"
+      "generated_at": "2026-05-26T13:28:50.117475Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-26T10:25:56.093582Z"
+      "generated_at": "2026-05-26T13:28:35.722297Z"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-26T10:26:02.605028+00:00"
+      "generated_at": "2026-05-26T13:28:40.373814+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-26T10:26:25.990276Z"
+      "generated_at": "2026-05-26T13:28:57.143323Z"
     },
     "customer_safe_alternative_proof": {
       "path": "data/customer_safe_alternative_proof.json",
       "exists": true,
-      "generated_at": "2026-05-26T10:26:26.917234Z"
+      "generated_at": "2026-05-26T13:28:57.926564Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-26T10:26:20.543900+00:00"
+      "generated_at": "2026-05-26T13:28:54.370761+00:00"
     },
     "q15_support_audit": {
       "path": "data/q15_support_audit.json",
       "exists": true,
-      "generated_at": "2026-05-26 10:25:33.328728"
+      "generated_at": "2026-05-26 13:28:12.189411"
     }
   },
   "pm_handoff_carried_forward": {
@@ -44,7 +44,7 @@
     "forbidden_shortcut": "不可降低 live gate；不可把 proxy/reference/OOS/shadow/dry-run 包裝成 live deployability。"
   },
   "current_truth": {
-    "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+    "deployment_blocker": "circuit_breaker_active",
     "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
     "support_rows": 7,
     "minimum_support_rows": 50,
@@ -59,12 +59,12 @@
     "equilibrium_deadlock_verdict": "equilibrium_deadlock_confirmed",
     "forced_research_action_required": true,
     "forced_research_action_output_path": "data/equilibrium_deadlock_research_action.json",
-    "release_ready": true,
+    "release_ready": false,
     "recent_window_size": 50,
-    "recent_window_wins": 17,
+    "recent_window_wins": 8,
     "required_recent_window_wins": 15,
-    "additional_recent_window_wins_needed": 0,
-    "current_streak": 32,
+    "additional_recent_window_wins_needed": 7,
+    "current_streak": 41,
     "venue_runtime_ready": false,
     "okx_credentials_configured": false,
     "risk_qualified_rows": 6,
@@ -89,25 +89,27 @@
       "blocked_only_by_live_guardrails": true,
       "gate_failures": [
         "support_route_not_deployable",
-        "deployment_blocker_active"
+        "deployment_blocker_active",
+        "breaker_release_not_ready"
       ],
       "live_gate_failures": [
         "support_route_not_deployable",
-        "deployment_blocker_active"
+        "deployment_blocker_active",
+        "breaker_release_not_ready"
       ],
       "support_route": "exact_bucket_present_but_below_minimum",
-      "support_governance_route": "exact_live_lane_proxy_available",
+      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
       "support_route_deployable": false,
-      "deployment_blocker": "under_minimum_exact_live_structure_bucket",
-      "runtime_closure_state": "patch_inactive_or_blocked",
+      "deployment_blocker": "circuit_breaker_active",
+      "runtime_closure_state": "circuit_breaker_active",
       "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
       "current_live_structure_bucket_rows": 7,
       "minimum_support_rows": 50,
       "current_live_structure_bucket_gap_to_minimum": 43,
-      "release_ready": null,
-      "current_recent_window_wins": null,
-      "required_recent_window_wins": null,
-      "additional_recent_window_wins_needed": null,
+      "release_ready": false,
+      "current_recent_window_wins": 8,
+      "required_recent_window_wins": 15,
+      "additional_recent_window_wins_needed": 7,
       "verdict": "not_deployable"
     }
   },
@@ -116,6 +118,7 @@
     "non_negotiable_invariant": "No risk-on buy/add while any support, breaker, model-shadow, venue lifecycle, or canary policy gate is failing.",
     "single_failed_gate_for_72h_decision": "current_live_support_gate",
     "supplementary_blockers_not_used_as_single_gate": [
+      "circuit_breaker_gate",
       "model_shadow_outcome_gate",
       "venue_lifecycle_gate",
       "live_canary_policy_gate"
@@ -133,6 +136,7 @@
     "order_submission_enabled": false,
     "single_failed_gate_for_72h_decision": "current_live_support_gate",
     "supplementary_blockers_not_used_as_single_gate": [
+      "circuit_breaker_gate",
       "model_shadow_outcome_gate",
       "venue_lifecycle_gate",
       "live_canary_policy_gate"
@@ -146,11 +150,11 @@
         "reason": "current-live exact support must reach the minimum with matching support_identity."
       },
       "circuit_breaker_gate": {
-        "ready": true,
-        "current_recent_window_wins": 17,
+        "ready": false,
+        "current_recent_window_wins": 8,
         "required_recent_window_wins": 15,
-        "additional_recent_window_wins_needed": 0,
-        "current_streak": 32,
+        "additional_recent_window_wins_needed": 7,
+        "current_streak": 41,
         "reason": "recent canonical 24h outcomes must clear streak and win-rate release math."
       },
       "model_shadow_outcome_gate": {

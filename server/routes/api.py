@@ -1701,6 +1701,21 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "deployment_blocker_reason": payload.get("deployment_blocker_reason"),
         "deployment_blocker_source": payload.get("deployment_blocker_source"),
         "deployment_blocker_details": payload.get("deployment_blocker_details"),
+        "api_trade_guardrail_active": bool(
+            payload.get("deployment_blocker")
+            or str(runtime_closure_state or "").lower() not in {"capacity_opened", "capacity_opened_signal_hold"}
+            or str(signal or "").upper() in {"CIRCUIT_BREAKER", "HOLD", "ABSTAIN"}
+        ),
+        "api_trade_buy_guardrail": "current_live_deployment_blocker_409",
+        "api_trade_allowed_risk_off_sides": list(_API_TRADE_RISK_OFF_SIDES),
+        "api_trade_allowed_paper_shadow_sides": list(_API_TRADE_SHADOW_RISK_ON_SIDES),
+        "api_trade_allowed_actions": list(_API_TRADE_BLOCKED_ALLOWED_ACTIONS),
+        "api_trade_guardrail_context": (
+            "POST /api/trade 對真實買入 / 加倉會先讀即時部署阻塞點；"
+            "阻塞時回 409 current_live_deployment_blocker。可先等待 / 觀望、"
+            "減倉 / 賣出降低風險，或用 shadow_buy / paper_buy 做強制 dry-run paper/shadow 演練；"
+            "ExecutionService.submit_order 只允許 shadow/paper buy 在 paper/dry_run 模式送出。"
+        ),
         **circuit_breaker_release_surface,
         "q35_discriminative_redesign_applied": payload.get("q35_discriminative_redesign_applied"),
         "q35_discriminative_redesign": payload.get("q35_discriminative_redesign"),
@@ -7382,7 +7397,23 @@ _NO_DEPLOY_RUNTIME_CLOSURE_STATES = {
 
 _API_TRADE_RISK_OFF_SIDES = ["reduce", "sell"]
 _API_TRADE_WAIT_SIDES = {"wait", "hold"}
-_API_TRADE_BLOCKED_ALLOWED_ACTIONS = ["wait", "reduce", "sell", "diagnostics", "mode_toggle"]
+_API_TRADE_SHADOW_RISK_ON_SIDES = ["shadow_buy", "paper_buy"]
+_API_TRADE_SHADOW_RISK_ON_SIDE_SET = set(_API_TRADE_SHADOW_RISK_ON_SIDES)
+_API_TRADE_BLOCKED_ALLOWED_ACTIONS = ["wait", "reduce", "sell", "shadow_buy", "paper_buy", "diagnostics", "mode_toggle"]
+
+
+def _force_paper_shadow_execution_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a config copy that can place a paper/shadow buy but never a live order."""
+    base = dict(cfg or {})
+    execution = dict(base.get("execution") or {})
+    execution["mode"] = "paper"
+    execution["enable_live_trading"] = False
+    execution["shadow_trade_lane"] = True
+    base["execution"] = execution
+    trading = dict(base.get("trading") or {})
+    trading["dry_run"] = True
+    base["trading"] = trading
+    return base
 
 
 def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -7424,10 +7455,11 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
         "runtime_blocker": deployment_blocker or runtime_closure_state or execution_guardrail_reason or allowed_layers_reason,
         "allowed_actions": list(_API_TRADE_BLOCKED_ALLOWED_ACTIONS),
         "code": "current_live_deployment_blocker",
-        "message": "目前即時部署阻塞啟用：買入 / 加倉已暫停；等待 / 觀望、減倉 / 賣出風險降低路徑仍允許。",
+        "message": "目前即時部署阻塞啟用：真實買入 / 加倉已暫停；等待 / 觀望、減倉 / 賣出風險降低路徑與 paper/shadow 演練仍允許。",
         "context": {
             "blocked_side": "buy",
             "allowed_sides": list(_API_TRADE_RISK_OFF_SIDES),
+            "allowed_paper_shadow_sides": list(_API_TRADE_SHADOW_RISK_ON_SIDES),
             "reduce_only_allowed": True,
             "deployment_blocker": deployment_blocker,
             "deployment_blocker_reason": deployment_blocker_reason,
@@ -7442,7 +7474,7 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
             "minimum_support_rows": payload.get("minimum_support_rows"),
             "support_route_verdict": payload.get("support_route_verdict"),
             "release_condition": blocker_details.get("release_condition"),
-            "operator_action": "可先等待 / 觀望或減倉 / 賣出降低風險；若要買入 / 加倉，請前往 /execution/status 確認熔斷解除條件與即時部署阻塞點已解除後再重試。",
+            "operator_action": "可先等待 / 觀望、減倉 / 賣出降低風險，或用 shadow_buy / paper_buy 做 dry-run 演練；若要真實買入 / 加倉，請前往 /execution/status 確認熔斷解除條件與即時部署阻塞點已解除後再重試。",
             "reason": blocker_reason,
         },
     }
@@ -7451,7 +7483,7 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
 def _current_live_trade_blocker(live_runtime_truth: Dict[str, Any], side: str) -> Optional[Dict[str, Any]]:
     """Return a structured blocker only for add-exposure trade sides."""
     normalized_side = str(side or "").lower().strip()
-    if normalized_side in set(_API_TRADE_RISK_OFF_SIDES) or normalized_side in _API_TRADE_WAIT_SIDES:
+    if normalized_side in set(_API_TRADE_RISK_OFF_SIDES) or normalized_side in _API_TRADE_WAIT_SIDES or normalized_side in _API_TRADE_SHADOW_RISK_ON_SIDE_SET:
         return None
     return _current_live_buy_reject_payload(live_runtime_truth)
 
@@ -7470,13 +7502,14 @@ async def _load_current_live_buy_reject_payload() -> Optional[Dict[str, Any]]:
             "runtime_blocker": "current_live_guardrail_unavailable",
             "allowed_actions": list(_API_TRADE_BLOCKED_ALLOWED_ACTIONS),
             "code": "current_live_guardrail_unavailable",
-            "message": "目前即時風控無法取得：買入 / 加倉以失敗關閉暫停；等待 / 觀望、減倉 / 賣出風險降低路徑仍允許。",
+            "message": "目前即時風控無法取得：真實買入 / 加倉以失敗關閉暫停；等待 / 觀望、減倉 / 賣出風險降低路徑與 paper/shadow 演練仍允許。",
             "context": {
                 "blocked_side": "buy",
                 "allowed_sides": list(_API_TRADE_RISK_OFF_SIDES),
+                "allowed_paper_shadow_sides": list(_API_TRADE_SHADOW_RISK_ON_SIDES),
                 "reduce_only_allowed": True,
                 "error": str(exc),
-                "operator_action": "可先等待 / 觀望或減倉 / 賣出降低風險；若要買入 / 加倉，請重新整理 /execution/status 並恢復 /predict/confidence 後再重試。",
+                "operator_action": "可先等待 / 觀望、減倉 / 賣出降低風險，或用 shadow_buy / paper_buy 做 dry-run 演練；若要真實買入 / 加倉，請重新整理 /execution/status 並恢復 /predict/confidence 後再重試。",
             },
         }
     return _current_live_trade_blocker(live_runtime_truth, "buy")
@@ -7486,8 +7519,9 @@ async def _load_current_live_buy_reject_payload() -> Optional[Dict[str, Any]]:
 async def api_trade(req: "TradeRequest", request: Request = None) -> Dict[str, Any]:
     _assert_local_operator_request(request)
     side = (req.side or "").lower().strip()
-    if side not in {"buy", "reduce", "sell", "wait", "hold"}:
-        raise HTTPException(status_code=400, detail="side must be one of: buy, reduce, sell, wait")
+    allowed_sides = {"buy", "reduce", "sell", "wait", "hold", *_API_TRADE_SHADOW_RISK_ON_SIDES}
+    if side not in allowed_sides:
+        raise HTTPException(status_code=400, detail="side must be one of: buy, reduce, sell, wait, hold, shadow_buy, paper_buy")
 
     cfg = get_config() or {}
     if side in _API_TRADE_WAIT_SIDES:
@@ -7508,12 +7542,15 @@ async def api_trade(req: "TradeRequest", request: Request = None) -> Dict[str, A
             "allowed_actions": list(_API_TRADE_BLOCKED_ALLOWED_ACTIONS),
         }
 
-    submit_side = "buy" if side == "buy" else "sell"
+    shadow_risk_on = side in _API_TRADE_SHADOW_RISK_ON_SIDES
+    submit_side = "buy" if side == "buy" or shadow_risk_on else "sell"
     reduce_only = side in {"reduce", "sell"}
-    if not reduce_only:
+    if not reduce_only and not shadow_risk_on:
         buy_reject = await _load_current_live_buy_reject_payload()
         if buy_reject is not None:
             raise HTTPException(status_code=409, detail=buy_reject)
+    if shadow_risk_on:
+        cfg = _force_paper_shadow_execution_config(cfg)
 
     db = get_db()
     try:
@@ -7528,6 +7565,24 @@ async def api_trade(req: "TradeRequest", request: Request = None) -> Dict[str, A
             )
         except ExecutionRejectError as exc:
             raise HTTPException(status_code=409, detail=exc.to_payload()) from exc
+        if shadow_risk_on and not bool(result.get("dry_run")):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "success": False,
+                    "trade_blocked": True,
+                    "blocked_side": "shadow_buy",
+                    "reason": "shadow_trade_live_order_guardrail",
+                    "code": "shadow_trade_live_order_guardrail",
+                    "message": "shadow_buy / paper_buy 只能送出 paper/shadow 委託；偵測到非 dry-run 結果，已阻止回傳為可交易成功。",
+                    "context": {
+                        "requested_side": side,
+                        "submit_side": submit_side,
+                        "required_mode": "paper",
+                        "live_order_submitted": False,
+                    },
+                },
+            )
     finally:
         if hasattr(db, "close"):
             db.close()
@@ -7536,6 +7591,18 @@ async def api_trade(req: "TradeRequest", request: Request = None) -> Dict[str, A
     order = order if isinstance(order, dict) else {}
     return {
         **(result if isinstance(result, dict) else {}),
+        **({
+            "action": side,
+            "requested_side": side,
+            "side": "buy",
+            "shadow_trade": True,
+            "paper_order_submitted": True,
+            "live_order_submitted": False,
+            "live_exposure_allowed": False,
+            "current_live_buy_add_bypass": False,
+            "operator_message": "已送出 paper/shadow 買入委託：這是可交易演練與 ledger 證據，不是 OKX live buy/add；真實買入仍需 current-live support、venue lifecycle 與 bounded canary gate 通過。",
+            "allowed_actions": list(_API_TRADE_BLOCKED_ALLOWED_ACTIONS),
+        } if shadow_risk_on else {}),
         "order_id": order.get("id") or order.get("order_id"),
         "venue": (result.get("venue") if isinstance(result, dict) else None) or ((cfg.get("execution") or {}).get("venue")) or ((cfg.get("trading") or {}).get("venue")),
         "guardrails": (result.get("guardrails") if isinstance(result, dict) else None) or {},

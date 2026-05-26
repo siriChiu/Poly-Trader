@@ -1,16 +1,16 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-26 10:25:33.328728**
+- generated_at: **2026-05-26 13:28:12.189411**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
-- signal: **HOLD**
+- signal: **CIRCUIT_BREAKER**
 - regime / gate / label: **chop / CAUTION / D**
 - current_live_structure_bucket: **CAUTION|base_caution_regime_or_bias|q15**
 - current_live_structure_bucket_rows: **7**
-- allowed_layers: **0** (under_minimum_exact_live_structure_bucket)
-- execution_guardrail_reason: **under_minimum_exact_live_structure_bucket**
+- allowed_layers: **0** (decision_quality_below_trade_floor; circuit_breaker_active)
+- execution_guardrail_reason: **decision_quality_below_trade_floor; circuit_breaker_active**
 
 ## Scope applicability
 - status: **current_live_q15_lane_active**
@@ -60,31 +60,31 @@
 - forbidden_shortcuts: `['lower_minimum_support_rows', 'treat_proxy_neighbor_or_legacy_rows_as_deployable_support', 'enable_live_buy_or_add_before_exact_support_and_venue_lifecycle_proof']`
 
 ## Floor-cross legality
-- verdict: **math_cross_possible_but_illegal_without_exact_support**
+- verdict: **runtime_blocker_preempts_floor_analysis**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0417**
+- remaining_gap_to_floor: **0.0454**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.139**
+- best_single_component_required_score_delta: **0.1513**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.139），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 16.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
-- verdict: **reference_only_until_exact_support_ready**
+- verdict: **runtime_blocker_preempts_component_experiment**
 - feature: **feat_4h_bias50**
 - mode: **None**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5083**
+- current_entry_quality: **0.5046**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.0417**
+- current_trade_floor_gap: **-0.0454**
 - current_entry_quality_ge_0_55: **False**
 - current_entry_quality_ge_trade_floor: **False**
 - allowed_layers_gt_0: **False**
-- preserves_positive_discrimination: **None** (not_measured_support_missing)
-- reason: exact support 尚未達 deployment 門檻；component experiment 只能作 reference-only 研究。
-- verify_next: 先把 current q15 exact bucket rows 補到 minimum support，再回來做 component experiment。
+- preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
+- reason: 目前先被 runtime blocker 擋下（Recent 50-sample win rate: 16.00% < 30%），q15 component experiment 只能保留為背景研究。
+- verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Active repair plan
 - phase: **equilibrium_deadlock_escape**
@@ -92,7 +92,7 @@
 - component_verify_ready: **False**
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
-- current_signal / layers / guardrail: **HOLD / 0 / under_minimum_exact_live_structure_bucket**
+- current_signal / layers / guardrail: **CIRCUIT_BREAKER / 0 / decision_quality_below_trade_floor; circuit_breaker_active**
 - support rows / minimum / gap: **7 / 50 / 43**
 - stagnant_run_count: **5**
 - semantic_signature_delta_vs_previous / stagnant: **0 / 5**

@@ -3296,7 +3296,8 @@ def test_sync_current_state_governance_issues_prefers_live_support_route_and_ref
     assert breaker_issue["summary"]["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
     assert breaker_issue["summary"]["api_trade_buy_guardrail"] == "current_live_deployment_blocker_409"
     assert breaker_issue["summary"]["api_trade_allowed_risk_off_sides"] == ["reduce", "sell"]
-    assert breaker_issue["summary"]["api_trade_allowed_actions"] == ["wait", "reduce", "sell", "diagnostics", "mode_toggle"]
+    assert breaker_issue["summary"]["api_trade_allowed_paper_shadow_sides"] == ["shadow_buy", "paper_buy"]
+    assert breaker_issue["summary"]["api_trade_allowed_actions"] == ["wait", "reduce", "sell", "shadow_buy", "paper_buy", "diagnostics", "mode_toggle"]
     assert "等待 / 觀望" in breaker_issue["summary"]["api_trade_guardrail_context"]
     assert "ExecutionService.submit_order" in breaker_issue["summary"]["api_trade_guardrail_context"]
 
