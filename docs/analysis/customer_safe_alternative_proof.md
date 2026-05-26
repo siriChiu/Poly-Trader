@@ -1,6 +1,6 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-26T19:20:12.344019Z`
+- generated_at: `2026-05-26T20:11:13.942103Z`
 - current_live_blocker: `circuit_breaker_active`
 - current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
 - exact support: `0/50` (gap `50`)
@@ -37,7 +37,7 @@
 - `paper_shadow_decision_support_sleeve`: status=`available`, deployable=`False`, live_exposure_allowed=`False`
 - `venue_dry_run_readiness_proof`: status=`blocked_missing_runtime_backed_proof`, deployable=`False`, live_exposure_allowed=`False`
 - `support_fill_feasibility`: status=`semantic_window_gap_not_raw_backfill_gap`, deployable=`False`, live_exposure_allowed=`False`
-- `recent_window_no_new_risk_falsification`: status=`shadow_only_no_new_risk_falsification`, deployable=`False`, live_exposure_allowed=`False`, best_gate=`observable_4h_shift_shadow_gate`, kept=`36`, kept_win_rate=`0.7222`, loss_capture=`0.8611`
+- `recent_window_no_new_risk_falsification`: status=`shadow_only_no_new_risk_falsification`, deployable=`False`, live_exposure_allowed=`False`, best_gate=`observable_4h_shift_shadow_gate`, kept=`33`, kept_win_rate=`0.697`, loss_capture=`0.8667`
 
 ## Alternative solution option portfolio
 - option_count: `3`
