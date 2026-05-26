@@ -1,13 +1,13 @@
 # Live canary structural pivot
 
-- generated_at: `2026-05-26T01:14:45.001609Z`
+- generated_at: `2026-05-26T02:52:48.367072Z`
 - PM handoff carried forward: `PM 強制反平衡：若 72h 內不能執行 bounded micro-canary，必須寫明單一失敗 gate 與下一個驗證 artifact；不得再只做 observation-only heartbeat。`
 - deployment_blocker: `unsupported_exact_live_structure_bucket`
 - current bucket: `CAUTION|base_caution_regime_or_bias|q00`
-- support: `0/50` (gap `50`, delta `0`, stagnant `4`)
+- support: `0/50` (gap `50`, delta `0`, stagnant `5`)
 - semantic-signature progress: delta `0`, stagnant `5` (does not relax strict support_identity)
 - equilibrium deadlock: confirmed=`False`, verdict=`not_applicable_current_live_not_target_lane`, forced_artifact=`data/equilibrium_deadlock_research_action.json`
-- release_ready: `True` / recent wins `44/50`, required `15`, needed `0`
+- release_ready: `True` / recent wins `42/50`, required `15`, needed `0`
 - venue_runtime_ready: `False` / OKX credentials configured: `False`
 - top-k: risk-qualified `6`, runtime-blocked `6`, deployable `0`
 - local execution mode: `paper` / live_canary_policy_ready: `False`
