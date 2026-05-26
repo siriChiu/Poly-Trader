@@ -159,6 +159,16 @@ def test_live_canary_map_signal_lane_is_required_for_under_minimum_nonzero_suppo
         execution_metadata_smoke={"runtime_ready": False, "venues": [{"venue": "okx", "runtime_ready": False, "credentials_configured": False}]},
         customer_safe_alternative_proof={},
         q15_support_fill_feasibility={"verdict": {"current_exact_bucket_rows": 7, "minimum_support_rows": 50, "gap_to_minimum": 43}},
+        q15_support_audit={
+            "equilibrium_deadlock": {
+                "verdict": "equilibrium_deadlock_confirmed",
+                "confirmed": True,
+                "forced_research_action_artifact": {
+                    "required": True,
+                    "output_path": "data/equilibrium_deadlock_research_action.json",
+                },
+            }
+        },
         config_snapshot={
             "config_path": "config.yaml",
             "exists": True,
@@ -177,7 +187,11 @@ def test_live_canary_map_signal_lane_is_required_for_under_minimum_nonzero_suppo
     assert payload["current_truth"]["support_rows"] == 7
     assert payload["current_truth"]["support_gap"] == 43
     assert lane["can_start_now"] is True
-    assert lane["status"] == "required"
+    assert lane["status"] == "equilibrium_deadlock_required"
+    assert lane["equilibrium_deadlock_confirmed"] is True
+    assert lane["forced_research_action_output_path"] == "data/equilibrium_deadlock_research_action.json"
+    assert payload["current_truth"]["equilibrium_deadlock_confirmed"] is True
+    assert payload["structural_decision"]["forced_research_action_required"] is True
     assert "below minimum" in lane["goal"]
     assert "0/50" not in lane["goal"]
 

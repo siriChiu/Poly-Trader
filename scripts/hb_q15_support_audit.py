@@ -17,6 +17,7 @@ Inputs:
 Outputs:
 - data/q15_support_audit.json
 - docs/analysis/q15_support_audit.md
+- data/equilibrium_deadlock_research_action.json
 """
 
 from __future__ import annotations
@@ -37,6 +38,7 @@ BULL_POCKET_PATH = PROJECT_ROOT / "data" / "bull_4h_pocket_ablation.json"
 LEADERBOARD_PROBE_PATH = PROJECT_ROOT / "data" / "leaderboard_feature_profile_probe.json"
 OUT_JSON = PROJECT_ROOT / "data" / "q15_support_audit.json"
 OUT_MD = PROJECT_ROOT / "docs" / "analysis" / "q15_support_audit.md"
+OUT_DEADLOCK_ACTION_JSON = PROJECT_ROOT / "data" / "equilibrium_deadlock_research_action.json"
 BUCKET_SEMANTIC_SIGNATURE = "live_structure_bucket:q15_support_identity:v2"
 
 
@@ -251,6 +253,165 @@ def _semantic_signature_progress(
         "stalled_support_accumulation": delta_vs_previous == 0 and current_rows < minimum_support_rows,
         "history": recent,
         "ignored_strict_identity_fields": ["entry_quality_label"],
+    }
+
+
+EQUILIBRIUM_DEADLOCK_STAGNANT_RUN_THRESHOLD = 3
+
+
+_EQUILIBRIUM_DEADLOCK_RESEARCH_BASIS = [
+    {
+        "source": "Gama et al. 2014, A Survey on Concept Drift Adaptation, ACM Computing Surveys, doi:10.1145/2523813",
+        "principle": "把重複 under-minimum 狀態視為可能的 drift / stale-support 問題；必須用 fresh evidence 與自適應 rebaseline 驗證，而不是只延長等待。",
+    },
+    {
+        "source": "Bifet & Gavalda 2007, Learning from Time-Changing Data with Adaptive Windowing (ADWIN)",
+        "principle": "用 sliding/adaptive window 監控分布或指標均值是否改變；若窗口內沒有有效位移，應觸發 change-detection / reset / re-window，而不是重用舊樣本。",
+    },
+    {
+        "source": "Sculley et al. 2015, Hidden Technical Debt in Machine Learning Systems, NeurIPS",
+        "principle": "ML 系統會因 entanglement、hidden feedback loops、changing external world 產生 maintenance debt；修復應改結構與監控邊界，不應只調單一閾值。",
+    },
+    {
+        "source": "Thomas, Theocharous & Ghavamzadeh 2015, High-Confidence Off-Policy Evaluation, AAAI",
+        "principle": "高風險策略上線前需要 logged/off-policy evidence 與保守下界；缺 support 時只能產出 shadow/paper evidence，不能直接 live buy/add。",
+    },
+]
+
+
+def _equilibrium_deadlock_assessment(
+    *,
+    current_bucket: Any,
+    support_progress: dict[str, Any],
+    support_route_verdict: str | None,
+    support_governance_route: str | None,
+) -> dict[str, Any]:
+    """Classify repeated under-minimum support as an explicit deadlock state.
+
+    This does not relax the live gate.  It turns the PM/user-observed
+    ``again balanced`` condition into a machine-readable forced research/action
+    artifact so the next heartbeat cannot hide behind another passive
+    observation-only refresh.
+    """
+
+    support_progress = support_progress if isinstance(support_progress, dict) else {}
+    current_rows = _as_int(support_progress.get("current_rows"), 0)
+    minimum_rows = _as_int(support_progress.get("minimum_support_rows"), 50)
+    gap_to_minimum = max(minimum_rows - current_rows, 0)
+    delta_vs_previous = support_progress.get("delta_vs_previous")
+    semantic_delta = support_progress.get("semantic_signature_delta_vs_previous")
+    semantic_progress = support_progress.get("semantic_signature_progress")
+    if semantic_delta is None and isinstance(semantic_progress, dict):
+        semantic_delta = semantic_progress.get("delta_vs_previous")
+    stagnant_run_count = _as_int(support_progress.get("stagnant_run_count"), 0)
+    semantic_stagnant_run_count = _as_int(support_progress.get("semantic_signature_stagnant_run_count"), 0)
+    if semantic_stagnant_run_count <= 0 and isinstance(semantic_progress, dict):
+        semantic_stagnant_run_count = _as_int(semantic_progress.get("stagnant_run_count"), 0)
+    stalled_support_accumulation = bool(support_progress.get("stalled_support_accumulation"))
+    semantic_stalled_support_accumulation = bool(
+        support_progress.get("semantic_signature_stalled_support_accumulation")
+        or (semantic_progress.get("stalled_support_accumulation") if isinstance(semantic_progress, dict) else False)
+    )
+    status = str(support_progress.get("status") or "")
+    support_ready = bool(support_route_verdict == "exact_bucket_supported" and current_rows >= minimum_rows)
+    support_delta_zero = delta_vs_previous == 0
+    semantic_delta_zero = semantic_delta == 0
+    under_minimum = gap_to_minimum > 0 and not support_ready
+    repeated_zero_delta = bool(
+        (support_delta_zero and stagnant_run_count >= EQUILIBRIUM_DEADLOCK_STAGNANT_RUN_THRESHOLD)
+        or (semantic_delta_zero and semantic_stagnant_run_count >= EQUILIBRIUM_DEADLOCK_STAGNANT_RUN_THRESHOLD)
+    )
+    stalled_signal = bool(
+        status in {"stalled_under_minimum", "semantic_rebaseline_under_minimum", "regressed_under_minimum"}
+        or stalled_support_accumulation
+        or semantic_stalled_support_accumulation
+    )
+    confirmed = bool(under_minimum and repeated_zero_delta and stalled_signal)
+    watch = bool(under_minimum and (support_delta_zero or semantic_delta_zero or stalled_signal) and not confirmed)
+    if confirmed:
+        verdict = "equilibrium_deadlock_confirmed"
+        state = "confirmed"
+        severity = "P0"
+        decision = (
+            "直接判定 current-live exact-support 已進入平衡死循環：同一 support signature 在 minimum 以下重複，"
+            "delta=0 / stagnant repeats，不能再用 observation-only heartbeat 代表進度。"
+        )
+    elif watch:
+        verdict = "equilibrium_deadlock_watch"
+        state = "watch"
+        severity = "P1"
+        decision = "尚未達 confirmed 閾值，但 under-minimum support 已出現零位移或停滯訊號；下一輪需證明 rows 有位移或升級為 forced branch。"
+    elif support_ready:
+        verdict = "support_ready_not_deadlock"
+        state = "cleared"
+        severity = "none"
+        decision = "exact support 已達 minimum；deadlock 判定解除，但 deployment 仍需 venue/model/policy gates。"
+    else:
+        verdict = "not_enough_evidence_for_deadlock"
+        state = "not_deadlock"
+        severity = "none"
+        decision = "目前沒有足夠重複 under-minimum 零位移證據可判定平衡死循環。"
+
+    forced_required = confirmed or watch
+    forced_artifact = {
+        "artifact_id": "equilibrium_deadlock_research_action",
+        "required": forced_required,
+        "owner_lane": "D_map_signal_redesign_for_current_bucket",
+        "output_path": "data/equilibrium_deadlock_research_action.json",
+        "required_by_next_heartbeat": confirmed,
+        "allowed_action_families": [
+            {
+                "id": "map_signal_redesign_proof",
+                "success_condition": "提出新版 support identity / semantic bucket map，重跑 replay/backtest，且不把 proxy/reference rows 包裝成 deployable exact support。",
+            },
+            {
+                "id": "exact_bucket_row_harvest_proof",
+                "success_condition": "交付 current support_identity 完全一致的新 exact rows，證明 support_rows 有正 delta；若仍無位移，記錄 hard no-go。",
+            },
+            {
+                "id": "drift_rebaseline_backtest",
+                "success_condition": "用 fresh window / walk-forward / drift-aware rebaseline 檢查 current bucket 是否已失效，並輸出 go/no-go。",
+            },
+        ],
+        "forbidden_shortcuts": [
+            "lower_minimum_support_rows",
+            "treat_proxy_neighbor_or_legacy_rows_as_deployable_support",
+            "enable_live_buy_or_add_before_exact_support_and_venue_lifecycle_proof",
+        ],
+    }
+    return {
+        "verdict": verdict,
+        "state": state,
+        "confirmed": confirmed,
+        "severity": severity,
+        "failure_mode": "closed_loop_support_identity_starvation_under_static_gate",
+        "decision": decision,
+        "deadlock_signature": {
+            "current_live_structure_bucket": current_bucket,
+            "support_progress_status": status,
+            "support_route_verdict": support_route_verdict,
+            "support_governance_route": support_governance_route,
+            "current_rows": current_rows,
+            "minimum_support_rows": minimum_rows,
+            "gap_to_minimum": gap_to_minimum,
+            "delta_vs_previous": delta_vs_previous,
+            "stagnant_run_count": stagnant_run_count,
+            "semantic_signature_delta_vs_previous": semantic_delta,
+            "semantic_signature_stagnant_run_count": semantic_stagnant_run_count,
+        },
+        "trigger_conditions": {
+            "under_minimum": under_minimum,
+            "support_ready": support_ready,
+            "support_delta_zero": support_delta_zero,
+            "semantic_signature_delta_zero": semantic_delta_zero,
+            "stagnant_run_count_ge_threshold": stagnant_run_count >= EQUILIBRIUM_DEADLOCK_STAGNANT_RUN_THRESHOLD,
+            "semantic_stagnant_run_count_ge_threshold": semantic_stagnant_run_count >= EQUILIBRIUM_DEADLOCK_STAGNANT_RUN_THRESHOLD,
+            "stalled_support_accumulation": stalled_support_accumulation,
+            "semantic_stalled_support_accumulation": semantic_stalled_support_accumulation,
+            "threshold": EQUILIBRIUM_DEADLOCK_STAGNANT_RUN_THRESHOLD,
+        },
+        "research_basis": _EQUILIBRIUM_DEADLOCK_RESEARCH_BASIS,
+        "forced_research_action_artifact": forced_artifact,
     }
 
 
@@ -722,7 +883,7 @@ def _summarize_support_progress(
             "delta_vs_current_rows": current_rows - int(semantic_rebaseline_reference.get("live_current_structure_bucket_rows") or 0),
         }
 
-    return {
+    summary = {
         "status": status,
         "reason": reason,
         "regression_basis": regression_basis,
@@ -753,6 +914,13 @@ def _summarize_support_progress(
         "escalate_to_blocker": status in {"regressed_under_minimum", "semantic_rebaseline_under_minimum"} or (status == "stalled_under_minimum" and stagnant_run_count >= 3),
         "history": history_for_display,
     }
+    summary["equilibrium_deadlock"] = _equilibrium_deadlock_assessment(
+        current_bucket=current_bucket,
+        support_progress=summary,
+        support_route_verdict=support_route_verdict,
+        support_governance_route=support_governance_route,
+    )
+    return summary
 
 
 def _support_route_decision(
@@ -886,6 +1054,32 @@ def _active_repair_plan(
     support_ready = bool(support_route.get("deployable")) and current_rows >= minimum_rows
     current_bucket = current_live.get("current_live_structure_bucket")
     active_for_current_live_row = bool(scope_applicability.get("active_for_current_live_row"))
+    equilibrium_deadlock = (
+        support_progress.get("equilibrium_deadlock")
+        if isinstance(support_progress.get("equilibrium_deadlock"), dict)
+        else _equilibrium_deadlock_assessment(
+            current_bucket=current_bucket,
+            support_progress=support_progress,
+            support_route_verdict=support_route.get("verdict"),
+            support_governance_route=support_route.get("support_governance_route"),
+        )
+    )
+    if not active_for_current_live_row:
+        equilibrium_deadlock = {
+            **equilibrium_deadlock,
+            "verdict": "not_applicable_current_live_not_target_lane",
+            "state": "standby",
+            "confirmed": False,
+            "severity": "none",
+            "decision": "current live row 不在 q15/current target lane；此 audit 只保留 reference/standby，不把 target-lane support stagnation 誤判為 current-live deadlock。",
+            "forced_research_action_artifact": {
+                **(equilibrium_deadlock.get("forced_research_action_artifact") or {}),
+                "required": False,
+                "required_by_next_heartbeat": False,
+            },
+        }
+    equilibrium_confirmed = bool(equilibrium_deadlock.get("confirmed"))
+    forced_deadlock_artifact = equilibrium_deadlock.get("forced_research_action_artifact") or {}
 
     experiment_answer = component_experiment.get("machine_read_answer") or {}
     current_allowed_layers = _as_int(current_live.get("allowed_layers"), 0)
@@ -904,7 +1098,10 @@ def _active_repair_plan(
         and not current_guardrail_reason
     )
 
-    if not active_for_current_live_row:
+    if equilibrium_confirmed:
+        phase = "equilibrium_deadlock_escape"
+        primary_objective = "直接判定 current-live exact-support 已進入平衡死循環；下一輪必須交付 forced research/action artifact（Map/Signal redesign、exact-row harvest 或 drift rebaseline），不能再只做 observation-only heartbeat。"
+    elif not active_for_current_live_row:
         phase = "current_bucket_first"
         primary_objective = "先處理當前 live bucket 的 exact-support / runtime gate；q15 lane 只保留 standby repair。"
     elif support_ready:
@@ -993,6 +1190,24 @@ def _active_repair_plan(
                 "success_condition": "下一輪交付 Map/Signal redesign proof 或 exact-bucket row harvest artifact，而不是只回報 support still 0/50。",
             }
         )
+    if forced_deadlock_artifact.get("required"):
+        actions.append(
+            {
+                "id": "equilibrium_deadlock_research_action",
+                "type": "forced_research_action_artifact",
+                "priority": "P0",
+                "description": "current-live support gate 已進入或接近平衡死循環；下一輪必須交付結構性證據，而不是重述 still blocked。",
+                "output_path": forced_deadlock_artifact.get("output_path"),
+                "required_by_next_heartbeat": forced_deadlock_artifact.get("required_by_next_heartbeat"),
+                "allowed_action_family_ids": [
+                    item.get("id")
+                    for item in forced_deadlock_artifact.get("allowed_action_families", [])
+                    if isinstance(item, dict)
+                ],
+                "forbidden_shortcuts": forced_deadlock_artifact.get("forbidden_shortcuts") or [],
+                "success_condition": "交付 Map/Signal redesign proof、exact-bucket row harvest proof 或 drift-aware rebaseline backtest；live buy/add 維持 fail-closed。",
+            }
+        )
     if support_ready and not live_exposure_allowed:
         actions.append(
             {
@@ -1023,6 +1238,9 @@ def _active_repair_plan(
         "semantic_signature_delta_vs_previous": semantic_signature_delta,
         "semantic_signature_stagnant_run_count": semantic_signature_stagnant,
         "semantic_signature_stalled_support_accumulation": semantic_signature_progress.get("stalled_support_accumulation"),
+        "equilibrium_deadlock": equilibrium_deadlock,
+        "forced_research_action_required": forced_deadlock_artifact.get("required"),
+        "forced_research_action_output_path": forced_deadlock_artifact.get("output_path"),
         "legacy_reference_only": bool(legacy_ref),
         "legacy_semantic_evidence": legacy_ref.get("semantic_identity_evidence") if isinstance(legacy_ref, dict) else None,
         "semantic_rebaseline_reference_only": bool(semantic_rebaseline_ref),
@@ -1638,6 +1856,7 @@ def build_report(
         component_experiment=component_experiment,
         scope_applicability=scope_applicability,
     )
+    equilibrium_deadlock = active_repair_plan.get("equilibrium_deadlock") or support_progress.get("equilibrium_deadlock") or {}
 
     remaining_gap = _as_float(component_gap.get("remaining_gap_to_floor"))
     required_delta = (best_single or {}).get("required_score_delta_to_cross_floor")
@@ -1671,6 +1890,13 @@ def build_report(
             "q15 audit 只保留 standby/reference route readiness。下一輪主焦點應回到 current-live exact-support blocker / deployment verify，"
             "除非 live row 再次回到 q15 bucket。"
         )
+    if scope_applicability.get("active_for_current_live_row") and equilibrium_deadlock.get("confirmed"):
+        next_action = (
+            "直接判定 current-live exact-support gate 進入平衡死循環；下一輪必須交付 "
+            "data/equilibrium_deadlock_research_action.json 所列的 Map/Signal redesign proof、"
+            "exact-bucket row harvest proof 或 drift-aware rebaseline backtest。不得再用 observation-only heartbeat、"
+            "不得降低 support minimum，也不得開啟 live buy/add。"
+        )
 
     return {
         "generated_at": probe.get("feature_timestamp") or drilldown.get("generated_at"),
@@ -1679,6 +1905,7 @@ def build_report(
         "artifact_context_freshness": artifact_context_freshness,
         "current_live": current_live_report,
         "scope_applicability": scope_applicability,
+        "equilibrium_deadlock": equilibrium_deadlock,
         "support_route": {
             "support_identity": support_identity,
             "support_governance_route": effective_support_governance_route,
@@ -1775,6 +2002,8 @@ def _markdown(report: dict[str, Any]) -> str:
     experiment = report.get("component_experiment") or {}
     experiment_answer = experiment.get("machine_read_answer") or {}
     repair = report.get("active_repair_plan") or {}
+    equilibrium = report.get("equilibrium_deadlock") or support_progress.get("equilibrium_deadlock") or repair.get("equilibrium_deadlock") or {}
+    forced_artifact = equilibrium.get("forced_research_action_artifact") or {}
     repair_actions = repair.get("actions") or []
     legacy_semantic_evidence = repair.get("legacy_semantic_evidence") or {}
     support_identity_lines = _support_identity_markdown_lines(support_identity)
@@ -1827,6 +2056,14 @@ def _markdown(report: dict[str, Any]) -> str:
             *support_identity_lines,
             *legacy_reference_lines,
             f"- support_progress.reason: {support_progress.get('reason')}",
+            "",
+            "## Equilibrium deadlock assessment",
+            f"- verdict/state/severity: **{equilibrium.get('verdict')} / {equilibrium.get('state')} / {equilibrium.get('severity')}**",
+            f"- confirmed: **{equilibrium.get('confirmed')}**",
+            f"- failure_mode: **{equilibrium.get('failure_mode')}**",
+            f"- decision: {equilibrium.get('decision')}",
+            f"- forced artifact required/output: **{forced_artifact.get('required')} / {forced_artifact.get('output_path')}**",
+            f"- forbidden_shortcuts: `{forced_artifact.get('forbidden_shortcuts') or []}`",
             "",
             "## Floor-cross legality",
             f"- verdict: **{floor.get('verdict')}**",
@@ -1891,14 +2128,32 @@ def main() -> None:
 
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
     OUT_MD.parent.mkdir(parents=True, exist_ok=True)
+    OUT_DEADLOCK_ACTION_JSON.parent.mkdir(parents=True, exist_ok=True)
     OUT_JSON.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     OUT_MD.write_text(markdown + "\n", encoding="utf-8")
+    deadlock_payload = {
+        "generated_at": report.get("generated_at"),
+        "artifact": "equilibrium_deadlock_research_action",
+        "source_artifact": str(OUT_JSON.relative_to(PROJECT_ROOT)),
+        "equilibrium_deadlock": report.get("equilibrium_deadlock"),
+        "forced_research_action_artifact": (report.get("equilibrium_deadlock") or {}).get("forced_research_action_artifact"),
+        "active_repair_plan_phase": (report.get("active_repair_plan") or {}).get("phase"),
+        "live_exposure_allowed": (report.get("active_repair_plan") or {}).get("live_exposure_allowed"),
+        "shadow_or_paper_allowed": (report.get("active_repair_plan") or {}).get("shadow_or_paper_allowed"),
+        "next_action": report.get("next_action"),
+    }
+    OUT_DEADLOCK_ACTION_JSON.write_text(
+        json.dumps(deadlock_payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
 
     print(
         json.dumps(
             {
                 "json": str(OUT_JSON),
                 "markdown": str(OUT_MD),
+                "equilibrium_deadlock_action": str(OUT_DEADLOCK_ACTION_JSON),
+                "equilibrium_deadlock": report.get("equilibrium_deadlock"),
                 "support_route_verdict": (report.get("support_route") or {}).get("verdict"),
                 "support_route_deployable": (report.get("support_route") or {}).get("deployable"),
                 "floor_cross_verdict": (report.get("floor_cross_legality") or {}).get("verdict"),

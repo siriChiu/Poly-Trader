@@ -123,6 +123,9 @@ def test_summarize_support_progress_detects_stalled_q15_exact_support(tmp_path):
     assert progress["stagnant_run_count"] == 3
     assert progress["previous_route_changed"] is False
     assert progress["escalate_to_blocker"] is True
+    assert progress["equilibrium_deadlock"]["verdict"] == "equilibrium_deadlock_confirmed"
+    assert progress["equilibrium_deadlock"]["confirmed"] is True
+    assert progress["equilibrium_deadlock"]["forced_research_action_artifact"]["required"] is True
 
 
 
@@ -248,7 +251,9 @@ def test_build_report_emits_active_repair_plan_for_stalled_q15_support(monkeypat
     report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
 
     repair = report["active_repair_plan"]
-    assert repair["phase"] == "active_support_accumulation"
+    assert repair["phase"] == "equilibrium_deadlock_escape"
+    assert report["equilibrium_deadlock"]["confirmed"] is True
+    assert repair["forced_research_action_required"] is True
     assert repair["live_exposure_allowed"] is False
     assert repair["shadow_or_paper_allowed"] is True
     assert repair["risk_off_allowed_sides"] == ["reduce", "sell"]
@@ -258,9 +263,12 @@ def test_build_report_emits_active_repair_plan_for_stalled_q15_support(monkeypat
     assert {action["id"] for action in repair["actions"]} >= {
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
+        "equilibrium_deadlock_research_action",
     }
     markdown = q15_support_audit._markdown(report)
     assert "## Active repair plan" in markdown
+    assert "## Equilibrium deadlock assessment" in markdown
+    assert "equilibrium_deadlock_confirmed" in markdown
     assert "live_exposure_allowed: **False**" in markdown
 
 

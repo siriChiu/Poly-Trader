@@ -44,6 +44,7 @@ SOURCE_PATHS = {
     "execution_metadata_smoke": DATA_DIR / "execution_metadata_smoke.json",
     "customer_safe_alternative_proof": DATA_DIR / "customer_safe_alternative_proof.json",
     "q15_support_fill_feasibility": DATA_DIR / "q15_support_fill_feasibility.json",
+    "q15_support_audit": DATA_DIR / "q15_support_audit.json",
 }
 
 
@@ -172,11 +173,20 @@ def _support_context(
     topk: Mapping[str, Any],
     customer_safe: Mapping[str, Any],
     support_fill: Mapping[str, Any],
+    q15_support_audit: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    q15_audit = q15_support_audit if isinstance(q15_support_audit, Mapping) else {}
+    q15_support_route = q15_audit.get("support_route") if isinstance(q15_audit.get("support_route"), Mapping) else {}
+    q15_support_progress = q15_support_route.get("support_progress") if isinstance(q15_support_route.get("support_progress"), Mapping) else {}
+    q15_equilibrium = q15_audit.get("equilibrium_deadlock") if isinstance(q15_audit.get("equilibrium_deadlock"), Mapping) else {}
+    if not q15_equilibrium and isinstance(q15_support_progress.get("equilibrium_deadlock"), Mapping):
+        q15_equilibrium = q15_support_progress.get("equilibrium_deadlock")
     customer_support = customer_safe.get("current_live_support") if isinstance(customer_safe.get("current_live_support"), dict) else {}
     topk_support = topk.get("support_context") if isinstance(topk.get("support_context"), dict) else {}
     details = live_probe.get("deployment_blocker_details") if isinstance(live_probe.get("deployment_blocker_details"), dict) else {}
     support_progress = live_probe.get("support_progress") if isinstance(live_probe.get("support_progress"), dict) else {}
+    if not support_progress and q15_support_progress:
+        support_progress = q15_support_progress
     verdict = support_fill.get("verdict") if isinstance(support_fill.get("verdict"), dict) else {}
 
     rows = _to_int(
@@ -253,6 +263,11 @@ def _support_context(
         "minimum_support_rows": minimum,
         "support_gap": gap,
         "support_ready": support_ready,
+        "equilibrium_deadlock": q15_equilibrium,
+        "equilibrium_deadlock_confirmed": _as_bool(q15_equilibrium.get("confirmed")) if isinstance(q15_equilibrium, Mapping) else False,
+        "equilibrium_deadlock_verdict": q15_equilibrium.get("verdict") if isinstance(q15_equilibrium, Mapping) else None,
+        "forced_research_action_required": _as_bool((q15_equilibrium.get("forced_research_action_artifact") or {}).get("required")) if isinstance(q15_equilibrium, Mapping) else False,
+        "forced_research_action_output_path": (q15_equilibrium.get("forced_research_action_artifact") or {}).get("output_path") if isinstance(q15_equilibrium, Mapping) else None,
         "stagnant_run_count": _to_int(
             _first_present(
                 support_progress.get("stagnant_run_count"),
@@ -501,6 +516,7 @@ def build_live_canary_structural_pivot(
     execution_metadata_smoke: Mapping[str, Any] | None = None,
     customer_safe_alternative_proof: Mapping[str, Any] | None = None,
     q15_support_fill_feasibility: Mapping[str, Any] | None = None,
+    q15_support_audit: Mapping[str, Any] | None = None,
     config_snapshot: Mapping[str, Any] | None = None,
     generated_at: str | None = None,
 ) -> dict[str, Any]:
@@ -510,10 +526,11 @@ def build_live_canary_structural_pivot(
     execution = dict(execution_metadata_smoke or {})
     customer = dict(customer_safe_alternative_proof or {})
     support_fill = dict(q15_support_fill_feasibility or {})
+    q15_audit = dict(q15_support_audit or {})
     config = dict(config_snapshot or _config_snapshot())
 
     release = _release_context(live, breaker)
-    support = _support_context(live, topk_payload, customer, support_fill)
+    support = _support_context(live, topk_payload, customer, support_fill, q15_audit)
     topk = _topk_context(topk_payload, customer)
     venue = _venue_context(execution, customer)
     gates = _gate_summary(support, release, topk, venue, config)
@@ -527,6 +544,7 @@ def build_live_canary_structural_pivot(
         "execution_metadata_smoke": execution,
         "customer_safe_alternative_proof": customer,
         "q15_support_fill_feasibility": support_fill,
+        "q15_support_audit": q15_audit,
     }
 
     return {
@@ -550,6 +568,10 @@ def build_live_canary_structural_pivot(
             "stagnant_run_count": support.get("stagnant_run_count"),
             "semantic_signature_delta_vs_previous": support.get("semantic_signature_delta_vs_previous"),
             "semantic_signature_stagnant_run_count": support.get("semantic_signature_stagnant_run_count"),
+            "equilibrium_deadlock_confirmed": support.get("equilibrium_deadlock_confirmed"),
+            "equilibrium_deadlock_verdict": support.get("equilibrium_deadlock_verdict"),
+            "forced_research_action_required": support.get("forced_research_action_required"),
+            "forced_research_action_output_path": support.get("forced_research_action_output_path"),
             "release_ready": release.get("release_ready"),
             "recent_window_size": release.get("recent_window"),
             "recent_window_wins": release.get("current_recent_window_wins"),
@@ -572,7 +594,10 @@ def build_live_canary_structural_pivot(
             "single_failed_gate_for_72h_decision": primary_gate,
             "supplementary_blockers_not_used_as_single_gate": gates["supplementary_blockers_not_used_as_single_gate"],
             "next_validation_artifact": next_artifact,
-            "artifact_refresh_patch": "scripts/live_canary_structural_pivot.py now derives this plan from fresh runtime artifacts and is wired into hb_parallel_runner serial lanes.",
+            "artifact_refresh_patch": "scripts/live_canary_structural_pivot.py now derives this plan from fresh runtime artifacts and q15 support audit deadlock state, and is wired into hb_parallel_runner serial lanes.",
+            "equilibrium_deadlock_verdict": support.get("equilibrium_deadlock_verdict"),
+            "forced_research_action_required": support.get("forced_research_action_required"),
+            "forced_research_action_output_path": support.get("forced_research_action_output_path"),
         },
         "micro_canary_gate": gates,
         "lanes": [
@@ -632,21 +657,27 @@ def build_live_canary_structural_pivot(
                     "stop waiting for rows and produce a Map/Signal redesign proof path."
                 ),
                 "can_start_now": bool(
-                    support.get("support_gap", 0) > 0
-                    and (
-                        support.get("support_delta_vs_previous") == 0
-                        or support.get("semantic_signature_delta_vs_previous") == 0
+                    support.get("forced_research_action_required")
+                    or (
+                        support.get("support_gap", 0) > 0
+                        and (
+                            support.get("support_delta_vs_previous") == 0
+                            or support.get("semantic_signature_delta_vs_previous") == 0
+                        )
                     )
                 ),
-                "status": "required" if support.get("support_gap", 0) > 0 and (
+                "status": "equilibrium_deadlock_required" if support.get("equilibrium_deadlock_confirmed") else ("required" if support.get("support_gap", 0) > 0 and (
                     support.get("support_delta_vs_previous") == 0
                     or support.get("semantic_signature_delta_vs_previous") == 0
-                ) else "standby",
+                ) else "standby"),
                 "blocks_strategy_risk": True,
                 "live_exposure": "none",
                 "exit_gate": "A new support identity / semantic bucket map is proposed, replayed, and proven without reclassifying reference rows as deployable support.",
                 "semantic_signature_delta_vs_previous": support.get("semantic_signature_delta_vs_previous"),
                 "semantic_signature_stagnant_run_count": support.get("semantic_signature_stagnant_run_count"),
+                "equilibrium_deadlock_confirmed": support.get("equilibrium_deadlock_confirmed"),
+                "equilibrium_deadlock_verdict": support.get("equilibrium_deadlock_verdict"),
+                "forced_research_action_output_path": support.get("forced_research_action_output_path"),
                 "next_artifact": next_artifact,
             },
         ],
@@ -706,6 +737,7 @@ def markdown(payload: Mapping[str, Any]) -> str:
         f"- current bucket: `{truth.get('structure_bucket')}`",
         f"- support: `{truth.get('support_rows')}/{truth.get('minimum_support_rows')}` (gap `{truth.get('support_gap')}`, delta `{truth.get('support_delta_vs_previous')}`, stagnant `{truth.get('stagnant_run_count')}`)",
         f"- semantic-signature progress: delta `{truth.get('semantic_signature_delta_vs_previous')}`, stagnant `{truth.get('semantic_signature_stagnant_run_count')}` (does not relax strict support_identity)",
+        f"- equilibrium deadlock: confirmed=`{truth.get('equilibrium_deadlock_confirmed')}`, verdict=`{truth.get('equilibrium_deadlock_verdict')}`, forced_artifact=`{truth.get('forced_research_action_output_path')}`",
         f"- release_ready: `{truth.get('release_ready')}` / recent wins `{truth.get('recent_window_wins')}/{truth.get('recent_window_size')}`, required `{truth.get('required_recent_window_wins')}`, needed `{truth.get('additional_recent_window_wins_needed')}`",
         f"- venue_runtime_ready: `{truth.get('venue_runtime_ready')}` / OKX credentials configured: `{truth.get('okx_credentials_configured')}`",
         f"- top-k: risk-qualified `{truth.get('risk_qualified_rows')}`, runtime-blocked `{truth.get('runtime_blocked_candidate_rows')}`, deployable `{truth.get('deployable_rows')}`",
@@ -791,6 +823,7 @@ def main(argv: list[str] | None = None) -> int:
         execution_metadata_smoke=payloads["execution_metadata_smoke"],
         customer_safe_alternative_proof=payloads["customer_safe_alternative_proof"],
         q15_support_fill_feasibility=payloads["q15_support_fill_feasibility"],
+        q15_support_audit=payloads["q15_support_audit"],
     )
     write_outputs(pivot, args.json_out, args.markdown_out)
     truth = pivot["current_truth"]

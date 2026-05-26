@@ -656,6 +656,17 @@ def _support_truth_context(
         ):
             if support_progress.get(field) is not None:
                 context[f"support_progress_{field}"] = support_progress.get(field)
+        equilibrium_deadlock = q15_support_audit.get("equilibrium_deadlock") or support_progress.get("equilibrium_deadlock") or {}
+        if isinstance(equilibrium_deadlock, dict) and equilibrium_deadlock:
+            for field in ("verdict", "state", "confirmed", "severity", "failure_mode", "decision"):
+                if equilibrium_deadlock.get(field) is not None:
+                    context[f"equilibrium_deadlock_{field}"] = equilibrium_deadlock.get(field)
+            forced_artifact = equilibrium_deadlock.get("forced_research_action_artifact") or {}
+            if isinstance(forced_artifact, dict):
+                if forced_artifact.get("required") is not None:
+                    context["forced_research_action_required"] = forced_artifact.get("required")
+                if forced_artifact.get("output_path") is not None:
+                    context["forced_research_action_output_path"] = forced_artifact.get("output_path")
         active_repair_plan = q15_support_audit.get("active_repair_plan") or {}
         if isinstance(active_repair_plan, dict) and active_repair_plan:
             for field in (
@@ -667,6 +678,8 @@ def _support_truth_context(
                 "current_allowed_layers",
                 "current_execution_guardrail_reason",
                 "support_status",
+                "forced_research_action_required",
+                "forced_research_action_output_path",
             ):
                 if active_repair_plan.get(field) is not None:
                     context[f"active_repair_{field}"] = active_repair_plan.get(field)
@@ -801,6 +814,14 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
     stalled_support_accumulation = support_context.get("support_progress_stalled_support_accumulation")
     escalate_to_blocker = support_context.get("support_progress_escalate_to_blocker")
     active_repair_phase = support_context.get("active_repair_phase")
+    equilibrium_deadlock_verdict = support_context.get("equilibrium_deadlock_verdict")
+    equilibrium_deadlock_confirmed = support_context.get("equilibrium_deadlock_confirmed")
+    forced_research_action_required = support_context.get("forced_research_action_required")
+    if forced_research_action_required is None:
+        forced_research_action_required = support_context.get("active_repair_forced_research_action_required")
+    forced_research_action_output_path = support_context.get("forced_research_action_output_path")
+    if forced_research_action_output_path is None:
+        forced_research_action_output_path = support_context.get("active_repair_forced_research_action_output_path")
     active_repair_component_ready = support_context.get("active_repair_component_verify_ready")
     active_repair_live_allowed = support_context.get("active_repair_live_exposure_allowed")
     active_repair_shadow_allowed = support_context.get("active_repair_shadow_or_paper_allowed")
@@ -848,6 +869,10 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
         and stagnant_run_count is None
         and stalled_support_accumulation is None
         and escalate_to_blocker is None
+        and equilibrium_deadlock_verdict in (None, "")
+        and equilibrium_deadlock_confirmed is None
+        and forced_research_action_required is None
+        and forced_research_action_output_path in (None, "")
         and not governance_reference_evidence
         and not has_active_repair
     ):
@@ -871,6 +896,14 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
         parts.append(f"`stalled_support_accumulation={stalled_support_accumulation}`")
     if escalate_to_blocker is not None:
         parts.append(f"`escalate_to_blocker={escalate_to_blocker}`")
+    if equilibrium_deadlock_verdict not in (None, ""):
+        parts.append(f"`equilibrium_deadlock={equilibrium_deadlock_verdict}`")
+    if equilibrium_deadlock_confirmed is not None:
+        parts.append(f"`equilibrium_deadlock_confirmed={equilibrium_deadlock_confirmed}`")
+    if forced_research_action_required is not None:
+        parts.append(f"`forced_research_action_required={forced_research_action_required}`")
+    if forced_research_action_output_path not in (None, ""):
+        parts.append(f"`forced_research_action_output={forced_research_action_output_path}`")
     if governance_reference_evidence:
         evidence_route = governance_reference_evidence.get("support_governance_route") or support_context.get("support_governance_route")
         evidence_proxy_rows = governance_reference_evidence.get("exact_live_lane_proxy_rows")
