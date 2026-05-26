@@ -17,11 +17,18 @@ def _okx_symbol_info(market: Dict[str, Any]) -> Dict[str, Any]:
 
 def _normalize_okx_symbol(symbol: str) -> str:
     value = str(symbol or "").strip().upper()
-    if not value or "/" in value:
+    if not value:
+        return value
+    if "/" in value:
         return value
     for quote in ("USDT", "USDC", "BTC", "ETH"):
+        exchange_id_suffix = f"-{quote}"
+        if value.endswith(exchange_id_suffix) and len(value) > len(exchange_id_suffix):
+            return f"{value[:-len(exchange_id_suffix)]}/{quote}"
         if value.endswith(quote) and len(value) > len(quote):
-            return f"{value[:-len(quote)]}/{quote}"
+            base = value[:-len(quote)].rstrip("-_")
+            if base:
+                return f"{base}/{quote}"
     return value
 
 

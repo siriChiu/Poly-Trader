@@ -124,6 +124,22 @@ def test_execution_service_normalizes_legacy_symbol_format(monkeypatch):
     assert captured["symbol"] == "BTC/USDT"
 
 
+def test_execution_service_normalizes_okx_hyphen_symbol_format(monkeypatch):
+    session = DummySession()
+    service = ExecutionService({"execution": {"mode": "paper", "venue": "okx"}}, db_session=session)
+    captured = {}
+
+    class CaptureAdapter(FakeAdapter):
+        def place_order(self, request):
+            captured["symbol"] = request.symbol
+            return super().place_order(request)
+
+    monkeypatch.setattr(service, "get_adapter", lambda venue=None: CaptureAdapter(dry_run=True))
+    payload = service.submit_order(symbol="BTC-USDT", side="buy", order_type="market", qty=0.01)
+    assert captured["symbol"] == "BTC/USDT"
+    assert payload["order"]["symbol"] == "BTC/USDT"
+
+
 def test_account_sync_service_degrades_when_adapter_raises(monkeypatch):
     sync = AccountSyncService({"execution": {"mode": "live", "venue": "okx", "enable_live_trading": True}})
 
@@ -376,6 +392,31 @@ def test_okx_market_rules_include_step_and_tick_sizes(monkeypatch):
     assert rules["step_size"] == "0.0001"
     assert rules["tick_size"] == "0.1"
     assert rules["price_contract"]["tick_size"] == "0.1"
+
+
+def test_okx_market_rules_normalizes_hyphen_exchange_id_symbol(monkeypatch):
+    market = {
+        "base": "BTC",
+        "quote": "USDT",
+        "limits": {"amount": {"min": 0.001}, "cost": {"min": 10.0}},
+        "precision": {"amount": 4, "price": 1},
+        "info": {"lotSz": "0.0001", "tickSz": "0.1"},
+    }
+    captured = {}
+
+    class FakeExchange:
+        def __init__(self, _config):
+            self.markets = {"BTC/USDT": market}
+
+        def market(self, symbol):
+            captured["symbol"] = symbol
+            return self.markets[symbol]
+
+    monkeypatch.setattr("execution.exchanges.okx_adapter.ccxt.okx", FakeExchange)
+    adapter = OKXAdapter({}, dry_run=True)
+    rules = adapter.market_rules("BTC-USDT")
+    assert captured["symbol"] == "BTC/USDT"
+    assert rules["symbol"] == "BTC/USDT"
 
 
 def test_okx_adapter_omits_reduce_only_for_spot_sell_orders():

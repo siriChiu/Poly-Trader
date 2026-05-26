@@ -1,20 +1,20 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-26 22:12:58.594616**
+- feature_timestamp: **2026-05-26 23:18:05.895037**
 - target: `simulated_pyramid_win`
-- live path: **熊市 / 阻塞 / D**
+- live path: **熊市 / 阻塞 / C**
 - signal: **風控熔斷** @ confidence **0.5000**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: 市場閘門阻塞
 - allowed_layers_reason: 決策品質低於交易門檻; 精準樣本尚未建立，阻止交易; 風控熔斷啟用中
 - execution_guardrail_reason: 決策品質低於交易門檻; 精準樣本尚未建立，阻止交易; 風控熔斷啟用中
-- runtime_blocker: 風控熔斷 | reason: 連續虧損筆數： 84 >= 50; 最近 50 筆勝率: 0.00% < 30%
-- deployment_blocker: 風控熔斷啟用中 | reason: 連續虧損筆數： 84 >= 50; 最近 50 筆勝率: 0.00% < 30%
+- runtime_blocker: 風控熔斷 | reason: 連續虧損筆數： 89 >= 50; 最近 50 筆勝率: 0.00% < 30%
+- deployment_blocker: 風控熔斷啟用中 | reason: 連續虧損筆數： 89 >= 50; 最近 50 筆勝率: 0.00% < 30%
 - support blocker summary: **精準樣本 0/50（缺口 50） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版已就緒紀錄僅能當歷史參考，但語義證據仍未證明吻合目前支持語義，不可宣稱同一語義已閉環。**
 - support next action: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。
 - current-bucket root cause: verdict=執行期阻塞優先於分桶根因分析 / patch=None / feature=None / exact_support=0/50 / gap=50 / neighbor=阻塞｜結構品質阻塞｜q00
 - 精準樣本修補: **未啟用** | 支持路徑 **精準樣本尚未建立** | 跨越門檻 **執行期阻塞優先於跨門檻分析**
-- runtime closure summary: **風控熔斷啟用中：連續虧損筆數： 84 >= 50; 最近 50 筆勝率: 0.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 0/50，至少還差 15 勝。 同時近期病態=近期範圍切片 100 筆 顯示 分佈病態 警示=['標籤失衡'] win_rate=0.15 avg_pnl=-0.0084 avg_品質=-0.1414 window=2026-05-24 22:01:26.718450->2026-05-25 23:12:24.178138 adverse_連續虧損筆數=84x0 (2026-05-25 01:13:37.819788->2026-05-25 23:12:24.178138) vs sibling prev_win_rate=0.92 Δwin_rate=-0.77 prev_品質=0.4318 Δ品質=-0.5732 prev_pnl=0.006 Δpnl=-0.0144 top_shifts=feat_4h_dist_bb_lower(1.9534→1.4101), feat_4h_bb_pct_b(0.7811→0.6483), feat_4h_dist_swing_low(3.0125→3.0032)。 精準路徑與外溢對照：同品質寬範圍出現 盤整｜觀察 外溢，128 筆 / 勝率 32.2% / 品質 -0.021，明顯劣於 精準即時路徑 勝率 — / 品質 —。**
+- runtime closure summary: **風控熔斷啟用中：連續虧損筆數： 89 >= 50; 最近 50 筆勝率: 0.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 0/50，至少還差 15 勝。 同時近期病態=近期範圍切片 100 筆 顯示 分佈病態 警示=['標籤失衡'] win_rate=0.1 avg_pnl=-0.0096 avg_品質=-0.1883 window=2026-05-24 23:15:47.227201->2026-05-26 00:15:10.213967 adverse_連續虧損筆數=89x0 (2026-05-25 01:13:37.819788->2026-05-26 00:15:10.213967) vs sibling prev_win_rate=0.97 Δwin_rate=-0.87 prev_品質=0.4669 Δ品質=-0.6552 prev_pnl=0.0066 Δpnl=-0.0162 top_shifts=feat_4h_dist_bb_lower(1.8781→1.3902), feat_4h_dist_swing_low(3.1599→2.9154), feat_4h_bb_pct_b(0.7539→0.644)。 精準路徑與外溢對照：同 regime 寬範圍出現 熊市｜觀察 外溢，17 筆 / 勝率 82.3% / 品質 0.421，明顯劣於 精準即時路徑 勝率 — / 品質 —。**
 - q35 scaling audit: overall=None / redesign=None / runtime_gap=None / mode=None / next_patch=None
 - q35 runtime truth: redesign_entry_quality=None / redesign_layers_after=None / runtime_layers=None / blocker=None / exact_support=None/None / support_gap=None
 - q35 audit action: None
@@ -26,18 +26,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5096** / trade_floor **0.55** / gap **-0.0404**
-- 基礎品質: **0.6786** × 權重 **0.75**
-- 結構品質: **0.0028** × 權重 **0.25**
-- base components: feat_4h_bias50=0.7558 (w=0.4, contrib=0.3023), feat_nose=0.5947 (w=0.18, contrib=0.107), feat_pulse=0.4815 (w=0.27, contrib=0.13), feat_ear=0.9281 (w=0.15, contrib=0.1392)
-- structure components: feat_4h_bb_pct_b=0.0065 (w=0.34, contrib=0.0022), feat_4h_dist_bb_lower=0.0017 (w=0.33, contrib=0.0006), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
+- final entry_quality: **0.552** / trade_floor **0.55** / gap **0.002**
+- 基礎品質: **0.7265** × 權重 **0.75**
+- 結構品質: **0.0284** × 權重 **0.25**
+- base components: feat_4h_bias50=0.7246 (w=0.4, contrib=0.2898), feat_nose=0.4637 (w=0.18, contrib=0.0835), feat_pulse=0.7724 (w=0.27, contrib=0.2086), feat_ear=0.9643 (w=0.15, contrib=0.1446)
+- structure components: feat_4h_bb_pct_b=0.067 (w=0.34, contrib=0.0228), feat_4h_dist_bb_lower=0.017 (w=0.33, contrib=0.0056), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0404**
-- base_group_max_entry_gain: **0.2411** | structure_group_max_entry_gain: **0.2493**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.1347, max_gain≈0.0733）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.1347), feat_pulse (Δscore≈0.1995), feat_nose (Δscore≈0.2993), feat_4h_bb_pct_b (Δscore≈0.4753)
+- remaining_gap_to_floor: **0.0**
+- base_group_max_entry_gain: **0.2051** | structure_group_max_entry_gain: **0.2429**
+- best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
+- single-component floor crossers: None
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -45,9 +45,9 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `global` | 200 | 0.535 | 0.1452 | 0.1625 | 0.4828 | 0 | True |
+| chosen `global` | 200 | 0.535 | 0.1393 | 0.1687 | 0.4894 | 0 | True |
 | exact `regime_label+regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
-| narrow `regime_label+entry_quality_label` | 7 | 0.8571 | 0.3948 | 0.0657 | 0.1189 | 0 | False |
+| narrow `regime_label+entry_quality_label` | 10 | 0.8 | 0.4401 | 0.0338 | 0.1269 | 0 | False |
 | broad `regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
 
 ## Exact live-lane bucket diagnostic
@@ -59,7 +59,7 @@
 ## Shared shifts
 
 - None
-- worst_pathology_scope: **entry_quality_label** rows=128 win_rate=0.3516 quality=0.0015
+- worst_pathology_scope: **None** rows=None win_rate=None quality=None
 
 ## Interpretation
 

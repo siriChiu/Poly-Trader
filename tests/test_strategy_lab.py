@@ -870,6 +870,38 @@ def test_api_trade_uses_execution_service_when_buy_path_has_no_live_blocker(monk
     assert payload["order"]["type"] == "market"
 
 
+def test_api_trade_shadow_buy_accepts_okx_hyphen_symbol_and_stays_paper(monkeypatch):
+    market = {
+        "base": "BTC",
+        "quote": "USDT",
+        "limits": {"amount": {"min": 0.00001}, "cost": {"min": None}},
+        "precision": {"amount": 8, "price": 1},
+        "info": {"lotSz": "0.00000001", "tickSz": "0.1"},
+    }
+    captured = {}
+
+    class FakeExchange:
+        def __init__(self, _config):
+            self.markets = {"BTC/USDT": market}
+
+        def market(self, symbol):
+            captured["symbol"] = symbol
+            return self.markets[symbol]
+
+    monkeypatch.setattr(api_module, "get_config", lambda: {"execution": {"mode": "paper", "venue": "okx"}, "trading": {"dry_run": True, "venue": "okx"}})
+    monkeypatch.setattr(api_module, "get_db", lambda: None)
+    monkeypatch.setattr("execution.exchanges.okx_adapter.ccxt.okx", FakeExchange)
+
+    payload = asyncio.run(api_module.api_trade(api_module.TradeRequest(side="shadow_buy", symbol="BTC-USDT", qty=0.001), request=_local_request()))
+
+    assert payload["success"] is True
+    assert payload["dry_run"] is True
+    assert payload["live_order_submitted"] is False
+    assert payload["paper_order_submitted"] is True
+    assert payload["order"]["symbol"] == "BTC/USDT"
+    assert captured["symbol"] == "BTC/USDT"
+
+
 
 def test_api_trade_maps_execution_rejects_to_http_409_when_buy_path_has_no_live_blocker(monkeypatch):
     from execution.execution_service import ExecutionRejectError

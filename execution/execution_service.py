@@ -75,14 +75,21 @@ class ExecutionService:
         return self.execution_cfg.get("mode") == "live" and bool(self.execution_cfg.get("enable_live_trading"))
 
     def _normalize_symbol(self, symbol: str) -> str:
-        value = str(symbol or "").strip()
-        if not value or "/" in value:
+        value = str(symbol or "").strip().upper()
+        if not value:
+            return value
+        if "/" in value:
             return value
         common_quotes = ("USDT", "USDC", "BUSD", "BTC", "ETH")
+        if "-" in value:
+            base, sep, quote = value.partition("-")
+            if sep and base and quote in common_quotes:
+                return f"{base}/{quote}"
         for quote in common_quotes:
             if value.endswith(quote) and len(value) > len(quote):
-                base = value[:-len(quote)]
-                return f"{base}/{quote}"
+                base = value[:-len(quote)].rstrip("-_")
+                if base:
+                    return f"{base}/{quote}"
         return value
 
     def _live_canary_policy(self) -> Dict[str, Any]:
