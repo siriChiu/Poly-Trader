@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-05-26 19:39 CST_
+_最後更新：2026-05-26 19:51 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; this file is generated from current runtime artifacts by `scripts/sync_pm_status.py` so PM checks fail on real drift, not stale literals.
 
@@ -38,7 +38,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Research-to-delivery candidates / Top-K
 
-- `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-26T10:26:02.605028+00:00`；artifact self-report is `artifact_freshness_status=fresh`, but PM wall-clock audit at `2026-05-26T11:38Z` shows `PM_wall_clock_freshness=stale_reference_only`, `PM_wall_clock_age≈72.5m` > `artifact_stale_after_minutes=60.0`；`artifact_deployment_blocking=false`, `samples=25291`, `row_count=24`, `runtime_blocked_candidate_rows=6`。
+- `data/high_conviction_topk_oos_matrix.json` generated at `2026-05-26T10:26:02.605028+00:00`；artifact self-report is `artifact_freshness_status=fresh`, but PM wall-clock audit at `2026-05-26T11:51Z` shows `PM_wall_clock_freshness=stale_reference_only`, `PM_wall_clock_age≈85.0m` > `artifact_stale_after_minutes=60.0`；`artifact_deployment_blocking=false`, `samples=25291`, `row_count=24`, `runtime_blocked_candidate_rows=6`。
 - Matrix payload: `deployable_rows=0`, `risk_qualified_rows=6`, `support_route=exact_bucket_present_but_below_minimum`, `deployment_blocker=under_minimum_exact_live_structure_bucket`, `current_live_structure_bucket=CAUTION|base_caution_regime_or_bias|q15`, bucket rows `7/50`, `gap=43`。
 - Nearest research candidate: `model=logistic_regression`, `feature_profile=current_full`, `top_k=top_2pct`, `oos_roi=0.9324`, `win_rate=0.8621`, `profit_factor=19.8864`, `max_drawdown=0.0220`, `worst_fold=0.2068`, `trade_count=58`, `deployment_candidate_tier=runtime_blocked_oos_pass`, `deployable_verdict=not_deployable`。
 
@@ -97,7 +97,7 @@ Customer-usable lanes now:
 
 ## 4. framework-capture / alternative-solution / anti-equilibrium guard
 
-本輪維持 **`ORANGE_framework_capture_risk` governance overlay** 與 **`ORANGE_alternative_solution_required`**，不是因為安全 gate 可被推翻，而是避免 PM 被工程 blocker 敘事捕獲。`customer-value delta`：PM status 已承認最新 bucket `CAUTION|base_caution_regime_or_bias|q15`、exact support `7/50 gap=43`、breaker `release_ready=true` / `17/50`，並把 Top-K 從 artifact self-report `artifact_freshness_status=fresh` 修正為 PM wall-clock `stale_reference_only`（`≈72.5m` > `60.0m`）；Execution Console / Strategy Lab 的 paper-shadow lane 保留，但 no live exposure。
+本輪維持 **`ORANGE_framework_capture_risk` governance overlay** 與 **`ORANGE_alternative_solution_required`**，不是因為安全 gate 可被推翻，而是避免 PM 被工程 blocker 敘事捕獲。`customer-value delta`：PM status 已承認最新 bucket `CAUTION|base_caution_regime_or_bias|q15`、exact support `7/50 gap=43`、breaker `release_ready=true` / `17/50`，並把 Top-K 從 artifact self-report `artifact_freshness_status=fresh` 修正為 PM wall-clock `stale_reference_only`（`≈85.0m` > `60.0m`）；Execution Console / Strategy Lab 的 paper-shadow lane 保留，但 no live exposure。
 
 **time-to-evidence：** `semantic_rebaseline_review_required_before_reference_rows_count` for exact support movement；`same_day` for venue dry-run metadata proof if credentials/config are supplied；`within_week_or_unknown` for true venue lifecycle proof without credentials。PM 不把「治理參考」包裝成 deploy-ready；下輪必須產出 exact-row accumulation proof、missing-capability proof、recent-tail no-new-risk artifact、venue dry-run proof，或一個可驗證的 alternative-solution artifact。
 
