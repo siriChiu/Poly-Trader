@@ -257,3 +257,56 @@ def test_current_window_reports_identity_rows_that_do_not_match_current_bucket()
     assert "current exact identity rows before bucket filter: **13**" in md
     assert "non-current-bucket: **12**" in md
     assert "reference only, not deployment support" in md
+
+
+def test_support_identity_compression_proof_selects_rebaseline_candidate_without_deploying():
+    identity = {
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+        "regime_label": "chop",
+        "regime_gate": "CAUTION",
+        "entry_quality_label": "D",
+        "calibration_window": 20,
+        "bucket_semantic_signature": scan.BUCKET_SEMANTIC_SIGNATURE,
+    }
+    current_exact_rows = [
+        _row(i, regime="chop", gate="CAUTION", label="D", bucket="CAUTION|base_caution_regime_or_bias|q15", win=1)
+        for i in range(7)
+    ]
+    current_non_matching = [_row(i + 7, bucket="ALLOW|different|q65", win=0) for i in range(13)]
+    older_exact_rows = [
+        _row(i + 20, regime="chop", gate="CAUTION", label="D", bucket="CAUTION|base_caution_regime_or_bias|q15", win=1)
+        for i in range(60)
+    ]
+
+    report = scan.build_feasibility_report(
+        rows=current_exact_rows + current_non_matching + older_exact_rows,
+        support_identity=identity,
+        generated_at="2026-05-26T07:00:00+00:00",
+        windows=(20, 80),
+        minimum_support_rows=50,
+    )
+
+    proof = report["support_identity_compression_proof"]
+    assert proof["anti_treadmill"] is True
+    assert proof["decision"] == "candidate_found_not_deployable"
+    assert proof["selected_candidate_id"] == "rebaseline_calibration_window_only"
+    assert proof["selected_candidate_rows"] == 67
+    assert proof["live_exposure_allowed"] is False
+    candidates = {candidate["id"]: candidate for candidate in proof["candidates"]}
+    assert candidates["current_exact_identity_window"]["rows"] == 7
+    assert candidates["current_exact_identity_window"]["ready_by_count"] is False
+    assert candidates["rebaseline_calibration_window_only"]["ready_by_count"] is True
+    assert candidates["rebaseline_calibration_window_only"]["deployable_support"] is False
+    assert "rerun replay/OOS/Top-K" in proof["promotion_requirements"][0]
+    assert "enable_live_buy_or_add_from_this proof alone" in proof["forbidden_shortcuts"]
+
+    actions = {action["id"]: action for action in report["recommended_actions"]}
+    assert actions["support_identity_compression_proof"]["selected_candidate_id"] == "rebaseline_calibration_window_only"
+    assert actions["support_identity_compression_proof"]["live_exposure_allowed"] is False
+
+    md = scan.markdown(report)
+    assert "## Support identity compression proof" in md
+    assert "candidate_found_not_deployable" in md
+    assert "buy/add remains fail-closed" in md

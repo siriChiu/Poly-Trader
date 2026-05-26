@@ -249,6 +249,161 @@ def _matches_exact_bucket(row: dict[str, Any], identity: dict[str, Any]) -> bool
     )
 
 
+def _compression_candidate(
+    *,
+    candidate_id: str,
+    description: str,
+    rows: list[dict[str, Any]],
+    relaxed_fields: list[str],
+    exact_fields: list[str],
+    minimum_support_rows: int,
+    evidence_role: str,
+) -> dict[str, Any]:
+    """Summarize one support-identity compression candidate.
+
+    These candidates are research/governance proof only. They never become deployable
+    support by count alone; live buy/add remains behind support-audit replay plus
+    execution/venue gates.
+    """
+
+    metrics = _metric_summary(rows)
+    win_rate = metrics.get("win_rate")
+    avg_pnl = metrics.get("avg_pnl")
+    avg_drawdown_penalty = metrics.get("avg_drawdown_penalty")
+    ready_by_count = len(rows) >= minimum_support_rows
+    metric_gate_candidate = bool(
+        ready_by_count
+        and win_rate is not None
+        and win_rate >= 0.55
+        and avg_pnl is not None
+        and avg_pnl > 0
+        and (avg_drawdown_penalty is None or avg_drawdown_penalty <= 0.25)
+    )
+    return {
+        "id": candidate_id,
+        "description": description,
+        "rows": len(rows),
+        "rows_needed_to_minimum": max(minimum_support_rows - len(rows), 0),
+        "ready_by_count": ready_by_count,
+        "metric_gate_candidate": metric_gate_candidate,
+        "metrics": metrics,
+        "exact_fields": exact_fields,
+        "relaxed_fields": relaxed_fields,
+        "evidence_role": evidence_role,
+        "latest_timestamp": rows[0].get("timestamp") if rows else None,
+        "oldest_timestamp": rows[-1].get("timestamp") if rows else None,
+        "deployable_support": False,
+        "live_exposure_allowed": False,
+    }
+
+
+def _support_identity_compression_proof(
+    *,
+    rows: list[dict[str, Any]],
+    current_rows: list[dict[str, Any]],
+    support_identity: dict[str, Any],
+    minimum_support_rows: int,
+) -> dict[str, Any]:
+    """Find non-deployable structural alternatives to the dead exact-key loop."""
+
+    current_bucket = support_identity.get("current_live_structure_bucket")
+    current_regime = support_identity.get("regime_label")
+    current_gate = support_identity.get("regime_gate")
+    current_entry_label = support_identity.get("entry_quality_label")
+
+    exact_full_rows = [row for row in rows if _matches_exact_bucket(row, support_identity)]
+    regime_gate_bucket_rows = [
+        row
+        for row in rows
+        if row.get("regime_label") == current_regime
+        and row.get("regime_gate") == current_gate
+        and row.get("structure_bucket") == current_bucket
+    ]
+    gate_bucket_rows = [
+        row
+        for row in rows
+        if row.get("regime_gate") == current_gate and row.get("structure_bucket") == current_bucket
+    ]
+    bucket_only_rows = [row for row in rows if row.get("structure_bucket") == current_bucket]
+    current_exact_rows = [row for row in current_rows if _matches_exact_bucket(row, support_identity)]
+
+    candidates = [
+        _compression_candidate(
+            candidate_id="current_exact_identity_window",
+            description="Baseline: current calibration_window + regime + gate + entry label + bucket exactly as live state.",
+            rows=current_exact_rows,
+            relaxed_fields=[],
+            exact_fields=["calibration_window", "regime_label", "regime_gate", "entry_quality_label", "current_live_structure_bucket"],
+            minimum_support_rows=minimum_support_rows,
+            evidence_role="current_deployable_identity_baseline",
+        ),
+        _compression_candidate(
+            candidate_id="rebaseline_calibration_window_only",
+            description="Treat calibration_window as rebaseline context while keeping regime/gate/entry/bucket exact; requires replay/OOS before promotion.",
+            rows=exact_full_rows,
+            relaxed_fields=["calibration_window"],
+            exact_fields=["regime_label", "regime_gate", "entry_quality_label", "current_live_structure_bucket"],
+            minimum_support_rows=minimum_support_rows,
+            evidence_role="research_candidate_rebaseline_required",
+        ),
+        _compression_candidate(
+            candidate_id="semantic_entry_quality_family",
+            description="Treat entry_quality_label as semantic family inside the same regime/gate/bucket; stricter than bucket-only, looser than exact label.",
+            rows=regime_gate_bucket_rows,
+            relaxed_fields=["calibration_window", "entry_quality_label"],
+            exact_fields=["regime_label", "regime_gate", "current_live_structure_bucket"],
+            minimum_support_rows=minimum_support_rows,
+            evidence_role="research_candidate_semantic_adapter_required",
+        ),
+        _compression_candidate(
+            candidate_id="regime_gate_bucket_family",
+            description="Treat regime_label as context while keeping gate and bucket exact; higher drift risk, requires explicit go/no-go.",
+            rows=gate_bucket_rows,
+            relaxed_fields=["calibration_window", "entry_quality_label", "regime_label"],
+            exact_fields=["regime_gate", "current_live_structure_bucket"],
+            minimum_support_rows=minimum_support_rows,
+            evidence_role="research_candidate_high_drift_risk",
+        ),
+        _compression_candidate(
+            candidate_id="bucket_only_family",
+            description="Bucket-only family; diagnostic lower bound only, never direct deployable support.",
+            rows=bucket_only_rows,
+            relaxed_fields=["calibration_window", "entry_quality_label", "regime_label", "regime_gate"],
+            exact_fields=["current_live_structure_bucket"],
+            minimum_support_rows=minimum_support_rows,
+            evidence_role="diagnostic_only_too_loose_for_deployment",
+        ),
+    ]
+    selectable = [
+        candidate
+        for candidate in candidates[1:]
+        if candidate.get("ready_by_count") and candidate.get("metric_gate_candidate")
+    ]
+    selected = selectable[0] if selectable else None
+    return {
+        "artifact": "support_identity_compression_proof",
+        "purpose": "Break the repeated exact-bucket support collection loop by testing structural identity compression candidates without relaxing live gates.",
+        "anti_treadmill": True,
+        "decision": "candidate_found_not_deployable" if selected else "no_safe_compression_candidate_found",
+        "selected_candidate_id": selected.get("id") if selected else None,
+        "selected_candidate_rows": selected.get("rows") if selected else 0,
+        "selected_candidate_metrics": selected.get("metrics") if selected else {},
+        "candidates": candidates,
+        "promotion_requirements": [
+            "rerun replay/OOS/Top-K under the proposed compressed identity",
+            "rerun q15 support audit with the new identity as the explicit support contract",
+            "keep proxy/reference rows non-deployable until governance accepts the new identity",
+            "keep /api/trade buy/add fail-closed until exact support, bounded live-canary policy, and venue lifecycle proof all pass",
+        ],
+        "forbidden_shortcuts": [
+            "lower_minimum_support_rows",
+            "count_reference_rows_as_current_exact_support",
+            "enable_live_buy_or_add_from_this proof alone",
+        ],
+        "live_exposure_allowed": False,
+    }
+
+
 def _missing_capability_class(classification: str) -> str:
     """Classify PM-facing missing capability without loosening deployment gates."""
 
@@ -413,6 +568,7 @@ def build_feasibility_report(
     best_reference = max(reference_candidates, key=lambda item: int(item.get("exact_bucket_rows") or 0), default={})
     full_scan = window_scan.get("all") or (list(window_scan.values())[-1] if window_scan else {})
     current_rows = int(current_scan.get("exact_bucket_rows") or 0)
+    current_scoped_rows = rows[: min(calibration_window, len(rows))] if calibration_window > 0 else []
     current_exact_identity_rows = int(current_scan.get("exact_identity_rows") or 0)
     current_exact_identity_non_bucket_rows = max(current_exact_identity_rows - current_rows, 0)
     joined_rows = len(rows)
@@ -450,6 +606,12 @@ def build_feasibility_report(
         minimum_support_rows=minimum_support_rows,
         current_window_filled=current_window_filled,
         best_reference=best_reference,
+    )
+    compression_proof = _support_identity_compression_proof(
+        rows=rows,
+        current_rows=current_scoped_rows,
+        support_identity=support_identity,
+        minimum_support_rows=minimum_support_rows,
     )
     verdict = {
         "classification": classification,
@@ -532,6 +694,18 @@ def build_feasibility_report(
             "reference_rows": best_reference.get("exact_bucket_rows"),
             "current_calibration_window": calibration_window,
         },
+        {
+            "id": "support_identity_compression_proof",
+            "priority": "P0",
+            "description": (
+                "停止把主解法寫成反覆蒐集同一 exact key；改交付 support identity compression proof，"
+                f"目前選中候選={compression_proof.get('selected_candidate_id')}，"
+                "但所有候選都維持 deployable=false，直到 replay/OOS/Top-K/support audit/API guardrail 重跑通過。"
+            ),
+            "success_condition": "選定 compressed identity 後重跑治理證據；未完成前 buy/add live exposure 仍 fail-closed。",
+            "selected_candidate_id": compression_proof.get("selected_candidate_id"),
+            "live_exposure_allowed": False,
+        },
     ]
 
     return {
@@ -545,6 +719,7 @@ def build_feasibility_report(
             "db_meta": db_meta or {},
         },
         "verdict": verdict,
+        "support_identity_compression_proof": compression_proof,
         "window_scan": window_scan,
         "recommended_actions": actions,
     }
@@ -553,6 +728,7 @@ def build_feasibility_report(
 def markdown(report: dict[str, Any]) -> str:
     verdict = report.get("verdict") or {}
     identity = report.get("support_identity") or {}
+    compression = report.get("support_identity_compression_proof") or {}
     coverage = report.get("data_coverage") or {}
     source_artifacts = report.get("source_artifacts") or {}
     lines = [
@@ -619,6 +795,38 @@ def markdown(report: dict[str, Any]) -> str:
             f"- `{item.get('id')}` ({item.get('role')}): {item.get('next_artifact')} "
             f"/ live_exposure_allowed={item.get('live_exposure_allowed')}"
         )
+
+    lines.extend([
+        "",
+        "## Support identity compression proof",
+        "",
+        f"- decision: **{compression.get('decision')}**",
+        f"- selected_candidate_id: `{compression.get('selected_candidate_id')}`",
+        f"- selected_candidate_rows: **{compression.get('selected_candidate_rows')}**",
+        f"- live_exposure_allowed: **{compression.get('live_exposure_allowed')}**",
+        "- operator meaning: this is a structural redesign proof, not deployment clearance; buy/add remains fail-closed.",
+        "",
+        "| candidate | rows | count-ready | metric-candidate | relaxed fields | deployable | metrics |",
+        "| --- | ---: | --- | --- | --- | --- | --- |",
+    ])
+    for candidate in compression.get("candidates") or []:
+        metrics = candidate.get("metrics") or {}
+        metric_text = (
+            f"win={metrics.get('win_rate')}, pnl={metrics.get('avg_pnl')}, "
+            f"dd={metrics.get('avg_drawdown_penalty')}"
+        )
+        lines.append(
+            "| "
+            f"{candidate.get('id')} | {candidate.get('rows')} | {candidate.get('ready_by_count')} | "
+            f"{candidate.get('metric_gate_candidate')} | {','.join(candidate.get('relaxed_fields') or []) or '—'} | "
+            f"{candidate.get('deployable_support')} | {metric_text} |"
+        )
+    lines.extend([
+        "",
+        "Promotion requirements before any live buy/add:",
+    ])
+    for requirement in compression.get("promotion_requirements") or []:
+        lines.append(f"- {requirement}")
 
     lines.extend([
         "",
