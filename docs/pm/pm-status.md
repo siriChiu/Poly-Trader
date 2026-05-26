@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-05-27 05:15 CST_
+_最後更新：2026-05-27 05:34 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; this file is generated from current runtime artifacts by `scripts/sync_pm_status.py` so PM checks fail on real drift, not stale literals.
 
@@ -25,7 +25,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 - Primary blocker: `deployment_blocker=circuit_breaker_active` / `runtime_closure_state=circuit_breaker_active`。
 - Guardrail truth: `allowed_layers_raw=0` but `allowed_layers=0`；`allowed_layers_reason=decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`；`execution_guardrail_reason=decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`。
 - Current-live support: `current_live_structure_bucket=BLOCK|bear_bias200_hard_block|q00`, `support_route_verdict=exact_bucket_unsupported_block`, `support_governance_route=exact_live_lane_proxy_available`, rows `0/50`, `gap=50`。
-- Support progress: `support_progress_status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `previous_rows=0` / `delta_vs_previous=0` / `stagnant_run_count=4` / legacy reference is reference-only because support identity does not close current deployment.
+- Support progress: `support_progress_status=semantic_rebaseline_under_minimum` / `regression_basis=legacy_or_different_semantic_signature` / `previous_rows=0` / `delta_vs_previous=0` / `stagnant_run_count=4` / `semantic_signature_delta_vs_previous=0` / `semantic_signature_stagnant_run_count=5` / `semantic_signature_stalled_support_accumulation=true` / legacy reference is reference-only because support identity does not close current deployment.
 - Direct action truth: `api_trade_guardrail_active=true`; `api_trade_buy_guardrail=current_live_deployment_blocker_409`; live risk-off sides remain `reduce, sell`；paper/shadow rehearsal sides are `shadow_buy,paper_buy` and must return `dry_run=true`, `live_order_submitted=false`。
 
 **PM verdict：接受「熔斷仍 active（recent `0/50`，需要 `15/50`，還差 `15` 勝），且 current exact support 仍是 `0/50`、gap `50`，尚未建立同一 support identity 的精準樣本，所以 live buy/add 仍 fail-closed」。不可把 legacy rows、exact-live-lane proxy rows、Top-K OOS pass、或單一 support/governance gate 包裝成 deployable。**

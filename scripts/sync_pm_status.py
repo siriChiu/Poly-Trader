@@ -188,6 +188,19 @@ def build_pm_status_markdown(now: datetime | None = None) -> str:
 
     details = probe.get("deployment_blocker_details") if isinstance(probe.get("deployment_blocker_details"), dict) else {}
     progress = _support_progress(probe)
+    semantic_progress = progress.get("semantic_signature_progress") if isinstance(progress.get("semantic_signature_progress"), dict) else {}
+    semantic_delta = _first_present(
+        progress.get("semantic_signature_delta_vs_previous"),
+        semantic_progress.get("delta_vs_previous"),
+    )
+    semantic_stagnant = _first_present(
+        progress.get("semantic_signature_stagnant_run_count"),
+        semantic_progress.get("stagnant_run_count"),
+    )
+    semantic_stalled = _first_present(
+        progress.get("semantic_signature_stalled_support_accumulation"),
+        semantic_progress.get("stalled_support_accumulation"),
+    )
     release = breaker.get("release_condition") if isinstance(breaker.get("release_condition"), dict) else {}
     fill_verdict = fill.get("verdict") if isinstance(fill.get("verdict"), dict) else {}
     fill_identity = fill.get("support_identity") if isinstance(fill.get("support_identity"), dict) else {}
@@ -312,7 +325,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 - Primary blocker: `deployment_blocker={probe.get('deployment_blocker', '—')}` / `runtime_closure_state={probe.get('runtime_closure_state', '—')}`。
 - Guardrail truth: `allowed_layers_raw={probe.get('allowed_layers_raw')}` but `allowed_layers={probe.get('allowed_layers')}`；`allowed_layers_reason={probe.get('allowed_layers_reason', '—')}`；`execution_guardrail_reason={probe.get('execution_guardrail_reason', '—')}`。
 - Current-live support: `current_live_structure_bucket={current_bucket}`, `support_route_verdict={support_route}`, `support_governance_route={governance_route}`, rows `{rows}/{minimum}`, `gap={gap}`。
-- Support progress: `support_progress_status={progress.get('status', '—')}` / `regression_basis={progress.get('regression_basis', '—')}` / `previous_rows={progress.get('previous_rows', '—')}` / `delta_vs_previous={progress.get('delta_vs_previous', '—')}` / `stagnant_run_count={progress.get('stagnant_run_count', '—')}` / legacy reference is reference-only because support identity does not close current deployment.
+- Support progress: `support_progress_status={progress.get('status', '—')}` / `regression_basis={progress.get('regression_basis', '—')}` / `previous_rows={progress.get('previous_rows', '—')}` / `delta_vs_previous={progress.get('delta_vs_previous', '—')}` / `stagnant_run_count={progress.get('stagnant_run_count', '—')}` / `semantic_signature_delta_vs_previous={semantic_delta}` / `semantic_signature_stagnant_run_count={semantic_stagnant}` / `semantic_signature_stalled_support_accumulation={_bool_text(semantic_stalled)}` / legacy reference is reference-only because support identity does not close current deployment.
 - Direct action truth: `api_trade_guardrail_active={_bool_text(probe.get('api_trade_guardrail_active'))}`; `api_trade_buy_guardrail={probe.get('api_trade_buy_guardrail', '—')}`; live risk-off sides remain `{_safe_join(probe.get('api_trade_allowed_risk_off_sides'))}`；paper/shadow rehearsal sides are `shadow_buy,paper_buy` and must return `dry_run=true`, `live_order_submitted=false`。
 
 **PM verdict：接受「{breaker_verdict_line}」。不可把 legacy rows、exact-live-lane proxy rows、Top-K OOS pass、或單一 support/governance gate 包裝成 deployable。**

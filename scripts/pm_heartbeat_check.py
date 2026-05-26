@@ -350,6 +350,42 @@ def _pm_status_required_snippets() -> tuple[list[str], list[str]]:
             required.append(f"{rows}/{minimum}")
         if gap is not None:
             required.append(f"gap={gap}")
+        progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
+        details_progress = details.get("support_progress") if isinstance(details.get("support_progress"), dict) else {}
+        if not progress:
+            progress = details_progress
+        semantic_progress = progress.get("semantic_signature_progress") if isinstance(progress.get("semantic_signature_progress"), dict) else {}
+        for snippet in [
+            (
+                f"delta_vs_previous={progress.get('delta_vs_previous')}"
+                if progress.get("delta_vs_previous") is not None
+                else None
+            ),
+            (
+                f"stagnant_run_count={progress.get('stagnant_run_count')}"
+                if progress.get("stagnant_run_count") is not None
+                else None
+            ),
+            (
+                f"semantic_signature_delta_vs_previous={_first_present(progress.get('semantic_signature_delta_vs_previous'), semantic_progress.get('delta_vs_previous'))}"
+                if _first_present(progress.get("semantic_signature_delta_vs_previous"), semantic_progress.get("delta_vs_previous")) is not None
+                else None
+            ),
+            (
+                f"semantic_signature_stagnant_run_count={_first_present(progress.get('semantic_signature_stagnant_run_count'), semantic_progress.get('stagnant_run_count'))}"
+                if _first_present(progress.get("semantic_signature_stagnant_run_count"), semantic_progress.get("stagnant_run_count")) is not None
+                else None
+            ),
+            _bool_snippet(
+                "semantic_signature_stalled_support_accumulation",
+                _first_present(
+                    progress.get("semantic_signature_stalled_support_accumulation"),
+                    semantic_progress.get("stalled_support_accumulation"),
+                ),
+            ),
+        ]:
+            if snippet:
+                required.append(snippet)
 
     breaker, error = _load_json_artifact("data/circuit_breaker_audit.json")
     if error:

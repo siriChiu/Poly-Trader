@@ -164,6 +164,17 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     gap = _first_present(probe.get("current_live_structure_bucket_gap_to_minimum"), details.get("current_live_structure_bucket_gap_to_minimum"))
     support_route = _first_present(probe.get("support_route_verdict"), details.get("support_route_verdict"))
     support_governance_route = _first_present(probe.get("support_governance_route"), details.get("support_governance_route"))
+    progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
+    details_progress = details.get("support_progress") if isinstance(details.get("support_progress"), dict) else {}
+    if not progress:
+        progress = details_progress
+    semantic_progress = progress.get("semantic_signature_progress") if isinstance(progress.get("semantic_signature_progress"), dict) else {}
+    semantic_delta = _first_present(progress.get("semantic_signature_delta_vs_previous"), semantic_progress.get("delta_vs_previous"))
+    semantic_stagnant = _first_present(progress.get("semantic_signature_stagnant_run_count"), semantic_progress.get("stagnant_run_count"))
+    semantic_stalled = _first_present(
+        progress.get("semantic_signature_stalled_support_accumulation"),
+        semantic_progress.get("stalled_support_accumulation"),
+    )
     release = breaker["release_condition"]
     matrix_rows = topk.get("rows") if isinstance(topk.get("rows"), list) else []
     runtime_blocked_rows = [
@@ -185,6 +196,16 @@ def test_pm_status_preserves_current_delivery_truth() -> None:
     decision_quality_score = _num_text(probe.get("decision_quality_score"))
     if decision_quality_score is not None:
         assert f"decision_quality_score={decision_quality_score}" in text
+    if progress.get("delta_vs_previous") is not None:
+        assert f"delta_vs_previous={progress['delta_vs_previous']}" in text
+    if progress.get("stagnant_run_count") is not None:
+        assert f"stagnant_run_count={progress['stagnant_run_count']}" in text
+    if semantic_delta is not None:
+        assert f"semantic_signature_delta_vs_previous={semantic_delta}" in text
+    if semantic_stagnant is not None:
+        assert f"semantic_signature_stagnant_run_count={semantic_stagnant}" in text
+    if isinstance(semantic_stalled, bool):
+        assert f"semantic_signature_stalled_support_accumulation={str(semantic_stalled).lower()}" in text
     assert str(breaker["verdict"]) in text
     assert f"release_ready={str(release['release_ready']).lower()}" in text
     assert f"{release['current_recent_window_wins']}/{release['recent_window']}" in text
