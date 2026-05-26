@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-26 16:43:32.848091**
+- generated_at: **2026-05-26 17:19:41.847449**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -62,11 +62,11 @@
 ## Floor-cross legality
 - verdict: **runtime_blocker_preempts_floor_analysis**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0705**
+- remaining_gap_to_floor: **0.0452**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.235**
+- best_single_component_required_score_delta: **0.1507**
 - best_single_component_can_cross_floor: **True**
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 55 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 62 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
@@ -76,14 +76,14 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.4795**
+- current_entry_quality: **0.5048**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.0705**
+- current_trade_floor_gap: **-0.0452**
 - current_entry_quality_ge_0_55: **False**
 - current_entry_quality_ge_trade_floor: **False**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 55 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 62 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
 - verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Active repair plan

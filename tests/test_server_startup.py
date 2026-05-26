@@ -803,9 +803,10 @@ def test_api_trade_rejects_buy_when_current_live_blocker_active(monkeypatch):
             "allowed_layers": 0,
             "allowed_layers_reason": "circuit_breaker_active",
             "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-            "current_live_structure_bucket_rows": 87,
+            "current_live_structure_bucket_rows": 0,
             "minimum_support_rows": 50,
-            "support_route_verdict": "exact_bucket_supported",
+            "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+            "support_governance_route": "exact_live_lane_proxy_available",
             "deployment_blocker_details": {
                 "release_condition": {
                     "current_recent_window_wins": 0,
@@ -844,7 +845,11 @@ def test_api_trade_rejects_buy_when_current_live_blocker_active(monkeypatch):
         assert exc.detail["context"]["reduce_only_allowed"] is True
         assert exc.detail["context"]["deployment_blocker"] == "circuit_breaker_active"
         assert exc.detail["context"]["runtime_closure_state"] == "circuit_breaker_active"
-        assert exc.detail["context"]["current_live_structure_bucket_rows"] == 87
+        assert exc.detail["context"]["current_live_structure_bucket_rows"] == 0
+        assert exc.detail["context"]["minimum_support_rows"] == 50
+        assert exc.detail["context"]["current_live_structure_bucket_gap_to_minimum"] == 50
+        assert exc.detail["context"]["support_route_verdict"] == "exact_bucket_missing_exact_lane_proxy_only"
+        assert exc.detail["context"]["support_governance_route"] == "exact_live_lane_proxy_available"
         assert exc.detail["context"]["release_condition"]["additional_recent_window_wins_needed"] == 15
         assert "前往 /execution/status" in exc.detail["context"]["operator_action"]
         assert "Go to /execution/status" not in exc.detail["context"]["operator_action"]

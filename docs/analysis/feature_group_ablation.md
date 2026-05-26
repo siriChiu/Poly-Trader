@@ -5,18 +5,18 @@
 - splits: **2** (TimeSeriesSplit)
 - xgb_n_estimators: **40**
 - refresh_mode: **bounded_candidate_refresh**
-- generated_at: **2026-05-26 15:16:42 UTC**
+- generated_at: **2026-05-26 17:20:08 UTC**
 
 ## Ranking (accuracy / worst fold / stability)
 
 | profile | n_features | cv_mean | cv_std | cv_worst | brier | top10 | bear_top10 | bull_top10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| current_full_no_bull_collapse_4h | 119 | 0.5450 | 0.0676 | 0.4775 | 0.2742 | 0.7353 | 0.9615 | - |
-| core_plus_macro_plus_all_4h | 50 | 0.5360 | 0.0586 | 0.4775 | 0.2859 | 0.8529 | 0.9615 | - |
-| core_macro_plus_stable_4h | 38 | 0.5315 | 0.0541 | 0.4775 | 0.2858 | 0.7206 | 0.7596 | - |
-| current_full | 131 | 0.5195 | 0.0420 | 0.4775 | 0.2854 | 0.8529 | 0.9615 | - |
-| core_only | 8 | 0.4234 | 0.0541 | 0.3694 | 0.2890 | 0.6618 | 0.9375 | - |
-| core_plus_macro | 10 | 0.4234 | 0.0541 | 0.3694 | 0.2887 | 0.6029 | 0.6971 | - |
+| current_full_no_bull_collapse_4h | 119 | 0.5616 | 0.0601 | 0.5015 | 0.2667 | 0.9706 | 1.0000 | - |
+| current_full | 131 | 0.5616 | 0.0601 | 0.5015 | 0.2763 | 0.8529 | 0.8542 | - |
+| core_macro_plus_stable_4h | 38 | 0.5601 | 0.0586 | 0.5015 | 0.2713 | 0.8382 | 0.8646 | - |
+| core_plus_macro_plus_all_4h | 50 | 0.5601 | 0.0586 | 0.5015 | 0.2702 | 0.6765 | 0.6042 | - |
+| core_only | 8 | 0.4354 | 0.0661 | 0.3694 | 0.2926 | 0.7206 | 0.9688 | - |
+| core_plus_macro | 10 | 0.4354 | 0.0661 | 0.3694 | 0.2900 | 0.6765 | 0.8438 | - |
 
 ## Notes
 

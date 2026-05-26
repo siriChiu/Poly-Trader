@@ -7447,6 +7447,15 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
         return None
 
     blocker_details = payload.get("deployment_blocker_details") if isinstance(payload.get("deployment_blocker_details"), dict) else {}
+    support_gap = payload.get("current_live_structure_bucket_gap_to_minimum")
+    if support_gap is None:
+        current_rows = payload.get("current_live_structure_bucket_rows")
+        minimum_rows = payload.get("minimum_support_rows")
+        if current_rows is not None and minimum_rows is not None:
+            try:
+                support_gap = max(0, int(minimum_rows) - int(current_rows))
+            except (TypeError, ValueError):
+                support_gap = None
     return {
         "success": False,
         "trade_blocked": True,
@@ -7472,7 +7481,9 @@ def _current_live_buy_reject_payload(live_runtime_truth: Dict[str, Any]) -> Opti
             "current_live_structure_bucket": payload.get("current_live_structure_bucket"),
             "current_live_structure_bucket_rows": payload.get("current_live_structure_bucket_rows"),
             "minimum_support_rows": payload.get("minimum_support_rows"),
+            "current_live_structure_bucket_gap_to_minimum": support_gap,
             "support_route_verdict": payload.get("support_route_verdict"),
+            "support_governance_route": payload.get("support_governance_route"),
             "release_condition": blocker_details.get("release_condition"),
             "operator_action": "可先等待 / 觀望、減倉 / 賣出降低風險，或用 shadow_buy / paper_buy 做 dry-run 演練；若要真實買入 / 加倉，請前往 /execution/status 確認熔斷解除條件與即時部署阻塞點已解除後再重試。",
             "reason": blocker_reason,
