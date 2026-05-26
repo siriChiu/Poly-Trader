@@ -1,11 +1,11 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-26T02:52:47.364992Z`
+- generated_at: `2026-05-26T04:20:38.836803Z`
 - current_live_blocker: `unsupported_exact_live_structure_bucket`
 - current_live_structure_bucket: `CAUTION|base_caution_regime_or_bias|q00`
 - exact support: `0/50` (gap `50`)
 - support_route_verdict: `exact_bucket_unsupported_block`
-- circuit_breaker_release_ready: `True` (wins `42/15`, gap `0`)
+- circuit_breaker_release_ready: `True` (wins `36/15`, gap `0`)
 - primary_blocking_gate: `current_live_support_gate`
 - canary_ready: **False**
 - live_exposure_allowed: **False**
@@ -36,7 +36,7 @@
 - `paper_shadow_decision_support_sleeve`: status=`available`, deployable=`False`, live_exposure_allowed=`False`
 - `venue_dry_run_readiness_proof`: status=`blocked_missing_runtime_backed_proof`, deployable=`False`, live_exposure_allowed=`False`
 - `support_fill_feasibility`: status=`semantic_window_gap_not_raw_backfill_gap`, deployable=`False`, live_exposure_allowed=`False`
-- `recent_window_no_new_risk_falsification`: status=`shadow_only_no_new_risk_falsification`, deployable=`False`, live_exposure_allowed=`False`, best_gate=`observable_4h_shift_shadow_gate`, kept=`67`, kept_win_rate=`1.0`, loss_capture=`1.0`
+- `recent_window_no_new_risk_falsification`: status=`shadow_only_no_new_risk_falsification`, deployable=`False`, live_exposure_allowed=`False`, best_gate=`observable_4h_shift_shadow_gate`, kept=`61`, kept_win_rate=`1.0`, loss_capture=`1.0`
 
 ## Alternative solution option portfolio
 - option_count: `3`
