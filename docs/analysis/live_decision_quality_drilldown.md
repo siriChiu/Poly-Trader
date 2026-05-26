@@ -1,20 +1,20 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-26 15:29:29.363443**
+- feature_timestamp: **2026-05-26 16:43:32.848091**
 - target: `simulated_pyramid_win`
 - live path: **熊市 / 觀察 / D**
 - signal: **風控熔斷** @ confidence **0.5000**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: 進場品質低於交易門檻
-- allowed_layers_reason: 精準樣本尚未建立，阻止交易; 風控熔斷啟用中
-- execution_guardrail_reason: 精準樣本尚未建立，阻止交易; 風控熔斷啟用中
-- runtime_blocker: 風控熔斷 | reason: 最近 50 筆勝率: 4.00% < 30%
-- deployment_blocker: 風控熔斷啟用中 | reason: 最近 50 筆勝率: 4.00% < 30%
+- allowed_layers_reason: 決策品質低於交易門檻; 精準樣本尚未建立，阻止交易; 風控熔斷啟用中
+- execution_guardrail_reason: 決策品質低於交易門檻; 精準樣本尚未建立，阻止交易; 風控熔斷啟用中
+- runtime_blocker: 風控熔斷 | reason: 連續虧損筆數： 55 >= 50; 最近 50 筆勝率: 0.00% < 30%
+- deployment_blocker: 風控熔斷啟用中 | reason: 連續虧損筆數： 55 >= 50; 最近 50 筆勝率: 0.00% < 30%
 - support blocker summary: **精準樣本 0/50（缺口 50） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1202 190/50僅能當歷史參考，因校準視窗、市場狀態不吻合目前支持語義，不可宣稱同一語義已閉環。**
 - support next action: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。
 - current-bucket root cause: verdict=執行期阻塞優先於分桶根因分析 / patch=None / feature=None / exact_support=0/50 / gap=50 / neighbor=觀察｜結構品質觀察｜q15
 - 精準樣本修補: **未啟用** | 支持路徑 **精準樣本尚未建立** | 跨越門檻 **執行期阻塞優先於跨門檻分析**
-- runtime closure summary: **風控熔斷啟用中：最近 50 筆勝率: 4.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 2/50，至少還差 13 勝。 精準路徑與外溢對照：同品質寬範圍出現 盤整｜觀察 外溢，97 筆 / 勝率 43.8% / 品質 0.102，明顯劣於 精準即時路徑 勝率 85.7% / 品質 0.395。**
+- runtime closure summary: **風控熔斷啟用中：連續虧損筆數： 55 >= 50; 最近 50 筆勝率: 0.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 0/50，至少還差 15 勝。 精準路徑與外溢對照：同品質寬範圍出現 盤整｜觀察 外溢，103 筆 / 勝率 40.6% / 品質 0.070，明顯劣於 精準即時路徑 勝率 85.7% / 品質 0.395。**
 - q35 scaling audit: overall=None / redesign=None / runtime_gap=None / mode=None / next_patch=None
 - q35 runtime truth: redesign_entry_quality=None / redesign_layers_after=None / runtime_layers=None / blocker=None / exact_support=None/None / support_gap=None
 - q35 audit action: None
@@ -26,18 +26,18 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5439** / trade_floor **0.55** / gap **-0.0061**
-- 基礎品質: **0.6818** × 權重 **0.75**
-- 結構品質: **0.13** × 權重 **0.25**
-- base components: feat_4h_bias50=0.5487 (w=0.4, contrib=0.2195), feat_nose=0.5478 (w=0.18, contrib=0.0986), feat_pulse=0.7972 (w=0.27, contrib=0.2152), feat_ear=0.99 (w=0.15, contrib=0.1485)
-- structure components: feat_4h_bb_pct_b=0.2543 (w=0.34, contrib=0.0865), feat_4h_dist_bb_lower=0.0635 (w=0.33, contrib=0.021), feat_4h_dist_swing_low=0.0685 (w=0.33, contrib=0.0226)
+- final entry_quality: **0.4795** / trade_floor **0.55** / gap **-0.0705**
+- 基礎品質: **0.5908** × 權重 **0.75**
+- 結構品質: **0.1458** × 權重 **0.25**
+- base components: feat_4h_bias50=0.5578 (w=0.4, contrib=0.2231), feat_nose=0.5252 (w=0.18, contrib=0.0945), feat_pulse=0.4578 (w=0.27, contrib=0.1236), feat_ear=0.9967 (w=0.15, contrib=0.1495)
+- structure components: feat_4h_bb_pct_b=0.2977 (w=0.34, contrib=0.1012), feat_4h_dist_bb_lower=0.0734 (w=0.33, contrib=0.0242), feat_4h_dist_swing_low=0.0619 (w=0.33, contrib=0.0204)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0061**
-- base_group_max_entry_gain: **0.2386** | structure_group_max_entry_gain: **0.2175**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.0203, max_gain≈0.1354）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.0203), feat_pulse (Δscore≈0.0301), feat_nose (Δscore≈0.0452), feat_4h_bb_pct_b (Δscore≈0.0718)
+- remaining_gap_to_floor: **0.0705**
+- base_group_max_entry_gain: **0.307** | structure_group_max_entry_gain: **0.2135**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.235, max_gain≈0.1327）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.235), feat_pulse (Δscore≈0.3481), feat_4h_dist_bb_lower (Δscore≈0.8545), feat_4h_dist_swing_low (Δscore≈0.8545)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -45,10 +45,10 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label` | 51 | 0.9412 | 0.6265 | 0.0169 | 0.0584 | 0 | False |
+| chosen `global` | 200 | 0.67 | 0.2895 | 0.1121 | 0.3586 | 0 | False |
 | exact `regime_label+regime_gate+entry_quality_label` | 7 | 0.8571 | 0.3948 | 0.0657 | 0.1189 | 0 | False |
-| narrow `regime_label+entry_quality_label` | 15 | 0.9333 | 0.529 | 0.0326 | 0.0797 | 0 | False |
-| broad `regime_gate+entry_quality_label` | 96 | 0.4688 | 0.1236 | 0.1407 | 0.4237 | 0 | False |
+| narrow `regime_label+entry_quality_label` | 14 | 0.9286 | 0.5059 | 0.0349 | 0.0854 | 0 | False |
+| broad `regime_gate+entry_quality_label` | 103 | 0.4369 | 0.0918 | 0.1526 | 0.4611 | 0 | False |
 
 ## Exact live-lane bucket diagnostic
 

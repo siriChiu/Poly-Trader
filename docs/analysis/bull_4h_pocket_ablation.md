@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-26 15:29:51 UTC**
+- generated_at: **2026-05-26 16:20:23 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -62,12 +62,12 @@
 - dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q35` rows=7
 - bucket gap vs dominant neighbor: **7**
 - exact bucket root cause: **same_lane_shifted_to_neighbor_bucket**
-- broader q65 rows / dominant regime: **0 / chop (0.9271)**
+- broader q65 rows / dominant regime: **0 / chop (0.9286)**
 - root cause interpretation: bull exact lane 仍有同 lane 樣本，但當前結構已偏到鄰近 bucket，需先查 q65↔q85 分桶與 same-lane pathology。
 - bucket comparison takeaway: **support_gap_unresolved**
 - proxy boundary verdict: **insufficient_recent_exact_bucket_rows**
 - proxy boundary reason: current live structure bucket 沒有 recent exact rows，無法判斷 proxy cohort 邊界。
-- decision-quality scope / label: **regime_label / B**
+- decision-quality scope / label: **global / D**
 - narrowed pathology scope: **None**
 - worst pathology scope: **None**
 - shared pathology shift features: []
