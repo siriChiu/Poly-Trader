@@ -627,7 +627,10 @@ def build_live_canary_structural_pivot(
             },
             {
                 "lane": "D_map_signal_redesign_for_current_bucket",
-                "goal": "When exact current bucket support stays 0/50 with support delta=0, stop waiting for rows and produce a Map/Signal redesign proof path.",
+                "goal": (
+                    "When exact current bucket support remains below minimum with support delta=0, "
+                    "stop waiting for rows and produce a Map/Signal redesign proof path."
+                ),
                 "can_start_now": bool(
                     support.get("support_gap", 0) > 0
                     and (

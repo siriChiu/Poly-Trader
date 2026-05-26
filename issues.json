@@ -7,7 +7,7 @@
       "action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "status": "open",
       "created_at": "2026-05-21T15:09:06.428661",
-      "updated_at": "2026-05-25T23:11:13.588100",
+      "updated_at": "2026-05-26T00:13:53.431874",
       "hb_detected": null,
       "next_action": "把 current-live blocker 語義切到 exact-support truth；在 current live bucket 補滿 minimum rows 前，不要把 proxy rows、reference patch、或 breaker 舊敘事誤當成已解除 blocker。",
       "summary": {
@@ -19,7 +19,7 @@
         "support_route_verdict": "exact_bucket_present_but_below_minimum",
         "support_governance_route": "exact_live_bucket_present_but_below_minimum",
         "runtime_closure_state": "patch_inactive_or_blocked",
-        "deployment_blocker_reason": "當前即時結構分桶 `觀察｜基線觀察（市場狀態 / 偏離）｜q15` 的精準支持樣本仍停在 7/50（缺 43），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 C / 品質分數 0.4360；目前維持不可部署治理。",
+        "deployment_blocker_reason": "當前即時結構分桶 `觀察｜基線觀察（市場狀態 / 偏離）｜q15` 的精準支持樣本仍停在 7/50（缺 43），支持路徑=精準樣本未達最小門檻，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 C / 品質分數 0.4519；目前維持不可部署治理。",
         "deployment_blocker_source": "decision_quality_contract",
         "signal": "HOLD",
         "support_governance_reference_evidence": {
@@ -141,9 +141,9 @@
             },
             "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields"
           },
-          "comparable_history_count": 59,
-          "legacy_reference_history_count": 172,
-          "stagnant_run_count": 4,
+          "comparable_history_count": 61,
+          "legacy_reference_history_count": 171,
+          "stagnant_run_count": 5,
           "stalled_support_accumulation": false,
           "escalate_to_blocker": true
         },
@@ -165,7 +165,7 @@
           "current_rows": 7,
           "minimum_support_rows": 50,
           "gap_to_minimum": 43,
-          "stagnant_run_count": 4,
+          "stagnant_run_count": 5,
           "semantic_signature_delta_vs_previous": 0,
           "semantic_signature_stagnant_run_count": 5,
           "semantic_signature_stalled_support_accumulation": true,
@@ -215,10 +215,10 @@
           },
           "semantic_rebaseline_reference_only": true,
           "semantic_rebaseline_reference": {
-            "heartbeat": "1515",
-            "timestamp": "2026-05-25T23:03:33.650663+00:00",
+            "heartbeat": "1493",
+            "timestamp": "2026-05-24T22:09:29.260339+00:00",
             "live_current_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-            "live_current_structure_bucket_rows": 7,
+            "live_current_structure_bucket_rows": 24,
             "minimum_support_rows": 50,
             "support_route_verdict": "exact_bucket_present_but_below_minimum",
             "support_governance_route": "exact_live_bucket_present_but_below_minimum",
@@ -277,7 +277,7 @@
               "verdict": "reference_only_semantic_mismatch_or_missing_fields"
             },
             "reference_only_reason": "semantic_evidence_mismatch_or_missing_fields",
-            "delta_vs_current_rows": 0
+            "delta_vs_current_rows": -17
           },
           "entropy_reduction_rules": [
             "引入外部能量：每輪刷新 current-live rows / venue proof / semantic evidence，而不是重用 under-minimum cache。",
@@ -322,9 +322,9 @@
               "type": "evidence_boundary",
               "priority": "P0",
               "description": "同 bucket 但不同 support_identity 的 under-minimum reference 只能證明 support 歷史不能歸零；不可升級為 deployment support。",
-              "reference_heartbeat": "1515",
-              "reference_rows": 7,
-              "delta_vs_current_rows": 0,
+              "reference_heartbeat": "1493",
+              "reference_rows": 24,
+              "delta_vs_current_rows": -17,
               "mismatched_fields": [
                 "entry_quality_label"
               ],
@@ -382,7 +382,7 @@
       "action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "status": "open",
       "created_at": "2026-04-29T18:00:00+08:00",
-      "updated_at": "2026-05-25T23:11:13.603712",
+      "updated_at": "2026-05-26T00:13:53.446302",
       "hb_detected": null,
       "next_action": "保留 high-conviction top-k 的 risk-first / nearest-deployable 排序；best_rows[] / nearest_deployable_rows[] 必須逐列帶 support_route、support_governance_route、deployment_blocker、runtime_closure_state、current_live_structure_bucket、current_live_structure_bucket_rows、minimum_support_rows、current_live_structure_bucket_gap_to_minimum。即時分桶 / 支持阻塞未解除前仍維持模擬觀察 / 影子驗證 / 僅觀察，不得把 OOS pass row 升級成 deployable；API summary 需先套用 fresh live_predict_probe support overlay 並重新計算 deployable_count / runtime_blocked_candidate_count / nearest_deployable_rows，不得沿用 artifact row 內過期 deployable_verdict。",
       "summary": {
@@ -430,14 +430,14 @@
         "strategy_lab_contract": "Strategy Lab 必須優先顯示 nearest_deployable_rows，並把離線驗證 / 模型門檻失敗與即時分桶 / 支持阻塞分開呈現；此研究 gate 不暴露 live automation 按鈕。",
         "execution_contract": "current-live blocker / unsupported support route keeps buy/add exposure fail-closed; reduce/sell diagnostics remain available",
         "latest_matrix": {
-          "generated_at": "2026-05-25T23:10:52.460960+00:00",
+          "generated_at": "2026-05-26T00:13:31.774990+00:00",
           "artifact_freshness_status": "fresh",
           "artifact_freshness_reason": "artifact_within_policy",
-          "artifact_age_minutes": 0.3523764166666667,
+          "artifact_age_minutes": 0.3611863,
           "artifact_stale_after_minutes": 60.0,
           "artifact_deployment_blocking": false,
           "artifact": "data/high_conviction_topk_oos_matrix.json",
-          "samples": 25253,
+          "samples": 25259,
           "rows": 24,
           "evaluated_models": [
             "logistic_regression",
@@ -485,10 +485,10 @@
           "support_progress_status": "regressed_under_minimum",
           "support_progress_reason": "current q15 exact support 最近曾達 minimum support（最近一次 121/50，heartbeat 1067），但目前仍停在 7/50；這不是一般停滯，而是 support regression。",
           "support_progress_regression_basis": "same_identity_same_semantic_signature",
-          "support_progress_stagnant_run_count": 4,
+          "support_progress_stagnant_run_count": 5,
           "support_progress_stalled_support_accumulation": false,
           "support_progress_escalate_to_blocker": true,
-          "stagnant_run_count": 4,
+          "stagnant_run_count": 5,
           "stalled_support_accumulation": false,
           "escalate_to_blocker": true,
           "support_delta_vs_previous": 0,
@@ -563,10 +563,10 @@
             "support_progress_status": "regressed_under_minimum",
             "support_progress_reason": "current q15 exact support 最近曾達 minimum support（最近一次 121/50，heartbeat 1067），但目前仍停在 7/50；這不是一般停滯，而是 support regression。",
             "support_progress_regression_basis": "same_identity_same_semantic_signature",
-            "support_progress_stagnant_run_count": 4,
+            "support_progress_stagnant_run_count": 5,
             "support_progress_stalled_support_accumulation": false,
             "support_progress_escalate_to_blocker": true,
-            "stagnant_run_count": 4,
+            "stagnant_run_count": 5,
             "stalled_support_accumulation": false,
             "escalate_to_blocker": true,
             "support_delta_vs_previous": 0,
@@ -673,10 +673,10 @@
             "support_progress_status": "regressed_under_minimum",
             "support_progress_reason": "current q15 exact support 最近曾達 minimum support（最近一次 121/50，heartbeat 1067），但目前仍停在 7/50；這不是一般停滯，而是 support regression。",
             "support_progress_regression_basis": "same_identity_same_semantic_signature",
-            "support_progress_stagnant_run_count": 4,
+            "support_progress_stagnant_run_count": 5,
             "support_progress_stalled_support_accumulation": false,
             "support_progress_escalate_to_blocker": true,
-            "stagnant_run_count": 4,
+            "stagnant_run_count": 5,
             "stalled_support_accumulation": false,
             "escalate_to_blocker": true,
             "support_delta_vs_previous": 0,
@@ -778,10 +778,10 @@
             "support_progress_status": "regressed_under_minimum",
             "support_progress_reason": "current q15 exact support 最近曾達 minimum support（最近一次 121/50，heartbeat 1067），但目前仍停在 7/50；這不是一般停滯，而是 support regression。",
             "support_progress_regression_basis": "same_identity_same_semantic_signature",
-            "support_progress_stagnant_run_count": 4,
+            "support_progress_stagnant_run_count": 5,
             "support_progress_stalled_support_accumulation": false,
             "support_progress_escalate_to_blocker": true,
-            "stagnant_run_count": 4,
+            "stagnant_run_count": 5,
             "stalled_support_accumulation": false,
             "escalate_to_blocker": true,
             "support_delta_vs_previous": 0,
@@ -887,7 +887,7 @@
       "action": "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數",
       "status": "open",
       "created_at": "2026-05-18T10:03:34.597479",
-      "updated_at": "2026-05-25T23:11:12.632663",
+      "updated_at": "2026-05-26T00:13:52.478624",
       "hb_detected": null,
       "next_action": "更正則化: 增加 reg_alpha/reg_lambda; 減少 max_depth; 或減少特徵數"
     },
@@ -898,29 +898,13 @@
       "action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "status": "open",
       "created_at": "2026-04-25T04:42:40.132273",
-      "updated_at": "2026-05-25T23:11:12.632628",
+      "updated_at": "2026-05-26T00:13:52.478591",
       "hb_detected": null,
       "next_action": "優先比較 support-aware / shrinkage profiles 與 current bucket robustness，避免把治理 blocker 誤當單純 parity 問題。",
       "summary": {
         "cv_accuracy": 0.4975560081466395,
         "cv_std": 0.03319755600814664,
         "cv_worst": 0.46435845213849286
-      }
-    },
-    {
-      "id": "#H_AUTO_REGIME_DRIFT",
-      "priority": "P1",
-      "title": "TW-IC 21 vs Global IC 17 — 信號強依賴近期資料",
-      "action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
-      "status": "open",
-      "created_at": "2026-05-25T16:08:34.056500",
-      "updated_at": "2026-05-25T23:11:12.632657",
-      "hb_detected": null,
-      "next_action": "市場 regime 可能已變化; 考慮 regime-gated feature weighting",
-      "summary": {
-        "global_pass": 17,
-        "tw_pass": 21,
-        "total_features": 30
       }
     },
     {
@@ -948,7 +932,7 @@
         ],
         "api_ui_contract": "execution_metadata_smoke top-level and venues[] expose runtime_ready/readiness_state/proof_state/blockers/operator_next_action/verify_next/readiness_scope for OKX proof-gap rendering and Binance unsupported/disabled blocker visibility; metadata OK does not imply live-ready",
         "execution_metadata_smoke": {
-          "generated_at": "2026-05-25T23:11:09.655972Z",
+          "generated_at": "2026-05-26T00:13:49.509210Z",
           "venues_checked": 2,
           "ok_count": 1,
           "runtime_ready": false,
@@ -1008,7 +992,7 @@
         "PYTHONPATH=. /home/kazuha/Poly-Trader/venv/bin/python -m pytest tests/test_execution_metadata_smoke.py tests/test_server_startup.py -k 'execution_metadata_smoke or venue_runtime_proof' tests/test_frontend_decision_contract.py -k 'venue_readiness or runtime_copy_humanizes_execution_governance' -q",
         "cd web && npm run build"
       ],
-      "updated_at": "2026-05-25T23:11:13.603734",
+      "updated_at": "2026-05-26T00:13:53.446320",
       "action": "Keep OKX runtime-proof blockers and Binance unsupported/disabled blockers explicitly visible on Dashboard, /lab, and /execution/status until credentials, order ack lifecycle, and fill lifecycle each have runtime-backed proof; unsupported venues must stay fail-closed; any readiness UI must require runtime_ready=true plus no blockers."
     },
     {
@@ -1020,7 +1004,7 @@
         "feature": "fin_netflow",
         "quality_flag": "source_auth_blocked",
         "latest_status": "auth_missing",
-        "forward_archive_rows": 4793,
+        "forward_archive_rows": 4797,
         "archive_window_coverage_pct": 0.0
       },
       "next_action": "Configure [REDACTED], then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move.",
@@ -1028,7 +1012,7 @@
         "data/execution_metadata_smoke.json",
         "/api/features/coverage"
       ],
-      "updated_at": "2026-05-25T23:11:13.588037",
+      "updated_at": "2026-05-26T00:13:53.431835",
       "action": "Configure [REDACTED], then keep heartbeat collection running until successful ETF-flow snapshots replace auth_missing rows and coverage starts to move."
     },
     {
@@ -1047,8 +1031,8 @@
         "current_closure": "single_profile_alignment",
         "leaderboard_payload_source": "latest_persisted_snapshot",
         "leaderboard_payload_stale": false,
-        "leaderboard_payload_cache_age_sec": 467,
-        "leaderboard_payload_updated_at": "2026-05-25T23:03:09.788615Z",
+        "leaderboard_payload_cache_age_sec": 426,
+        "leaderboard_payload_updated_at": "2026-05-26T00:06:29.676738Z",
         "dual_profile_state": "leaderboard_global_winner_vs_train_support_fallback"
       },
       "next_action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows.",
@@ -1057,7 +1041,7 @@
         "curl http://127.0.0.1:<active-backend>/api/models/leaderboard",
         "pytest tests/test_model_leaderboard.py tests/test_strategy_lab.py tests/test_frontend_decision_contract.py -q"
       ],
-      "updated_at": "2026-05-25T23:11:12.632622",
+      "updated_at": "2026-05-26T00:13:52.478586",
       "action": "Keep /api/models/leaderboard and Strategy Lab aligned on latest bounded walk-forward plus the recent-two-year backtest policy; do not regress to placeholder-only or ambiguous backtest windows."
     },
     {
@@ -1092,7 +1076,7 @@
       "action": "Treat this as support regression, not ordinary stagnation: keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum plus the last-supported reference visible in probe/API/UI/docs, verify why the current bucket fell back under minimum, and keep breaker context explicit.",
       "status": "open",
       "created_at": "2026-05-25T19:04:29.539768",
-      "updated_at": "2026-05-25T23:11:12.632588",
+      "updated_at": "2026-05-26T00:13:52.478551",
       "hb_detected": null,
       "next_action": "Treat this as support regression, not ordinary stagnation: keep support_route_verdict/support_progress/minimum_support_rows/gap_to_minimum plus the last-supported reference visible in probe/API/UI/docs, verify why the current bucket fell back under minimum, and keep breaker context explicit.",
       "summary": {

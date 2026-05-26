@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-25 23:10:28.471688**
+- generated_at: **2026-05-26 00:13:08.322874**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -36,7 +36,7 @@
 - support_progress.current_rows / minimum: **7 / 50**
 - support_progress.previous_rows: **7**
 - support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **4**
+- support_progress.stagnant_run_count: **5**
 - support_progress.semantic_signature_delta_vs_previous: **0**
 - support_progress.semantic_signature_stagnant_run_count: **5**
 - support_progress.semantic_signature_stalled_support_accumulation: **True**
@@ -54,11 +54,11 @@
 ## Floor-cross legality
 - verdict: **math_cross_possible_but_illegal_without_exact_support**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.009**
+- remaining_gap_to_floor: **0.0917**
 - best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.03**
+- best_single_component_required_score_delta: **0.3057**
 - best_single_component_can_cross_floor: **True**
-- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.03），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
+- reason: feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.3057），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。
 
 ## Exact-supported component experiment
 - verdict: **reference_only_until_exact_support_ready**
@@ -68,9 +68,9 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.541**
+- current_entry_quality: **0.4583**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.009**
+- current_trade_floor_gap: **-0.0917**
 - current_entry_quality_ge_0_55: **False**
 - current_entry_quality_ge_trade_floor: **False**
 - allowed_layers_gt_0: **False**
@@ -86,7 +86,7 @@
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **HOLD / 0 / under_minimum_exact_live_structure_bucket**
 - support rows / minimum / gap: **7 / 50 / 43**
-- stagnant_run_count: **4**
+- stagnant_run_count: **5**
 - semantic_signature_delta_vs_previous / stagnant: **0 / 5**
 - actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_legacy_evidence_backfill', 'semantic_rebaseline_reference_review', 'semantic_signature_map_signal_redesign_or_row_harvest']`
 - legacy_semantic_evidence.verdict: **reference_only_semantic_mismatch_or_missing_fields**

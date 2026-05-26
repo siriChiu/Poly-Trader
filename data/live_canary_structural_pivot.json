@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-25T23:11:11.603928Z",
+  "generated_at": "2026-05-26T00:13:51.454134Z",
   "artifact": "live_canary_structural_pivot",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-25T23:11:02.909118Z"
+      "generated_at": "2026-05-26T00:13:42.736538Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-25T23:10:49.682635Z"
+      "generated_at": "2026-05-26T00:13:29.465163Z"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-25T23:10:52.460960+00:00"
+      "generated_at": "2026-05-26T00:13:31.774990+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-25T23:11:09.655972Z"
+      "generated_at": "2026-05-26T00:13:49.509210Z"
     },
     "customer_safe_alternative_proof": {
       "path": "data/customer_safe_alternative_proof.json",
       "exists": true,
-      "generated_at": "2026-05-25T23:11:10.604365Z"
+      "generated_at": "2026-05-26T00:13:50.453374Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-25T23:11:06.860521+00:00"
+      "generated_at": "2026-05-26T00:13:46.745715+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -47,7 +47,7 @@
     "support_route_verdict": "exact_bucket_present_but_below_minimum",
     "support_governance_route": "exact_live_bucket_present_but_below_minimum",
     "support_delta_vs_previous": 0,
-    "stagnant_run_count": 4,
+    "stagnant_run_count": 5,
     "semantic_signature_delta_vs_previous": 0,
     "semantic_signature_stagnant_run_count": 5,
     "release_ready": true,
@@ -218,7 +218,7 @@
     },
     {
       "lane": "D_map_signal_redesign_for_current_bucket",
-      "goal": "When exact current bucket support stays 0/50 with support delta=0, stop waiting for rows and produce a Map/Signal redesign proof path.",
+      "goal": "When exact current bucket support remains below minimum with support delta=0, stop waiting for rows and produce a Map/Signal redesign proof path.",
       "can_start_now": true,
       "status": "required",
       "blocks_strategy_risk": true,

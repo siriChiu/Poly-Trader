@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-25T23:11:10.604365Z",
+  "generated_at": "2026-05-26T00:13:50.453374Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-25T23:11:02.909118Z"
+      "generated_at": "2026-05-26T00:13:42.736538Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-25T23:10:49.682635Z"
+      "generated_at": "2026-05-26T00:13:29.465163Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-25T23:11:06.860521+00:00"
+      "generated_at": "2026-05-26T00:13:46.745715+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-25T23:10:52.460960+00:00"
+      "generated_at": "2026-05-26T00:13:31.774990+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-25T23:11:09.655972Z"
+      "generated_at": "2026-05-26T00:13:49.509210Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-25T23:10:40.841133+00:00"
+      "generated_at": "2026-05-26T00:13:20.799638+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -77,7 +77,7 @@
     "minimum_support_rows": 50,
     "gap_to_minimum": 43,
     "support_route_deployable": false,
-    "reference_only_rows": 8,
+    "reference_only_rows": 860,
     "operator_summary": "目前 current-live 精準支持 7/50，缺口 43；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
   },
   "topk_shadow_candidate_context": {
@@ -179,6 +179,7 @@
     "dominant_regime": "chop",
     "alerts": [
       "label_imbalance",
+      "regime_concentration",
       "regime_shift"
     ],
     "shadow_falsification_mode": "shadow_only_no_new_risk_falsification",
@@ -186,7 +187,7 @@
     "shadow_falsification_order_submission_enabled": false,
     "shadow_falsification_summary": "not_deployable_shadow_only_runtime_blocked",
     "shadow_falsification_best_gate": "observable_4h_shift_shadow_gate",
-    "shadow_falsification_kept_rows": 83,
+    "shadow_falsification_kept_rows": 71,
     "shadow_falsification_kept_win_rate": 1.0,
     "shadow_falsification_loss_capture_share": 1.0
   },
@@ -328,7 +329,7 @@
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
       "best_gate": "observable_4h_shift_shadow_gate",
-      "kept_rows": 83,
+      "kept_rows": 71,
       "kept_win_rate": 1.0,
       "loss_capture_share": 1.0,
       "latest_window": "100",
@@ -336,6 +337,7 @@
       "dominant_regime": "chop",
       "alerts": [
         "label_imbalance",
+        "regime_concentration",
         "regime_shift"
       ],
       "operator_message": "not_deployable_shadow_only_runtime_blocked"

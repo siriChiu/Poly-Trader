@@ -137,6 +137,51 @@ def test_live_canary_pivot_refreshes_current_zero_truth_and_names_one_primary_ga
     assert lanes["D_map_signal_redesign_for_current_bucket"]["semantic_signature_delta_vs_previous"] == 0
 
 
+def test_live_canary_map_signal_lane_is_required_for_under_minimum_nonzero_support():
+    payload = pivot.build_live_canary_structural_pivot(
+        live_predict_probe={
+            "deployment_blocker": "under_minimum_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 7,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 43,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "support_progress": {
+                "delta_vs_previous": 0,
+                "stagnant_run_count": 5,
+                "semantic_signature_delta_vs_previous": 0,
+                "semantic_signature_stagnant_run_count": 6,
+            },
+        },
+        circuit_breaker_audit={"release_condition": {"release_ready": True, "recent_window": 50, "current_recent_window_wins": 49, "required_recent_window_wins": 15, "additional_recent_window_wins_needed": 0}},
+        high_conviction_topk_oos_matrix={"risk_qualified_rows": 6, "runtime_blocked_candidate_rows": 6, "deployable_rows": 0},
+        execution_metadata_smoke={"runtime_ready": False, "venues": [{"venue": "okx", "runtime_ready": False, "credentials_configured": False}]},
+        customer_safe_alternative_proof={},
+        q15_support_fill_feasibility={"verdict": {"current_exact_bucket_rows": 7, "minimum_support_rows": 50, "gap_to_minimum": 43}},
+        config_snapshot={
+            "config_path": "config.yaml",
+            "exists": True,
+            "execution_mode": "paper",
+            "enable_live_trading": False,
+            "live_canary_enabled": False,
+            "allowed_symbols_configured": False,
+            "max_base_qty_by_symbol_configured": False,
+            "policy_ready": False,
+            "credential_values_redacted": True,
+        },
+        generated_at="2026-05-23T04:00:00Z",
+    )
+
+    lane = {item["lane"]: item for item in payload["lanes"]}["D_map_signal_redesign_for_current_bucket"]
+    assert payload["current_truth"]["support_rows"] == 7
+    assert payload["current_truth"]["support_gap"] == 43
+    assert lane["can_start_now"] is True
+    assert lane["status"] == "required"
+    assert "below minimum" in lane["goal"]
+    assert "0/50" not in lane["goal"]
+
+
 def test_live_canary_pivot_requires_all_gates_before_order_submission():
     payload = pivot.build_live_canary_structural_pivot(
         live_predict_probe={
