@@ -1,41 +1,41 @@
 {
-  "generated_at": "2026-05-26T20:11:14.942497Z",
+  "generated_at": "2026-05-26T21:15:35.316222Z",
   "artifact": "live_canary_structural_pivot",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-26T20:11:05.910144Z"
+      "generated_at": "2026-05-26T21:15:26.607960Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-26T20:10:52.232027Z"
+      "generated_at": "2026-05-26T21:15:12.069737Z"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-26T20:10:54.734775+00:00"
+      "generated_at": "2026-05-26T21:15:16.885423+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-26T20:11:12.566170Z"
+      "generated_at": "2026-05-26T21:15:33.385394Z"
     },
     "customer_safe_alternative_proof": {
       "path": "data/customer_safe_alternative_proof.json",
       "exists": true,
-      "generated_at": "2026-05-26T20:11:13.942103Z"
+      "generated_at": "2026-05-26T21:15:34.313164Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-26T20:11:09.831148+00:00"
+      "generated_at": "2026-05-26T21:15:30.668191+00:00"
     },
     "q15_support_audit": {
       "path": "data/q15_support_audit.json",
       "exists": true,
-      "generated_at": "2026-05-26 20:10:30.993425"
+      "generated_at": "2026-05-26 21:14:48.332682"
     }
   },
   "pm_handoff_carried_forward": {
@@ -52,7 +52,7 @@
     "support_route_verdict": "exact_bucket_unsupported_block",
     "support_governance_route": "exact_live_lane_proxy_available",
     "support_delta_vs_previous": 0,
-    "stagnant_run_count": 3,
+    "stagnant_run_count": 4,
     "semantic_signature_delta_vs_previous": 0,
     "semantic_signature_stagnant_run_count": 5,
     "equilibrium_deadlock_confirmed": false,
@@ -64,7 +64,7 @@
     "recent_window_wins": 0,
     "required_recent_window_wins": 15,
     "additional_recent_window_wins_needed": 15,
-    "current_streak": 74,
+    "current_streak": 79,
     "venue_runtime_ready": false,
     "okx_credentials_configured": false,
     "risk_qualified_rows": 6,
@@ -116,14 +116,14 @@
   "structural_decision": {
     "decision": "停止重複 observation-only。每輪刷新 live-canary pivot，將 readiness 拆成 support、breaker、model-shadow、venue lifecycle、live-canary policy 五個 gate。",
     "non_negotiable_invariant": "No risk-on buy/add while any support, breaker, model-shadow, venue lifecycle, or canary policy gate is failing.",
-    "single_failed_gate_for_72h_decision": "current_live_support_gate",
+    "single_failed_gate_for_72h_decision": "circuit_breaker_gate",
     "supplementary_blockers_not_used_as_single_gate": [
-      "circuit_breaker_gate",
+      "current_live_support_gate",
       "model_shadow_outcome_gate",
       "venue_lifecycle_gate",
       "live_canary_policy_gate"
     ],
-    "next_validation_artifact": "data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket BLOCK|bear_bias200_hard_block|q00 after Map/Signal redesign or exact-bucket row harvest",
+    "next_validation_artifact": "data/circuit_breaker_audit.json after 24h canonical tail outcomes improve",
     "artifact_refresh_patch": "scripts/live_canary_structural_pivot.py now derives this plan from fresh runtime artifacts and q15 support audit deadlock state, and is wired into hb_parallel_runner serial lanes.",
     "equilibrium_deadlock_verdict": "not_applicable_current_live_not_target_lane",
     "forced_research_action_required": false,
@@ -134,9 +134,9 @@
     "live_exposure_allowed": false,
     "risk_on_order_enabled": false,
     "order_submission_enabled": false,
-    "single_failed_gate_for_72h_decision": "current_live_support_gate",
+    "single_failed_gate_for_72h_decision": "circuit_breaker_gate",
     "supplementary_blockers_not_used_as_single_gate": [
-      "circuit_breaker_gate",
+      "current_live_support_gate",
       "model_shadow_outcome_gate",
       "venue_lifecycle_gate",
       "live_canary_policy_gate"
@@ -154,7 +154,7 @@
         "current_recent_window_wins": 0,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 15,
-        "current_streak": 74,
+        "current_streak": 79,
         "reason": "recent canonical 24h outcomes must clear streak and win-rate release math."
       },
       "model_shadow_outcome_gate": {
@@ -215,7 +215,7 @@
       "lane": "C_strategy_micro_canary",
       "goal": "Actual strategy live exposure, but only as bounded pilot rather than full deployment.",
       "can_start_now": false,
-      "status": "blocked_by_current_live_support_gate",
+      "status": "blocked_by_circuit_breaker_gate",
       "blocks_strategy_risk": false,
       "live_exposure": "max one first-layer position, tiny symbol cap, no auto-add, no pyramiding until post-trade proof is clean",
       "entry_gate": [
@@ -289,6 +289,7 @@
   },
   "next_72h_sequence": [
     "T+0h: Keep buy/add fail-closed; refresh this pivot from artifacts and name the single failed gate.",
+    "T+4h: If primary gate is breaker, refresh circuit_breaker_audit plus canonical tail root-cause and do not relabel support/proxy rows as breaker release.",
     "T+4h: If primary gate is venue, produce OKX runtime lifecycle proof; if credentials are missing, credential boolean remains false and secrets stay redacted.",
     "T+24h: Run/select Shadow Trade Ledger sleeve for the nearest Top-K candidate and collect 24h pyramid outcome without order submission.",
     "T+48h: If the single failed gate is support, produce Map/Signal redesign or exact-bucket support-harvest proof instead of another passive status refresh.",
@@ -298,6 +299,6 @@
     "micro_canary_ready": false,
     "live_exposure_allowed": false,
     "order_submission_enabled": false,
-    "reason": "primary_failed_gate=current_live_support_gate; next_validation_artifact=data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket BLOCK|bear_bias200_hard_block|q00 after Map/Signal redesign or exact-bucket row harvest"
+    "reason": "primary_failed_gate=circuit_breaker_gate; next_validation_artifact=data/circuit_breaker_audit.json after 24h canonical tail outcomes improve"
   }
 }

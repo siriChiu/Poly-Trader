@@ -1,12 +1,12 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-26T20:11:09.831148+00:00`
-- source live probe generated_at: `2026-05-26T20:11:05.910144Z`
-- source q15 audit generated_at: `2026-05-26 20:10:30.993425`
+- generated_at: `2026-05-26T21:15:30.668191+00:00`
+- source live probe generated_at: `2026-05-26T21:15:26.607960Z`
+- source q15 audit generated_at: `2026-05-26 21:14:48.332682`
 - classification: **semantic_window_gap_not_raw_backfill_gap**
 - reason: older calibration windows have enough exact-bucket rows by count, but they mismatch the current support_identity on calibration_window; they are reference-only unless governance deliberately rebaselines the identity.
 - current exact bucket rows (deployable support candidate): **0/50**
-- current exact identity rows before bucket filter: **4** (non-current-bucket: **4**; reference only, not deployment support)
+- current exact identity rows before bucket filter: **3** (non-current-bucket: **3**; reference only, not deployment support)
 - gap_to_minimum: **50**
 - historical backfill can close current identity: **False**
 - reference windows deployable by count alone: **False**
@@ -26,11 +26,11 @@ This section is the current support identity captured by the source artifacts ab
 
 ## Data coverage
 
-- joined labeled rows: **25064**
+- joined labeled rows: **25069**
 - current calibration window filled: **True**
-- features_normalized: count=25475, range=`2024-04-14 07:00:00.000000` → `2026-05-26 20:10:30.993425`
-- labels: count=68481, range=`2024-04-14 07:00:00.000000` → `2026-05-26 17:03:20.213036`
-- raw_market_data: count=34564, range=`2024-04-13 22:00:00.000000` → `2026-05-26 20:10:30.993425`
+- features_normalized: count=25480, range=`2024-04-14 07:00:00.000000` → `2026-05-26 21:14:48.332682`
+- labels: count=68494, range=`2024-04-14 07:00:00.000000` → `2026-05-26 18:12:22.204875`
+- raw_market_data: count=34570, range=`2024-04-13 22:00:00.000000` → `2026-05-26 21:14:48.332682`
 
 ## PM delivery pressure
 
@@ -74,7 +74,7 @@ Promotion requirements before any live buy/add:
 | window | exact identity rows | exact bucket rows | role | promotable | latest exact bucket | metrics |
 | --- | ---: | ---: | --- | --- | --- | --- |
 | 100 | 0 | 0 | reference_only_calibration_window_mismatch | False | None | win=None, pnl=None, quality=None |
-| 200 | 4 | 0 | current_support_identity | False | None | win=None, pnl=None, quality=None |
+| 200 | 3 | 0 | current_support_identity | False | None | win=None, pnl=None, quality=None |
 | 600 | 10 | 3 | reference_only_calibration_window_mismatch | False | 2026-05-23 13:00:00.000000 | win=1.0, pnl=0.0255, quality=0.6816 |
 | 1000 | 34 | 3 | reference_only_calibration_window_mismatch | False | 2026-05-23 13:00:00.000000 | win=1.0, pnl=0.0255, quality=0.6816 |
 | 5000 | 36 | 3 | reference_only_calibration_window_mismatch | False | 2026-05-23 13:00:00.000000 | win=1.0, pnl=0.0255, quality=0.6816 |

@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-26T20:11:13.942103Z",
+  "generated_at": "2026-05-26T21:15:34.313164Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-26T20:11:05.910144Z"
+      "generated_at": "2026-05-26T21:15:26.607960Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-26T20:10:52.232027Z"
+      "generated_at": "2026-05-26T21:15:12.069737Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-26T20:11:09.831148+00:00"
+      "generated_at": "2026-05-26T21:15:30.668191+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-26T20:10:54.734775+00:00"
+      "generated_at": "2026-05-26T21:15:16.885423+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-26T20:11:12.566170Z"
+      "generated_at": "2026-05-26T21:15:33.385394Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-26T20:10:43.462198+00:00"
+      "generated_at": "2026-05-26T21:15:00.584194+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -197,9 +197,10 @@
   },
   "recent_window_context": {
     "latest_window": "100",
-    "win_rate": 0.25,
+    "win_rate": 0.2,
     "dominant_regime": "chop",
     "alerts": [
+      "label_imbalance",
       "regime_concentration",
       "regime_shift"
     ],
@@ -208,9 +209,9 @@
     "shadow_falsification_order_submission_enabled": false,
     "shadow_falsification_summary": "not_deployable_shadow_only_runtime_blocked",
     "shadow_falsification_best_gate": "observable_4h_shift_shadow_gate",
-    "shadow_falsification_kept_rows": 33,
-    "shadow_falsification_kept_win_rate": 0.697,
-    "shadow_falsification_loss_capture_share": 0.8667
+    "shadow_falsification_kept_rows": 28,
+    "shadow_falsification_kept_win_rate": 0.6429,
+    "shadow_falsification_loss_capture_share": 0.875
   },
   "alternative_solution_portfolio": {
     "pm_challenge_answered": true,
@@ -350,13 +351,14 @@
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
       "best_gate": "observable_4h_shift_shadow_gate",
-      "kept_rows": 33,
-      "kept_win_rate": 0.697,
-      "loss_capture_share": 0.8667,
+      "kept_rows": 28,
+      "kept_win_rate": 0.6429,
+      "loss_capture_share": 0.875,
       "latest_window": "100",
-      "win_rate": 0.25,
+      "win_rate": 0.2,
       "dominant_regime": "chop",
       "alerts": [
+        "label_imbalance",
         "regime_concentration",
         "regime_shift"
       ],

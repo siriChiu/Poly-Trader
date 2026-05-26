@@ -118,15 +118,13 @@ def test_live_canary_pivot_refreshes_current_zero_truth_and_names_one_primary_ga
     assert gate["micro_canary_ready"] is False
     assert gate["live_exposure_allowed"] is False
     assert gate["order_submission_enabled"] is False
-    assert gate["single_failed_gate_for_72h_decision"] == "current_live_support_gate"
-    assert "circuit_breaker_gate" in gate["supplementary_blockers_not_used_as_single_gate"]
+    assert gate["single_failed_gate_for_72h_decision"] == "circuit_breaker_gate"
+    assert "current_live_support_gate" in gate["supplementary_blockers_not_used_as_single_gate"]
     assert "venue_lifecycle_gate" in gate["supplementary_blockers_not_used_as_single_gate"]
 
     decision = payload["structural_decision"]
-    assert decision["single_failed_gate_for_72h_decision"] == "current_live_support_gate"
-    assert "q15_support_fill_feasibility" in decision["next_validation_artifact"]
-    assert "q15/q35 compatibility" in decision["next_validation_artifact"]
-    assert "CAUTION|base_caution_regime_or_bias|q35" in decision["next_validation_artifact"]
+    assert decision["single_failed_gate_for_72h_decision"] == "circuit_breaker_gate"
+    assert "circuit_breaker_audit" in decision["next_validation_artifact"]
     assert "Scanned q15 support identity" not in decision["next_validation_artifact"]
 
     lanes = {lane["lane"]: lane for lane in payload["lanes"]}
@@ -134,6 +132,8 @@ def test_live_canary_pivot_refreshes_current_zero_truth_and_names_one_primary_ga
     assert lanes["B_model_shadow_to_decision"]["live_exposure"] == "paper_shadow_only"
     assert lanes["C_strategy_micro_canary"]["can_start_now"] is False
     assert lanes["D_map_signal_redesign_for_current_bucket"]["status"] == "required"
+    assert "q15_support_fill_feasibility" in lanes["D_map_signal_redesign_for_current_bucket"]["next_artifact"]
+    assert "CAUTION|base_caution_regime_or_bias|q35" in lanes["D_map_signal_redesign_for_current_bucket"]["next_artifact"]
     assert lanes["D_map_signal_redesign_for_current_bucket"]["semantic_signature_delta_vs_previous"] == 0
 
 
@@ -244,6 +244,7 @@ def test_live_canary_markdown_is_operator_safe_and_secret_redacted():
 
     assert "Live canary structural pivot" in md
     assert "single_failed_gate_for_72h_decision" in md
+    assert "circuit_breaker_gate" in md
     assert "current_live_support_gate" in md
     assert "support: `0/50`" in md
     assert "semantic-signature progress" in md

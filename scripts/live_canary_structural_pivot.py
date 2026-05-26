@@ -405,10 +405,19 @@ def _select_primary_failed_gate(
     venue_ready: bool,
     policy_ready: bool,
 ) -> str:
-    if not support_ready:
-        return "current_live_support_gate"
+    """Pick the single operator-facing 72h gate.
+
+    The single failed gate must follow current runtime blocker priority.  When the
+    canonical circuit breaker is still active, naming support first makes the
+    hard no-go artifact contradict `/api/status`, PM status, and the customer-safe
+    alternative proof.  Exact support remains a required supplementary/live gate,
+    but it becomes the primary 72h gate only after breaker release math clears.
+    """
+
     if not breaker_ready:
         return "circuit_breaker_gate"
+    if not support_ready:
+        return "current_live_support_gate"
     if not topk_deployable:
         return "model_shadow_outcome_gate"
     if not venue_ready:
@@ -536,6 +545,10 @@ def build_live_canary_structural_pivot(
     gates = _gate_summary(support, release, topk, venue, config)
     primary_gate = gates["single_failed_gate_for_72h_decision"]
     next_artifact = _next_validation_artifact(primary_gate, support.get("structure_bucket"))
+    support_redesign_artifact = _next_validation_artifact(
+        "current_live_support_gate",
+        support.get("structure_bucket"),
+    )
 
     payloads = {
         "live_predict_probe": live,
@@ -678,7 +691,7 @@ def build_live_canary_structural_pivot(
                 "equilibrium_deadlock_confirmed": support.get("equilibrium_deadlock_confirmed"),
                 "equilibrium_deadlock_verdict": support.get("equilibrium_deadlock_verdict"),
                 "forced_research_action_output_path": support.get("forced_research_action_output_path"),
-                "next_artifact": next_artifact,
+                "next_artifact": support_redesign_artifact,
             },
         ],
         "operator_config_snapshot_redacted": config,
@@ -708,6 +721,7 @@ def build_live_canary_structural_pivot(
         },
         "next_72h_sequence": [
             "T+0h: Keep buy/add fail-closed; refresh this pivot from artifacts and name the single failed gate.",
+            "T+4h: If primary gate is breaker, refresh circuit_breaker_audit plus canonical tail root-cause and do not relabel support/proxy rows as breaker release.",
             "T+4h: If primary gate is venue, produce OKX runtime lifecycle proof; if credentials are missing, credential boolean remains false and secrets stay redacted.",
             "T+24h: Run/select Shadow Trade Ledger sleeve for the nearest Top-K candidate and collect 24h pyramid outcome without order submission.",
             "T+48h: If the single failed gate is support, produce Map/Signal redesign or exact-bucket support-harvest proof instead of another passive status refresh.",

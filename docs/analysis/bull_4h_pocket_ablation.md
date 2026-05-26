@@ -1,6 +1,6 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-26 20:10:50 UTC**
+- generated_at: **2026-05-26 21:15:09 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
@@ -59,8 +59,8 @@
 - current bucket gap to minimum: **50**
 - exact-bucket proxy gap to minimum: **50**
 - exact-lane proxy gap to minimum: **0**
-- dominant neighbor bucket: `BLOCK|bear_bias200_hard_block|q15` rows=4
-- bucket gap vs dominant neighbor: **4**
+- dominant neighbor bucket: `BLOCK|bear_bias200_hard_block|q15` rows=3
+- bucket gap vs dominant neighbor: **3**
 - exact bucket root cause: **same_lane_shifted_to_neighbor_bucket**
 - broader q65 rows / dominant regime: **0 / bear (1.0000)**
 - root cause interpretation: bull exact lane 仍有同 lane 樣本，但當前結構已偏到鄰近 bucket，需先查 q65↔q85 分桶與 same-lane pathology。
@@ -78,14 +78,14 @@
 
 | cohort | bucket | rows | win_rate | quality / cv | note |
 |---|---|---:|---:|---:|---|
-| exact live lane | BLOCK|bear_bias200_hard_block|q15 | 4 | 1.0 | 0.5703 | current bucket rows=0 |
+| exact live lane | BLOCK|bear_bias200_hard_block|q15 | 3 | 1.0 | 0.5704 | current bucket rows=0 |
 | exact bucket proxy | BLOCK|bear_bias200_hard_block|q00 | 0 | 0.0 | None | proxy-vs-broader win Δ=None |
 | broader same bucket | BLOCK|bear_bias200_hard_block|q00 | 0 | None | None | dominant_regime=bear |
 
 ## Proxy boundary diagnostics
 
 - recent exact current bucket rows / win_rate: **0 / None**
-- recent exact live lane rows / win_rate: **4 / 0.0**
+- recent exact live lane rows / win_rate: **3 / 0.0**
 - historical exact-bucket proxy rows / win_rate: **0 / None**
 - recent broader same-bucket rows / dominant regime: **0 / None**
 - proxy vs current bucket win Δ / row ratio: **None / None**
