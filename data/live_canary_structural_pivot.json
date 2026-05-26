@@ -1,41 +1,41 @@
 {
-  "generated_at": "2026-05-26T17:21:02.526338Z",
+  "generated_at": "2026-05-26T18:11:36.528844Z",
   "artifact": "live_canary_structural_pivot",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-26T17:20:53.977045Z"
+      "generated_at": "2026-05-26T18:11:27.893872Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-26T17:20:03.831848Z"
+      "generated_at": "2026-05-26T18:11:14.301886Z"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-26T17:20:43.183239+00:00"
+      "generated_at": "2026-05-26T18:11:16.737514+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-26T17:21:00.615967Z"
+      "generated_at": "2026-05-26T18:11:34.646308Z"
     },
     "customer_safe_alternative_proof": {
       "path": "data/customer_safe_alternative_proof.json",
       "exists": true,
-      "generated_at": "2026-05-26T17:21:01.525096Z"
+      "generated_at": "2026-05-26T18:11:35.525069Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-26T17:20:58.003715+00:00"
+      "generated_at": "2026-05-26T18:11:31.949631+00:00"
     },
     "q15_support_audit": {
       "path": "data/q15_support_audit.json",
       "exists": true,
-      "generated_at": "2026-05-26 17:19:41.847449"
+      "generated_at": "2026-05-26 18:10:56.278013"
     }
   },
   "pm_handoff_carried_forward": {
@@ -45,16 +45,16 @@
   },
   "current_truth": {
     "deployment_blocker": "circuit_breaker_active",
-    "structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+    "structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
     "support_rows": 0,
     "minimum_support_rows": 50,
     "support_gap": 50,
     "support_route_verdict": "exact_bucket_unsupported_block",
     "support_governance_route": "exact_live_lane_proxy_available",
     "support_delta_vs_previous": 0,
-    "stagnant_run_count": 3,
+    "stagnant_run_count": 2,
     "semantic_signature_delta_vs_previous": 0,
-    "semantic_signature_stagnant_run_count": 3,
+    "semantic_signature_stagnant_run_count": 5,
     "equilibrium_deadlock_confirmed": false,
     "equilibrium_deadlock_verdict": "not_applicable_current_live_not_target_lane",
     "forced_research_action_required": false,
@@ -64,7 +64,7 @@
     "recent_window_wins": 0,
     "required_recent_window_wins": 15,
     "additional_recent_window_wins_needed": 15,
-    "current_streak": 62,
+    "current_streak": 66,
     "venue_runtime_ready": false,
     "okx_credentials_configured": false,
     "risk_qualified_rows": 6,
@@ -102,7 +102,7 @@
       "support_route_deployable": false,
       "deployment_blocker": "circuit_breaker_active",
       "runtime_closure_state": "circuit_breaker_active",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
       "current_live_structure_bucket_rows": 0,
       "minimum_support_rows": 50,
       "current_live_structure_bucket_gap_to_minimum": 50,
@@ -123,7 +123,7 @@
       "venue_lifecycle_gate",
       "live_canary_policy_gate"
     ],
-    "next_validation_artifact": "data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|base_caution_regime_or_bias|q00 after Map/Signal redesign or exact-bucket row harvest",
+    "next_validation_artifact": "data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket BLOCK|bear_bias200_hard_block|q00 after Map/Signal redesign or exact-bucket row harvest",
     "artifact_refresh_patch": "scripts/live_canary_structural_pivot.py now derives this plan from fresh runtime artifacts and q15 support audit deadlock state, and is wired into hb_parallel_runner serial lanes.",
     "equilibrium_deadlock_verdict": "not_applicable_current_live_not_target_lane",
     "forced_research_action_required": false,
@@ -154,7 +154,7 @@
         "current_recent_window_wins": 0,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 15,
-        "current_streak": 62,
+        "current_streak": 66,
         "reason": "recent canonical 24h outcomes must clear streak and win-rate release math."
       },
       "model_shadow_outcome_gate": {
@@ -241,11 +241,11 @@
       "live_exposure": "none",
       "exit_gate": "A new support identity / semantic bucket map is proposed, replayed, and proven without reclassifying reference rows as deployable support.",
       "semantic_signature_delta_vs_previous": 0,
-      "semantic_signature_stagnant_run_count": 3,
+      "semantic_signature_stagnant_run_count": 5,
       "equilibrium_deadlock_confirmed": false,
       "equilibrium_deadlock_verdict": "not_applicable_current_live_not_target_lane",
       "forced_research_action_output_path": "data/equilibrium_deadlock_research_action.json",
-      "next_artifact": "data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|base_caution_regime_or_bias|q00 after Map/Signal redesign or exact-bucket row harvest"
+      "next_artifact": "data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket BLOCK|bear_bias200_hard_block|q00 after Map/Signal redesign or exact-bucket row harvest"
     }
   ],
   "operator_config_snapshot_redacted": {
@@ -298,6 +298,6 @@
     "micro_canary_ready": false,
     "live_exposure_allowed": false,
     "order_submission_enabled": false,
-    "reason": "primary_failed_gate=current_live_support_gate; next_validation_artifact=data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|base_caution_regime_or_bias|q00 after Map/Signal redesign or exact-bucket row harvest"
+    "reason": "primary_failed_gate=current_live_support_gate; next_validation_artifact=data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket BLOCK|bear_bias200_hard_block|q00 after Map/Signal redesign or exact-bucket row harvest"
   }
 }

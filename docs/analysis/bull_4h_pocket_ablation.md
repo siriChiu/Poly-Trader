@@ -1,18 +1,18 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-26 17:20:01 UTC**
+- generated_at: **2026-05-26 18:02:25 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
-- live context: **bear / CAUTION / D**
-- live structure bucket: `CAUTION|base_caution_regime_or_bias|q00`
+- live context: **bear / BLOCK / D**
+- live structure bucket: `BLOCK|bear_bias200_hard_block|q00`
 - refresh mode: **live_context_only**
 
 ## Cohorts
 
 - bull_all rows: **2485** / win_rate **0.4958** / recommended **`current_full_minus_4h_structure_shift`**
 - bull_collapse_q35 rows: **912** / win_rate **0.3860** / recommended **`core_plus_macro_plus_all_4h`**
-- bull_exact_live_lane_proxy rows: **860** / win_rate **0.5023** / recommended **`None`**
+- bull_exact_live_lane_proxy rows: **216** / win_rate **0.0417** / recommended **`None`**
 - bull_live_exact_lane_bucket_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
 - bull_supported_neighbor_buckets_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
 
@@ -59,10 +59,10 @@
 - current bucket gap to minimum: **50**
 - exact-bucket proxy gap to minimum: **50**
 - exact-lane proxy gap to minimum: **0**
-- dominant neighbor bucket: `CAUTION|base_caution_regime_or_bias|q35` rows=7
-- bucket gap vs dominant neighbor: **7**
+- dominant neighbor bucket: `BLOCK|bear_bias200_hard_block|q15` rows=6
+- bucket gap vs dominant neighbor: **6**
 - exact bucket root cause: **same_lane_shifted_to_neighbor_bucket**
-- broader q65 rows / dominant regime: **0 / chop (0.9364)**
+- broader q65 rows / dominant regime: **0 / bear (1.0000)**
 - root cause interpretation: bull exact lane 仍有同 lane 樣本，但當前結構已偏到鄰近 bucket，需先查 q65↔q85 分桶與 same-lane pathology。
 - bucket comparison takeaway: **support_gap_unresolved**
 - proxy boundary verdict: **insufficient_recent_exact_bucket_rows**
@@ -78,14 +78,14 @@
 
 | cohort | bucket | rows | win_rate | quality / cv | note |
 |---|---|---:|---:|---:|---|
-| exact live lane | CAUTION|base_caution_regime_or_bias|q35 | 7 | 0.8571 | 0.3948 | current bucket rows=0 |
-| exact bucket proxy | CAUTION|base_caution_regime_or_bias|q00 | 0 | 0.0 | None | proxy-vs-broader win Δ=None |
-| broader same bucket | CAUTION|base_caution_regime_or_bias|q00 | 0 | None | None | dominant_regime=chop |
+| exact live lane | BLOCK|bear_bias200_hard_block|q15 | 6 | 1.0 | 0.6031 | current bucket rows=0 |
+| exact bucket proxy | BLOCK|bear_bias200_hard_block|q00 | 0 | 0.0 | None | proxy-vs-broader win Δ=None |
+| broader same bucket | BLOCK|bear_bias200_hard_block|q00 | 0 | None | None | dominant_regime=bear |
 
 ## Proxy boundary diagnostics
 
 - recent exact current bucket rows / win_rate: **0 / None**
-- recent exact live lane rows / win_rate: **7 / 0.2857**
+- recent exact live lane rows / win_rate: **6 / 0.0**
 - historical exact-bucket proxy rows / win_rate: **0 / None**
 - recent broader same-bucket rows / dominant regime: **0 / None**
 - proxy vs current bucket win Δ / row ratio: **None / None**
@@ -104,8 +104,8 @@
 
 - collapse features under inspection: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
 - thresholds (bull q35): {"feat_4h_dist_swing_low": 4.7594, "feat_4h_dist_bb_lower": 4.0145, "feat_4h_bb_pct_b": 0.699}
-- exact live structure bucket: `CAUTION|base_caution_regime_or_bias|q00` rows=0
-- supported neighbor buckets from exact scope: ["CAUTION|base_caution_regime_or_bias|q35"]
+- exact live structure bucket: `BLOCK|bear_bias200_hard_block|q00` rows=0
+- supported neighbor buckets from exact scope: ["BLOCK|bear_bias200_hard_block|q15"]
 - best bull-all profile: **current_full_minus_4h_structure_shift**
 - best bull-collapse profile: **core_plus_macro_plus_all_4h**
 - best live-bucket proxy profile: **None**
