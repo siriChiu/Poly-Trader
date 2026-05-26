@@ -1,41 +1,41 @@
 {
-  "generated_at": "2026-05-26T13:28:58.928926Z",
+  "generated_at": "2026-05-26T15:30:22.608873Z",
   "artifact": "live_canary_structural_pivot",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-26T13:28:50.117475Z"
+      "generated_at": "2026-05-26T15:30:13.834351Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-26T13:28:35.722297Z"
+      "generated_at": "2026-05-26T15:29:53.760554Z"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-26T13:28:40.373814+00:00"
+      "generated_at": "2026-05-26T15:30:00.213255+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-26T13:28:57.143323Z"
+      "generated_at": "2026-05-26T15:30:20.654926Z"
     },
     "customer_safe_alternative_proof": {
       "path": "data/customer_safe_alternative_proof.json",
       "exists": true,
-      "generated_at": "2026-05-26T13:28:57.926564Z"
+      "generated_at": "2026-05-26T15:30:21.607606Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-26T13:28:54.370761+00:00"
+      "generated_at": "2026-05-26T15:30:17.741253+00:00"
     },
     "q15_support_audit": {
       "path": "data/q15_support_audit.json",
       "exists": true,
-      "generated_at": "2026-05-26 13:28:12.189411"
+      "generated_at": "2026-05-26 15:29:29.363443"
     }
   },
   "pm_handoff_carried_forward": {
@@ -45,26 +45,26 @@
   },
   "current_truth": {
     "deployment_blocker": "circuit_breaker_active",
-    "structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-    "support_rows": 7,
+    "structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+    "support_rows": 0,
     "minimum_support_rows": 50,
-    "support_gap": 43,
-    "support_route_verdict": "exact_bucket_present_but_below_minimum",
-    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+    "support_gap": 50,
+    "support_route_verdict": "exact_bucket_unsupported_block",
+    "support_governance_route": "exact_live_lane_proxy_available",
     "support_delta_vs_previous": 0,
-    "stagnant_run_count": 5,
-    "semantic_signature_delta_vs_previous": 0,
-    "semantic_signature_stagnant_run_count": 5,
-    "equilibrium_deadlock_confirmed": true,
-    "equilibrium_deadlock_verdict": "equilibrium_deadlock_confirmed",
-    "forced_research_action_required": true,
+    "stagnant_run_count": 0,
+    "semantic_signature_delta_vs_previous": -1,
+    "semantic_signature_stagnant_run_count": 0,
+    "equilibrium_deadlock_confirmed": false,
+    "equilibrium_deadlock_verdict": "not_applicable_current_live_not_target_lane",
+    "forced_research_action_required": false,
     "forced_research_action_output_path": "data/equilibrium_deadlock_research_action.json",
     "release_ready": false,
     "recent_window_size": 50,
-    "recent_window_wins": 8,
+    "recent_window_wins": 2,
     "required_recent_window_wins": 15,
-    "additional_recent_window_wins_needed": 7,
-    "current_streak": 41,
+    "additional_recent_window_wins_needed": 13,
+    "current_streak": 48,
     "venue_runtime_ready": false,
     "okx_credentials_configured": false,
     "risk_qualified_rows": 6,
@@ -97,19 +97,19 @@
         "deployment_blocker_active",
         "breaker_release_not_ready"
       ],
-      "support_route": "exact_bucket_present_but_below_minimum",
-      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+      "support_route": "exact_bucket_unsupported_block",
+      "support_governance_route": "no_support_proxy",
       "support_route_deployable": false,
       "deployment_blocker": "circuit_breaker_active",
       "runtime_closure_state": "circuit_breaker_active",
-      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
-      "current_live_structure_bucket_rows": 7,
+      "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q00",
+      "current_live_structure_bucket_rows": 0,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 43,
+      "current_live_structure_bucket_gap_to_minimum": 50,
       "release_ready": false,
-      "current_recent_window_wins": 8,
+      "current_recent_window_wins": 2,
       "required_recent_window_wins": 15,
-      "additional_recent_window_wins_needed": 7,
+      "additional_recent_window_wins_needed": 13,
       "verdict": "not_deployable"
     }
   },
@@ -123,10 +123,10 @@
       "venue_lifecycle_gate",
       "live_canary_policy_gate"
     ],
-    "next_validation_artifact": "data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|base_caution_regime_or_bias|q15 after Map/Signal redesign or exact-bucket row harvest",
+    "next_validation_artifact": "data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|base_caution_regime_or_bias|q00 after Map/Signal redesign or exact-bucket row harvest",
     "artifact_refresh_patch": "scripts/live_canary_structural_pivot.py now derives this plan from fresh runtime artifacts and q15 support audit deadlock state, and is wired into hb_parallel_runner serial lanes.",
-    "equilibrium_deadlock_verdict": "equilibrium_deadlock_confirmed",
-    "forced_research_action_required": true,
+    "equilibrium_deadlock_verdict": "not_applicable_current_live_not_target_lane",
+    "forced_research_action_required": false,
     "forced_research_action_output_path": "data/equilibrium_deadlock_research_action.json"
   },
   "micro_canary_gate": {
@@ -144,17 +144,17 @@
     "gates": {
       "current_live_support_gate": {
         "ready": false,
-        "current": 7,
+        "current": 0,
         "required": 50,
-        "gap": 43,
+        "gap": 50,
         "reason": "current-live exact support must reach the minimum with matching support_identity."
       },
       "circuit_breaker_gate": {
         "ready": false,
-        "current_recent_window_wins": 8,
+        "current_recent_window_wins": 2,
         "required_recent_window_wins": 15,
-        "additional_recent_window_wins_needed": 7,
-        "current_streak": 41,
+        "additional_recent_window_wins_needed": 13,
+        "current_streak": 48,
         "reason": "recent canonical 24h outcomes must clear streak and win-rate release math."
       },
       "model_shadow_outcome_gate": {
@@ -236,16 +236,16 @@
       "lane": "D_map_signal_redesign_for_current_bucket",
       "goal": "When exact current bucket support remains below minimum with support delta=0, stop waiting for rows and produce a Map/Signal redesign proof path.",
       "can_start_now": true,
-      "status": "equilibrium_deadlock_required",
+      "status": "required",
       "blocks_strategy_risk": true,
       "live_exposure": "none",
       "exit_gate": "A new support identity / semantic bucket map is proposed, replayed, and proven without reclassifying reference rows as deployable support.",
-      "semantic_signature_delta_vs_previous": 0,
-      "semantic_signature_stagnant_run_count": 5,
-      "equilibrium_deadlock_confirmed": true,
-      "equilibrium_deadlock_verdict": "equilibrium_deadlock_confirmed",
+      "semantic_signature_delta_vs_previous": -1,
+      "semantic_signature_stagnant_run_count": 0,
+      "equilibrium_deadlock_confirmed": false,
+      "equilibrium_deadlock_verdict": "not_applicable_current_live_not_target_lane",
       "forced_research_action_output_path": "data/equilibrium_deadlock_research_action.json",
-      "next_artifact": "data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|base_caution_regime_or_bias|q15 after Map/Signal redesign or exact-bucket row harvest"
+      "next_artifact": "data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|base_caution_regime_or_bias|q00 after Map/Signal redesign or exact-bucket row harvest"
     }
   ],
   "operator_config_snapshot_redacted": {
@@ -298,6 +298,6 @@
     "micro_canary_ready": false,
     "live_exposure_allowed": false,
     "order_submission_enabled": false,
-    "reason": "primary_failed_gate=current_live_support_gate; next_validation_artifact=data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|base_caution_regime_or_bias|q15 after Map/Signal redesign or exact-bucket row harvest"
+    "reason": "primary_failed_gate=current_live_support_gate; next_validation_artifact=data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|base_caution_regime_or_bias|q00 after Map/Signal redesign or exact-bucket row harvest"
   }
 }

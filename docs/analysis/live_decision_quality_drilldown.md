@@ -1,43 +1,43 @@
 # Live Decision-Quality Drilldown
 
-- feature_timestamp: **2026-05-26 13:28:12.189411**
+- feature_timestamp: **2026-05-26 15:29:29.363443**
 - target: `simulated_pyramid_win`
-- live path: **盤整 / 觀察 / D**
+- live path: **熊市 / 觀察 / D**
 - signal: **風控熔斷** @ confidence **0.5000**
 - layers: **0 → 0**
 - allowed_layers_raw_reason: 進場品質低於交易門檻
-- allowed_layers_reason: 決策品質低於交易門檻; 風控熔斷啟用中
-- execution_guardrail_reason: 決策品質低於交易門檻; 風控熔斷啟用中
-- runtime_blocker: 風控熔斷 | reason: 最近 50 筆勝率: 16.00% < 30%
-- deployment_blocker: 風控熔斷啟用中 | reason: 最近 50 筆勝率: 16.00% < 30%
-- support blocker summary: **精準樣本 7/50（缺口 43） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1436 59/50僅能當歷史參考，因進場品質、市場狀態不吻合目前支持語義，不可宣稱同一語義已閉環。**
+- allowed_layers_reason: 精準樣本尚未建立，阻止交易; 風控熔斷啟用中
+- execution_guardrail_reason: 精準樣本尚未建立，阻止交易; 風控熔斷啟用中
+- runtime_blocker: 風控熔斷 | reason: 最近 50 筆勝率: 4.00% < 30%
+- deployment_blocker: 風控熔斷啟用中 | reason: 最近 50 筆勝率: 4.00% < 30%
+- support blocker summary: **精準樣本 0/50（缺口 50） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1202 190/50僅能當歷史參考，因校準視窗、市場狀態不吻合目前支持語義，不可宣稱同一語義已閉環。**
 - support next action: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。
-- current-bucket root cause: verdict=執行期阻塞優先於分桶根因分析 / patch=None / feature=None / exact_support=7/50 / gap=43 / neighbor=觀察｜基線觀察（市場狀態 / 偏離）｜q00
-- 精準樣本修補: **未啟用** | 支持路徑 **精準樣本未達最小門檻** | 跨越門檻 **執行期阻塞優先於跨門檻分析**
-- runtime closure summary: **風控熔斷啟用中：最近 50 筆勝率: 16.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 8/50，至少還差 7 勝。 精準路徑與外溢對照：同品質寬範圍出現 熊市｜觀察 外溢，15 筆 / 勝率 85.7% / 品質 0.395，明顯劣於 精準即時路徑 勝率 47.6% / 品質 0.133。**
+- current-bucket root cause: verdict=執行期阻塞優先於分桶根因分析 / patch=None / feature=None / exact_support=0/50 / gap=50 / neighbor=觀察｜結構品質觀察｜q15
+- 精準樣本修補: **未啟用** | 支持路徑 **精準樣本尚未建立** | 跨越門檻 **執行期阻塞優先於跨門檻分析**
+- runtime closure summary: **風控熔斷啟用中：最近 50 筆勝率: 4.00% < 30%；解除條件：連續虧損筆數 < 50 且最近 50 筆勝率 >= 30%；目前最近 50 筆只贏 2/50，至少還差 13 勝。 精準路徑與外溢對照：同品質寬範圍出現 盤整｜觀察 外溢，97 筆 / 勝率 43.8% / 品質 0.102，明顯劣於 精準即時路徑 勝率 85.7% / 品質 0.395。**
 - q35 scaling audit: overall=None / redesign=None / runtime_gap=None / mode=None / next_patch=None
 - q35 runtime truth: redesign_entry_quality=None / redesign_layers_after=None / runtime_layers=None / blocker=None / exact_support=None/None / support_gap=None
 - q35 audit action: None
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=None
 - 建議修補方案: **None** — 狀態：None；精準樣本缺口 `None`；適用範圍 None；來源 None
 - 建議修補特徵: None
-- 建議修補說明: 精準樣本 7/50（缺口 43） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1436 59/50僅能當歷史參考，因進場品質、市場狀態不吻合目前支持語義，不可宣稱同一語義已閉環。
+- 建議修補說明: 精準樣本 0/50（缺口 50） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 語義重訂後仍未達門檻；舊版 #1202 190/50僅能當歷史參考，因校準視窗、市場狀態不吻合目前支持語義，不可宣稱同一語義已閉環。
 - 下一步: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5046** / trade_floor **0.55** / gap **-0.0454**
-- 基礎品質: **0.6138** × 權重 **0.75**
-- 結構品質: **0.1771** × 權重 **0.25**
-- base components: feat_4h_bias50=0.5042 (w=0.4, contrib=0.2017), feat_nose=0.4703 (w=0.18, contrib=0.0847), feat_pulse=0.6636 (w=0.27, contrib=0.1792), feat_ear=0.9884 (w=0.15, contrib=0.1483)
-- structure components: feat_4h_bb_pct_b=0.3481 (w=0.34, contrib=0.1183), feat_4h_dist_bb_lower=0.087 (w=0.33, contrib=0.0287), feat_4h_dist_swing_low=0.0911 (w=0.33, contrib=0.0301)
+- final entry_quality: **0.5439** / trade_floor **0.55** / gap **-0.0061**
+- 基礎品質: **0.6818** × 權重 **0.75**
+- 結構品質: **0.13** × 權重 **0.25**
+- base components: feat_4h_bias50=0.5487 (w=0.4, contrib=0.2195), feat_nose=0.5478 (w=0.18, contrib=0.0986), feat_pulse=0.7972 (w=0.27, contrib=0.2152), feat_ear=0.99 (w=0.15, contrib=0.1485)
+- structure components: feat_4h_bb_pct_b=0.2543 (w=0.34, contrib=0.0865), feat_4h_dist_bb_lower=0.0635 (w=0.33, contrib=0.021), feat_4h_dist_swing_low=0.0685 (w=0.33, contrib=0.0226)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0454**
-- base_group_max_entry_gain: **0.2896** | structure_group_max_entry_gain: **0.2057**
-- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.1513, max_gain≈0.1487）
-- single-component floor crossers: feat_4h_bias50 (Δscore≈0.1513), feat_pulse (Δscore≈0.2242), feat_nose (Δscore≈0.3363), feat_4h_bb_pct_b (Δscore≈0.5341)
+- remaining_gap_to_floor: **0.0061**
+- base_group_max_entry_gain: **0.2386** | structure_group_max_entry_gain: **0.2175**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.0203, max_gain≈0.1354）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.0203), feat_pulse (Δscore≈0.0301), feat_nose (Δscore≈0.0452), feat_4h_bb_pct_b (Δscore≈0.0718)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -45,16 +45,16 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label+regime_gate+entry_quality_label` | 82 | 0.4756 | 0.1333 | 0.1379 | 0.4107 | 7 | False |
-| exact `regime_label+regime_gate+entry_quality_label` | 82 | 0.4756 | 0.1333 | 0.1379 | 0.4107 | 7 | False |
-| narrow `regime_label+entry_quality_label` | 82 | 0.4756 | 0.1333 | 0.1379 | 0.4107 | 7 | False |
-| broad `regime_gate+entry_quality_label` | 89 | 0.5056 | 0.1539 | 0.1322 | 0.3878 | 7 | False |
+| chosen `regime_label` | 51 | 0.9412 | 0.6265 | 0.0169 | 0.0584 | 0 | False |
+| exact `regime_label+regime_gate+entry_quality_label` | 7 | 0.8571 | 0.3948 | 0.0657 | 0.1189 | 0 | False |
+| narrow `regime_label+entry_quality_label` | 15 | 0.9333 | 0.529 | 0.0326 | 0.0797 | 0 | False |
+| broad `regime_gate+entry_quality_label` | 96 | 0.4688 | 0.1236 | 0.1407 | 0.4237 | 0 | False |
 
 ## Exact live-lane bucket diagnostic
 
-- verdict: **toxic sub bucket identified** | bucket_count: **2**
-- reason: 精準即時路徑 內的 `觀察｜基線觀察（市場狀態 / 偏離）｜q35` 明顯比 current bucket `觀察｜基線觀察（市場狀態 / 偏離）｜q15` 更差，應把它視為 路徑-internal veto / rejection 候選，而不是把整條 路徑 一起降級。
-- toxic_bucket: 觀察｜基線觀察（市場狀態 / 偏離）｜q35
+- verdict: **no exact lane sub bucket split** | bucket_count: **1**
+- reason: 精準即時路徑 沒有可比較的非 current bucket 子 bucket。
+- toxic_bucket: None
 
 ## Shared shifts
 
