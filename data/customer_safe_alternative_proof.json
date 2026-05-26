@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-26T18:11:35.525069Z",
+  "generated_at": "2026-05-26T19:20:12.344019Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-26T18:11:27.893872Z"
+      "generated_at": "2026-05-26T19:20:04.418304Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-26T18:11:14.301886Z"
+      "generated_at": "2026-05-26T19:19:06.674245Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-26T18:11:31.949631+00:00"
+      "generated_at": "2026-05-26T19:20:08.285462+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-26T18:11:16.737514+00:00"
+      "generated_at": "2026-05-26T19:19:53.548442+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-26T18:11:34.646308Z"
+      "generated_at": "2026-05-26T19:20:11.451024Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-26T18:11:08.582694+00:00"
+      "generated_at": "2026-05-26T19:19:00.930301+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -78,7 +78,25 @@
     "minimum_support_rows": 50,
     "gap_to_minimum": 50,
     "support_route_deployable": false,
-    "reference_only_rows": 216,
+    "reference_only_rows": 10,
+    "support_governance_reference_evidence": {
+      "support_governance_route": "exact_live_lane_proxy_available",
+      "support_route_verdict": "exact_bucket_unsupported_block",
+      "support_route_deployable": false,
+      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+      "current_rows": 0,
+      "minimum_support_rows": 50,
+      "gap_to_minimum": 50,
+      "reference_only": true,
+      "deployment_closure_allowed": false,
+      "exact_live_lane_proxy_rows": 10,
+      "supported_neighbor_rows": 0,
+      "exact_bucket_root_cause": "same_lane_shifted_to_neighbor_bucket",
+      "route_hint": "exact_live_lane_proxy_available",
+      "governance_reference_only": true,
+      "reference_only_reason": "proxy_or_under_minimum_support_not_deployment_closure",
+      "operator_summary": "governance lane exact_live_lane_proxy_available 提供 exact-live-lane proxy rows=10 作為參考；current exact support=0/50，不可視為部署閉環。"
+    },
     "operator_summary": "目前 current-live 精準支持 0/50，缺口 50；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
   },
   "topk_shadow_candidate_context": {
@@ -178,7 +196,7 @@
   },
   "recent_window_context": {
     "latest_window": "100",
-    "win_rate": 0.33,
+    "win_rate": 0.28,
     "dominant_regime": "chop",
     "alerts": [
       "regime_concentration",
@@ -189,9 +207,9 @@
     "shadow_falsification_order_submission_enabled": false,
     "shadow_falsification_summary": "not_deployable_shadow_only_runtime_blocked",
     "shadow_falsification_best_gate": "observable_4h_shift_shadow_gate",
-    "shadow_falsification_kept_rows": 37,
-    "shadow_falsification_kept_win_rate": 0.7838,
-    "shadow_falsification_loss_capture_share": 0.8806
+    "shadow_falsification_kept_rows": 36,
+    "shadow_falsification_kept_win_rate": 0.7222,
+    "shadow_falsification_loss_capture_share": 0.8611
   },
   "alternative_solution_portfolio": {
     "pm_challenge_answered": true,
@@ -220,8 +238,8 @@
         "deployable": false,
         "order_submission_enabled": false,
         "risk_on_order_enabled": false,
-        "reference_window": "all",
-        "reference_rows": 366
+        "reference_window": "600",
+        "reference_rows": 73
       },
       {
         "id": "venue_dry_run_readiness_proof",
@@ -331,11 +349,11 @@
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
       "best_gate": "observable_4h_shift_shadow_gate",
-      "kept_rows": 37,
-      "kept_win_rate": 0.7838,
-      "loss_capture_share": 0.8806,
+      "kept_rows": 36,
+      "kept_win_rate": 0.7222,
+      "loss_capture_share": 0.8611,
       "latest_window": "100",
-      "win_rate": 0.33,
+      "win_rate": 0.28,
       "dominant_regime": "chop",
       "alerts": [
         "regime_concentration",

@@ -151,6 +151,28 @@ def _support_context(live_probe: Mapping[str, Any], support_fill: Mapping[str, A
     support_ctx = topk.get("support_context") if isinstance(topk.get("support_context"), dict) else {}
     details = live_probe.get("deployment_blocker_details") if isinstance(live_probe.get("deployment_blocker_details"), dict) else {}
 
+    live_reference_evidence = (
+        live_probe.get("support_governance_reference_evidence")
+        if isinstance(live_probe.get("support_governance_reference_evidence"), dict)
+        else {}
+    )
+    details_reference_evidence = (
+        details.get("support_governance_reference_evidence")
+        if isinstance(details.get("support_governance_reference_evidence"), dict)
+        else {}
+    )
+    topk_reference_evidence = (
+        support_ctx.get("support_governance_reference_evidence")
+        if isinstance(support_ctx.get("support_governance_reference_evidence"), dict)
+        else {}
+    )
+    reference_evidence = _first_present(
+        live_reference_evidence or None,
+        details_reference_evidence or None,
+        topk_reference_evidence or None,
+        default={},
+    )
+
     rows = _to_int(
         _first_present(
             live_probe.get("current_live_structure_bucket_rows"),
@@ -224,12 +246,15 @@ def _support_context(live_probe: Mapping[str, Any], support_fill: Mapping[str, A
         "support_route_deployable": deployable,
         "reference_only_rows": _to_int(
             _first_present(
-                (support_ctx.get("support_governance_reference_evidence") or {}).get("exact_live_lane_proxy_rows")
-                if isinstance(support_ctx.get("support_governance_reference_evidence"), dict)
-                else None,
+                reference_evidence.get("exact_live_lane_proxy_rows") if isinstance(reference_evidence, dict) else None,
+                live_probe.get("exact_live_lane_proxy_rows"),
+                details.get("exact_live_lane_proxy_rows"),
+                support_ctx.get("exact_live_lane_proxy_rows"),
+                topk_reference_evidence.get("exact_live_lane_proxy_rows"),
                 0,
             )
         ),
+        "support_governance_reference_evidence": reference_evidence if isinstance(reference_evidence, dict) else {},
         "operator_summary": (
             f"目前 current-live 精準支持 {rows}/{minimum}，缺口 {gap}；"
             "reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"

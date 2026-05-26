@@ -474,6 +474,48 @@ def test_customer_safe_proof_does_not_resurrect_stale_support_blocker_after_supp
     assert "必須補齊" not in payload["next_gate"]
 
 
+def test_customer_safe_proof_prefers_live_reference_rows_over_stale_topk_context():
+    payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "deployment_blocker": "circuit_breaker_active",
+            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "support_governance_reference_evidence": {
+                "support_governance_route": "exact_live_lane_proxy_available",
+                "support_route_verdict": "exact_bucket_unsupported_block",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "exact_live_lane_proxy_rows": 10,
+                "reference_only": True,
+            },
+        },
+        q15_support_fill_feasibility={"verdict": {"current_exact_bucket_rows": 0, "minimum_support_rows": 50, "gap_to_minimum": 50}},
+        high_conviction_topk_oos_matrix={
+            "deployable_rows": 0,
+            "risk_qualified_rows": 6,
+            "runtime_blocked_candidate_rows": 6,
+            "support_context": {
+                "support_governance_reference_evidence": {
+                    "exact_live_lane_proxy_rows": 216,
+                    "reference_only": True,
+                }
+            },
+        },
+        execution_metadata_smoke={"runtime_ready": False},
+        recent_drift_report={},
+        generated_at="2026-05-26T19:03:00Z",
+    )
+
+    support = payload["current_live_support"]
+    assert support["reference_only_rows"] == 10
+    assert support["support_governance_reference_evidence"]["exact_live_lane_proxy_rows"] == 10
+    assert support["support_route_deployable"] is False
+
+
 def test_customer_safe_markdown_names_handoff_and_forbidden_actions():
     payload = proof.build_customer_safe_alternative_proof(
         live_predict_probe={"current_live_structure_bucket_rows": 0, "minimum_support_rows": 50, "current_live_structure_bucket_gap_to_minimum": 50},
