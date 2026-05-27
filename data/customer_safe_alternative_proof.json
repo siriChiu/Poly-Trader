@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-27T08:20:31.893489Z",
+  "generated_at": "2026-05-27T09:20:19.288900Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-27T08:20:24.190977Z"
+      "generated_at": "2026-05-27T09:20:11.858825Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-27T08:20:09.619304Z"
+      "generated_at": "2026-05-27T09:20:01.829054Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-27T08:20:28.183626+00:00"
+      "generated_at": "2026-05-27T09:20:15.463174+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-27T08:20:14.434878+00:00"
+      "generated_at": "2026-05-27T09:05:37.755476+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-27T08:20:30.905762Z"
+      "generated_at": "2026-05-27T09:20:18.309111Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-27T08:20:03.776842+00:00"
+      "generated_at": "2026-05-27T09:19:55.926584+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -71,32 +71,31 @@
   },
   "current_live_support": {
     "deployment_blocker": "circuit_breaker_active",
-    "structure_bucket": "BLOCK|bear_bias200_hard_block|q15",
-    "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+    "structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+    "support_route_verdict": "exact_bucket_unsupported_block",
     "support_governance_route": "exact_live_lane_proxy_available",
     "current_rows": 0,
     "minimum_support_rows": 50,
     "gap_to_minimum": 50,
     "support_route_deployable": false,
-    "reference_only_rows": 216,
+    "reference_only_rows": 10,
     "support_governance_reference_evidence": {
       "support_governance_route": "exact_live_lane_proxy_available",
-      "support_route_verdict": "exact_bucket_missing_exact_lane_proxy_only",
+      "support_route_verdict": "exact_bucket_unsupported_block",
       "support_route_deployable": false,
-      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q15",
+      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
       "current_rows": 0,
       "minimum_support_rows": 50,
       "gap_to_minimum": 50,
       "reference_only": true,
       "deployment_closure_allowed": false,
-      "exact_live_lane_proxy_rows": 216,
+      "exact_live_lane_proxy_rows": 10,
       "supported_neighbor_rows": 0,
-      "preferred_support_cohort": "bull_exact_live_lane_proxy",
       "exact_bucket_root_cause": "same_lane_exists_but_q65_missing",
       "route_hint": "exact_live_lane_proxy_available",
       "governance_reference_only": true,
       "reference_only_reason": "proxy_or_under_minimum_support_not_deployment_closure",
-      "operator_summary": "governance lane exact_live_lane_proxy_available 提供 exact-live-lane proxy rows=216 作為參考；current exact support=0/50，不可視為部署閉環。"
+      "operator_summary": "governance lane exact_live_lane_proxy_available 提供 exact-live-lane proxy rows=10 作為參考；current exact support=0/50，不可視為部署閉環。"
     },
     "operator_summary": "目前 current-live 精準支持 0/50，缺口 50；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
   },
@@ -131,12 +130,12 @@
         "deployment_blocker_active",
         "breaker_release_not_ready"
       ],
-      "support_route": "exact_bucket_missing_exact_lane_proxy_only",
+      "support_route": "exact_bucket_unsupported_block",
       "support_governance_route": "exact_live_lane_proxy_available",
       "support_route_deployable": false,
       "deployment_blocker": "circuit_breaker_active",
       "runtime_closure_state": "circuit_breaker_active",
-      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q15",
+      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
       "current_live_structure_bucket_rows": 0,
       "minimum_support_rows": 50,
       "current_live_structure_bucket_gap_to_minimum": 50,
@@ -240,8 +239,8 @@
         "deployable": false,
         "order_submission_enabled": false,
         "risk_on_order_enabled": false,
-        "reference_window": "all",
-        "reference_rows": 118
+        "reference_window": "600",
+        "reference_rows": 73
       },
       {
         "id": "venue_dry_run_readiness_proof",
