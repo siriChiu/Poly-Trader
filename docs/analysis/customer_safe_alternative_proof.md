@@ -1,9 +1,9 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-27T18:07:45.597005Z`
+- generated_at: `2026-05-27T19:07:49.537905Z`
 - current_live_blocker: `circuit_breaker_active`
 - current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
-- exact support: `1/50` (gap `49`)
+- exact support: `4/50` (gap `46`)
 - support_route_verdict: `exact_bucket_present_but_below_minimum`
 - circuit_breaker_release_ready: `False` (wins `0/15`, gap `15`)
 - primary_blocking_gate: `circuit_breaker_gate`
@@ -34,11 +34,11 @@
 - 輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]
 
 ## Recent-tail no-new-risk context
-- window: `100` / win_rate=`0.0` / dominant_regime=`chop` share=`0.82`
+- window: `100` / win_rate=`0.0` / dominant_regime=`chop` share=`0.77`
 - severity: `high` / interpretation=`distribution_pathology` / alerts=`['constant_target', 'regime_shift']`
-- avg_quality: `-0.3219` / avg_pnl=`-0.0136` / avg_drawdown_penalty=`0.3226`
-- tail_streak: target=`0` count=`100` start=`2026-05-25 15:00:00.000000` end=`2026-05-26 19:02:15.038679`
-- top_shift_features: `feat_local_bottom_score, feat_local_top_score, feat_bb_pct_b, feat_eye, feat_rsi14`
+- avg_quality: `-0.3233` / avg_pnl=`-0.0137` / avg_drawdown_penalty=`0.324`
+- tail_streak: target=`0` count=`100` start=`2026-05-25 16:19:19.978544` end=`2026-05-26 20:01:27.821136`
+- top_shift_features: `feat_local_bottom_score, feat_eye, feat_local_top_score, feat_bb_pct_b, feat_rsi14`
 - shadow_falsification: mode=`shadow_only_no_new_risk_falsification` / best_gate=`observable_4h_shift_shadow_gate` / deployable=`False` / order_submission_enabled=`False`
 - actionable_summary: negative distribution pathology requires current-window validation
 
@@ -46,7 +46,7 @@
 - `paper_shadow_decision_support_sleeve`: status=`available`, deployable=`False`, live_exposure_allowed=`False`
 - `venue_dry_run_readiness_proof`: status=`blocked_missing_runtime_backed_proof`, deployable=`False`, live_exposure_allowed=`False`
 - `support_fill_feasibility`: status=`semantic_window_gap_not_raw_backfill_gap`, deployable=`False`, live_exposure_allowed=`False`
-- `recent_window_no_new_risk_falsification`: status=`shadow_only_no_new_risk_falsification`, deployable=`False`, live_exposure_allowed=`False`, best_gate=`observable_4h_shift_shadow_gate`, kept=`2`, kept_win_rate=`0.0`, loss_capture=`0.98`
+- `recent_window_no_new_risk_falsification`: status=`shadow_only_no_new_risk_falsification`, deployable=`False`, live_exposure_allowed=`False`, best_gate=`observable_4h_shift_shadow_gate`, kept=`0`, kept_win_rate=`None`, loss_capture=`1.0`
 
 ## Alternative solution option portfolio
 - option_count: `3`
@@ -58,5 +58,5 @@
 - `venue_dry_run_readiness_proof`: role=`delivery_risk_reduction`, deployable=`False`, live_exposure_allowed=`False`, next=`OKX/Binance dry-run lifecycle proof checklist with credential state as boolean only`
 
 ## Next gate
-circuit_breaker release_ready=False，current exact support rows 1/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
+circuit_breaker release_ready=False，current exact support rows 4/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
 
