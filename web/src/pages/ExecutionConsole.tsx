@@ -1961,7 +1961,7 @@ export default function ExecutionConsole() {
                   }
                 }}
                 className="execution-command-input"
-                placeholder="例如：Paper 買入 0.001 BTC / 減碼 0.001 / 等待觀望 / 切到自動 / 查看阻塞原因"
+                placeholder="例如：買 0.001 BTC / 減碼 0.001 / 等待觀望 / 切到自動 / 查看阻塞原因"
               />
               <div className="flex flex-wrap gap-2">
                 {operatorQuickCommands.map((command) => (

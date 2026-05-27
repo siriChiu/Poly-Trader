@@ -390,6 +390,23 @@ def test_customer_safe_proof_reads_nested_primary_window_summary_before_loss_reg
                     "win_rate": 0.24,
                     "dominant_regime": "bear",
                     "dominant_regime_share": 0.58,
+                    "quality_metrics": {"avg_simulated_quality": -0.12, "avg_simulated_pnl": -0.003, "avg_drawdown_penalty": 0.19},
+                    "compact_summary": {
+                        "window": 100,
+                        "alerts": ["regime_shift", "constant_target"],
+                        "severity": "high",
+                        "interpretation": "distribution_pathology",
+                        "win_rate": 0.24,
+                        "avg_quality": -0.12,
+                        "avg_pnl": -0.003,
+                        "avg_drawdown_penalty": 0.19,
+                        "dominant_regime": "bear",
+                        "dominant_regime_share": 0.58,
+                        "tail_streak": {"target": 0, "count": 42, "start_timestamp": "t0", "end_timestamp": "t1"},
+                        "adverse_streak": {"target": 0, "count": 44, "start_timestamp": "t0", "end_timestamp": "t1"},
+                        "top_shift_features": ["feat_rsi14", "feat_mind"],
+                        "actionable_summary": "negative distribution pathology requires current-window validation",
+                    },
                 },
             },
             "canonical_tail_root_cause": {
@@ -409,8 +426,21 @@ def test_customer_safe_proof_reads_nested_primary_window_summary_before_loss_reg
     assert recent["latest_window"] == "100"
     assert recent["win_rate"] == 0.24
     assert recent["dominant_regime"] == "bear"
-    assert recent["alerts"] == ["regime_shift"]
+    assert recent["dominant_regime_share"] == 0.58
+    assert recent["alerts"] == ["regime_shift", "constant_target"]
+    assert recent["severity"] == "high"
+    assert recent["interpretation"] == "distribution_pathology"
+    assert recent["avg_quality"] == -0.12
+    assert recent["avg_pnl"] == -0.003
+    assert recent["avg_drawdown_penalty"] == 0.19
+    assert recent["tail_streak"]["count"] == 42
+    assert recent["top_shift_features"] == ["feat_rsi14", "feat_mind"]
+    assert recent["actionable_summary"] == "negative distribution pathology requires current-window validation"
     assert recent["shadow_falsification_mode"] == "shadow_only_no_new_risk_falsification"
+    md = proof.markdown(payload)
+    assert "Recent-tail no-new-risk context" in md
+    assert "tail_streak: target=`0` count=`42`" in md
+    assert "top_shift_features: `feat_rsi14, feat_mind`" in md
 
 
 def test_customer_safe_proof_requires_all_gates_before_canary():

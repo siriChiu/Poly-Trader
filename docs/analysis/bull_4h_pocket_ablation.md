@@ -1,17 +1,17 @@
 # Bull 4H Collapse Pocket Ablation
 
-- generated_at: **2026-05-27 09:04:56 UTC**
+- generated_at: **2026-05-27 11:03:03 UTC**
 - target: `simulated_pyramid_win`
 - collapse quantile: **q35**
 - min collapse flags: **2 / 3**
 - live context: **bear / BLOCK / C**
-- live structure bucket: `BLOCK|bear_bias200_hard_block|q00`
+- live structure bucket: `BLOCK|bear_bias200_hard_block|q15`
 - refresh mode: **live_context_only**
 
 ## Cohorts
 
-- bull_all rows: **2481** / win_rate **0.4958** / recommended **`current_full_minus_4h_structure_shift`**
-- bull_collapse_q35 rows: **911** / win_rate **0.3853** / recommended **`core_plus_macro_plus_all_4h`**
+- bull_all rows: **2479** / win_rate **0.4962** / recommended **`current_full_minus_4h_structure_shift`**
+- bull_collapse_q35 rows: **910** / win_rate **0.3846** / recommended **`core_plus_macro_plus_all_4h`**
 - bull_exact_live_lane_proxy rows: **10** / win_rate **0.0000** / recommended **`None`**
 - bull_live_exact_lane_bucket_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
 - bull_supported_neighbor_buckets_proxy rows: **0** / win_rate **0.0000** / recommended **`None`**
@@ -79,8 +79,8 @@
 | cohort | bucket | rows | win_rate | quality / cv | note |
 |---|---|---:|---:|---:|---|
 | exact live lane | None | 0 | None | None | current bucket rows=0 |
-| exact bucket proxy | BLOCK|bear_bias200_hard_block|q00 | 0 | 0.0 | None | proxy-vs-broader win Δ=None |
-| broader same bucket | BLOCK|bear_bias200_hard_block|q00 | 0 | None | None | dominant_regime=None |
+| exact bucket proxy | BLOCK|bear_bias200_hard_block|q15 | 0 | 0.0 | None | proxy-vs-broader win Δ=None |
+| broader same bucket | BLOCK|bear_bias200_hard_block|q15 | 0 | None | None | dominant_regime=None |
 
 ## Proxy boundary diagnostics
 
@@ -103,8 +103,8 @@
 ## Notes
 
 - collapse features under inspection: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
-- thresholds (bull q35): {"feat_4h_dist_swing_low": 4.751, "feat_4h_dist_bb_lower": 4.0047, "feat_4h_bb_pct_b": 0.6988}
-- exact live structure bucket: `BLOCK|bear_bias200_hard_block|q00` rows=0
+- thresholds (bull q35): {"feat_4h_dist_swing_low": 4.7482, "feat_4h_dist_bb_lower": 4.0034, "feat_4h_bb_pct_b": 0.6988}
+- exact live structure bucket: `BLOCK|bear_bias200_hard_block|q15` rows=0
 - supported neighbor buckets from exact scope: []
 - best bull-all profile: **current_full_minus_4h_structure_shift**
 - best bull-collapse profile: **core_plus_macro_plus_all_4h**

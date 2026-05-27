@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-27T10:17:37.932978Z",
+  "generated_at": "2026-05-27T11:21:04.837953Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-27T10:17:30.262447Z"
+      "generated_at": "2026-05-27T11:20:54.816044Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-27T10:17:15.434171Z"
+      "generated_at": "2026-05-27T11:20:06.073762Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-27T10:17:34.330882+00:00"
+      "generated_at": "2026-05-27T11:21:01.204659+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-27T10:17:18.063547+00:00"
+      "generated_at": "2026-05-27T11:20:45.141960+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-27T10:17:37.011380Z"
+      "generated_at": "2026-05-27T11:21:03.918532Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-27T10:17:09.433785+00:00"
+      "generated_at": "2026-05-27T11:20:00.211189+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -198,11 +198,37 @@
     "latest_window": "100",
     "win_rate": 0.0,
     "dominant_regime": "chop",
+    "dominant_regime_share": 0.99,
     "alerts": [
       "constant_target",
       "regime_concentration",
       "regime_shift"
     ],
+    "severity": "high",
+    "interpretation": "distribution_pathology",
+    "avg_quality": -0.2943,
+    "avg_pnl": -0.0124,
+    "avg_drawdown_penalty": 0.2923,
+    "tail_streak": {
+      "target": 0,
+      "count": 100,
+      "start_timestamp": "2026-05-25 06:29:52.802203",
+      "end_timestamp": "2026-05-26 12:14:56.992965"
+    },
+    "adverse_streak": {
+      "target": 0,
+      "count": 100,
+      "start_timestamp": "2026-05-25 06:29:52.802203",
+      "end_timestamp": "2026-05-26 12:14:56.992965"
+    },
+    "top_shift_features": [
+      "feat_rsi14",
+      "feat_mind",
+      "feat_bb_pct_b",
+      "feat_4h_bb_pct_b",
+      "feat_nose"
+    ],
+    "actionable_summary": "negative distribution pathology requires current-window validation",
     "shadow_falsification_mode": "shadow_only_no_new_risk_falsification",
     "shadow_falsification_deployable": false,
     "shadow_falsification_order_submission_enabled": false,
@@ -356,11 +382,37 @@
       "latest_window": "100",
       "win_rate": 0.0,
       "dominant_regime": "chop",
+      "dominant_regime_share": 0.99,
       "alerts": [
         "constant_target",
         "regime_concentration",
         "regime_shift"
       ],
+      "severity": "high",
+      "interpretation": "distribution_pathology",
+      "avg_quality": -0.2943,
+      "avg_pnl": -0.0124,
+      "avg_drawdown_penalty": 0.2923,
+      "tail_streak": {
+        "target": 0,
+        "count": 100,
+        "start_timestamp": "2026-05-25 06:29:52.802203",
+        "end_timestamp": "2026-05-26 12:14:56.992965"
+      },
+      "adverse_streak": {
+        "target": 0,
+        "count": 100,
+        "start_timestamp": "2026-05-25 06:29:52.802203",
+        "end_timestamp": "2026-05-26 12:14:56.992965"
+      },
+      "top_shift_features": [
+        "feat_rsi14",
+        "feat_mind",
+        "feat_bb_pct_b",
+        "feat_4h_bb_pct_b",
+        "feat_nose"
+      ],
+      "actionable_summary": "negative distribution pathology requires current-window validation",
       "operator_message": "not_deployable_shadow_only_runtime_blocked"
     }
   ],

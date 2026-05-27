@@ -1,6 +1,6 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-27 10:16:56.480788**
+- generated_at: **2026-05-27 11:19:44.234925**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q15 bucket**
 - verdict: **runtime_blocker_preempts_bucket_root_cause**
@@ -12,8 +12,8 @@
 ## Current live
 - live path: **bear / BLOCK / D**
 - structure_bucket: `BLOCK|bear_bias200_hard_block|q15`
-- structure_quality: **0.1676**
-- gap_to_q35_boundary: **0.1824**
+- structure_quality: **0.1684**
+- gap_to_q35_boundary: **0.1816**
 - non_null_4h_feature_count: **10**
 - execution_guardrail_reason: `decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active`
 - support rows/minimum/gap: **0 / 50 / 50**
@@ -22,7 +22,7 @@
 - rows: **36**
 - bucket_counts: `{'BLOCK|structure_quality_block|q00': 26, 'BLOCK|bear_bias200_hard_block|q15': 7, 'BLOCK|bear_bias200_hard_block|q00': 3}`
 - dominant_neighbor_bucket: **BLOCK|structure_quality_block|q00** (26 rows)
-- near_boundary_window: `{'lower': 0.1676, 'upper': 0.35}`
+- near_boundary_window: `{'lower': 0.1684, 'upper': 0.35}`
 - near_boundary_rows: **7**
 
 ## Decision
@@ -31,9 +31,9 @@
 - verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=0.3953 / norm=0.3953 / Δto_cross_q35=0.5365 / target_p25=0.0117 / target_median=0.0851
-- `feat_4h_dist_bb_lower`: current=0.8053 / norm=0.1007 / Δto_cross_q35=4.4218 / target_p25=0.0302 / target_median=0.2193
-- `feat_4h_dist_swing_low`: current=-0.171 / norm=0.0 / Δto_cross_q35=5.6983 / target_p25=0.4285 / target_median=0.5047
+- `feat_4h_bb_pct_b`: current=0.3972 / norm=0.3972 / Δto_cross_q35=0.5341 / target_p25=0.0117 / target_median=0.0851
+- `feat_4h_dist_bb_lower`: current=0.8092 / norm=0.1012 / Δto_cross_q35=4.4024 / target_p25=0.0302 / target_median=0.2193
+- `feat_4h_dist_swing_low`: current=-0.1662 / norm=0.0 / Δto_cross_q35=5.6692 / target_p25=0.4285 / target_median=0.5047
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。

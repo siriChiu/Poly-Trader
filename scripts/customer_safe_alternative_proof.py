@@ -448,9 +448,25 @@ def _recent_context(recent_drift: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(primary, dict):
         primary = {}
 
-    baseline = replay.get("baseline") if isinstance(replay.get("baseline"), dict) else {}
+    compact: dict[str, Any] = {}
+    primary_compact = primary.get("compact_summary")
+    if isinstance(primary_compact, dict):
+        compact = primary_compact
+    root_compact = root_cause.get("compact_summary")
+    if not compact and isinstance(root_compact, dict):
+        compact = root_compact
+    primary_quality = primary.get("quality_metrics")
+    quality: dict[str, Any] = primary_quality if isinstance(primary_quality, dict) else {}
+    raw_tail_streak = _first_present(compact.get("tail_streak"), primary.get("tail_streak"), default={})
+    tail_streak = raw_tail_streak if isinstance(raw_tail_streak, dict) else {}
+    raw_adverse_streak = _first_present(compact.get("adverse_streak"), primary.get("adverse_streak"), default={})
+    adverse_streak = raw_adverse_streak if isinstance(raw_adverse_streak, dict) else {}
+
+    raw_baseline = replay.get("baseline")
+    baseline: dict[str, Any] = raw_baseline if isinstance(raw_baseline, dict) else {}
     best_gate = _select_shadow_replay_gate(replay)
-    gate_summary = best_gate.get("summary") if isinstance(best_gate.get("summary"), dict) else {}
+    raw_gate_summary = best_gate.get("summary")
+    gate_summary: dict[str, Any] = raw_gate_summary if isinstance(raw_gate_summary, dict) else {}
     operator_message = (
         replay.get("operator_message")
         or replay.get("operator")
@@ -463,11 +479,22 @@ def _recent_context(recent_drift: Mapping[str, Any]) -> dict[str, Any]:
             recent_drift.get("latest_window"),
             recent_drift.get("primary_window_name"),
             primary.get("window"),
+            compact.get("window"),
             baseline.get("rows"),
         ),
-        "win_rate": _first_present(primary.get("win_rate"), baseline.get("win_rate")),
-        "dominant_regime": _first_present(primary.get("dominant_regime"), root_cause.get("dominant_loss_regime")),
-        "alerts": recent_drift.get("primary_alerts") or primary.get("alerts") or [],
+        "win_rate": _first_present(compact.get("win_rate"), primary.get("win_rate"), baseline.get("win_rate")),
+        "dominant_regime": _first_present(compact.get("dominant_regime"), primary.get("dominant_regime"), root_cause.get("dominant_loss_regime")),
+        "dominant_regime_share": _first_present(compact.get("dominant_regime_share"), primary.get("dominant_regime_share")),
+        "alerts": recent_drift.get("primary_alerts") or compact.get("alerts") or primary.get("alerts") or [],
+        "severity": compact.get("severity"),
+        "interpretation": _first_present(compact.get("interpretation"), primary.get("drift_interpretation")),
+        "avg_quality": _first_present(compact.get("avg_quality"), quality.get("avg_simulated_quality")),
+        "avg_pnl": _first_present(compact.get("avg_pnl"), quality.get("avg_simulated_pnl")),
+        "avg_drawdown_penalty": _first_present(compact.get("avg_drawdown_penalty"), quality.get("avg_drawdown_penalty")),
+        "tail_streak": tail_streak,
+        "adverse_streak": adverse_streak,
+        "top_shift_features": compact.get("top_shift_features") or [],
+        "actionable_summary": compact.get("actionable_summary"),
         "shadow_falsification_mode": replay.get("mode"),
         "shadow_falsification_deployable": _as_bool(replay.get("deployable")),
         "shadow_falsification_order_submission_enabled": _as_bool(replay.get("order_submission_enabled")),
@@ -658,7 +685,17 @@ def build_customer_safe_alternative_proof(
             "latest_window": recent.get("latest_window"),
             "win_rate": recent.get("win_rate"),
             "dominant_regime": recent.get("dominant_regime"),
+            "dominant_regime_share": recent.get("dominant_regime_share"),
             "alerts": recent.get("alerts"),
+            "severity": recent.get("severity"),
+            "interpretation": recent.get("interpretation"),
+            "avg_quality": recent.get("avg_quality"),
+            "avg_pnl": recent.get("avg_pnl"),
+            "avg_drawdown_penalty": recent.get("avg_drawdown_penalty"),
+            "tail_streak": recent.get("tail_streak"),
+            "adverse_streak": recent.get("adverse_streak"),
+            "top_shift_features": recent.get("top_shift_features"),
+            "actionable_summary": recent.get("actionable_summary"),
             "operator_message": recent.get("shadow_falsification_summary") or "只允許 no-new-risk paper/shadow falsification。",
         },
     ]
@@ -792,6 +829,7 @@ def markdown(payload: Mapping[str, Any]) -> str:
     breaker = payload.get("circuit_breaker_gate") if isinstance(payload.get("circuit_breaker_gate"), dict) else {}
     topk = payload.get("topk_shadow_candidate_context") if isinstance(payload.get("topk_shadow_candidate_context"), dict) else {}
     venue = payload.get("venue_runtime_proof") if isinstance(payload.get("venue_runtime_proof"), dict) else {}
+    recent = payload.get("recent_window_context") if isinstance(payload.get("recent_window_context"), dict) else {}
 
     lines = [
         "# Customer-safe alternative proof",
@@ -823,6 +861,23 @@ def markdown(payload: Mapping[str, Any]) -> str:
     lines += ["", "## Not allowed"]
     for item in payload.get("not_allowed") or []:
         lines.append(f"- {item}")
+    if recent:
+        raw_tail = recent.get("tail_streak")
+        tail: dict[str, Any] = raw_tail if isinstance(raw_tail, dict) else {}
+        raw_top_shift_features = recent.get("top_shift_features")
+        top_shift_features = raw_top_shift_features if isinstance(raw_top_shift_features, list) else []
+        lines += [
+            "",
+            "## Recent-tail no-new-risk context",
+            f"- window: `{recent.get('latest_window')}` / win_rate=`{recent.get('win_rate')}` / dominant_regime=`{recent.get('dominant_regime')}` share=`{recent.get('dominant_regime_share')}`",
+            f"- severity: `{recent.get('severity')}` / interpretation=`{recent.get('interpretation')}` / alerts=`{recent.get('alerts')}`",
+            f"- avg_quality: `{recent.get('avg_quality')}` / avg_pnl=`{recent.get('avg_pnl')}` / avg_drawdown_penalty=`{recent.get('avg_drawdown_penalty')}`",
+            f"- tail_streak: target=`{tail.get('target')}` count=`{tail.get('count')}` start=`{tail.get('start_timestamp')}` end=`{tail.get('end_timestamp')}`",
+            f"- top_shift_features: `{', '.join(str(item) for item in top_shift_features) if top_shift_features else '—'}`",
+            f"- shadow_falsification: mode=`{recent.get('shadow_falsification_mode')}` / best_gate=`{recent.get('shadow_falsification_best_gate')}` / deployable=`{recent.get('shadow_falsification_deployable')}` / order_submission_enabled=`{recent.get('shadow_falsification_order_submission_enabled')}`",
+        ]
+        if recent.get("actionable_summary"):
+            lines.append(f"- actionable_summary: {recent.get('actionable_summary')}")
     lines += ["", "## Lanes"]
     for lane in payload.get("customer_safe_lanes") or []:
         if not isinstance(lane, dict):
