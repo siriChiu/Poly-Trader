@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-27T09:20:19.288900Z",
+  "generated_at": "2026-05-27T10:17:37.932978Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-27T09:20:11.858825Z"
+      "generated_at": "2026-05-27T10:17:30.262447Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-27T09:20:01.829054Z"
+      "generated_at": "2026-05-27T10:17:15.434171Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-27T09:20:15.463174+00:00"
+      "generated_at": "2026-05-27T10:17:34.330882+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-27T09:05:37.755476+00:00"
+      "generated_at": "2026-05-27T10:17:18.063547+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-27T09:20:18.309111Z"
+      "generated_at": "2026-05-27T10:17:37.011380Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-27T09:19:55.926584+00:00"
+      "generated_at": "2026-05-27T10:17:09.433785+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -71,8 +71,8 @@
   },
   "current_live_support": {
     "deployment_blocker": "circuit_breaker_active",
-    "structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
-    "support_route_verdict": "exact_bucket_unsupported_block",
+    "structure_bucket": "BLOCK|bear_bias200_hard_block|q15",
+    "support_route_verdict": "insufficient_support_everywhere",
     "support_governance_route": "exact_live_lane_proxy_available",
     "current_rows": 0,
     "minimum_support_rows": 50,
@@ -81,9 +81,9 @@
     "reference_only_rows": 10,
     "support_governance_reference_evidence": {
       "support_governance_route": "exact_live_lane_proxy_available",
-      "support_route_verdict": "exact_bucket_unsupported_block",
+      "support_route_verdict": "insufficient_support_everywhere",
       "support_route_deployable": false,
-      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q15",
       "current_rows": 0,
       "minimum_support_rows": 50,
       "gap_to_minimum": 50,
@@ -130,12 +130,12 @@
         "deployment_blocker_active",
         "breaker_release_not_ready"
       ],
-      "support_route": "exact_bucket_unsupported_block",
+      "support_route": "insufficient_support_everywhere",
       "support_governance_route": "exact_live_lane_proxy_available",
       "support_route_deployable": false,
       "deployment_blocker": "circuit_breaker_active",
       "runtime_closure_state": "circuit_breaker_active",
-      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q15",
       "current_live_structure_bucket_rows": 0,
       "minimum_support_rows": 50,
       "current_live_structure_bucket_gap_to_minimum": 50,
@@ -239,8 +239,8 @@
         "deployable": false,
         "order_submission_enabled": false,
         "risk_on_order_enabled": false,
-        "reference_window": "600",
-        "reference_rows": 73
+        "reference_window": "all",
+        "reference_rows": 118
       },
       {
         "id": "venue_dry_run_readiness_proof",

@@ -1,10 +1,10 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-27T09:20:19.288900Z`
+- generated_at: `2026-05-27T10:17:37.932978Z`
 - current_live_blocker: `circuit_breaker_active`
-- current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
+- current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q15`
 - exact support: `0/50` (gap `50`)
-- support_route_verdict: `exact_bucket_unsupported_block`
+- support_route_verdict: `insufficient_support_everywhere`
 - circuit_breaker_release_ready: `False` (wins `0/15`, gap `15`)
 - primary_blocking_gate: `circuit_breaker_gate`
 - canary_ready: **False**
