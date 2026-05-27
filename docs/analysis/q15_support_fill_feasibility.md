@@ -1,8 +1,8 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-27T15:14:55.346806+00:00`
-- source live probe generated_at: `2026-05-27T15:14:51.358891Z`
-- source q15 audit generated_at: `2026-05-27 15:14:16.416552`
+- generated_at: `2026-05-27T16:05:59.061854+00:00`
+- source live probe generated_at: `2026-05-27T16:05:55.011088Z`
+- source q15 audit generated_at: `2026-05-27 16:05:21.519501`
 - classification: **semantic_window_gap_not_raw_backfill_gap**
 - reason: older calibration windows have enough exact-bucket rows by count, but they mismatch the current support_identity on calibration_window; they are reference-only unless governance deliberately rebaselines the identity.
 - current exact bucket rows (deployable support candidate): **0/50**
@@ -26,11 +26,11 @@ This section is the current support identity captured by the source artifacts ab
 
 ## Data coverage
 
-- joined labeled rows: **25117**
+- joined labeled rows: **25121**
 - current calibration window filled: **True**
-- features_normalized: count=25534, range=`2024-04-14 07:00:00.000000` → `2026-05-27 15:14:16.416552`
-- labels: count=68597, range=`2024-04-14 07:00:00.000000` → `2026-05-27 12:10:15.105942`
-- raw_market_data: count=34642, range=`2024-04-13 22:00:00.000000` → `2026-05-27 15:14:16.416552`
+- features_normalized: count=25537, range=`2024-04-14 07:00:00.000000` → `2026-05-27 16:05:21.519501`
+- labels: count=68604, range=`2024-04-14 07:00:00.000000` → `2026-05-27 13:02:40.824522`
+- raw_market_data: count=34645, range=`2024-04-13 22:00:00.000000` → `2026-05-27 16:05:21.519501`
 
 ## PM delivery pressure
 
