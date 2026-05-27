@@ -1462,6 +1462,17 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
     blocker_details = payload.get("deployment_blocker_details") if isinstance(payload.get("deployment_blocker_details"), dict) else {}
     patch_active = bool(payload.get("q15_exact_supported_component_patch_applied"))
     signal = str(payload.get("signal") or "unknown")
+    should_trade_raw = payload.get("should_trade")
+    if isinstance(should_trade_raw, bool):
+        should_trade = should_trade_raw
+    elif should_trade_raw is None:
+        should_trade = False
+    elif isinstance(should_trade_raw, (int, float)):
+        should_trade = bool(should_trade_raw)
+    elif isinstance(should_trade_raw, str):
+        should_trade = should_trade_raw.strip().lower() in {"1", "true", "yes", "y"}
+    else:
+        should_trade = bool(should_trade_raw)
     regime_label = payload.get("regime_label")
     regime_gate = payload.get("regime_gate")
     scope_diagnostics = payload.get("decision_quality_scope_diagnostics") if isinstance(payload.get("decision_quality_scope_diagnostics"), dict) else {}
@@ -1681,6 +1692,7 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "runtime_closure_state": runtime_closure_state,
         "runtime_closure_summary": runtime_closure_summary,
         "signal": signal,
+        "should_trade": should_trade,
         "regime_label": regime_label,
         "regime_gate": regime_gate,
         "structure_bucket": structure_bucket,

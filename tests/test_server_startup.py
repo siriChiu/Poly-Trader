@@ -731,6 +731,8 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["recent_canonical_drift"]["generated_at"] == "2026-04-22T00:00:00Z"
     assert payload["execution"]["live_runtime_truth"]["runtime_closure_state"] == "capacity_opened_signal_hold"
     assert payload["execution_surface_contract"]["live_runtime_truth"]["runtime_closure_state"] == "capacity_opened_signal_hold"
+    assert payload["execution"]["live_runtime_truth"]["should_trade"] is False
+    assert payload["execution_surface_contract"]["live_runtime_truth"]["should_trade"] is False
     assert payload["execution"]["live_runtime_truth"]["regime_label"] == "bull"
     assert payload["execution"]["live_runtime_truth"]["regime_gate"] == "ALLOW"
     assert payload["execution"]["live_runtime_truth"]["structure_bucket"] == "A"

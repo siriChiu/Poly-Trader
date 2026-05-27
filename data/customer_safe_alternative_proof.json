@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-27T16:06:05.854158Z",
+  "generated_at": "2026-05-27T17:15:10.039162Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-27T16:05:55.011088Z"
+      "generated_at": "2026-05-27T17:15:02.305046Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-27T16:05:42.712845Z"
+      "generated_at": "2026-05-27T17:14:45.035659Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-27T16:05:59.061854+00:00"
+      "generated_at": "2026-05-27T17:15:06.258347+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-27T16:05:44.955841+00:00"
+      "generated_at": "2026-05-27T17:14:49.769336+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-27T16:06:05.019359Z"
+      "generated_at": "2026-05-27T17:15:09.150623Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-27T16:05:36.765285+00:00"
+      "generated_at": "2026-05-27T17:14:39.125550+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -78,7 +78,7 @@
     "minimum_support_rows": 50,
     "gap_to_minimum": 50,
     "support_route_deployable": false,
-    "reference_only_rows": 216,
+    "reference_only_rows": 10,
     "support_governance_reference_evidence": {
       "support_governance_route": "exact_live_lane_proxy_available",
       "support_route_verdict": "exact_bucket_unsupported_block",
@@ -89,14 +89,13 @@
       "gap_to_minimum": 50,
       "reference_only": true,
       "deployment_closure_allowed": false,
-      "exact_live_lane_proxy_rows": 216,
+      "exact_live_lane_proxy_rows": 10,
       "supported_neighbor_rows": 0,
-      "preferred_support_cohort": "bull_exact_live_lane_proxy",
       "exact_bucket_root_cause": "same_lane_exists_but_q65_missing",
       "route_hint": "exact_live_lane_proxy_available",
       "governance_reference_only": true,
       "reference_only_reason": "proxy_or_under_minimum_support_not_deployment_closure",
-      "operator_summary": "governance lane exact_live_lane_proxy_available 提供 exact-live-lane proxy rows=216 作為參考；current exact support=0/50，不可視為部署閉環。"
+      "operator_summary": "governance lane exact_live_lane_proxy_available 提供 exact-live-lane proxy rows=10 作為參考；current exact support=0/50，不可視為部署閉環。"
     },
     "operator_summary": "目前 current-live 精準支持 0/50，缺口 50；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
   },
@@ -199,45 +198,44 @@
     "latest_window": "100",
     "win_rate": 0.0,
     "dominant_regime": "chop",
-    "dominant_regime_share": 0.92,
+    "dominant_regime_share": 0.84,
     "alerts": [
       "constant_target",
-      "regime_concentration",
       "regime_shift"
     ],
     "severity": "high",
     "interpretation": "distribution_pathology",
-    "avg_quality": -0.3082,
-    "avg_pnl": -0.0128,
-    "avg_drawdown_penalty": 0.3131,
+    "avg_quality": -0.3211,
+    "avg_pnl": -0.0135,
+    "avg_drawdown_penalty": 0.3218,
     "tail_streak": {
       "target": 0,
       "count": 100,
-      "start_timestamp": "2026-05-25 10:33:24.794312",
-      "end_timestamp": "2026-05-26 17:03:20.213036"
+      "start_timestamp": "2026-05-25 14:09:27.868307",
+      "end_timestamp": "2026-05-26 18:12:22.204875"
     },
     "adverse_streak": {
       "target": 0,
       "count": 100,
-      "start_timestamp": "2026-05-25 10:33:24.794312",
-      "end_timestamp": "2026-05-26 17:03:20.213036"
+      "start_timestamp": "2026-05-25 14:09:27.868307",
+      "end_timestamp": "2026-05-26 18:12:22.204875"
     },
     "top_shift_features": [
       "feat_bb_pct_b",
-      "feat_rsi14",
       "feat_local_top_score",
-      "feat_eye",
-      "feat_local_bottom_score"
+      "feat_local_bottom_score",
+      "feat_rsi14",
+      "feat_eye"
     ],
     "actionable_summary": "negative distribution pathology requires current-window validation",
     "shadow_falsification_mode": "shadow_only_no_new_risk_falsification",
     "shadow_falsification_deployable": false,
     "shadow_falsification_order_submission_enabled": false,
     "shadow_falsification_summary": "not_deployable_shadow_only_runtime_blocked",
-    "shadow_falsification_best_gate": "dominant_regime_shadow_gate",
-    "shadow_falsification_kept_rows": 8,
+    "shadow_falsification_best_gate": "observable_4h_shift_shadow_gate",
+    "shadow_falsification_kept_rows": 4,
     "shadow_falsification_kept_win_rate": 0.0,
-    "shadow_falsification_loss_capture_share": 0.92
+    "shadow_falsification_loss_capture_share": 0.96
   },
   "alternative_solution_portfolio": {
     "pm_challenge_answered": true,
@@ -376,42 +374,41 @@
       "deployable": false,
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
-      "best_gate": "dominant_regime_shadow_gate",
-      "kept_rows": 8,
+      "best_gate": "observable_4h_shift_shadow_gate",
+      "kept_rows": 4,
       "kept_win_rate": 0.0,
-      "loss_capture_share": 0.92,
+      "loss_capture_share": 0.96,
       "latest_window": "100",
       "win_rate": 0.0,
       "dominant_regime": "chop",
-      "dominant_regime_share": 0.92,
+      "dominant_regime_share": 0.84,
       "alerts": [
         "constant_target",
-        "regime_concentration",
         "regime_shift"
       ],
       "severity": "high",
       "interpretation": "distribution_pathology",
-      "avg_quality": -0.3082,
-      "avg_pnl": -0.0128,
-      "avg_drawdown_penalty": 0.3131,
+      "avg_quality": -0.3211,
+      "avg_pnl": -0.0135,
+      "avg_drawdown_penalty": 0.3218,
       "tail_streak": {
         "target": 0,
         "count": 100,
-        "start_timestamp": "2026-05-25 10:33:24.794312",
-        "end_timestamp": "2026-05-26 17:03:20.213036"
+        "start_timestamp": "2026-05-25 14:09:27.868307",
+        "end_timestamp": "2026-05-26 18:12:22.204875"
       },
       "adverse_streak": {
         "target": 0,
         "count": 100,
-        "start_timestamp": "2026-05-25 10:33:24.794312",
-        "end_timestamp": "2026-05-26 17:03:20.213036"
+        "start_timestamp": "2026-05-25 14:09:27.868307",
+        "end_timestamp": "2026-05-26 18:12:22.204875"
       },
       "top_shift_features": [
         "feat_bb_pct_b",
-        "feat_rsi14",
         "feat_local_top_score",
-        "feat_eye",
-        "feat_local_bottom_score"
+        "feat_local_bottom_score",
+        "feat_rsi14",
+        "feat_eye"
       ],
       "actionable_summary": "negative distribution pathology requires current-window validation",
       "operator_message": "not_deployable_shadow_only_runtime_blocked"
