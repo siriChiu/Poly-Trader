@@ -1,12 +1,12 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-27 12:17:18.456226**
+- generated_at: **2026-05-27 13:12:46.741296**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
 ## Current live row
 - signal: **CIRCUIT_BREAKER**
-- regime / gate / label: **bear / BLOCK / D**
+- regime / gate / label: **bear / BLOCK / C**
 - current_live_structure_bucket: **BLOCK|bear_bias200_hard_block|q00**
 - current_live_structure_bucket_rows: **0**
 - allowed_layers: **0** (decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active)
@@ -42,10 +42,10 @@
 - support_progress.semantic_signature_stalled_support_accumulation: **True**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
-- support_identity.path: **bear / BLOCK / D**
+- support_identity.path: **bear / BLOCK / C**
 - support_identity.bucket/window/signature: **BLOCK|bear_bias200_hard_block|q00 / 200 / live_structure_bucket:q15_support_identity:v2**
 - legacy_supported_reference: **None**
-- support_progress.reason: current live exact support 目前是 0/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1536），delta=0，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。
+- support_progress.reason: current live exact support 目前是 0/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1540），delta=0，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。
 
 ## Equilibrium deadlock assessment
 - verdict/state/severity: **not_applicable_current_live_not_target_lane / standby / none**
@@ -58,28 +58,28 @@
 ## Floor-cross legality
 - verdict: **runtime_blocker_preempts_floor_analysis**
 - legal_to_relax_runtime_gate: **False**
-- remaining_gap_to_floor: **0.0034**
-- best_single_component: **feat_4h_bias50**
-- best_single_component_required_score_delta: **0.0113**
-- best_single_component_can_cross_floor: **True**
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 119 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
+- remaining_gap_to_floor: **0.0**
+- best_single_component: **None**
+- best_single_component_required_score_delta: **None**
+- best_single_component_can_cross_floor: **False**
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 122 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
-- feature: **feat_4h_bias50**
+- feature: **None**
 - mode: **None**
 - support_ready: **False**
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.5466**
+- current_entry_quality: **0.5831**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **-0.0034**
-- current_entry_quality_ge_0_55: **False**
-- current_entry_quality_ge_trade_floor: **False**
+- current_trade_floor_gap: **0.0331**
+- current_entry_quality_ge_0_55: **True**
+- current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 119 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 122 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
 - verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Active repair plan

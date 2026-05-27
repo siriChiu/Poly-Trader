@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-27T12:18:01.329040Z",
+  "generated_at": "2026-05-27T13:13:27.571515Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-27T12:17:53.492444Z"
+      "generated_at": "2026-05-27T13:13:19.891694Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-27T12:17:39.123593Z"
+      "generated_at": "2026-05-27T13:13:04.805586Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-27T12:17:57.605570+00:00"
+      "generated_at": "2026-05-27T13:13:23.777324+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-27T12:17:43.763922+00:00"
+      "generated_at": "2026-05-27T13:13:07.072480+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-27T12:18:00.342882Z"
+      "generated_at": "2026-05-27T13:13:26.606797Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-27T12:17:33.354074+00:00"
+      "generated_at": "2026-05-27T13:12:58.888940+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -207,27 +207,27 @@
     ],
     "severity": "high",
     "interpretation": "distribution_pathology",
-    "avg_quality": -0.2969,
-    "avg_pnl": -0.0125,
-    "avg_drawdown_penalty": 0.2946,
+    "avg_quality": -0.302,
+    "avg_pnl": -0.0128,
+    "avg_drawdown_penalty": 0.2986,
     "tail_streak": {
       "target": 0,
       "count": 100,
-      "start_timestamp": "2026-05-25 06:34:20.218454",
-      "end_timestamp": "2026-05-26 12:59:11.166710"
+      "start_timestamp": "2026-05-25 08:07:19.739998",
+      "end_timestamp": "2026-05-26 14:00:00.000000"
     },
     "adverse_streak": {
       "target": 0,
       "count": 100,
-      "start_timestamp": "2026-05-25 06:34:20.218454",
-      "end_timestamp": "2026-05-26 12:59:11.166710"
+      "start_timestamp": "2026-05-25 08:07:19.739998",
+      "end_timestamp": "2026-05-26 14:00:00.000000"
     },
     "top_shift_features": [
       "feat_rsi14",
-      "feat_mind",
       "feat_bb_pct_b",
-      "feat_4h_bb_pct_b",
-      "feat_nose"
+      "feat_mind",
+      "feat_eye",
+      "feat_local_top_score"
     ],
     "actionable_summary": "negative distribution pathology requires current-window validation",
     "shadow_falsification_mode": "shadow_only_no_new_risk_falsification",
@@ -266,8 +266,8 @@
         "deployable": false,
         "order_submission_enabled": false,
         "risk_on_order_enabled": false,
-        "reference_window": "all",
-        "reference_rows": 366
+        "reference_window": "600",
+        "reference_rows": 73
       },
       {
         "id": "venue_dry_run_readiness_proof",
@@ -391,27 +391,27 @@
       ],
       "severity": "high",
       "interpretation": "distribution_pathology",
-      "avg_quality": -0.2969,
-      "avg_pnl": -0.0125,
-      "avg_drawdown_penalty": 0.2946,
+      "avg_quality": -0.302,
+      "avg_pnl": -0.0128,
+      "avg_drawdown_penalty": 0.2986,
       "tail_streak": {
         "target": 0,
         "count": 100,
-        "start_timestamp": "2026-05-25 06:34:20.218454",
-        "end_timestamp": "2026-05-26 12:59:11.166710"
+        "start_timestamp": "2026-05-25 08:07:19.739998",
+        "end_timestamp": "2026-05-26 14:00:00.000000"
       },
       "adverse_streak": {
         "target": 0,
         "count": 100,
-        "start_timestamp": "2026-05-25 06:34:20.218454",
-        "end_timestamp": "2026-05-26 12:59:11.166710"
+        "start_timestamp": "2026-05-25 08:07:19.739998",
+        "end_timestamp": "2026-05-26 14:00:00.000000"
       },
       "top_shift_features": [
         "feat_rsi14",
-        "feat_mind",
         "feat_bb_pct_b",
-        "feat_4h_bb_pct_b",
-        "feat_nose"
+        "feat_mind",
+        "feat_eye",
+        "feat_local_top_score"
       ],
       "actionable_summary": "negative distribution pathology requires current-window validation",
       "operator_message": "not_deployable_shadow_only_runtime_blocked"
