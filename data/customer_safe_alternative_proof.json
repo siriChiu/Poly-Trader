@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-26T23:19:28.137401Z",
+  "generated_at": "2026-05-27T06:16:08.800153Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-26T23:19:20.396170Z"
+      "generated_at": "2026-05-27T06:15:59.491169Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-26T23:18:23.921682Z"
+      "generated_at": "2026-05-27T06:15:46.993319Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-26T23:19:24.426307+00:00"
+      "generated_at": "2026-05-27T06:16:03.554845+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-26T23:19:04.901235+00:00"
+      "generated_at": "2026-05-27T06:15:49.291911+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-26T23:19:27.209863Z"
+      "generated_at": "2026-05-27T06:16:07.922137Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-26T23:18:18.133783+00:00"
+      "generated_at": "2026-05-27T06:15:41.176603+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -78,7 +78,7 @@
     "minimum_support_rows": 50,
     "gap_to_minimum": 50,
     "support_route_deployable": false,
-    "reference_only_rows": 216,
+    "reference_only_rows": 10,
     "support_governance_reference_evidence": {
       "support_governance_route": "exact_live_lane_proxy_available",
       "support_route_verdict": "exact_bucket_unsupported_block",
@@ -89,14 +89,13 @@
       "gap_to_minimum": 50,
       "reference_only": true,
       "deployment_closure_allowed": false,
-      "exact_live_lane_proxy_rows": 216,
+      "exact_live_lane_proxy_rows": 10,
       "supported_neighbor_rows": 0,
-      "preferred_support_cohort": "bull_exact_live_lane_proxy",
       "exact_bucket_root_cause": "same_lane_exists_but_q65_missing",
       "route_hint": "exact_live_lane_proxy_available",
       "governance_reference_only": true,
       "reference_only_reason": "proxy_or_under_minimum_support_not_deployment_closure",
-      "operator_summary": "governance lane exact_live_lane_proxy_available 提供 exact-live-lane proxy rows=216 作為參考；current exact support=0/50，不可視為部署閉環。"
+      "operator_summary": "governance lane exact_live_lane_proxy_available 提供 exact-live-lane proxy rows=10 作為參考；current exact support=0/50，不可視為部署閉環。"
     },
     "operator_summary": "目前 current-live 精準支持 0/50，缺口 50；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
   },
@@ -197,10 +196,10 @@
   },
   "recent_window_context": {
     "latest_window": "100",
-    "win_rate": 0.1,
+    "win_rate": 0.0,
     "dominant_regime": "chop",
     "alerts": [
-      "label_imbalance",
+      "constant_target",
       "regime_concentration",
       "regime_shift"
     ],
@@ -208,10 +207,10 @@
     "shadow_falsification_deployable": false,
     "shadow_falsification_order_submission_enabled": false,
     "shadow_falsification_summary": "not_deployable_shadow_only_runtime_blocked",
-    "shadow_falsification_best_gate": "observable_4h_shift_shadow_gate",
-    "shadow_falsification_kept_rows": 25,
-    "shadow_falsification_kept_win_rate": 0.4,
-    "shadow_falsification_loss_capture_share": 0.8333
+    "shadow_falsification_best_gate": "dominant_regime_shadow_gate",
+    "shadow_falsification_kept_rows": 1,
+    "shadow_falsification_kept_win_rate": 0.0,
+    "shadow_falsification_loss_capture_share": 0.99
   },
   "alternative_solution_portfolio": {
     "pm_challenge_answered": true,
@@ -350,15 +349,15 @@
       "deployable": false,
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
-      "best_gate": "observable_4h_shift_shadow_gate",
-      "kept_rows": 25,
-      "kept_win_rate": 0.4,
-      "loss_capture_share": 0.8333,
+      "best_gate": "dominant_regime_shadow_gate",
+      "kept_rows": 1,
+      "kept_win_rate": 0.0,
+      "loss_capture_share": 0.99,
       "latest_window": "100",
-      "win_rate": 0.1,
+      "win_rate": 0.0,
       "dominant_regime": "chop",
       "alerts": [
-        "label_imbalance",
+        "constant_target",
         "regime_concentration",
         "regime_shift"
       ],
