@@ -1,6 +1,6 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-27T14:12:49.729390Z`
+- generated_at: `2026-05-27T15:15:01.802486Z`
 - current_live_blocker: `circuit_breaker_active`
 - current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
 - exact support: `0/50` (gap `50`)
@@ -34,24 +34,24 @@
 - 輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]
 
 ## Recent-tail no-new-risk context
-- window: `100` / win_rate=`0.0` / dominant_regime=`chop` share=`0.99`
+- window: `100` / win_rate=`0.0` / dominant_regime=`chop` share=`0.96`
 - severity: `high` / interpretation=`distribution_pathology` / alerts=`['constant_target', 'regime_concentration', 'regime_shift']`
-- avg_quality: `-0.303` / avg_pnl=`-0.0128` / avg_drawdown_penalty=`0.3004`
-- tail_streak: target=`0` count=`100` start=`2026-05-25 08:13:47.878872` end=`2026-05-26 15:00:00.000000`
-- top_shift_features: `feat_rsi14, feat_bb_pct_b, feat_eye, feat_local_top_score, feat_mind`
+- avg_quality: `-0.3084` / avg_pnl=`-0.0129` / avg_drawdown_penalty=`0.3079`
+- tail_streak: target=`0` count=`100` start=`2026-05-25 09:11:08.310435` end=`2026-05-26 16:00:00.000000`
+- top_shift_features: `feat_rsi14, feat_bb_pct_b, feat_eye, feat_local_top_score, feat_local_bottom_score`
 - shadow_falsification: mode=`shadow_only_no_new_risk_falsification` / best_gate=`dominant_regime_shadow_gate` / deployable=`False` / order_submission_enabled=`False`
 - actionable_summary: negative distribution pathology requires current-window validation
 
 ## Lanes
 - `paper_shadow_decision_support_sleeve`: status=`available`, deployable=`False`, live_exposure_allowed=`False`
 - `venue_dry_run_readiness_proof`: status=`blocked_missing_runtime_backed_proof`, deployable=`False`, live_exposure_allowed=`False`
-- `support_fill_feasibility`: status=`true_support_under_minimum`, deployable=`False`, live_exposure_allowed=`False`
-- `recent_window_no_new_risk_falsification`: status=`shadow_only_no_new_risk_falsification`, deployable=`False`, live_exposure_allowed=`False`, best_gate=`dominant_regime_shadow_gate`, kept=`1`, kept_win_rate=`0.0`, loss_capture=`0.99`
+- `support_fill_feasibility`: status=`semantic_window_gap_not_raw_backfill_gap`, deployable=`False`, live_exposure_allowed=`False`
+- `recent_window_no_new_risk_falsification`: status=`shadow_only_no_new_risk_falsification`, deployable=`False`, live_exposure_allowed=`False`, best_gate=`dominant_regime_shadow_gate`, kept=`4`, kept_win_rate=`0.0`, loss_capture=`0.96`
 
 ## Alternative solution option portfolio
 - option_count: `3`
 - selected_next_artifact: `data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy`
-- time_to_evidence_bucket: `unknown_until_exact_identity_rows_start_accumulating`
+- time_to_evidence_bucket: `semantic_rebaseline_review_required_before_reference_rows_count`
 - safety_invariant: All alternatives are customer-safe only: deployable=false, live_exposure_allowed=false, order_submission_enabled=false until exact support, Top-K deployability, and venue runtime proof all pass.
 - `paper_shadow_decision_support_sleeve`: role=`customer_usable_now`, deployable=`False`, live_exposure_allowed=`False`, next=`data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy`
 - `semantic_rebaseline_review`: role=`support_policy_alternative`, deployable=`False`, live_exposure_allowed=`False`, next=`OOS + Top-K + support audit replay under any proposed new calibration_window identity`
