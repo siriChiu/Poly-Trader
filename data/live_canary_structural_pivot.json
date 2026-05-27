@@ -1,41 +1,41 @@
 {
-  "generated_at": "2026-05-27T22:11:18.669598Z",
+  "generated_at": "2026-05-27T23:07:38.599972Z",
   "artifact": "live_canary_structural_pivot",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-27T22:11:10.025200Z"
+      "generated_at": "2026-05-27T23:07:29.921187Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-27T22:10:54.905079Z"
+      "generated_at": "2026-05-27T23:07:16.402674Z"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-27T22:10:57.380622+00:00"
+      "generated_at": "2026-05-27T23:07:18.864410+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-27T22:11:16.735127Z"
+      "generated_at": "2026-05-27T23:07:36.693242Z"
     },
     "customer_safe_alternative_proof": {
       "path": "data/customer_safe_alternative_proof.json",
       "exists": true,
-      "generated_at": "2026-05-27T22:11:17.664579Z"
+      "generated_at": "2026-05-27T23:07:37.599568Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-27T22:11:13.858760+00:00"
+      "generated_at": "2026-05-27T23:07:33.967614+00:00"
     },
     "q15_support_audit": {
       "path": "data/q15_support_audit.json",
       "exists": true,
-      "generated_at": "2026-05-27 22:10:36.783528"
+      "generated_at": "2026-05-27 23:06:57.634994"
     }
   },
   "pm_handoff_carried_forward": {
@@ -46,9 +46,9 @@
   "current_truth": {
     "deployment_blocker": "circuit_breaker_active",
     "structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
-    "support_rows": 5,
+    "support_rows": 7,
     "minimum_support_rows": 50,
-    "support_gap": 45,
+    "support_gap": 43,
     "support_route_verdict": "exact_bucket_present_but_below_minimum",
     "support_governance_route": "exact_live_bucket_present_but_below_minimum",
     "support_delta_vs_previous": 0,
@@ -64,7 +64,7 @@
     "recent_window_wins": 0,
     "required_recent_window_wins": 15,
     "additional_recent_window_wins_needed": 15,
-    "current_streak": 159,
+    "current_streak": 162,
     "venue_runtime_ready": false,
     "okx_credentials_configured": false,
     "risk_qualified_rows": 6,
@@ -103,9 +103,9 @@
       "deployment_blocker": "circuit_breaker_active",
       "runtime_closure_state": "circuit_breaker_active",
       "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
-      "current_live_structure_bucket_rows": 5,
+      "current_live_structure_bucket_rows": 7,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 45,
+      "current_live_structure_bucket_gap_to_minimum": 43,
       "release_ready": false,
       "current_recent_window_wins": 0,
       "required_recent_window_wins": 15,
@@ -144,9 +144,9 @@
     "gates": {
       "current_live_support_gate": {
         "ready": false,
-        "current": 5,
+        "current": 7,
         "required": 50,
-        "gap": 45,
+        "gap": 43,
         "reason": "current-live exact support must reach the minimum with matching support_identity."
       },
       "circuit_breaker_gate": {
@@ -154,7 +154,7 @@
         "current_recent_window_wins": 0,
         "required_recent_window_wins": 15,
         "additional_recent_window_wins_needed": 15,
-        "current_streak": 159,
+        "current_streak": 162,
         "reason": "recent canonical 24h outcomes must clear streak and win-rate release math."
       },
       "model_shadow_outcome_gate": {
