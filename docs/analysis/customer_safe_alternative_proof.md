@@ -1,10 +1,10 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-27T11:21:04.837953Z`
+- generated_at: `2026-05-27T12:18:01.329040Z`
 - current_live_blocker: `circuit_breaker_active`
-- current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q15`
+- current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
 - exact support: `0/50` (gap `50`)
-- support_route_verdict: `insufficient_support_everywhere`
+- support_route_verdict: `exact_bucket_unsupported_block`
 - circuit_breaker_release_ready: `False` (wins `0/15`, gap `15`)
 - primary_blocking_gate: `circuit_breaker_gate`
 - canary_ready: **False**
@@ -36,8 +36,8 @@
 ## Recent-tail no-new-risk context
 - window: `100` / win_rate=`0.0` / dominant_regime=`chop` share=`0.99`
 - severity: `high` / interpretation=`distribution_pathology` / alerts=`['constant_target', 'regime_concentration', 'regime_shift']`
-- avg_quality: `-0.2943` / avg_pnl=`-0.0124` / avg_drawdown_penalty=`0.2923`
-- tail_streak: target=`0` count=`100` start=`2026-05-25 06:29:52.802203` end=`2026-05-26 12:14:56.992965`
+- avg_quality: `-0.2969` / avg_pnl=`-0.0125` / avg_drawdown_penalty=`0.2946`
+- tail_streak: target=`0` count=`100` start=`2026-05-25 06:34:20.218454` end=`2026-05-26 12:59:11.166710`
 - top_shift_features: `feat_rsi14, feat_mind, feat_bb_pct_b, feat_4h_bb_pct_b, feat_nose`
 - shadow_falsification: mode=`shadow_only_no_new_risk_falsification` / best_gate=`dominant_regime_shadow_gate` / deployable=`False` / order_submission_enabled=`False`
 - actionable_summary: negative distribution pathology requires current-window validation
