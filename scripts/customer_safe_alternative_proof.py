@@ -800,6 +800,77 @@ def _candidate_verdict_label(value: Any) -> str:
     return labels.get(str(value), "—" if value is None else str(value))
 
 
+_OPERATOR_SAFE_LABELS = {
+    "bear": "空頭",
+    "bull": "多頭",
+    "chop": "盤整",
+    "neutral": "中性",
+    "high": "高風險",
+    "medium": "中風險",
+    "low": "低風險",
+    "healthy": "目前未見高風險漂移",
+    "distribution_pathology": "近期目標單邊失敗／分布病態",
+    "regime_concentration": "單一市場狀態過度集中",
+    "constant_target": "近期目標全為同一結果",
+    "regime_shift": "市場狀態切換",
+    "shadow_only_no_new_risk_falsification": "只限影子驗證；不可送單",
+    "dominant_regime_shadow_gate": "主導市場狀態影子 gate",
+    "observable_4h_shift_shadow_gate": "4H 可觀測位移影子 gate",
+    "not_deployable_shadow_only_runtime_blocked": "不可部署；僅限影子觀察",
+    "negative distribution pathology requires current-window validation": "近期負向分布病態，需要用現行視窗再驗證",
+    "available": "可用（customer-safe）",
+    "blocked_missing_runtime_backed_proof": "缺少 runtime-backed proof",
+    "semantic_window_gap_not_raw_backfill_gap": "語義視窗缺口，不是 raw backfill 缺口",
+    "no_exact_bucket_history": "缺少精準 bucket 歷史",
+    "unknown_support_feasibility": "支持補齊可行性未知",
+    "not_available": "目前不可用",
+}
+
+_FEATURE_LABELS = {
+    "feat_local_bottom_score": "局部底部分數",
+    "feat_local_top_score": "局部頂部分數",
+    "feat_eye": "價格距離感測",
+    "feat_ear": "市場情緒感測",
+    "feat_nose": "資金費率感測",
+    "feat_tongue": "敘事情緒感測",
+    "feat_body": "波動型態感測",
+    "feat_pulse": "未平倉變化感測",
+    "feat_aura": "宏觀風險感測",
+    "feat_mind": "趨勢偏離感測",
+    "feat_rsi14": "RSI14",
+    "feat_bb_pct_b": "布林 %B",
+    "feat_4h_dist_swing_low": "4H 距離擺動低點",
+    "feat_4h_dist_bb_lower": "4H 距離布林下緣",
+    "feat_4h_bb_pct_b": "4H 布林 %B",
+}
+
+
+def _operator_label(value: Any) -> str:
+    if value is None or value == "":
+        return "—"
+    text = str(value)
+    if text in _OPERATOR_SAFE_LABELS:
+        return _OPERATOR_SAFE_LABELS[text]
+    return text.replace("_", " ")
+
+
+def _operator_list(values: Any) -> str:
+    if isinstance(values, list):
+        labels = [_operator_label(item) for item in values]
+        return "、".join(label for label in labels if label and label != "—") or "—"
+    return _operator_label(values)
+
+
+def _feature_operator_list(values: Any) -> str:
+    if not isinstance(values, list):
+        return "—"
+    labels = []
+    for item in values:
+        text = str(item)
+        labels.append(_FEATURE_LABELS.get(text, text.removeprefix("feat_").replace("_", " ")))
+    return "、".join(labels) if labels else "—"
+
+
 def _nearest_candidate_markdown(nearest: Mapping[str, Any]) -> str:
     if not nearest:
         return "- 最近研究候選：`—`"
@@ -869,26 +940,26 @@ def markdown(payload: Mapping[str, Any]) -> str:
         lines += [
             "",
             "## Recent-tail no-new-risk context",
-            f"- window: `{recent.get('latest_window')}` / win_rate=`{recent.get('win_rate')}` / dominant_regime=`{recent.get('dominant_regime')}` share=`{recent.get('dominant_regime_share')}`",
-            f"- severity: `{recent.get('severity')}` / interpretation=`{recent.get('interpretation')}` / alerts=`{recent.get('alerts')}`",
+            f"- window: `{recent.get('latest_window')}` / win_rate=`{recent.get('win_rate')}` / dominant_regime={_operator_label(recent.get('dominant_regime'))} share=`{recent.get('dominant_regime_share')}`",
+            f"- severity={_operator_label(recent.get('severity'))} / interpretation={_operator_label(recent.get('interpretation'))} / alerts={_operator_list(recent.get('alerts'))}",
             f"- avg_quality: `{recent.get('avg_quality')}` / avg_pnl=`{recent.get('avg_pnl')}` / avg_drawdown_penalty=`{recent.get('avg_drawdown_penalty')}`",
             f"- tail_streak: target=`{tail.get('target')}` count=`{tail.get('count')}` start=`{tail.get('start_timestamp')}` end=`{tail.get('end_timestamp')}`",
-            f"- top_shift_features: `{', '.join(str(item) for item in top_shift_features) if top_shift_features else '—'}`",
-            f"- shadow_falsification: mode=`{recent.get('shadow_falsification_mode')}` / best_gate=`{recent.get('shadow_falsification_best_gate')}` / deployable=`{recent.get('shadow_falsification_deployable')}` / order_submission_enabled=`{recent.get('shadow_falsification_order_submission_enabled')}`",
+            f"- top_shift_features: {_feature_operator_list(top_shift_features)}",
+            f"- shadow_falsification: mode={_operator_label(recent.get('shadow_falsification_mode'))} / best_gate={_operator_label(recent.get('shadow_falsification_best_gate'))} / deployable=`{recent.get('shadow_falsification_deployable')}` / order_submission_enabled=`{recent.get('shadow_falsification_order_submission_enabled')}`",
         ]
         if recent.get("actionable_summary"):
-            lines.append(f"- actionable_summary: {recent.get('actionable_summary')}")
+            lines.append(f"- actionable_summary: {_operator_label(recent.get('actionable_summary'))}")
     lines += ["", "## Lanes"]
     for lane in payload.get("customer_safe_lanes") or []:
         if not isinstance(lane, dict):
             continue
         lane_line = (
-            f"- `{lane.get('id')}`: status=`{lane.get('status')}`, deployable=`{lane.get('deployable')}`, "
+            f"- `{lane.get('id')}`: status={_operator_label(lane.get('status'))}, deployable=`{lane.get('deployable')}`, "
             f"live_exposure_allowed=`{lane.get('live_exposure_allowed')}`"
         )
         if lane.get("id") == "recent_window_no_new_risk_falsification" and lane.get("best_gate"):
             lane_line += (
-                f", best_gate=`{lane.get('best_gate')}`, kept=`{lane.get('kept_rows')}`, "
+                f", best_gate={_operator_label(lane.get('best_gate'))}, kept=`{lane.get('kept_rows')}`, "
                 f"kept_win_rate=`{lane.get('kept_win_rate')}`, loss_capture=`{lane.get('loss_capture_share')}`"
             )
         lines.append(lane_line)

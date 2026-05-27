@@ -291,7 +291,8 @@ def test_customer_safe_proof_reads_nested_recent_shadow_falsification_without_de
     assert portfolio["evidence_summary"]["recent_shadow_mode"] == "shadow_only_no_new_risk_falsification"
     md = proof.markdown(payload)
     assert "recent_window_no_new_risk_falsification" in md
-    assert "shadow_only_no_new_risk_falsification" in md
+    assert "只限影子驗證；不可送單" in md
+    assert "shadow_only_no_new_risk_falsification" not in md
 
 
 def test_customer_safe_proof_selects_best_runtime_gate_from_recent_replay_list():
@@ -364,7 +365,8 @@ def test_customer_safe_proof_selects_best_runtime_gate_from_recent_replay_list()
     assert falsification["deployable"] is False
     assert falsification["order_submission_enabled"] is False
     md = proof.markdown(payload)
-    assert "best_gate=`observable_4h_shift_shadow_gate`" in md
+    assert "best_gate=4H 可觀測位移影子 gate" in md
+    assert "observable_4h_shift_shadow_gate" not in md
     assert "outcome_tp_miss_high_underwater" not in md
 
 
@@ -440,7 +442,11 @@ def test_customer_safe_proof_reads_nested_primary_window_summary_before_loss_reg
     md = proof.markdown(payload)
     assert "Recent-tail no-new-risk context" in md
     assert "tail_streak: target=`0` count=`42`" in md
-    assert "top_shift_features: `feat_rsi14, feat_mind`" in md
+    assert "top_shift_features: RSI14、趨勢偏離感測" in md
+    assert "distribution_pathology" not in md
+    assert "constant_target" not in md
+    assert "feat_rsi14" not in md
+    assert "feat_mind" not in md
 
 
 def test_customer_safe_proof_requires_all_gates_before_canary():
