@@ -1,5 +1,5 @@
-# Circuit Breaker Audit（Heartbeat #1555）
-_generated_at: 2026-05-28T04:02:19.557614Z_
+# Circuit Breaker Audit（Heartbeat #1556）
+_generated_at: 2026-05-28T05:08:10.566149Z_
 
 ## 結論
 - verdict: **canonical_breaker_active**
@@ -9,19 +9,19 @@ _generated_at: 2026-05-28T04:02:19.557614Z_
 
 ## Mixed scope（現況錯誤口徑）
 - triggered: **True** via ['recent_win_rate']
-- streak: 12 / threshold 50
+- streak: 17 / threshold 50
 - recent 50: win_rate=0.22 wins=11 losses=39
-- streak horizons: {'240': 12}
+- streak horizons: {'240': 17}
 
 ## Aligned scope（1440m canonical live horizon）
 - triggered: **True** via ['streak', 'recent_win_rate']
 - release_ready: **False**
-- streak: 167 / threshold 50
+- streak: 169 / threshold 50
 - recent 50: win_rate=0.0 wins=0 losses=50
 
 ## Release condition
 - streak < 50
 - recent 50 win_rate >= 30%
-- aligned_scope_now: streak=167, win_rate=0.0
+- aligned_scope_now: streak=169, win_rate=0.0
 - additional recent-window wins needed: 15
 - tail pathology: losses=50 / wins=0 / loss_share=1.0
