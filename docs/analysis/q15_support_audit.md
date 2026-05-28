@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-05-28 07:09:32.673985**
+- generated_at: **2026-05-28 08:11:06.846868**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
 
@@ -8,7 +8,7 @@
 - signal: **CIRCUIT_BREAKER**
 - regime / gate / label: **bear / BLOCK / C**
 - current_live_structure_bucket: **BLOCK|bear_bias200_hard_block|q00**
-- current_live_structure_bucket_rows: **13**
+- current_live_structure_bucket_rows: **14**
 - allowed_layers: **0** (decision_quality_below_trade_floor; circuit_breaker_active)
 - execution_guardrail_reason: **decision_quality_below_trade_floor; circuit_breaker_active**
 
@@ -25,7 +25,7 @@
 - deployable: **False**
 - governance_reference_only: **True**
 - preferred_support_cohort: **bull_exact_live_lane_proxy**
-- current bucket gap to minimum: **37**
+- current bucket gap to minimum: **36**
 - exact-bucket proxy rows: **0**
 - exact-lane proxy rows: **10**
 - supported neighbor rows: **0**
@@ -33,19 +33,19 @@
 - release_condition: exact bucket rows 達 minimum support 後，才可把 proxy 降級成純比較參考。
 - support_progress.status: **semantic_rebaseline_under_minimum**
 - support_progress.regression_basis: **legacy_or_different_semantic_signature**
-- support_progress.current_rows / minimum: **13 / 50**
+- support_progress.current_rows / minimum: **14 / 50**
 - support_progress.previous_rows: **13**
-- support_progress.delta_vs_previous: **0**
-- support_progress.stagnant_run_count: **2**
-- support_progress.semantic_signature_delta_vs_previous: **0**
-- support_progress.semantic_signature_stagnant_run_count: **2**
-- support_progress.semantic_signature_stalled_support_accumulation: **True**
+- support_progress.delta_vs_previous: **1**
+- support_progress.stagnant_run_count: **0**
+- support_progress.semantic_signature_delta_vs_previous: **1**
+- support_progress.semantic_signature_stagnant_run_count: **0**
+- support_progress.semantic_signature_stalled_support_accumulation: **False**
 - support_progress.escalate_to_blocker: **True**
 - support_identity.target/horizon: **simulated_pyramid_win / 1440m**
 - support_identity.path: **bear / BLOCK / C**
 - support_identity.bucket/window/signature: **BLOCK|bear_bias200_hard_block|q00 / 200 / live_structure_bucket:q15_support_identity:v2**
 - legacy_supported_reference: **None**
-- support_progress.reason: current live exact support 目前是 13/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=13，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。
+- support_progress.reason: current live exact support 目前是 14/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=14，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。
 
 ## Equilibrium deadlock assessment
 - verdict/state/severity: **not_applicable_current_live_not_target_lane / standby / none**
@@ -62,7 +62,7 @@
 - best_single_component: **None**
 - best_single_component_required_score_delta: **None**
 - best_single_component_can_cross_floor: **False**
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 176 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 180 >= 50; Recent 50-sample win rate: 0.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。
 
 ## Exact-supported component experiment
 - verdict: **runtime_blocker_preempts_component_experiment**
@@ -72,14 +72,14 @@
 - entry_quality_ge_0_55: **False**
 - entry_quality_ge_0_55_scope: **component_experiment_counterfactual**
 - component_experiment_entry_quality_ge_0_55: **False**
-- current_entry_quality: **0.653**
+- current_entry_quality: **0.5846**
 - trade_floor: **0.55**
-- current_trade_floor_gap: **0.103**
+- current_trade_floor_gap: **0.0346**
 - current_entry_quality_ge_0_55: **True**
 - current_entry_quality_ge_trade_floor: **True**
 - allowed_layers_gt_0: **False**
 - preserves_positive_discrimination: **None** (not_measured_runtime_blocked)
-- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 176 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
+- reason: 目前先被 runtime blocker 擋下（Consecutive loss streak: 180 >= 50; Recent 50-sample win rate: 0.00% < 30%），q15 component experiment 只能保留為背景研究。
 - verify_next: 先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。
 
 ## Active repair plan
@@ -89,10 +89,10 @@
 - live_exposure_allowed: **False**
 - shadow_or_paper_allowed: **True**
 - current_signal / layers / guardrail: **CIRCUIT_BREAKER / 0 / decision_quality_below_trade_floor; circuit_breaker_active**
-- support rows / minimum / gap: **13 / 50 / 37**
-- stagnant_run_count: **2**
-- semantic_signature_delta_vs_previous / stagnant: **0 / 2**
-- actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_rebaseline_reference_review', 'semantic_signature_map_signal_redesign_or_row_harvest']`
+- support rows / minimum / gap: **14 / 50 / 36**
+- stagnant_run_count: **0**
+- semantic_signature_delta_vs_previous / stagnant: **1 / 0**
+- actions: `['collect_exact_current_bucket_rows', 'force_q15_support_audit_refresh', 'semantic_rebaseline_reference_review']`
 - legacy_semantic_evidence.verdict: **None**
 - legacy_semantic_evidence.supports_current_identity: **None**
 - legacy_semantic_evidence.mismatched_fields: `None`
