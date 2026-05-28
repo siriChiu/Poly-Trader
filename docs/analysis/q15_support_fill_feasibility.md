@@ -1,8 +1,8 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-05-28T01:08:41.611168+00:00`
-- source live probe generated_at: `2026-05-28T01:08:37.649502Z`
-- source q15 audit generated_at: `2026-05-28 01:08:05.923225`
+- generated_at: `2026-05-28T02:13:39.145307+00:00`
+- source live probe generated_at: `2026-05-28T02:13:35.358930Z`
+- source q15 audit generated_at: `2026-05-28 02:13:03.267190`
 - classification: **semantic_window_gap_not_raw_backfill_gap**
 - reason: older calibration windows have enough exact-bucket rows by count, but they mismatch the current support_identity on calibration_window; they are reference-only unless governance deliberately rebaselines the identity.
 - current exact bucket rows (deployable support candidate): **7/50**
@@ -26,11 +26,11 @@ This section is the current support identity captured by the source artifacts ab
 
 ## Data coverage
 
-- joined labeled rows: **25154**
+- joined labeled rows: **25155**
 - current calibration window filled: **True**
-- features_normalized: count=25572, range=`2024-04-14 07:00:00.000000` → `2026-05-28 01:08:05.923225`
-- labels: count=68671, range=`2024-04-14 07:00:00.000000` → `2026-05-27 22:06:17.550268`
-- raw_market_data: count=34690, range=`2024-04-13 22:00:00.000000` → `2026-05-28 01:08:05.923225`
+- features_normalized: count=25576, range=`2024-04-14 07:00:00.000000` → `2026-05-28 02:13:03.267190`
+- labels: count=68678, range=`2024-04-14 07:00:00.000000` → `2026-05-27 23:06:57.634994`
+- raw_market_data: count=34695, range=`2024-04-13 22:00:00.000000` → `2026-05-28 02:13:03.267190`
 
 ## PM delivery pressure
 
@@ -59,9 +59,9 @@ This section is the current support identity captured by the source artifacts ab
 | --- | ---: | --- | --- | --- | --- | --- |
 | current_exact_identity_window | 7 | False | False | — | False | win=0.0, pnl=-0.014, dd=0.3032 |
 | rebaseline_calibration_window_only | 80 | True | True | calibration_window | False | win=0.8125, pnl=0.0203, dd=0.1835 |
-| semantic_entry_quality_family | 475 | True | True | calibration_window,entry_quality_label | False | win=0.6632, pnl=0.0077, dd=0.204 |
-| regime_gate_bucket_family | 475 | True | True | calibration_window,entry_quality_label,regime_label | False | win=0.6632, pnl=0.0077, dd=0.204 |
-| bucket_only_family | 475 | True | True | calibration_window,entry_quality_label,regime_label,regime_gate | False | win=0.6632, pnl=0.0077, dd=0.204 |
+| semantic_entry_quality_family | 476 | True | True | calibration_window,entry_quality_label | False | win=0.6618, pnl=0.0077, dd=0.2044 |
+| regime_gate_bucket_family | 476 | True | True | calibration_window,entry_quality_label,regime_label | False | win=0.6618, pnl=0.0077, dd=0.2044 |
+| bucket_only_family | 476 | True | True | calibration_window,entry_quality_label,regime_label,regime_gate | False | win=0.6618, pnl=0.0077, dd=0.2044 |
 
 Promotion requirements before any live buy/add:
 - rerun replay/OOS/Top-K under the proposed compressed identity

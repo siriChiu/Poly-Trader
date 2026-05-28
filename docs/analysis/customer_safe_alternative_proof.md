@@ -1,6 +1,6 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-28T01:08:45.230356Z`
+- generated_at: `2026-05-28T02:13:42.806928Z`
 - current_live_blocker: `circuit_breaker_active`
 - current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
 - exact support: `7/50` (gap `43`)
@@ -34,10 +34,10 @@
 - 輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]
 
 ## Recent-tail no-new-risk context
-- window: `100` / win_rate=`0.0` / dominant_regime=盤整 share=`0.59`
+- window: `100` / win_rate=`0.0` / dominant_regime=盤整 share=`0.58`
 - severity=高風險 / interpretation=近期目標單邊失敗／分布病態 / alerts=近期目標全為同一結果
-- avg_quality: `-0.3185` / avg_pnl=`-0.0135` / avg_drawdown_penalty=`0.3266`
-- tail_streak: target=`0` count=`100` start=`2026-05-25 19:08:45.296826` end=`2026-05-27 02:00:00.000000`
+- avg_quality: `-0.3179` / avg_pnl=`-0.0135` / avg_drawdown_penalty=`0.3262`
+- tail_streak: target=`0` count=`100` start=`2026-05-25 19:10:56.152903` end=`2026-05-27 03:00:00.000000`
 - top_shift_features: 局部底部分數、局部頂部分數、價格距離感測、RSI14、布林 %B
 - shadow_falsification: mode=只限影子驗證；不可送單 / best_gate=4H 可觀測位移影子 gate / deployable=`False` / order_submission_enabled=`False`
 - actionable_summary: 近期負向分布病態，需要用現行視窗再驗證
@@ -46,7 +46,7 @@
 - `paper_shadow_decision_support_sleeve`: status=可用（customer-safe）, deployable=`False`, live_exposure_allowed=`False`
 - `venue_dry_run_readiness_proof`: status=缺少 runtime-backed proof, deployable=`False`, live_exposure_allowed=`False`
 - `support_fill_feasibility`: status=語義視窗缺口，不是 raw backfill 缺口, deployable=`False`, live_exposure_allowed=`False`
-- `recent_window_no_new_risk_falsification`: status=只限影子驗證；不可送單, deployable=`False`, live_exposure_allowed=`False`, best_gate=4H 可觀測位移影子 gate, kept=`26`, kept_win_rate=`0.0`, loss_capture=`0.74`
+- `recent_window_no_new_risk_falsification`: status=只限影子驗證；不可送單, deployable=`False`, live_exposure_allowed=`False`, best_gate=4H 可觀測位移影子 gate, kept=`27`, kept_win_rate=`0.0`, loss_capture=`0.73`
 
 ## Alternative solution option portfolio
 - option_count: `3`
