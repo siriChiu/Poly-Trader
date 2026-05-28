@@ -1,6 +1,6 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-27T23:07:37.599568Z`
+- generated_at: `2026-05-28T00:06:55.455949Z`
 - current_live_blocker: `circuit_breaker_active`
 - current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
 - exact support: `7/50` (gap `43`)
@@ -34,10 +34,10 @@
 - 輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]
 
 ## Recent-tail no-new-risk context
-- window: `100` / win_rate=`0.0` / dominant_regime=盤整 share=`0.61`
+- window: `100` / win_rate=`0.0` / dominant_regime=盤整 share=`0.6`
 - severity=高風險 / interpretation=近期目標單邊失敗／分布病態 / alerts=近期目標全為同一結果
-- avg_quality: `-0.3192` / avg_pnl=`-0.0135` / avg_drawdown_penalty=`0.3265`
-- tail_streak: target=`0` count=`100` start=`2026-05-25 19:00:00.000000` end=`2026-05-27 00:00:00.000000`
+- avg_quality: `-0.3189` / avg_pnl=`-0.0135` / avg_drawdown_penalty=`0.3266`
+- tail_streak: target=`0` count=`100` start=`2026-05-25 19:03:09.991914` end=`2026-05-27 01:00:00.000000`
 - top_shift_features: 局部底部分數、局部頂部分數、價格距離感測、RSI14、布林 %B
 - shadow_falsification: mode=只限影子驗證；不可送單 / best_gate=4H 可觀測位移影子 gate / deployable=`False` / order_submission_enabled=`False`
 - actionable_summary: 近期負向分布病態，需要用現行視窗再驗證
