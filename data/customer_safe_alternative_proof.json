@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-05-28T06:06:19.871204Z",
+  "generated_at": "2026-05-28T07:10:13.650130Z",
   "artifact": "customer_safe_alternative_proof",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-28T06:06:12.143903Z"
+      "generated_at": "2026-05-28T07:10:05.995661Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-28T06:05:56.523117Z"
+      "generated_at": "2026-05-28T07:09:52.510580Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-28T06:06:16.191564+00:00"
+      "generated_at": "2026-05-28T07:10:09.934677+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-28T06:05:59.344764+00:00"
+      "generated_at": "2026-05-28T07:09:54.830714+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-28T06:06:18.929846Z"
+      "generated_at": "2026-05-28T07:10:12.713727Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-28T06:05:47.622380+00:00"
+      "generated_at": "2026-05-28T07:09:44.914114+00:00"
     }
   },
   "pm_handoff_carried_forward": {
@@ -74,9 +74,9 @@
     "structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
     "support_route_verdict": "exact_bucket_present_but_below_minimum",
     "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-    "current_rows": 12,
+    "current_rows": 13,
     "minimum_support_rows": 50,
-    "gap_to_minimum": 38,
+    "gap_to_minimum": 37,
     "support_route_deployable": false,
     "reference_only_rows": 10,
     "support_governance_reference_evidence": {
@@ -84,9 +84,9 @@
       "support_route_verdict": "exact_bucket_present_but_below_minimum",
       "support_route_deployable": false,
       "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
-      "current_rows": 12,
+      "current_rows": 13,
       "minimum_support_rows": 50,
-      "gap_to_minimum": 38,
+      "gap_to_minimum": 37,
       "reference_only": true,
       "deployment_closure_allowed": false,
       "exact_live_lane_proxy_rows": 10,
@@ -96,9 +96,9 @@
       "route_hint": "exact_live_bucket_present_but_below_minimum",
       "governance_reference_only": true,
       "reference_only_reason": "proxy_or_under_minimum_support_not_deployment_closure",
-      "operator_summary": "governance lane exact_live_bucket_present_but_below_minimum 提供 exact-live-lane proxy rows=10 作為參考；current exact support=12/50，不可視為部署閉環。"
+      "operator_summary": "governance lane exact_live_bucket_present_but_below_minimum 提供 exact-live-lane proxy rows=10 作為參考；current exact support=13/50，不可視為部署閉環。"
     },
-    "operator_summary": "目前 current-live 精準支持 12/50，缺口 38；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
+    "operator_summary": "目前 current-live 精準支持 13/50，缺口 37；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
   },
   "topk_shadow_candidate_context": {
     "artifact_freshness_status": "fresh",
@@ -137,9 +137,9 @@
       "deployment_blocker": "circuit_breaker_active",
       "runtime_closure_state": "circuit_breaker_active",
       "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
-      "current_live_structure_bucket_rows": 12,
+      "current_live_structure_bucket_rows": 13,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 38,
+      "current_live_structure_bucket_gap_to_minimum": 37,
       "release_ready": false,
       "current_recent_window_wins": 0,
       "required_recent_window_wins": 15,
@@ -198,27 +198,28 @@
   "recent_window_context": {
     "latest_window": "100",
     "win_rate": 0.0,
-    "dominant_regime": "chop",
-    "dominant_regime_share": 0.5,
+    "dominant_regime": "bear",
+    "dominant_regime_share": 0.53,
     "alerts": [
-      "constant_target"
+      "constant_target",
+      "regime_shift"
     ],
     "severity": "high",
     "interpretation": "distribution_pathology",
-    "avg_quality": -0.3231,
-    "avg_pnl": -0.014,
-    "avg_drawdown_penalty": 0.3286,
+    "avg_quality": -0.3268,
+    "avg_pnl": -0.0142,
+    "avg_drawdown_penalty": 0.333,
     "tail_streak": {
       "target": 0,
       "count": 100,
-      "start_timestamp": "2026-05-25 21:08:30.037329",
-      "end_timestamp": "2026-05-27 07:03:49.072866"
+      "start_timestamp": "2026-05-25 22:03:28.880958",
+      "end_timestamp": "2026-05-27 08:06:56.418735"
     },
     "adverse_streak": {
       "target": 0,
       "count": 100,
-      "start_timestamp": "2026-05-25 21:08:30.037329",
-      "end_timestamp": "2026-05-27 07:03:49.072866"
+      "start_timestamp": "2026-05-25 22:03:28.880958",
+      "end_timestamp": "2026-05-27 08:06:56.418735"
     },
     "top_shift_features": [
       "feat_local_bottom_score",
@@ -233,9 +234,9 @@
     "shadow_falsification_order_submission_enabled": false,
     "shadow_falsification_summary": "not_deployable_shadow_only_runtime_blocked",
     "shadow_falsification_best_gate": "observable_4h_shift_shadow_gate",
-    "shadow_falsification_kept_rows": 23,
+    "shadow_falsification_kept_rows": 21,
     "shadow_falsification_kept_win_rate": 0.0,
-    "shadow_falsification_loss_capture_share": 0.77
+    "shadow_falsification_loss_capture_share": 0.79
   },
   "alternative_solution_portfolio": {
     "pm_challenge_answered": true,
@@ -265,7 +266,7 @@
         "order_submission_enabled": false,
         "risk_on_order_enabled": false,
         "reference_window": "600",
-        "reference_rows": 85
+        "reference_rows": 86
       },
       {
         "id": "venue_dry_run_readiness_proof",
@@ -281,9 +282,9 @@
     ],
     "safety_invariant": "All alternatives are customer-safe only: deployable=false, live_exposure_allowed=false, order_submission_enabled=false until exact support, Top-K deployability, and venue runtime proof all pass.",
     "evidence_summary": {
-      "support_rows": 12,
+      "support_rows": 13,
       "minimum_support_rows": 50,
-      "support_gap": 38,
+      "support_gap": 37,
       "topk_risk_qualified_rows": 6,
       "topk_deployable_rows": 0,
       "venue_runtime_ready": false,
@@ -303,9 +304,9 @@
         "risk_qualified_rows": 6,
         "runtime_blocked_candidate_rows": 6,
         "deployable_rows": 0,
-        "support_rows": 12,
+        "support_rows": 13,
         "support_minimum": 50,
-        "support_gap": 38
+        "support_gap": 37
       },
       "operator_message": "可用作客戶決策支援 / 影子觀察：記錄訊號、假想 entry、24h outcome；不送單、不加倉。"
     },
@@ -360,9 +361,9 @@
       "status": "semantic_window_gap_not_raw_backfill_gap",
       "deployable": false,
       "live_exposure_allowed": false,
-      "current_rows": 12,
+      "current_rows": 13,
       "minimum_support_rows": 50,
-      "gap_to_minimum": 38,
+      "gap_to_minimum": 37,
       "time_to_evidence_bucket": "semantic_rebaseline_review_required_before_reference_rows_count",
       "missing_capability_class": "Constraint/Review",
       "alternative_solution_required": true
@@ -375,32 +376,33 @@
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
       "best_gate": "observable_4h_shift_shadow_gate",
-      "kept_rows": 23,
+      "kept_rows": 21,
       "kept_win_rate": 0.0,
-      "loss_capture_share": 0.77,
+      "loss_capture_share": 0.79,
       "latest_window": "100",
       "win_rate": 0.0,
-      "dominant_regime": "chop",
-      "dominant_regime_share": 0.5,
+      "dominant_regime": "bear",
+      "dominant_regime_share": 0.53,
       "alerts": [
-        "constant_target"
+        "constant_target",
+        "regime_shift"
       ],
       "severity": "high",
       "interpretation": "distribution_pathology",
-      "avg_quality": -0.3231,
-      "avg_pnl": -0.014,
-      "avg_drawdown_penalty": 0.3286,
+      "avg_quality": -0.3268,
+      "avg_pnl": -0.0142,
+      "avg_drawdown_penalty": 0.333,
       "tail_streak": {
         "target": 0,
         "count": 100,
-        "start_timestamp": "2026-05-25 21:08:30.037329",
-        "end_timestamp": "2026-05-27 07:03:49.072866"
+        "start_timestamp": "2026-05-25 22:03:28.880958",
+        "end_timestamp": "2026-05-27 08:06:56.418735"
       },
       "adverse_streak": {
         "target": 0,
         "count": 100,
-        "start_timestamp": "2026-05-25 21:08:30.037329",
-        "end_timestamp": "2026-05-27 07:03:49.072866"
+        "start_timestamp": "2026-05-25 22:03:28.880958",
+        "end_timestamp": "2026-05-27 08:06:56.418735"
       },
       "top_shift_features": [
         "feat_local_bottom_score",
@@ -426,7 +428,7 @@
     "把 exact-live-lane proxy、reference windows、OOS pass、paper/shadow 或 dry-run 證據包裝成 live deployment closure",
     "輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]"
   ],
-  "next_gate": "circuit_breaker release_ready=False，current exact support rows 12/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。",
+  "next_gate": "circuit_breaker release_ready=False，current exact support rows 13/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。",
   "fail_closed_invariants": {
     "support_reference_only_until_exact_rows_meet_minimum": true,
     "circuit_breaker_blocks_live_until_release_condition_met": true,
