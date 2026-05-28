@@ -1,6 +1,6 @@
 # Current-Live Bucket Root Cause
 
-- generated_at: **2026-05-28 03:10:20.620951**
+- generated_at: **2026-05-28 04:01:59.191621**
 - target_col: **simulated_pyramid_win**
 - bucket_scope: **current-live q00 bucket**
 - verdict: **runtime_blocker_preempts_bucket_root_cause**
@@ -31,9 +31,9 @@
 - verify_next: 先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。
 
 ## Component deltas
-- `feat_4h_bb_pct_b`: current=-0.0428 / norm=0.0 / Δto_cross_q35=1.0428 / target_p25=0.1116 / target_median=0.2075
-- `feat_4h_dist_bb_lower`: current=-0.0935 / norm=0.0 / Δto_cross_q35=8.0935 / target_p25=0.2927 / target_median=0.54
-- `feat_4h_dist_swing_low`: current=-2.4744 / norm=0.0 / Δto_cross_q35=12.4744 / target_p25=-0.8836 / target_median=-0.4302
+- `feat_4h_bb_pct_b`: current=-0.2076 / norm=0.0 / Δto_cross_q35=1.2076 / target_p25=0.1116 / target_median=0.2075
+- `feat_4h_dist_bb_lower`: current=-0.5415 / norm=0.0 / Δto_cross_q35=8.5415 / target_p25=0.2927 / target_median=0.54
+- `feat_4h_dist_swing_low`: current=-3.9879 / norm=0.0 / Δto_cross_q35=13.9879 / target_p25=-0.8836 / target_median=-0.4302
 
 ## Carry-forward
 - 先讀 data/q15_bucket_root_cause.json，確認本輪 current-live bucket verdict 與 candidate_patch_feature。

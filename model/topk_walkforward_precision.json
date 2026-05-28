@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-28T03:10:42.043770+00:00",
+  "generated_at": "2026-05-28T04:02:58.890701+00:00",
   "artifact_freshness_status": "fresh",
   "artifact_freshness_reason": "artifact_within_policy",
-  "artifact_age_minutes": 0.3615188,
+  "artifact_age_minutes": 0.37983703333333335,
   "artifact_stale_after_minutes": 60.0,
   "artifact_deployment_blocking": false,
-  "artifact_freshness_checked_at": "2026-05-28T03:11:03.734898+00:00",
+  "artifact_freshness_checked_at": "2026-05-28T04:03:21.680923+00:00",
   "target_col": "simulated_pyramid_win",
-  "samples": 25425,
+  "samples": 25426,
   "top_k_grid": [
     "top_1pct",
     "top_2pct",
@@ -55,7 +55,7 @@
     "signal": "CIRCUIT_BREAKER",
     "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
     "release_ready": false,
-    "current_streak": 166,
+    "current_streak": 167,
     "recent_window": 50,
     "current_recent_window_win_rate": 0.0,
     "current_recent_window_wins": 0,
@@ -70,7 +70,7 @@
       "streak_release_ready": false,
       "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "recent_win_rate_must_be_at_least": 0.3,
       "current_recent_window_win_rate": 0.0,
@@ -81,16 +81,16 @@
     "support_progress_status": "semantic_rebaseline_under_minimum",
     "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
     "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-    "support_progress_stagnant_run_count": 0,
+    "support_progress_stagnant_run_count": 2,
     "support_progress_stalled_support_accumulation": false,
     "support_progress_escalate_to_blocker": true,
-    "support_delta_vs_previous": 1,
-    "support_previous_rows": 7,
+    "support_delta_vs_previous": 0,
+    "support_previous_rows": 8,
     "support_rows_needed": 42,
-    "stagnant_run_count": 0,
+    "stagnant_run_count": 2,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
-    "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+    "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
     "live_truth_source_artifact": "data/live_predict_probe.json",
     "active_repair_plan": {
       "phase": "current_bucket_first",
@@ -110,10 +110,10 @@
       "current_rows": 8,
       "minimum_support_rows": 50,
       "gap_to_minimum": 42,
-      "stagnant_run_count": 0,
-      "semantic_signature_delta_vs_previous": 1,
-      "semantic_signature_stagnant_run_count": 0,
-      "semantic_signature_stalled_support_accumulation": false,
+      "stagnant_run_count": 2,
+      "semantic_signature_delta_vs_previous": 0,
+      "semantic_signature_stagnant_run_count": 2,
+      "semantic_signature_stalled_support_accumulation": true,
       "equilibrium_deadlock": {
         "verdict": "not_applicable_current_live_not_target_lane",
         "state": "standby",
@@ -129,20 +129,20 @@
           "current_rows": 8,
           "minimum_support_rows": 50,
           "gap_to_minimum": 42,
-          "delta_vs_previous": 1,
-          "stagnant_run_count": 0,
-          "semantic_signature_delta_vs_previous": 1,
-          "semantic_signature_stagnant_run_count": 0
+          "delta_vs_previous": 0,
+          "stagnant_run_count": 2,
+          "semantic_signature_delta_vs_previous": 0,
+          "semantic_signature_stagnant_run_count": 2
         },
         "trigger_conditions": {
           "under_minimum": true,
           "support_ready": false,
-          "support_delta_zero": false,
-          "semantic_signature_delta_zero": false,
+          "support_delta_zero": true,
+          "semantic_signature_delta_zero": true,
           "stagnant_run_count_ge_threshold": false,
           "semantic_stagnant_run_count_ge_threshold": false,
           "stalled_support_accumulation": false,
-          "semantic_stalled_support_accumulation": false,
+          "semantic_stalled_support_accumulation": true,
           "threshold": 3
         },
         "research_basis": [
@@ -295,6 +295,18 @@
           ],
           "missing_fields": [],
           "success_condition": "docs/API/UI 顯示 semantic rebaseline reference-only，同時繼續收集 current support_identity exact rows。"
+        },
+        {
+          "id": "semantic_signature_map_signal_redesign_or_row_harvest",
+          "type": "forced_execution_branch",
+          "priority": "P0",
+          "description": "同 bucket semantic signature 支持行數仍無進展；entry-quality label 變動不得重置 PM 反平衡時鐘。",
+          "semantic_signature_delta_vs_previous": 0,
+          "semantic_signature_stagnant_run_count": 2,
+          "ignored_strict_identity_fields": [
+            "entry_quality_label"
+          ],
+          "success_condition": "下一輪交付 Map/Signal redesign proof 或 exact-bucket row harvest artifact，而不是只回報 support still 0/50。"
         }
       ]
     },
@@ -312,9 +324,10 @@
     "active_repair_action_ids": [
       "collect_exact_current_bucket_rows",
       "force_q15_support_audit_refresh",
-      "semantic_rebaseline_reference_review"
+      "semantic_rebaseline_reference_review",
+      "semantic_signature_map_signal_redesign_or_row_harvest"
     ],
-    "support_context_current_as_of": "2026-05-28T03:10:52.235604Z"
+    "support_context_current_as_of": "2026-05-28T04:03:10.881071Z"
   },
   "artifact": "data/high_conviction_topk_oos_matrix.json",
   "rows": [
@@ -356,7 +369,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -365,7 +378,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -374,16 +387,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -424,7 +437,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -465,7 +479,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -474,7 +488,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -483,16 +497,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -531,7 +545,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -572,7 +587,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -581,7 +596,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -590,16 +605,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -640,7 +655,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -681,7 +697,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -690,7 +706,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -699,16 +715,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -749,7 +765,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -790,7 +807,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -799,7 +816,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -808,16 +825,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -858,7 +875,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -899,7 +917,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -908,7 +926,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -917,16 +935,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -965,7 +983,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1006,7 +1025,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1015,7 +1034,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1024,16 +1043,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1074,7 +1093,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1115,7 +1135,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1124,7 +1144,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1133,16 +1153,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1183,7 +1203,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1224,7 +1245,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1233,7 +1254,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1242,16 +1263,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1290,7 +1311,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1331,7 +1353,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1340,7 +1362,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1349,16 +1371,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1394,7 +1416,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1435,7 +1458,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1444,7 +1467,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1453,16 +1476,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1498,7 +1521,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1539,7 +1563,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1548,7 +1572,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1557,16 +1581,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1605,7 +1629,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1646,7 +1671,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1655,7 +1680,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1664,16 +1689,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1712,7 +1737,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1753,7 +1779,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1762,7 +1788,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1771,16 +1797,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1816,7 +1842,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1857,7 +1884,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1866,7 +1893,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1875,16 +1902,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -1920,7 +1947,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -1961,7 +1989,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -1970,7 +1998,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -1979,16 +2007,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2027,7 +2055,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2068,7 +2097,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2077,7 +2106,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2086,16 +2115,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2134,7 +2163,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2175,7 +2205,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2184,7 +2214,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2193,16 +2223,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2238,7 +2268,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2279,7 +2310,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2288,7 +2319,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2297,16 +2328,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2345,7 +2376,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2386,7 +2418,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2395,7 +2427,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2404,16 +2436,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2452,7 +2484,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2493,7 +2526,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2502,7 +2535,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2511,16 +2544,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2559,7 +2592,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2600,7 +2634,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2609,7 +2643,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2618,16 +2652,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2663,7 +2697,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2704,7 +2739,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2713,7 +2748,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2722,16 +2757,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2770,7 +2805,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     },
     {
@@ -2811,7 +2847,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -2820,7 +2856,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -2829,16 +2865,16 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "minimum_deployment_gates": {
         "min_trades": 50,
@@ -2877,7 +2913,8 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ]
     }
   ],
@@ -4823,7 +4860,7 @@
     "streak_release_ready": false,
     "recent_win_rate_release_ready": false,
     "streak_must_be_below": 50,
-    "current_streak": 166,
+    "current_streak": 167,
     "recent_window": 50,
     "recent_win_rate_must_be_at_least": 0.3,
     "current_recent_window_win_rate": 0.0,
@@ -4832,7 +4869,7 @@
     "additional_recent_window_wins_needed": 15
   },
   "release_ready": false,
-  "current_streak": 166,
+  "current_streak": 167,
   "recent_window": 50,
   "current_recent_window_win_rate": 0.0,
   "current_recent_window_wins": 0,
@@ -4841,16 +4878,16 @@
   "support_progress_status": "semantic_rebaseline_under_minimum",
   "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
   "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-  "support_progress_stagnant_run_count": 0,
+  "support_progress_stagnant_run_count": 2,
   "support_progress_stalled_support_accumulation": false,
   "support_progress_escalate_to_blocker": true,
-  "stagnant_run_count": 0,
+  "stagnant_run_count": 2,
   "stalled_support_accumulation": false,
   "escalate_to_blocker": true,
-  "support_delta_vs_previous": 1,
-  "support_previous_rows": 7,
+  "support_delta_vs_previous": 0,
+  "support_previous_rows": 8,
   "support_rows_needed": 42,
-  "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+  "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
   "live_truth_source_artifact": "data/live_predict_probe.json",
   "live_gate_summary": {
     "support_route_verdict": "exact_bucket_present_but_below_minimum",
@@ -4893,7 +4930,7 @@
       "streak_release_ready": false,
       "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "recent_win_rate_must_be_at_least": 0.3,
       "current_recent_window_win_rate": 0.0,
@@ -4902,7 +4939,7 @@
       "additional_recent_window_wins_needed": 15
     },
     "release_ready": false,
-    "current_streak": 166,
+    "current_streak": 167,
     "recent_window": 50,
     "current_recent_window_win_rate": 0.0,
     "current_recent_window_wins": 0,
@@ -4911,14 +4948,14 @@
     "support_progress_status": "semantic_rebaseline_under_minimum",
     "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
     "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-    "support_progress_stagnant_run_count": 0,
+    "support_progress_stagnant_run_count": 2,
     "support_progress_stalled_support_accumulation": false,
     "support_progress_escalate_to_blocker": true,
-    "stagnant_run_count": 0,
+    "stagnant_run_count": 2,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
-    "support_delta_vs_previous": 1,
-    "support_previous_rows": 7,
+    "support_delta_vs_previous": 0,
+    "support_previous_rows": 8,
     "support_rows_needed": 42,
     "active_repair_phase": "current_bucket_first",
     "active_repair_component_verify_ready": false,
@@ -4931,10 +4968,11 @@
     "active_repair_action_ids": [
       "collect_exact_current_bucket_rows",
       "force_q15_support_audit_refresh",
-      "semantic_rebaseline_reference_review"
+      "semantic_rebaseline_reference_review",
+      "semantic_signature_map_signal_redesign_or_row_harvest"
     ],
-    "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
-    "support_context_current_as_of": "2026-05-28T03:10:52.235604Z",
+    "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
+    "support_context_current_as_of": "2026-05-28T04:03:10.881071Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "nearest_deployable_rows": [
@@ -4985,7 +5023,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -4994,7 +5032,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -5003,14 +5041,14 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
       "active_repair_phase": "current_bucket_first",
       "active_repair_component_verify_ready": false,
@@ -5023,9 +5061,10 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ],
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -5075,7 +5114,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -5084,7 +5123,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -5093,14 +5132,14 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
       "active_repair_phase": "current_bucket_first",
       "active_repair_component_verify_ready": false,
@@ -5113,9 +5152,10 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ],
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -5165,7 +5205,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -5174,7 +5214,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -5183,14 +5223,14 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
       "active_repair_phase": "current_bucket_first",
       "active_repair_component_verify_ready": false,
@@ -5203,9 +5243,10 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ],
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -5255,7 +5296,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -5264,7 +5305,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -5273,14 +5314,14 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
       "active_repair_phase": "current_bucket_first",
       "active_repair_component_verify_ready": false,
@@ -5293,9 +5334,10 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ],
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -5345,7 +5387,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -5354,7 +5396,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -5363,14 +5405,14 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
       "active_repair_phase": "current_bucket_first",
       "active_repair_component_verify_ready": false,
@@ -5383,9 +5425,10 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ],
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     },
     {
@@ -5435,7 +5478,7 @@
         "streak_release_ready": false,
         "recent_win_rate_release_ready": false,
         "streak_must_be_below": 50,
-        "current_streak": 166,
+        "current_streak": 167,
         "recent_window": 50,
         "recent_win_rate_must_be_at_least": 0.3,
         "current_recent_window_win_rate": 0.0,
@@ -5444,7 +5487,7 @@
         "additional_recent_window_wins_needed": 15
       },
       "release_ready": false,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "current_recent_window_win_rate": 0.0,
       "current_recent_window_wins": 0,
@@ -5453,14 +5496,14 @@
       "support_progress_status": "semantic_rebaseline_under_minimum",
       "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
       "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-      "support_progress_stagnant_run_count": 0,
+      "support_progress_stagnant_run_count": 2,
       "support_progress_stalled_support_accumulation": false,
       "support_progress_escalate_to_blocker": true,
-      "stagnant_run_count": 0,
+      "stagnant_run_count": 2,
       "stalled_support_accumulation": false,
       "escalate_to_blocker": true,
-      "support_delta_vs_previous": 1,
-      "support_previous_rows": 7,
+      "support_delta_vs_previous": 0,
+      "support_previous_rows": 8,
       "support_rows_needed": 42,
       "active_repair_phase": "current_bucket_first",
       "active_repair_component_verify_ready": false,
@@ -5473,9 +5516,10 @@
       "active_repair_action_ids": [
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
-        "semantic_rebaseline_reference_review"
+        "semantic_rebaseline_reference_review",
+        "semantic_signature_map_signal_redesign_or_row_harvest"
       ],
-      "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+      "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     }
   ],
@@ -5526,7 +5570,7 @@
       "streak_release_ready": false,
       "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "recent_win_rate_must_be_at_least": 0.3,
       "current_recent_window_win_rate": 0.0,
@@ -5535,7 +5579,7 @@
       "additional_recent_window_wins_needed": 15
     },
     "release_ready": false,
-    "current_streak": 166,
+    "current_streak": 167,
     "recent_window": 50,
     "current_recent_window_win_rate": 0.0,
     "current_recent_window_wins": 0,
@@ -5544,14 +5588,14 @@
     "support_progress_status": "semantic_rebaseline_under_minimum",
     "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
     "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-    "support_progress_stagnant_run_count": 0,
+    "support_progress_stagnant_run_count": 2,
     "support_progress_stalled_support_accumulation": false,
     "support_progress_escalate_to_blocker": true,
-    "stagnant_run_count": 0,
+    "stagnant_run_count": 2,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
-    "support_delta_vs_previous": 1,
-    "support_previous_rows": 7,
+    "support_delta_vs_previous": 0,
+    "support_previous_rows": 8,
     "support_rows_needed": 42,
     "active_repair_phase": "current_bucket_first",
     "active_repair_component_verify_ready": false,
@@ -5564,9 +5608,10 @@
     "active_repair_action_ids": [
       "collect_exact_current_bucket_rows",
       "force_q15_support_audit_refresh",
-      "semantic_rebaseline_reference_review"
+      "semantic_rebaseline_reference_review",
+      "semantic_signature_map_signal_redesign_or_row_harvest"
     ],
-    "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+    "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "best_not_deployable": {
@@ -5616,7 +5661,7 @@
       "streak_release_ready": false,
       "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "recent_win_rate_must_be_at_least": 0.3,
       "current_recent_window_win_rate": 0.0,
@@ -5625,7 +5670,7 @@
       "additional_recent_window_wins_needed": 15
     },
     "release_ready": false,
-    "current_streak": 166,
+    "current_streak": 167,
     "recent_window": 50,
     "current_recent_window_win_rate": 0.0,
     "current_recent_window_wins": 0,
@@ -5634,14 +5679,14 @@
     "support_progress_status": "semantic_rebaseline_under_minimum",
     "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
     "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-    "support_progress_stagnant_run_count": 0,
+    "support_progress_stagnant_run_count": 2,
     "support_progress_stalled_support_accumulation": false,
     "support_progress_escalate_to_blocker": true,
-    "stagnant_run_count": 0,
+    "stagnant_run_count": 2,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
-    "support_delta_vs_previous": 1,
-    "support_previous_rows": 7,
+    "support_delta_vs_previous": 0,
+    "support_previous_rows": 8,
     "support_rows_needed": 42,
     "active_repair_phase": "current_bucket_first",
     "active_repair_component_verify_ready": false,
@@ -5654,9 +5699,10 @@
     "active_repair_action_ids": [
       "collect_exact_current_bucket_rows",
       "force_q15_support_audit_refresh",
-      "semantic_rebaseline_reference_review"
+      "semantic_rebaseline_reference_review",
+      "semantic_signature_map_signal_redesign_or_row_harvest"
     ],
-    "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+    "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "highest_roi_not_deployable": {
@@ -5711,7 +5757,7 @@
       "streak_release_ready": false,
       "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 166,
+      "current_streak": 167,
       "recent_window": 50,
       "recent_win_rate_must_be_at_least": 0.3,
       "current_recent_window_win_rate": 0.0,
@@ -5720,7 +5766,7 @@
       "additional_recent_window_wins_needed": 15
     },
     "release_ready": false,
-    "current_streak": 166,
+    "current_streak": 167,
     "recent_window": 50,
     "current_recent_window_win_rate": 0.0,
     "current_recent_window_wins": 0,
@@ -5729,14 +5775,14 @@
     "support_progress_status": "semantic_rebaseline_under_minimum",
     "support_progress_reason": "current live exact support 目前是 8/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 1542），delta=8，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
     "support_progress_regression_basis": "legacy_or_different_semantic_signature",
-    "support_progress_stagnant_run_count": 0,
+    "support_progress_stagnant_run_count": 2,
     "support_progress_stalled_support_accumulation": false,
     "support_progress_escalate_to_blocker": true,
-    "stagnant_run_count": 0,
+    "stagnant_run_count": 2,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
-    "support_delta_vs_previous": 1,
-    "support_previous_rows": 7,
+    "support_delta_vs_previous": 0,
+    "support_previous_rows": 8,
     "support_rows_needed": 42,
     "active_repair_phase": "current_bucket_first",
     "active_repair_component_verify_ready": false,
@@ -5749,13 +5795,14 @@
     "active_repair_action_ids": [
       "collect_exact_current_bucket_rows",
       "force_q15_support_audit_refresh",
-      "semantic_rebaseline_reference_review"
+      "semantic_rebaseline_reference_review",
+      "semantic_signature_map_signal_redesign_or_row_harvest"
     ],
-    "source_live_probe_generated_at": "2026-05-28T03:10:52.235604Z",
+    "source_live_probe_generated_at": "2026-05-28T04:03:10.881071Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "support_context_source": "latest_live_predict_probe",
-  "support_context_current_as_of": "2026-05-28T03:10:52.235604Z",
+  "support_context_current_as_of": "2026-05-28T04:03:10.881071Z",
   "active_repair_phase": "current_bucket_first",
   "active_repair_component_verify_ready": false,
   "active_repair_live_exposure_allowed": false,
@@ -5767,6 +5814,7 @@
   "active_repair_action_ids": [
     "collect_exact_current_bucket_rows",
     "force_q15_support_audit_refresh",
-    "semantic_rebaseline_reference_review"
+    "semantic_rebaseline_reference_review",
+    "semantic_signature_map_signal_redesign_or_row_harvest"
   ]
 }
