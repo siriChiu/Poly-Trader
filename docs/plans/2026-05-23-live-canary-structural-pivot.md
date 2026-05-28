@@ -1,11 +1,11 @@
 # Live canary structural pivot
 
-- generated_at: `2026-05-28T02:13:43.806300Z`
+- generated_at: `2026-05-28T03:11:00.924094Z`
 - PM handoff carried forward: `PM 強制反平衡：若 72h 內不能執行 bounded micro-canary，必須寫明單一失敗 gate 與下一個驗證 artifact；不得再只做 observation-only heartbeat。`
 - deployment_blocker: `circuit_breaker_active`
 - current bucket: `BLOCK|bear_bias200_hard_block|q00`
-- support: `7/50` (gap `43`, delta `0`, stagnant `5`)
-- semantic-signature progress: delta `0`, stagnant `5` (does not relax strict support_identity)
+- support: `8/50` (gap `42`, delta `1`, stagnant `0`)
+- semantic-signature progress: delta `1`, stagnant `0` (does not relax strict support_identity)
 - equilibrium deadlock: confirmed=`False`, verdict=`not_applicable_current_live_not_target_lane`, forced_artifact=`data/equilibrium_deadlock_research_action.json`
 - release_ready: `False` / recent wins `0/50`, required `15`, needed `15`
 - venue_runtime_ready: `False` / OKX credentials configured: `False`
@@ -35,7 +35,7 @@
 - `A_venue_lifecycle_proof`: status=`blocked_missing_runtime_backed_proof`, can_start_now=`True`, live_exposure=`none_or_min_exchange_probe_only`
 - `B_model_shadow_to_decision`: status=`paper_shadow_available`, can_start_now=`True`, live_exposure=`paper_shadow_only`
 - `C_strategy_micro_canary`: status=`blocked_by_circuit_breaker_gate`, can_start_now=`False`, live_exposure=`max one first-layer position, tiny symbol cap, no auto-add, no pyramiding until post-trade proof is clean`
-- `D_map_signal_redesign_for_current_bucket`: status=`required`, can_start_now=`True`, live_exposure=`none`
+- `D_map_signal_redesign_for_current_bucket`: status=`standby`, can_start_now=`False`, live_exposure=`none`
 
 ## Local config snapshot (secret-safe)
 - config: `config.yaml` exists=`True`

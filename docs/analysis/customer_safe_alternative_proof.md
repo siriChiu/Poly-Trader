@@ -1,9 +1,9 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-05-28T02:13:42.806928Z`
+- generated_at: `2026-05-28T03:10:59.921290Z`
 - current_live_blocker: `circuit_breaker_active`
 - current_live_structure_bucket: `BLOCK|bear_bias200_hard_block|q00`
-- exact support: `7/50` (gap `43`)
+- exact support: `8/50` (gap `42`)
 - support_route_verdict: `exact_bucket_present_but_below_minimum`
 - circuit_breaker_release_ready: `False` (wins `0/15`, gap `15`)
 - primary_blocking_gate: `circuit_breaker_gate`
@@ -34,10 +34,10 @@
 - 輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]
 
 ## Recent-tail no-new-risk context
-- window: `100` / win_rate=`0.0` / dominant_regime=盤整 share=`0.58`
+- window: `100` / win_rate=`0.0` / dominant_regime=盤整 share=`0.57`
 - severity=高風險 / interpretation=近期目標單邊失敗／分布病態 / alerts=近期目標全為同一結果
-- avg_quality: `-0.3179` / avg_pnl=`-0.0135` / avg_drawdown_penalty=`0.3262`
-- tail_streak: target=`0` count=`100` start=`2026-05-25 19:10:56.152903` end=`2026-05-27 03:00:00.000000`
+- avg_quality: `-0.3176` / avg_pnl=`-0.0135` / avg_drawdown_penalty=`0.3262`
+- tail_streak: target=`0` count=`100` start=`2026-05-25 19:13:47.340824` end=`2026-05-27 04:00:00.000000`
 - top_shift_features: 局部底部分數、局部頂部分數、價格距離感測、RSI14、布林 %B
 - shadow_falsification: mode=只限影子驗證；不可送單 / best_gate=4H 可觀測位移影子 gate / deployable=`False` / order_submission_enabled=`False`
 - actionable_summary: 近期負向分布病態，需要用現行視窗再驗證
@@ -58,5 +58,5 @@
 - `venue_dry_run_readiness_proof`: role=`delivery_risk_reduction`, deployable=`False`, live_exposure_allowed=`False`, next=`OKX/Binance dry-run lifecycle proof checklist with credential state as boolean only`
 
 ## Next gate
-circuit_breaker release_ready=False，current exact support rows 7/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
+circuit_breaker release_ready=False，current exact support rows 8/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
 
