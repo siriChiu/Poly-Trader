@@ -1,0 +1,174 @@
+{
+  "generated_at": "2026-06-05T10:52:40.138706Z",
+  "artifact": "no_trade_lane_replay",
+  "source_artifacts": {
+    "live_predict_probe": {
+      "path": "data/live_predict_probe.json",
+      "exists": true,
+      "generated_at": "2026-06-05T10:52:12.116589Z"
+    },
+    "recent_drift_report": {
+      "path": "data/recent_drift_report.json",
+      "exists": true,
+      "generated_at": "2026-06-05T03:46:07.357078+00:00"
+    },
+    "live_canary_structural_pivot": {
+      "path": "data/live_canary_structural_pivot.json",
+      "exists": true,
+      "generated_at": "2026-06-05T03:47:03.285566Z"
+    },
+    "live_decision_quality_drilldown": {
+      "path": "data/live_decision_quality_drilldown.json",
+      "exists": true,
+      "generated_at": "2026-06-05T03:46:22.921229Z"
+    },
+    "customer_safe_alternative_proof": {
+      "path": "data/customer_safe_alternative_proof.json",
+      "exists": true,
+      "generated_at": "2026-06-05T03:46:58.278212Z"
+    }
+  },
+  "current_truth": {
+    "signal": "HOLD",
+    "should_trade": false,
+    "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+    "runtime_closure_state": "deployment_guardrail_blocks_trade",
+    "regime_label": "bear",
+    "regime_gate": "BLOCK",
+    "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+    "current_lane_actionability": "no_trade_block_lane",
+    "support_evidence_role": "no_trade_decision_validation_not_deployable_support",
+    "allowed_layers_raw": 0,
+    "allowed_layers": 0,
+    "allowed_layers_reason": "decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
+    "execution_guardrail_reason": "decision_quality_below_trade_floor; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
+    "support_rows": 131,
+    "minimum_support_rows": 50,
+    "support_gap": 0,
+    "support_route_verdict": "exact_bucket_supported",
+    "support_governance_route": "exact_live_bucket_supported",
+    "recent_window_wins": 20,
+    "recent_window_size": 50,
+    "required_recent_window_wins": 15,
+    "additional_recent_window_wins_needed": 0,
+    "api_trade_guardrail_active": true,
+    "api_trade_buy_guardrail": "current_live_deployment_blocker_409",
+    "api_trade_allowed_actions": [
+      "wait",
+      "reduce",
+      "sell",
+      "shadow_buy",
+      "paper_buy",
+      "diagnostics",
+      "mode_toggle"
+    ],
+    "api_trade_allowed_risk_off_sides": [
+      "reduce",
+      "sell"
+    ],
+    "api_trade_allowed_paper_shadow_sides": [
+      "shadow_buy",
+      "paper_buy"
+    ]
+  },
+  "replay_decision": {
+    "verdict": "validated_abstain_reduce_only_no_trade_lane",
+    "validated": true,
+    "deployable": false,
+    "deployment_verdict": "not_deployable_no_trade_decision_validation",
+    "support_evidence_role": "no_trade_decision_validation_not_deployable_support",
+    "buy_add_support_closure_allowed": false,
+    "support_rows_counted_for_buy_add": false,
+    "risk_on_order_enabled": false,
+    "order_submission_enabled": false,
+    "live_exposure_allowed": false,
+    "operator_summary": "當前 BLOCK / 不交易 lane 的 replay 結論是等待 / 觀望、減風險與 paper-shadow 可用；這份 artifact 不能作為買入 / 加倉 support closure。",
+    "next_validation_artifact": "data/no_trade_lane_replay.json",
+    "structural_pivot_next_artifact": "data/no_trade_lane_replay.json；驗證觀望 / reduce-only 行為，不把它寫成 risk-on support closure。"
+  },
+  "replay": {
+    "source": "data/live_predict_probe.json + data/recent_drift_report.json",
+    "mode": "abstain_reduce_only_no_trade_lane_replay",
+    "abstain_path": {
+      "validated": true,
+      "operator_action": "等待 / 觀望",
+      "adds_new_risk": false,
+      "risk_on_order_enabled": false,
+      "order_submission_enabled": false,
+      "evidence": "signal/should_trade/allowed_layers/runtime guardrail all point to no new buy/add exposure."
+    },
+    "reduce_only_path": {
+      "validated": true,
+      "operator_action": "減碼 / 賣出風險降低",
+      "adds_new_risk": false,
+      "allowed_risk_off_sides": [
+        "reduce",
+        "sell"
+      ],
+      "requires_existing_exposure": true
+    },
+    "paper_shadow_path": {
+      "validated": true,
+      "operator_action": "shadow_buy / paper_buy dry-run rehearsal",
+      "live_order_submitted": false,
+      "allowed_paper_shadow_sides": [
+        "shadow_buy",
+        "paper_buy"
+      ]
+    },
+    "recent_drift_shadow_context": {
+      "source": "data/recent_drift_report.json",
+      "shadow_only": true,
+      "deployable": false,
+      "deployment_verdict": "not_deployable_shadow_only_runtime_blocked",
+      "mode": "shadow_only_no_new_risk_falsification",
+      "baseline_rows": 100,
+      "baseline_win_rate": 0.21,
+      "best_gate_id": "observable_4h_shift_shadow_gate",
+      "best_gate_verdict": "fails_shadow_metric",
+      "best_gate_runtime_candidate": true,
+      "best_gate_uses_future_outcome_fields": false,
+      "blocked_rows": 7,
+      "blocked_losses": 6,
+      "loss_capture_share": 0.0759,
+      "win_cost_share": 0.0476,
+      "kept_rows": 93,
+      "kept_win_rate": 0.2151,
+      "primary_window": "100",
+      "primary_win_rate": 0.21,
+      "dominant_regime": "bear",
+      "dominant_regime_share": 0.94,
+      "alerts": [
+        "regime_concentration",
+        "regime_shift"
+      ]
+    },
+    "decision_quality_context": {
+      "chosen_scope": "regime_label+regime_gate+entry_quality_label",
+      "recent_pathology_reason": "recent scope slice 100 rows shows distribution_pathology alerts=['label_imbalance'] win_rate=0.2 avg_pnl=-0.01 avg_quality=-0.1916 window=2026-05-30 21:00:00->2026-06-04 04:00:00 adverse_streak=55x0 (2026-05-31 00:00:00->2026-06-02 08:00:00) vs sibling prev_win_rate=0.7349 Δwin_rate=-0.5349 prev_quality=0.3165 Δquality=-0.5081 prev_pnl=0.0028 Δpnl=-0.0128 top_shifts=feat_4h_dist_swing_low(-7.0113→-9.4115), feat_4h_dist_bb_lower(0.5544→0.6568), feat_4h_bb_pct_b(0.1697→0.2154)",
+      "exact_live_lane_rows": 183,
+      "exact_live_lane_win_rate": 0.4426
+    }
+  },
+  "machine_checks": {
+    "current_lane_is_no_trade_block_lane": true,
+    "should_trade_false": true,
+    "allowed_layers_zero": true,
+    "drift_replay_shadow_only": true,
+    "risk_off_paths_visible": true,
+    "paper_shadow_paths_visible": true,
+    "support_evidence_not_deployable": true,
+    "buy_add_support_closure_allowed": false,
+    "risk_on_order_enabled": false,
+    "order_submission_enabled": false,
+    "live_exposure_allowed": false,
+    "all_passed": true
+  },
+  "customer_value_delta": "把 current BLOCK lane 從口頭 no-go 轉成可重跑 abstain / reduce-only / paper-shadow replay proof，同時保留 live buy/add fail-closed。",
+  "fail_closed_invariants": {
+    "buy_add_live_exposure_forbidden": true,
+    "reference_or_no_trade_support_not_deployable": true,
+    "paper_shadow_is_not_live_order": true,
+    "reduce_only_does_not_add_new_risk": true
+  }
+}

@@ -4,7 +4,10 @@ REST API 路由 v4.0 — 多特徵策略 + 策略實驗室 + 模型排行榜
 import ccxt
 import math
 import json
+import re
 import sqlite3
+import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -32,7 +35,7 @@ from server.live_pathology_summary import (
     build_live_pathology_scope_summary as shared_build_live_pathology_scope_summary,
     load_bull_4h_pocket_ablation_summary as shared_load_bull_4h_pocket_ablation_summary,
 )
-from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized, OrderLifecycleEvent
+from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized, Labels, OrderLifecycleEvent
 from model.runtime_closure import (
     build_circuit_breaker_release_surface,
     build_runtime_closure_state,
@@ -46,12 +49,14 @@ from feature_engine.feature_history_policy import (
     _compute_archive_window_coverage,
 )
 from execution.account_sync import AccountSyncService
-from execution.console_overview import build_execution_overview
+from execution.console_overview import build_execution_overview, build_live_canary_policy_gate
 from execution.control_plane import (
+    build_paper_shadow_outcome_reconciliation,
     build_execution_control_plane_snapshot,
     build_execution_strategy_source_snapshot,
     get_execution_run_detail,
     pause_execution_run,
+    poll_execution_paper_shadow_workers,
     start_execution_profile_run,
     stop_execution_run,
 )
@@ -77,6 +82,13 @@ _MODEL_LB_STALE_AFTER_SEC = 900
 _MODEL_LB_REFRESH_COOLDOWN_SEC = 300
 _LIVE_PREDICT_PROBE_RUNTIME_STALE_AFTER_SEC = 1800
 _HIGH_CONVICTION_TOPK_STALE_AFTER_SEC = 3600
+_STRATEGY_DATA_RAW_STALE_AFTER_MINUTES = 60.0
+_STRATEGY_DATA_FEATURE_STALE_AFTER_MINUTES = 240.0
+_STRATEGY_DATA_STRATEGY_STALE_AFTER_MINUTES = 240.0
+_STRATEGY_DATA_LABEL_EXPECTED_LAG_MINUTES = 24.0 * 60.0
+_STRATEGY_DATA_LABEL_STALE_BUFFER_MINUTES = 6.0 * 60.0
+_STRATEGY_DATA_SYNC_DEFAULT_FEATURE_BACKFILL_ROWS = 25
+_STRATEGY_DATA_SYNC_MAX_FEATURE_BACKFILL_ROWS = 100
 _MODEL_LB_CACHE: Dict[str, Any] = {
     "payload": None,
     "updated_at": None,
@@ -86,6 +98,16 @@ _MODEL_LB_CACHE: Dict[str, Any] = {
     "last_refresh_reason": None,
 }
 _MODEL_LB_CACHE_LOCK = threading.Lock()
+_ML_MODEL_LOAD_LOCK = threading.RLock()
+_HIGH_CONVICTION_TOPK_REFRESH_COOLDOWN_SEC = 300
+_HIGH_CONVICTION_TOPK_REFRESH_STATE: Dict[str, Any] = {
+    "refreshing": False,
+    "error": None,
+    "last_refresh_attempt_at": None,
+    "last_refresh_completed_at": None,
+    "last_refresh_reason": None,
+}
+_HIGH_CONVICTION_TOPK_REFRESH_LOCK = threading.Lock()
 
 _KLINE_CACHE_LOCK = threading.Lock()
 _KLINE_RESPONSE_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -96,6 +118,7 @@ _BENCHMARK_PROCESS_EXECUTOR = ProcessPoolExecutor(max_workers=1)
 _HYBRID_MODEL_LOCK = threading.Lock()
 _HYBRID_MODEL_CACHE: Dict[str, Dict[str, Any]] = {}
 _EXECUTION_METADATA_SMOKE_PATH = Path(__file__).resolve().parents[2] / "data" / "execution_metadata_smoke.json"
+_VENUE_DRY_RUN_PROOF_PATH = Path(__file__).resolve().parents[2] / "data" / "venue_dry_run_proof.json"
 _EXECUTION_METADATA_EXTERNAL_MONITOR_PATH = Path(__file__).resolve().parents[2] / "data" / "execution_metadata_external_monitor.json"
 _EXECUTION_METADATA_EXTERNAL_MONITOR_INSTALL_CONTRACT_PATH = (
     Path(__file__).resolve().parents[2] / "data" / "execution_metadata_external_monitor_install_contract.json"
@@ -110,6 +133,7 @@ _EXECUTION_METADATA_EXTERNAL_MONITOR_COMMAND = (
     "scripts/execution_metadata_external_monitor.py --symbol {symbol}"
 )
 _EXECUTION_METADATA_SMOKE_STALE_AFTER_MINUTES = 30.0
+_VENUE_DRY_RUN_PROOF_STALE_AFTER_MINUTES = 30.0
 _EXECUTION_METADATA_EXTERNAL_MONITOR_STALE_AFTER_MINUTES = 15.0
 _EXECUTION_METADATA_SMOKE_AUTO_REFRESH_COOLDOWN_SECONDS = 300.0
 _EXECUTION_METADATA_SMOKE_REFRESH_LOCK = threading.Lock()
@@ -852,6 +876,128 @@ def _load_execution_metadata_smoke_summary() -> Optional[Dict[str, Any]]:
     }
 
 
+_VENUE_DRY_RUN_PROOF_SAFE_TOP_LEVEL_KEYS = {
+    "generated_at",
+    "artifact",
+    "status",
+    "symbol",
+    "source_artifacts",
+    "live_exposure_allowed",
+    "order_submission_enabled",
+    "risk_on_order_enabled",
+    "dry_run_only",
+    "secrets_redacted",
+    "credential_present",
+    "credentials_configured_any",
+    "runtime_ready",
+    "runtime_ready_count",
+    "venues_checked",
+    "runtime_ready_blockers",
+    "blockers",
+    "venues",
+    "order_preview",
+    "ack_simulation",
+    "cancel_simulation",
+    "fill_simulation",
+    "reconciliation_check",
+    "customer_usable_now",
+    "not_allowed",
+    "operator_next_action",
+    "verify_next",
+    "next_validation_artifact",
+}
+_VENUE_DRY_RUN_PROOF_SECRETISH_FIELD_MARKERS = {
+    "api_key",
+    "apikey",
+    "api_secret",
+    "secret",
+    "password",
+    "passphrase",
+    "private_key",
+    "token",
+}
+
+
+def _venue_dry_run_secret_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        safe: Dict[str, Any] = {}
+        for key, item in value.items():
+            key_text = str(key)
+            normalized_key = key_text.lower().replace("-", "_")
+            if any(marker in normalized_key for marker in _VENUE_DRY_RUN_PROOF_SECRETISH_FIELD_MARKERS):
+                continue
+            safe[key] = _venue_dry_run_secret_safe(item)
+        return safe
+    if isinstance(value, list):
+        return [_venue_dry_run_secret_safe(item) for item in value]
+    if isinstance(value, str):
+        normalized_value = value.lower().replace("-", "_")
+        if any(marker in normalized_value for marker in _VENUE_DRY_RUN_PROOF_SECRETISH_FIELD_MARKERS):
+            return "[redacted]"
+    return value
+
+
+def _load_venue_dry_run_proof_summary() -> Optional[Dict[str, Any]]:
+    if not _VENUE_DRY_RUN_PROOF_PATH.exists():
+        return None
+    try:
+        payload = json.loads(_VENUE_DRY_RUN_PROOF_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            "available": False,
+            "artifact_path": str(_VENUE_DRY_RUN_PROOF_PATH),
+            "artifact": "venue_dry_run_proof",
+            "status": "unavailable",
+            "error": str(exc),
+            "freshness": {
+                "status": "unavailable",
+                "label": "unavailable",
+                "reason": "artifact_parse_failed",
+                "age_minutes": None,
+                "stale_after_minutes": _VENUE_DRY_RUN_PROOF_STALE_AFTER_MINUTES,
+            },
+            "live_exposure_allowed": False,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "dry_run_only": True,
+            "secrets_redacted": True,
+            "runtime_ready": False,
+        }
+    if not isinstance(payload, dict):
+        return None
+
+    safe_payload = _venue_dry_run_secret_safe(payload)
+    safe_payload = safe_payload if isinstance(safe_payload, dict) else {}
+    summary = {
+        key: safe_payload.get(key)
+        for key in _VENUE_DRY_RUN_PROOF_SAFE_TOP_LEVEL_KEYS
+        if key in safe_payload
+    }
+    generated_at = summary.get("generated_at")
+    summary.update({
+        "available": True,
+        "artifact_path": str(_VENUE_DRY_RUN_PROOF_PATH),
+        "artifact": summary.get("artifact") or "venue_dry_run_proof",
+        "status": summary.get("status") or "blocked_missing_runtime_backed_proof",
+        "freshness": _build_execution_metadata_smoke_freshness(
+            generated_at,
+            stale_after_minutes=_VENUE_DRY_RUN_PROOF_STALE_AFTER_MINUTES,
+        ),
+        "live_exposure_allowed": summary.get("live_exposure_allowed") is True,
+        "order_submission_enabled": summary.get("order_submission_enabled") is True,
+        "risk_on_order_enabled": summary.get("risk_on_order_enabled") is True,
+        "dry_run_only": summary.get("dry_run_only") is not False,
+        "secrets_redacted": True,
+        "credential_present": summary.get("credential_present") is True,
+        "credentials_configured_any": summary.get("credentials_configured_any") is True,
+        "runtime_ready": summary.get("runtime_ready") is True,
+    })
+    blockers = summary.get("runtime_ready_blockers")
+    if isinstance(blockers, list) and "blockers" not in summary:
+        summary["blockers"] = [str(item) for item in blockers if str(item or "").strip()]
+    return summary
+
+
 def _load_q15_support_audit_summary(current_structure_bucket: Optional[str] = None) -> Optional[Dict[str, Any]]:
     if not _Q15_SUPPORT_AUDIT_PATH.exists():
         return None
@@ -1429,6 +1575,26 @@ def _build_execution_surface_contract() -> Dict[str, Any]:
         ],
         "operator_message": "目前完成的是 execution governance / visibility closure，不是 live 或 canary readiness。Execution Console 已獨立出 operator view，但深度 proof chain / recovery 仍以 Dashboard 為準。",
     }
+
+
+def _sync_execution_surface_contract_readiness(
+    contract: Dict[str, Any],
+    metadata_smoke: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Keep Dashboard venue blockers aligned with the latest metadata smoke truth."""
+    if not isinstance(contract, dict) or not isinstance(metadata_smoke, dict):
+        return contract
+    runtime_blockers = metadata_smoke.get("runtime_ready_blockers")
+    if isinstance(runtime_blockers, list):
+        contract["live_ready_blockers"] = [str(item) for item in runtime_blockers if str(item or "").strip()]
+    runtime_ready = metadata_smoke.get("runtime_ready")
+    if isinstance(runtime_ready, bool):
+        contract["live_ready"] = runtime_ready
+    for key in ("readiness_scope", "readiness_state"):
+        value = metadata_smoke.get(key)
+        if isinstance(value, str) and value.strip():
+            contract[key] = value
+    return contract
 
 
 def _build_live_pathology_scope_summary(scope_diagnostics: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -3152,6 +3318,175 @@ async def get_confidence_prediction() -> Dict[str, Any]:
             close()
 
 
+def _isoformat_timestamp(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        timestamp = value
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        return timestamp.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    text = str(value).strip()
+    return text or None
+
+
+def _row_get_value(row: Any, keys: List[str], index: Optional[int] = None) -> Any:
+    if isinstance(row, dict):
+        for key in keys:
+            if key in row:
+                return row.get(key)
+    for key in keys:
+        if hasattr(row, key):
+            return getattr(row, key)
+    if index is not None:
+        try:
+            return row[index]
+        except Exception:
+            return None
+    return None
+
+
+def _normalize_binary_target(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return 1 if value else 0
+    try:
+        return 1 if int(value) else 0
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_circuit_breaker_history_from_rows(
+    rows: List[Any],
+    *,
+    visible_limit: int,
+    window_size: int,
+    win_rate_floor: float,
+    streak_threshold: int,
+    horizon_minutes: int,
+) -> Dict[str, Any]:
+    """Build rolling circuit-breaker trend points from chronological label rows."""
+    visible_limit = max(1, int(visible_limit or 1))
+    targets: List[int] = []
+    points: List[Dict[str, Any]] = []
+    consecutive_loss_streak = 0
+    recent_window_wins_required = math.ceil(win_rate_floor * window_size)
+
+    for row in rows:
+        target = _normalize_binary_target(_row_get_value(row, ["target", "label_spot_long_win"], 1))
+        if target is None:
+            continue
+        timestamp = _isoformat_timestamp(_row_get_value(row, ["timestamp"], 0))
+        if target == 0:
+            consecutive_loss_streak += 1
+        else:
+            consecutive_loss_streak = 0
+        targets.append(target)
+
+        window_targets = targets[-window_size:] if window_size > 0 else targets[:]
+        recent_window_size = len(window_targets)
+        recent_window_wins = sum(window_targets)
+        recent_window_losses = recent_window_size - recent_window_wins
+        recent_window_win_rate = (recent_window_wins / recent_window_size) if recent_window_size else None
+        triggered_by: List[str] = []
+        if consecutive_loss_streak >= streak_threshold:
+            triggered_by.append("streak")
+        if (
+            recent_window_size >= window_size
+            and recent_window_win_rate is not None
+            and recent_window_win_rate < win_rate_floor
+        ):
+            triggered_by.append("recent_win_rate")
+
+        points.append({
+            "timestamp": timestamp,
+            "target": target,
+            "label": "win" if target else "loss",
+            "consecutive_loss_streak": consecutive_loss_streak,
+            "recent_window_size": recent_window_size,
+            "recent_window_wins": recent_window_wins,
+            "recent_window_losses": recent_window_losses,
+            "recent_window_win_rate": recent_window_win_rate,
+            "recent_window_win_rate_floor": win_rate_floor,
+            "recent_window_wins_required": recent_window_wins_required,
+            "additional_recent_window_wins_needed": max(0, recent_window_wins_required - recent_window_wins),
+            "streak_threshold": streak_threshold,
+            "streak_gap_to_release": max(0, consecutive_loss_streak - (streak_threshold - 1)),
+            "triggered_by": triggered_by,
+            "circuit_breaker_active": bool(triggered_by),
+        })
+
+    visible_points = points[-visible_limit:]
+    latest = visible_points[-1] if visible_points else None
+    return {
+        "status": "ok" if visible_points else "no_data",
+        "horizon_minutes": horizon_minutes,
+        "window_size": window_size,
+        "win_rate_floor": win_rate_floor,
+        "streak_threshold": streak_threshold,
+        "rows_available": len(points),
+        "points": visible_points,
+        "latest": latest,
+    }
+
+
+def build_current_live_deployment_blocker_history(session: Any, *, limit: int = 240) -> Dict[str, Any]:
+    from model.predictor import (
+        CIRCUIT_BREAKER_HORIZON_MINUTES,
+        CIRCUIT_BREAKER_RECENT_WINRATE,
+        CIRCUIT_BREAKER_STREAK,
+        CIRCUIT_BREAKER_WINDOW,
+        DEFAULT_TARGET_COL,
+    )
+
+    label_target = getattr(Labels, DEFAULT_TARGET_COL, Labels.label_spot_long_win)
+    visible_limit = max(20, min(int(limit or 240), 720))
+    # Fetch extra historical rows so the first visible points have enough
+    # context for rolling 50-sample win rate and long loss-streak runs.
+    query_limit = min(5000, max(visible_limit + CIRCUIT_BREAKER_WINDOW + CIRCUIT_BREAKER_STREAK, visible_limit * 3, 1000))
+    query_rows = (
+        session.query(Labels.timestamp, label_target, Labels.horizon_minutes)
+        .filter(
+            label_target.isnot(None),
+            Labels.horizon_minutes == CIRCUIT_BREAKER_HORIZON_MINUTES,
+        )
+        .order_by(Labels.timestamp.desc())
+        .limit(query_limit)
+        .all()
+    )
+    rows = list(reversed(query_rows))
+    payload = _build_circuit_breaker_history_from_rows(
+        rows,
+        visible_limit=visible_limit,
+        window_size=CIRCUIT_BREAKER_WINDOW,
+        win_rate_floor=CIRCUIT_BREAKER_RECENT_WINRATE,
+        streak_threshold=CIRCUIT_BREAKER_STREAK,
+        horizon_minutes=CIRCUIT_BREAKER_HORIZON_MINUTES,
+    )
+    payload["generated_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    payload["target_column"] = DEFAULT_TARGET_COL
+    payload["source"] = "labels"
+    payload["visible_limit"] = visible_limit
+    return payload
+
+
+@router.get("/execution/blocker-history")
+async def api_execution_blocker_history(limit: int = Query(240, ge=20, le=720)) -> Dict[str, Any]:
+    db = get_db()
+    try:
+        return build_current_live_deployment_blocker_history(db, limit=limit)
+    except Exception as exc:
+        logger.exception("Failed to build current-live deployment blocker history")
+        return {
+            "status": "error",
+            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "error": str(exc),
+            "points": [],
+            "latest": None,
+        }
+
+
 @router.get("/status")
 async def api_status() -> Dict[str, Any]:
     cfg = get_config() or {}
@@ -3174,7 +3509,7 @@ async def api_status() -> Dict[str, Any]:
     confidence_payload = await maybe_confidence_payload if hasattr(maybe_confidence_payload, "__await__") else maybe_confidence_payload
     live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload)
     recent_canonical_drift = _load_recent_canonical_drift_summary()
-    high_conviction_topk = _load_high_conviction_topk_summary(limit=3)
+    high_conviction_topk = _load_high_conviction_topk_summary(limit=3, live_truth=live_runtime_truth)
     range_chop_playbook = build_range_chop_playbook(live_runtime_truth, high_conviction_topk)
     execution_summary["live_runtime_truth"] = live_runtime_truth
     execution_summary["recent_canonical_drift"] = recent_canonical_drift
@@ -3183,11 +3518,42 @@ async def api_status() -> Dict[str, Any]:
 
     execution_reconciliation = _build_execution_reconciliation_summary(db, symbol, account_snapshot, execution_summary)
     metadata_smoke = _ensure_execution_metadata_smoke_governance(cfg, symbol)
-    execution_surface_contract = _build_execution_surface_contract()
+    venue_dry_run_proof = _load_venue_dry_run_proof_summary()
+    try:
+        strategy_data_sync_status = _strategy_data_sync_status(symbol)
+    except Exception as exc:
+        logger.warning("strategy data freshness status unavailable: %s", exc)
+        checked_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        strategy_data_sync_status = {
+            "symbol": symbol,
+            "checked_at": checked_at,
+            "latest_synced_at": None,
+            "strategy": None,
+            "raw": None,
+            "features": None,
+            "labels": None,
+            "freshness": {
+                "checked_at": checked_at,
+                "overall_status": "unknown",
+                "data_pipeline_ready": False,
+                "blocking_lanes": ["strategy_data_sync_status"],
+                "operator_next_action": "Refresh /api/strategy_data_sync status; DB range freshness could not be read.",
+                "error": str(exc),
+            },
+        }
+    execution_surface_contract = _sync_execution_surface_contract_readiness(
+        _build_execution_surface_contract(),
+        metadata_smoke,
+    )
     execution_surface_contract["live_runtime_truth"] = live_runtime_truth
     execution_surface_contract["recent_canonical_drift"] = recent_canonical_drift
     execution_surface_contract["high_conviction_topk"] = high_conviction_topk
     execution_surface_contract["range_chop_playbook"] = range_chop_playbook
+    execution_surface_contract["venue_dry_run_proof"] = venue_dry_run_proof
+    live_canary_policy_gate = build_live_canary_policy_gate(cfg, symbol)
+    execution_surface_contract["live_canary_policy_gate"] = live_canary_policy_gate
+    execution_summary["live_canary_policy_gate"] = live_canary_policy_gate
+    execution_summary["venue_dry_run_proof"] = venue_dry_run_proof
     operator_message = execution_surface_contract.get("operator_message") or ""
     if live_runtime_truth.get("runtime_closure_state") == "capacity_opened_signal_hold":
         operator_message = f"{operator_message} 目前 runtime 已開出 1 層 deployment capacity，但 signal 仍是 HOLD。".strip()
@@ -3202,8 +3568,11 @@ async def api_status() -> Dict[str, Any]:
         "account": account_snapshot,
         "raw_continuity": get_runtime_status("raw_continuity", {"status": "unknown"}),
         "feature_continuity": get_runtime_status("feature_continuity", {"status": "unknown"}),
+        "strategy_data_sync": strategy_data_sync_status,
+        "data_freshness": strategy_data_sync_status.get("freshness"),
         "execution_reconciliation": execution_reconciliation,
         "execution_metadata_smoke": metadata_smoke,
+        "venue_dry_run_proof": venue_dry_run_proof,
         "execution_surface_contract": execution_surface_contract,
         "high_conviction_topk": high_conviction_topk,
         "range_chop_playbook": range_chop_playbook,
@@ -3218,7 +3587,80 @@ async def api_execution_overview() -> Dict[str, Any]:
     base_overview = build_execution_overview(status_payload, config=cfg)
     db = get_db()
     control_plane = build_execution_control_plane_snapshot(db, status_payload, base_overview)
-    return build_execution_overview(status_payload, config=cfg, control_plane=control_plane)
+    overview = build_execution_overview(status_payload, config=cfg, control_plane=control_plane)
+    outcome_reconciliation = build_paper_shadow_outcome_reconciliation(
+        db,
+        status_payload=status_payload,
+        persist=False,
+    )
+    overview["paper_shadow_outcome_reconciliation"] = _compact_paper_shadow_outcome_reconciliation(
+        outcome_reconciliation
+    )
+    return overview
+
+
+def _compact_paper_shadow_outcome_reconciliation(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Return overview-safe paper/shadow worker outcome proof without proposal rows."""
+
+    artifact = payload.get("artifact") if isinstance(payload.get("artifact"), dict) else {}
+    summary = artifact.get("summary") if isinstance(artifact.get("summary"), dict) else {}
+    proof = artifact.get("rehearsal_proof") if isinstance(artifact.get("rehearsal_proof"), dict) else {}
+    quick_read = artifact.get("quick_read") if isinstance(artifact.get("quick_read"), dict) else {}
+    return {
+        "artifact_path": payload.get("artifact_path"),
+        "persisted": bool(payload.get("persisted")),
+        "artifact_schema_version": artifact.get("artifact_schema_version"),
+        "generated_at": artifact.get("generated_at"),
+        "status": artifact.get("status"),
+        "rehearsal_status": artifact.get("rehearsal_status"),
+        "mode": artifact.get("mode"),
+        "window_hours": artifact.get("window_hours"),
+        "label_source": artifact.get("label_source"),
+        "order_submission_enabled": artifact.get("order_submission_enabled"),
+        "risk_on_order_enabled": artifact.get("risk_on_order_enabled"),
+        "live_order_submitted": artifact.get("live_order_submitted"),
+        "worker_poll_events": artifact.get("worker_poll_events"),
+        "pending_outcomes": artifact.get("pending_outcomes"),
+        "resolved_outcomes": artifact.get("resolved_outcomes"),
+        "awaiting_label_replay": artifact.get("awaiting_label_replay"),
+        "parity_blocked_events": artifact.get("parity_blocked_events"),
+        "can_poll_workers": artifact.get("can_poll_workers"),
+        "poll_blocked_by_pending_outcome": artifact.get("poll_blocked_by_pending_outcome"),
+        "next_reconcile_at": artifact.get("next_reconcile_at"),
+        "pending_hours_remaining_min": artifact.get("pending_hours_remaining_min"),
+        "resolution_due_count": artifact.get("resolution_due_count"),
+        "reconciliation_due": artifact.get("reconciliation_due"),
+        "quick_read": quick_read,
+        "summary": {
+            "worker_poll_events": summary.get("worker_poll_events"),
+            "resolved_outcomes": summary.get("resolved_outcomes"),
+            "pending_outcomes": summary.get("pending_outcomes"),
+            "awaiting_label_replay": summary.get("awaiting_label_replay"),
+            "parity_blocked_events": summary.get("parity_blocked_events"),
+            "entries": summary.get("entries"),
+            "live_order_submitted": summary.get("live_order_submitted"),
+        },
+        "rehearsal_proof": {
+            "status": proof.get("status"),
+            "artifact_status": proof.get("artifact_status"),
+            "can_poll_workers": proof.get("can_poll_workers"),
+            "can_reconcile_outcomes": proof.get("can_reconcile_outcomes"),
+            "poll_blocked_by_pending_outcome": proof.get("poll_blocked_by_pending_outcome"),
+            "next_reconcile_at": proof.get("next_reconcile_at"),
+            "pending_hours_remaining_min": proof.get("pending_hours_remaining_min"),
+            "resolution_due_count": proof.get("resolution_due_count"),
+            "order_submission_enabled": proof.get("order_submission_enabled"),
+            "risk_on_order_enabled": proof.get("risk_on_order_enabled"),
+            "live_order_submitted": proof.get("live_order_submitted"),
+            "run_counts": proof.get("run_counts"),
+            "latest_run": proof.get("latest_run"),
+            "chain": proof.get("chain"),
+            "next_operator_action": proof.get("next_operator_action"),
+            "blocked_live_actions": proof.get("blocked_live_actions"),
+            "operator_message": proof.get("operator_message"),
+        },
+        "operator_message": artifact.get("operator_message"),
+    }
 
 
 @router.get("/execution/strategies/source")
@@ -3259,6 +3701,38 @@ async def api_execution_runs() -> Dict[str, Any]:
     }
 
 
+@router.post("/execution/workers/poll")
+async def api_execution_worker_poll(request: Request = None) -> Dict[str, Any]:
+    _assert_local_operator_request(request)
+    status_payload = await api_status()
+    db = get_db()
+    result = poll_execution_paper_shadow_workers(db, status_payload=status_payload)
+    outcome_reconciliation = build_paper_shadow_outcome_reconciliation(db, status_payload=status_payload, persist=True)
+    return {
+        "action": "worker_poll",
+        "outcome_reconciliation": outcome_reconciliation,
+        **result,
+    }
+
+
+@router.get("/execution/workers/outcomes")
+async def api_execution_worker_outcomes() -> Dict[str, Any]:
+    status_payload = await api_status()
+    db = get_db()
+    return build_paper_shadow_outcome_reconciliation(db, status_payload=status_payload, persist=False)
+
+
+@router.post("/execution/workers/reconcile")
+async def api_execution_worker_reconcile(request: Request = None) -> Dict[str, Any]:
+    _assert_local_operator_request(request)
+    status_payload = await api_status()
+    db = get_db()
+    return {
+        "action": "worker_reconcile",
+        **build_paper_shadow_outcome_reconciliation(db, status_payload=status_payload, persist=True),
+    }
+
+
 @router.post("/execution/runs/{profile_id}/start")
 async def api_execution_start_run(profile_id: str, request: Request = None) -> Dict[str, Any]:
     _assert_local_operator_request(request)
@@ -3266,7 +3740,7 @@ async def api_execution_start_run(profile_id: str, request: Request = None) -> D
     status_payload = await api_status()
     base_overview = build_execution_overview(status_payload, config=cfg)
     db = get_db()
-    return start_execution_profile_run(db, profile_id, status_payload, base_overview)
+    return start_execution_profile_run(db, profile_id, status_payload, base_overview, config=cfg)
 
 
 @router.post("/execution/runs/{run_id}/pause")
@@ -3675,12 +4149,22 @@ def _choose_best_non_overfit_model(items: List[Dict[str, Any]], overfit_gap_thre
 
 
 
+def _load_model_leaderboard_class():
+    # Serialize ML cold imports so background refreshes cannot expose partially
+    # initialized optional dependencies to request-time predictor loading.
+    with _ML_MODEL_LOAD_LOCK:
+        from backtesting.model_leaderboard import ModelLeaderboard
+
+    return ModelLeaderboard
+
+
+
 def _summarize_target_candidates(
     data_df: pd.DataFrame,
     overfit_gap_threshold: float = _OVERFIT_GAP_THRESHOLD,
     overfit_accuracy_threshold: float = _OVERFIT_ACCURACY_THRESHOLD,
 ) -> List[Dict[str, Any]]:
-    from backtesting.model_leaderboard import ModelLeaderboard
+    ModelLeaderboard = _load_model_leaderboard_class()
 
     summaries: List[Dict[str, Any]] = []
     target_specs = [
@@ -4108,6 +4592,11 @@ def _apply_high_conviction_support_overlay_to_row(
         ("support_rows_needed", "support_rows_needed"),
         ("source_live_probe_generated_at", "source_live_probe_generated_at"),
         ("live_truth_source_artifact", "live_truth_source_artifact"),
+        ("support_context_status", "support_context_status"),
+        ("support_context_freshness", "support_context_freshness"),
+        ("live_truth_freshness", "live_truth_freshness"),
+        ("live_truth_overlay_blocker", "live_truth_overlay_blocker"),
+        ("stale_support_context_reference", "stale_support_context_reference"),
     ):
         value = support_context.get(context_key)
         if value is not None:
@@ -4241,6 +4730,11 @@ def _compact_high_conviction_topk_row(
         "support_rows_needed": _support_value("support_rows_needed"),
         "source_live_probe_generated_at": _support_value("source_live_probe_generated_at", "live_truth_generated_at"),
         "live_truth_source_artifact": _support_value("live_truth_source_artifact"),
+        "support_context_status": _support_value("support_context_status"),
+        "support_context_freshness": _support_value("support_context_freshness"),
+        "live_truth_freshness": _support_value("live_truth_freshness"),
+        "live_truth_overlay_blocker": _support_value("live_truth_overlay_blocker"),
+        "stale_support_context_reference": _support_value("stale_support_context_reference"),
         "deployable_verdict": row.get("deployable_verdict") or "not_deployable",
         "deployment_candidate_tier": deployment_candidate_tier,
         "gate_failures": gate_failures,
@@ -4376,7 +4870,7 @@ def _load_high_conviction_live_support_overlay(path: Optional[Path] = None) -> O
     if support_rows_needed is None:
         support_rows_needed = gap_to_minimum
 
-    return {
+    live_context = {
         "generated_at": payload.get("generated_at") or payload.get("feature_timestamp"),
         "source_artifact": str(artifact_path),
         "current_live_structure_bucket": current_bucket,
@@ -4410,6 +4904,109 @@ def _load_high_conviction_live_support_overlay(path: Optional[Path] = None) -> O
         "support_delta_vs_previous": support_delta_vs_previous,
         "support_previous_rows": support_previous_rows,
         "support_rows_needed": support_rows_needed,
+    }
+    freshness = _build_high_conviction_live_support_freshness(live_context.get("generated_at"))
+    if freshness.get("deployment_blocking"):
+        return _stale_high_conviction_live_support_context(live_context, freshness=freshness)
+    live_context["support_context_status"] = "fresh_live_probe_overlay"
+    live_context["support_context_freshness"] = freshness
+    live_context["live_truth_freshness"] = freshness
+    return live_context
+
+
+def _build_high_conviction_live_support_freshness(
+    generated_at: Any,
+    *,
+    stale_after_sec: float = _LIVE_PREDICT_PROBE_RUNTIME_STALE_AFTER_SEC,
+) -> Dict[str, Any]:
+    stale_after_minutes = stale_after_sec / 60.0
+    checked_at = datetime.now(timezone.utc)
+    freshness: Dict[str, Any] = {
+        "status": "unavailable",
+        "label": "unavailable",
+        "reason": "missing_generated_at",
+        "generated_at": generated_at,
+        "checked_at": checked_at.isoformat(),
+        "age_minutes": None,
+        "age_seconds": None,
+        "stale_after_minutes": stale_after_minutes,
+        "deployment_blocking": True,
+    }
+    dt = _parse_utc_datetime(generated_at)
+    if dt is None:
+        if generated_at:
+            freshness["reason"] = "invalid_generated_at"
+        return freshness
+    age_seconds = max((checked_at - dt).total_seconds(), 0.0)
+    status = "fresh" if age_seconds <= stale_after_sec else "stale"
+    freshness.update(
+        {
+            "status": status,
+            "label": status,
+            "reason": "artifact_within_policy" if status == "fresh" else "artifact_older_than_policy",
+            "age_minutes": age_seconds / 60.0,
+            "age_seconds": age_seconds,
+            "deployment_blocking": status != "fresh",
+        }
+    )
+    return freshness
+
+
+def _stale_high_conviction_live_support_context(
+    context: Dict[str, Any],
+    *,
+    freshness: Dict[str, Any],
+) -> Dict[str, Any]:
+    reference_keys = (
+        "current_live_structure_bucket",
+        "current_live_structure_bucket_rows",
+        "minimum_support_rows",
+        "current_live_structure_bucket_gap_to_minimum",
+        "support_route_verdict",
+        "support_governance_route",
+        "deployment_blocker",
+        "runtime_closure_state",
+        "support_progress_status",
+        "source_artifact",
+        "generated_at",
+    )
+    reference = {key: context.get(key) for key in reference_keys if context.get(key) is not None}
+    minimum_rows = _coerce_int_or_none(context.get("minimum_support_rows")) or 50
+    generated_at = context.get("generated_at")
+    source_artifact = context.get("source_artifact")
+    return {
+        "generated_at": generated_at,
+        "source_artifact": source_artifact,
+        "support_context_status": "stale_live_probe_shadow_only",
+        "support_context_freshness": freshness,
+        "live_truth_freshness": freshness,
+        "live_truth_overlay_applied": False,
+        "live_truth_overlay_blocker": freshness.get("reason") or "stale_live_probe",
+        "live_truth_generated_at": generated_at,
+        "source_live_probe_generated_at": generated_at,
+        "live_truth_source_artifact": source_artifact,
+        "stale_support_context_reference": reference,
+        "support_route_verdict": "stale_live_support_context",
+        "support_governance_route": "stale_live_support_context",
+        "support_governance_reference_evidence": {
+            "reference_only": True,
+            "reason": "stale_live_probe",
+            "source_live_probe_generated_at": generated_at,
+            "source_artifact": source_artifact,
+        },
+        "support_route_deployable": False,
+        "deployment_blocker": "stale_live_support_context",
+        "runtime_closure_state": "stale_live_support_context_shadow_only",
+        "current_live_structure_bucket": "stale_live_support_context",
+        "current_live_structure_bucket_rows": 0,
+        "minimum_support_rows": minimum_rows,
+        "current_live_structure_bucket_gap_to_minimum": minimum_rows,
+        "allowed_layers": 0,
+        "signal": "ABSTAIN",
+        "execution_guardrail_reason": "live_support_context_stale; high_conviction_topk_shadow_only",
+        "release_ready": False,
+        "support_progress_status": "stale_live_probe_shadow_only",
+        "support_rows_needed": minimum_rows,
     }
 
 
@@ -4464,13 +5061,25 @@ def _overlay_high_conviction_support_context(
         "support_delta_vs_previous",
         "support_previous_rows",
         "support_rows_needed",
+        "support_context_status",
+        "support_context_freshness",
+        "live_truth_freshness",
+        "live_truth_overlay_blocker",
+        "stale_support_context_reference",
     ):
         value = live_truth.get(key)
         if value is not None:
             merged[key] = value
-    merged["live_truth_generated_at"] = live_truth.get("generated_at")
-    merged["live_truth_source_artifact"] = live_truth.get("source_artifact")
-    merged["live_truth_overlay_applied"] = True
+    merged["live_truth_generated_at"] = (
+        live_truth.get("generated_at")
+        or live_truth.get("live_truth_generated_at")
+        or live_truth.get("source_live_probe_generated_at")
+    )
+    merged["live_truth_source_artifact"] = live_truth.get("source_artifact") or live_truth.get("live_truth_source_artifact")
+    merged["live_truth_overlay_applied"] = live_truth.get("live_truth_overlay_applied", True) is not False
+    if merged.get("support_context_status") == "fresh_runtime_truth_overlay":
+        merged["live_truth_overlay_blocker"] = None
+        merged.pop("stale_support_context_reference", None)
     return merged
 
 
@@ -4515,7 +5124,122 @@ def _build_high_conviction_topk_freshness(
     return freshness
 
 
-def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int = 12) -> Optional[Dict[str, Any]]:
+def _high_conviction_topk_artifact_freshness(path: Optional[Path] = None) -> Dict[str, Any]:
+    artifact_path = path or HIGH_CONVICTION_TOPK_PATH
+    try:
+        if not artifact_path.exists():
+            return _build_high_conviction_topk_freshness(None)
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except Exception:
+        return _build_high_conviction_topk_freshness(None)
+    if not isinstance(payload, dict):
+        return _build_high_conviction_topk_freshness(None)
+    return _build_high_conviction_topk_freshness(payload.get("generated_at"))
+
+
+def _high_conviction_topk_refresh_snapshot() -> Dict[str, Any]:
+    with _HIGH_CONVICTION_TOPK_REFRESH_LOCK:
+        state = dict(_HIGH_CONVICTION_TOPK_REFRESH_STATE)
+    for key in ("last_refresh_attempt_at", "last_refresh_completed_at"):
+        timestamp = state.get(key)
+        state[f"{key}_iso"] = (
+            datetime.utcfromtimestamp(float(timestamp)).isoformat() + "Z"
+            if timestamp
+            else None
+        )
+    return state
+
+
+def _refresh_high_conviction_topk_artifact(*, preclaimed: bool = False) -> None:
+    attempt_started_at = time.time()
+    if not preclaimed:
+        with _HIGH_CONVICTION_TOPK_REFRESH_LOCK:
+            if _HIGH_CONVICTION_TOPK_REFRESH_STATE.get("refreshing"):
+                return
+            _HIGH_CONVICTION_TOPK_REFRESH_STATE["refreshing"] = True
+            _HIGH_CONVICTION_TOPK_REFRESH_STATE["error"] = None
+            _HIGH_CONVICTION_TOPK_REFRESH_STATE["last_refresh_attempt_at"] = attempt_started_at
+            _HIGH_CONVICTION_TOPK_REFRESH_STATE["last_refresh_reason"] = "direct_refresh"
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(PROJECT_ROOT / "scripts" / "topk_walkforward_precision.py")],
+            cwd=str(PROJECT_ROOT),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        with _HIGH_CONVICTION_TOPK_REFRESH_LOCK:
+            _HIGH_CONVICTION_TOPK_REFRESH_STATE.update(
+                {
+                    "refreshing": False,
+                    "error": None,
+                    "last_refresh_attempt_at": float(
+                        _HIGH_CONVICTION_TOPK_REFRESH_STATE.get("last_refresh_attempt_at")
+                        or attempt_started_at
+                    ),
+                    "last_refresh_completed_at": time.time(),
+                }
+            )
+        logger.info(
+            "High-conviction Top-K matrix refreshed (%s bytes stdout)",
+            len(completed.stdout or ""),
+        )
+    except Exception as exc:
+        with _HIGH_CONVICTION_TOPK_REFRESH_LOCK:
+            _HIGH_CONVICTION_TOPK_REFRESH_STATE.update(
+                {
+                    "refreshing": False,
+                    "error": str(exc),
+                    "last_refresh_attempt_at": float(
+                        _HIGH_CONVICTION_TOPK_REFRESH_STATE.get("last_refresh_attempt_at")
+                        or attempt_started_at
+                    ),
+                }
+            )
+        logger.exception("High-conviction Top-K matrix refresh failed")
+
+
+def _spawn_high_conviction_topk_refresh_thread(reason: str) -> bool:
+    attempt_started_at = time.time()
+    with _HIGH_CONVICTION_TOPK_REFRESH_LOCK:
+        if _HIGH_CONVICTION_TOPK_REFRESH_STATE.get("refreshing"):
+            return False
+        _HIGH_CONVICTION_TOPK_REFRESH_STATE["refreshing"] = True
+        _HIGH_CONVICTION_TOPK_REFRESH_STATE["error"] = None
+        _HIGH_CONVICTION_TOPK_REFRESH_STATE["last_refresh_attempt_at"] = attempt_started_at
+        _HIGH_CONVICTION_TOPK_REFRESH_STATE["last_refresh_reason"] = reason
+    threading.Thread(
+        target=_refresh_high_conviction_topk_artifact,
+        kwargs={"preclaimed": True},
+        daemon=True,
+    ).start()
+    return True
+
+
+def _ensure_high_conviction_topk_refresh(force: bool = False) -> None:
+    now = time.time()
+    with _HIGH_CONVICTION_TOPK_REFRESH_LOCK:
+        refreshing = bool(_HIGH_CONVICTION_TOPK_REFRESH_STATE.get("refreshing"))
+        last_refresh_attempt_at = float(_HIGH_CONVICTION_TOPK_REFRESH_STATE.get("last_refresh_attempt_at") or 0.0)
+    if refreshing:
+        return
+
+    freshness = _high_conviction_topk_artifact_freshness()
+    stale = bool(freshness.get("deployment_blocking"))
+    if force:
+        _spawn_high_conviction_topk_refresh_thread("force_refresh")
+        return
+    if stale:
+        cooldown_remaining = _HIGH_CONVICTION_TOPK_REFRESH_COOLDOWN_SEC - (now - last_refresh_attempt_at)
+        if cooldown_remaining <= 0:
+            _spawn_high_conviction_topk_refresh_thread("artifact_stale")
+
+
+def _load_high_conviction_topk_summary(
+    path: Optional[Path] = None,
+    limit: int = 12,
+    live_truth: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
     artifact_path = path or HIGH_CONVICTION_TOPK_PATH
     try:
         if not artifact_path.exists():
@@ -4541,10 +5265,19 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
         }
 
     support_context = payload.get("support_context") if isinstance(payload.get("support_context"), dict) else {}
+    live_support_truth = live_truth if isinstance(live_truth, dict) else _load_high_conviction_live_support_overlay()
+    if isinstance(live_support_truth, dict) and live_truth is not None:
+        live_support_truth = dict(live_support_truth)
+        live_support_truth.setdefault("generated_at", datetime.now(timezone.utc).isoformat())
+        live_support_truth.setdefault("source_artifact", "runtime_live_runtime_truth")
+        live_support_truth.setdefault("support_context_status", "fresh_runtime_truth_overlay")
+        freshness = _build_high_conviction_live_support_freshness(live_support_truth.get("generated_at"))
+        live_support_truth.setdefault("support_context_freshness", freshness)
+        live_support_truth.setdefault("live_truth_freshness", freshness)
     support_context = _overlay_high_conviction_support_context(
         support_context,
         topk_generated_at=payload.get("generated_at"),
-        live_truth=_load_high_conviction_live_support_overlay(),
+        live_truth=live_support_truth,
     )
     minimum_gates = payload.get("minimum_deployment_gates") if isinstance(payload.get("minimum_deployment_gates"), dict) else None
     rows = [
@@ -4568,6 +5301,7 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
         deployment_readiness_status = "freshness_unknown_shadow_only"
     else:
         deployment_readiness_status = "paper_shadow_only"
+    refresh_state = _high_conviction_topk_refresh_snapshot()
     compact_rows = [_compact_high_conviction_topk_row(row, support_context) for row in rows[:limit]]
     nearest_deployable_rows = [
         _compact_high_conviction_topk_row(row, support_context)
@@ -4589,6 +5323,12 @@ def _load_high_conviction_topk_summary(path: Optional[Path] = None, limit: int =
         "top_k_grid": payload.get("top_k_grid") if isinstance(payload.get("top_k_grid"), list) else [],
         "minimum_deployment_gates": payload.get("minimum_deployment_gates") if isinstance(payload.get("minimum_deployment_gates"), dict) else {},
         "support_context": support_context,
+        "support_context_status": support_context.get("support_context_status"),
+        "support_context_freshness": support_context.get("support_context_freshness"),
+        "refresh_state": refresh_state,
+        "refreshing": bool(refresh_state.get("refreshing")),
+        "refresh_reason": refresh_state.get("last_refresh_reason"),
+        "refresh_error": refresh_state.get("error"),
         "row_count": len(rows),
         "deployable_count": deployable_count,
         "risk_qualified_count": risk_qualified_count,
@@ -4852,12 +5592,25 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
     def _normalize_canonical_tail_root_cause(root_cause_payload: Any) -> Optional[Dict[str, Any]]:
         if not isinstance(root_cause_payload, dict):
             return None
+        def _has_meaningful_value(value: Any) -> bool:
+            if value is None:
+                return False
+            if isinstance(value, str):
+                return bool(value.strip())
+            if isinstance(value, (int, float, bool)):
+                return True
+            if isinstance(value, list):
+                return any(_has_meaningful_value(item) for item in value)
+            if isinstance(value, dict):
+                return any(_has_meaningful_value(item) for item in value.values())
+            return True
+
         loss_path = root_cause_payload.get("loss_path_breakdown") if isinstance(root_cause_payload.get("loss_path_breakdown"), dict) else {}
         regime_breakdown = root_cause_payload.get("regime_breakdown") if isinstance(root_cause_payload.get("regime_breakdown"), dict) else {}
         feature_shift = root_cause_payload.get("feature_shift") if isinstance(root_cause_payload.get("feature_shift"), dict) else {}
         top_features = root_cause_payload.get("top_4h_shift_features")
         key_findings = root_cause_payload.get("key_findings")
-        return {
+        normalized = {
             "generated_at": root_cause_payload.get("generated_at"),
             "window": root_cause_payload.get("window"),
             "rows": root_cause_payload.get("rows"),
@@ -4875,6 +5628,21 @@ def _load_recent_canonical_drift_summary(path: Optional[Path] = None) -> Optiona
             "feature_shift": feature_shift,
             "key_findings": key_findings if isinstance(key_findings, list) else [],
         }
+        content_keys = (
+            "window",
+            "rows",
+            "losses",
+            "wins",
+            "loss_path_breakdown",
+            "regime_breakdown",
+            "dominant_loss_regime",
+            "top_4h_shift_features",
+            "feature_shift",
+            "key_findings",
+        )
+        if not any(_has_meaningful_value(normalized.get(key)) for key in content_keys):
+            return None
+        return normalized
 
     primary = _normalize_recent_drift_window(payload.get("primary_window"))
     blocking = _normalize_recent_drift_window(payload.get("blocking_window"))
@@ -5112,7 +5880,7 @@ def _should_override_leaderboard_governance(
 
 
 def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str, Any]:
-    from backtesting.model_leaderboard import ModelLeaderboard
+    ModelLeaderboard = _load_model_leaderboard_class()
 
     db_path = db_path or DB_PATH
     strategy_param_scan = _load_strategy_param_scan_summary()
@@ -5194,6 +5962,30 @@ def _build_model_leaderboard_payload(db_path: Optional[str] = None) -> Dict[str,
         "high_conviction_topk": high_conviction_topk,
     })
     return payload
+
+
+
+async def _load_high_conviction_topk_summary_for_current_request(
+    *,
+    limit: int = 12,
+) -> Optional[Dict[str, Any]]:
+    """Load Top-K summary using fresh request-time runtime truth when available."""
+
+    live_truth: Optional[Dict[str, Any]] = None
+    try:
+        maybe_confidence_payload = get_confidence_prediction()
+        confidence_payload = (
+            await maybe_confidence_payload
+            if hasattr(maybe_confidence_payload, "__await__")
+            else maybe_confidence_payload
+        )
+        live_truth = _build_live_runtime_closure_surface(confidence_payload)
+    except Exception as exc:
+        logger.warning(
+            "Falling back to persisted live support overlay for high-conviction Top-K leaderboard: %s",
+            exc,
+        )
+    return _load_high_conviction_topk_summary(limit=limit, live_truth=live_truth)
 
 
 
@@ -5358,9 +6150,10 @@ def _ensure_model_leaderboard_refresh(force: bool = False) -> None:
 
 @lru_cache(maxsize=4)
 def _load_predictor_cached(model_mtime_ns: int, regime_mtime_ns: int):
-    from model import predictor as predictor_module
+    with _ML_MODEL_LOAD_LOCK:
+        from model import predictor as predictor_module
 
-    return predictor_module.load_predictor()
+        return predictor_module.load_predictor()
 
 
 
@@ -5375,9 +6168,10 @@ def _safe_file_mtime_ns(path: Optional[str]) -> int:
 
 
 def _get_loaded_predictor_cached():
-    from model import predictor as predictor_module
+    with _ML_MODEL_LOAD_LOCK:
+        from model import predictor as predictor_module
 
-    model_path = getattr(predictor_module, "MODEL_PATH", None)
+        model_path = getattr(predictor_module, "MODEL_PATH", None)
     regime_path = None
     if model_path:
         regime_path = str(model_path).replace("xgb_model.pkl", "regime_models.pkl")
@@ -5388,14 +6182,18 @@ def _get_loaded_predictor_cached():
 
 
 @router.get("/models/leaderboard")
-async def api_model_leaderboard(force: bool = False) -> Dict[str, Any]:
+async def api_model_leaderboard(force: bool = False, refresh: bool = False) -> Dict[str, Any]:
     """回傳所有 ML 模型的 Walk-Forward Leaderboard。
 
     採用 stale-while-revalidate：有 cache 時直接回 cache；只要快取過期就自動背景重算，
     但會套用 cooldown 避免 Strategy Lab 的輪詢把 leaderboard 重建打爆。
     """
+    force_refresh = bool(force or refresh)
     _load_model_leaderboard_cache_file()
-    _ensure_model_leaderboard_refresh(force=force)
+    _ensure_high_conviction_topk_refresh(force=force_refresh)
+    governance_payload = _load_leaderboard_governance_summary()
+    high_conviction_topk_payload = await _load_high_conviction_topk_summary_for_current_request()
+    _ensure_model_leaderboard_refresh(force=force_refresh)
 
     with _MODEL_LB_CACHE_LOCK:
         payload = _MODEL_LB_CACHE.get("payload")
@@ -5406,8 +6204,6 @@ async def api_model_leaderboard(force: bool = False) -> Dict[str, Any]:
         last_refresh_reason = _MODEL_LB_CACHE.get("last_refresh_reason")
 
     payload = _normalize_model_leaderboard_payload(payload) if isinstance(payload, dict) else payload
-    governance_payload = _load_leaderboard_governance_summary()
-    high_conviction_topk_payload = _load_high_conviction_topk_summary()
     if isinstance(payload, dict) and _should_override_leaderboard_governance(
         payload.get("leaderboard_governance"),
         governance_payload,
@@ -5415,10 +6211,9 @@ async def api_model_leaderboard(force: bool = False) -> Dict[str, Any]:
         payload = {**payload, "leaderboard_governance": governance_payload}
     if isinstance(payload, dict) and isinstance(high_conviction_topk_payload, dict):
         # High-conviction Top-K is cheap to load but contains live deployment-support
-        # overlays from live_predict_probe.json. Never serve stale cached support
-        # routes here: Strategy Lab uses this endpoint to decide whether promising
-        # OOS rows are deployable, and stale proxy governance can falsely imply
-        # deployment closure after the live bucket changes.
+        # overlays. Prefer request-time runtime truth over the persisted probe so
+        # Strategy Lab does not turn fresh status context into a stale shadow-only
+        # candidate just because the disk probe has crossed its 30-minute TTL.
         payload = {**payload, "high_conviction_topk": high_conviction_topk_payload}
 
     now = time.time()
@@ -6300,7 +7095,7 @@ def _filter_strategy_rows_by_backtest_range(
 ) -> tuple[List[Any], Dict[str, Any]]:
     filtered_rows = list(rows or [])
     requested_start = _parse_backtest_timestamp(start) if start else None
-    requested_end = _parse_backtest_timestamp(end) if end else None
+    requested_end = _parse_backtest_timestamp(end, expand_date_only_end=True) if end else None
     available_start = _parse_backtest_timestamp(rows[0][0]) if rows else None
     available_end = _parse_backtest_timestamp(rows[-1][0]) if rows else None
 
@@ -6707,8 +7502,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
             if train_df.empty:
                 return {"error": "Hybrid 模式缺少 target 標籤資料"}
 
-            from backtesting.model_leaderboard import ModelLeaderboard
-
+            ModelLeaderboard = _load_model_leaderboard_class()
             lb = ModelLeaderboard(train_df, target_col=target_col)
             signature = _build_cache_key(model_name, target_col, len(train_df), str(train_df["timestamp"].iloc[-1]))
             with _HYBRID_MODEL_LOCK:
@@ -7066,6 +7860,12 @@ def _load_strategy_data_cached(db_mtime_ns: int):
     try:
         return conn.execute(
             """
+            WITH raw_latest AS (
+                SELECT timestamp, replace(symbol, '/', '') AS symbol_key, MAX(id) AS max_id
+                FROM raw_market_data
+                WHERE close_price IS NOT NULL
+                GROUP BY timestamp, replace(symbol, '/', '')
+            )
             SELECT f.timestamp, r.close_price,
                    f.feat_4h_bias50, f.feat_4h_bias200,
                    f.feat_nose, f.feat_pulse, f.feat_ear,
@@ -7073,7 +7873,10 @@ def _load_strategy_data_cached(db_mtime_ns: int):
                    f.feat_4h_bb_pct_b, f.feat_4h_dist_bb_lower, f.feat_4h_dist_swing_low,
                    f.feat_local_bottom_score, f.feat_local_top_score
             FROM features_normalized f
-            JOIN raw_market_data r ON r.timestamp = f.timestamp AND r.symbol = f.symbol
+            JOIN raw_latest rk
+              ON rk.timestamp = f.timestamp
+             AND rk.symbol_key = replace(f.symbol, '/', '')
+            JOIN raw_market_data r ON r.id = rk.max_id
             WHERE f.feat_4h_bias50 IS NOT NULL AND r.close_price IS NOT NULL
             ORDER BY f.timestamp
             """
@@ -7092,7 +7895,7 @@ def _load_strategy_data() -> List[Any]:
 
 
 
-def _parse_backtest_timestamp(value: Any) -> Optional[datetime]:
+def _parse_backtest_timestamp(value: Any, *, expand_date_only_end: bool = False) -> Optional[datetime]:
     if value is None:
         return None
     text = str(value).strip()
@@ -7106,6 +7909,8 @@ def _parse_backtest_timestamp(value: Any) -> Optional[datetime]:
             dt = datetime.strptime(normalized[:19], "%Y-%m-%d %H:%M:%S")
         except ValueError:
             return None
+    if not re.search(r"\d{2}:\d{2}:\d{2}", normalized) and expand_date_only_end:
+        dt = datetime.combine(dt.date(), datetime.max.time())
     if dt.tzinfo is not None:
         dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
     return dt
@@ -7124,6 +7929,207 @@ def _strategy_data_range_summary(rows: List[Any]) -> Dict[str, Any]:
     if start_dt and end_dt:
         span_days = max(0.0, round((end_dt - start_dt).total_seconds() / 86400.0, 2))
     return {"start": start, "end": end, "count": len(rows), "span_days": span_days}
+
+
+def _sqlite_sync_range_summary(conn: sqlite3.Connection, query: str, params: Tuple[Any, ...]) -> Dict[str, Any]:
+    row = conn.execute(query, params).fetchone()
+    if row is None:
+        return {"start": None, "end": None, "count": 0, "span_days": 0.0}
+    start = _iso_utc_timestamp(row["start"])
+    end = _iso_utc_timestamp(row["end"])
+    start_dt = _parse_backtest_timestamp(start)
+    end_dt = _parse_backtest_timestamp(end)
+    span_days = 0.0
+    if start_dt and end_dt:
+        span_days = max(0.0, round((end_dt - start_dt).total_seconds() / 86400.0, 2))
+    return {
+        "start": start,
+        "end": end,
+        "count": int(row["count"] or 0),
+        "span_days": span_days,
+    }
+
+
+def _range_freshness_summary(
+    range_summary: Dict[str, Any],
+    *,
+    now: datetime,
+    stale_after_minutes: float,
+    compare_to_range: Optional[Dict[str, Any]] = None,
+    expected_lag_minutes: float = 0.0,
+    next_action_when_stale: str,
+    next_action_when_fresh: str,
+) -> Dict[str, Any]:
+    latest_dt = _parse_backtest_timestamp((range_summary or {}).get("end"))
+    compare_dt = _parse_backtest_timestamp((compare_to_range or {}).get("end")) if compare_to_range else None
+    if latest_dt is None:
+        return {
+            "status": "missing",
+            "latest_at": (range_summary or {}).get("end"),
+            "age_minutes": None,
+            "stale_after_minutes": float(stale_after_minutes),
+            "expected_lag_minutes": float(expected_lag_minutes),
+            "lag_vs_reference_minutes": None,
+            "deployment_blocking": True,
+            "operator_next_action": next_action_when_stale,
+            "reason": "missing_range_end",
+        }
+
+    age_minutes = max(0.0, (now.replace(tzinfo=None) - latest_dt).total_seconds() / 60.0)
+    lag_vs_reference_minutes = None
+    status = "fresh"
+    reason = "artifact_within_policy"
+    if compare_dt is not None:
+        lag_vs_reference_minutes = max(0.0, (compare_dt - latest_dt).total_seconds() / 60.0)
+        allowed_lag = expected_lag_minutes + stale_after_minutes
+        if lag_vs_reference_minutes > allowed_lag:
+            status = "stale"
+            reason = "lag_vs_reference_exceeds_policy"
+    elif age_minutes > stale_after_minutes:
+        status = "stale"
+        reason = "age_exceeds_policy"
+
+    return {
+        "status": status,
+        "latest_at": (range_summary or {}).get("end"),
+        "age_minutes": round(age_minutes, 1),
+        "stale_after_minutes": float(stale_after_minutes),
+        "expected_lag_minutes": float(expected_lag_minutes),
+        "lag_vs_reference_minutes": (
+            round(lag_vs_reference_minutes, 1) if lag_vs_reference_minutes is not None else None
+        ),
+        "deployment_blocking": status != "fresh",
+        "operator_next_action": next_action_when_fresh if status == "fresh" else next_action_when_stale,
+        "reason": reason,
+    }
+
+
+def _strategy_data_freshness_summary(
+    *,
+    strategy_range: Dict[str, Any],
+    raw_range: Dict[str, Any],
+    feature_range: Dict[str, Any],
+    label_range: Dict[str, Any],
+    checked_at: str,
+) -> Dict[str, Any]:
+    now = _parse_backtest_timestamp(checked_at) or datetime.utcnow()
+    freshness = {
+        "raw": _range_freshness_summary(
+            raw_range,
+            now=now,
+            stale_after_minutes=_STRATEGY_DATA_RAW_STALE_AFTER_MINUTES,
+            next_action_when_stale=(
+                "Run local POST /api/strategy_data_sync or python scripts/hb_collect.py; "
+                "verify main.py scheduler / heartbeat collect is running."
+            ),
+            next_action_when_fresh="Raw market snapshots are within freshness policy.",
+        ),
+        "features": _range_freshness_summary(
+            feature_range,
+            now=now,
+            stale_after_minutes=_STRATEGY_DATA_FEATURE_STALE_AFTER_MINUTES,
+            next_action_when_stale=(
+                "Run local POST /api/strategy_data_sync to repair feature continuity from recent raw rows."
+            ),
+            next_action_when_fresh="Feature rows are within freshness policy.",
+        ),
+        "labels": _range_freshness_summary(
+            label_range,
+            now=now,
+            stale_after_minutes=_STRATEGY_DATA_LABEL_STALE_BUFFER_MINUTES,
+            compare_to_range=raw_range,
+            expected_lag_minutes=_STRATEGY_DATA_LABEL_EXPECTED_LAG_MINUTES,
+            next_action_when_stale=(
+                "Run local POST /api/strategy_data_sync after raw/features are current; "
+                "24h labels may lag, but this exceeds the allowed horizon buffer."
+            ),
+            next_action_when_fresh="24h labels are within expected horizon lag.",
+        ),
+        "strategy": _range_freshness_summary(
+            strategy_range,
+            now=now,
+            stale_after_minutes=_STRATEGY_DATA_STRATEGY_STALE_AFTER_MINUTES,
+            next_action_when_stale=(
+                "Refresh Strategy Lab data after raw/features/labels sync; current joined strategy range is stale."
+            ),
+            next_action_when_fresh="Strategy Lab joined data is aligned with feature freshness.",
+        ),
+    }
+    blocking = [name for name, item in freshness.items() if item.get("status") != "fresh"]
+    if blocking:
+        operator_next_action = (
+            "Data environment is stale: "
+            + ", ".join(blocking)
+            + ". Use /api/strategy_data_sync from localhost or run scripts/hb_collect.py before treating Strategy Lab evidence as current."
+        )
+    else:
+        operator_next_action = "Data environment freshness gates are clear."
+    return {
+        "checked_at": checked_at,
+        "overall_status": "fresh" if not blocking else "stale",
+        "data_pipeline_ready": not blocking,
+        "blocking_lanes": blocking,
+        "operator_next_action": operator_next_action,
+        **freshness,
+    }
+
+
+def _strategy_data_sync_status(symbol: str = "BTCUSDT") -> Dict[str, Any]:
+    symbol_key = str(symbol or "BTCUSDT").replace("/", "")
+    strategy_range = _strategy_data_range_summary(_load_strategy_data())
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        raw_range = _sqlite_sync_range_summary(
+            conn,
+            """
+            SELECT min(timestamp) AS start, max(timestamp) AS end, count(*) AS count
+            FROM raw_market_data
+            WHERE replace(symbol, '/', '') = ?
+              AND close_price IS NOT NULL
+            """,
+            (symbol_key,),
+        )
+        feature_range = _sqlite_sync_range_summary(
+            conn,
+            """
+            SELECT min(timestamp) AS start, max(timestamp) AS end, count(*) AS count
+            FROM features_normalized
+            WHERE replace(symbol, '/', '') = ?
+              AND feat_4h_bias50 IS NOT NULL
+            """,
+            (symbol_key,),
+        )
+        label_range = _sqlite_sync_range_summary(
+            conn,
+            """
+            SELECT min(timestamp) AS start, max(timestamp) AS end, count(*) AS count
+            FROM labels
+            WHERE replace(symbol, '/', '') = ?
+              AND horizon_minutes = ?
+            """,
+            (symbol_key, 24 * 60),
+        )
+    finally:
+        conn.close()
+    checked_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    freshness = _strategy_data_freshness_summary(
+        strategy_range=strategy_range,
+        raw_range=raw_range,
+        feature_range=feature_range,
+        label_range=label_range,
+        checked_at=checked_at,
+    )
+    return {
+        "symbol": symbol,
+        "checked_at": checked_at,
+        "latest_synced_at": strategy_range.get("end"),
+        "strategy": strategy_range,
+        "raw": raw_range,
+        "features": feature_range,
+        "labels": label_range,
+        "freshness": freshness,
+    }
 
 
 @router.get("/senses")
@@ -7259,10 +8265,10 @@ async def api_klines(
                 if current_since is not None:
                     remaining_by_time = max(int(math.ceil((until - current_since) / interval_ms)) + 1, 0)
                 target_remaining = max(remaining_by_limit, remaining_by_time or 0)
-                page_limit = max(min(target_remaining or requested_limit, 1000), 50)
+                page_limit = max(min(target_remaining or requested_limit, 300), 50)
             else:
                 remaining = max(requested_limit - len(ohlcv), 1)
-                page_limit = max(min(remaining, 1000), 50)
+                page_limit = max(min(remaining, 300), 50)
 
             page = exchange.fetch_ohlcv(fetch_symbol, interval, since=current_since, limit=page_limit)
             if not page:
@@ -7393,6 +8399,117 @@ async def api_get_strategy(name: str) -> Dict[str, Any]:
 @router.get("/strategy_data_range")
 async def api_strategy_data_range() -> Dict[str, Any]:
     return _strategy_data_range_summary(_load_strategy_data())
+
+
+@router.get("/strategy_data_sync")
+async def api_strategy_data_sync_status(symbol: str = "BTCUSDT") -> Dict[str, Any]:
+    return _strategy_data_sync_status(symbol=symbol)
+
+
+@router.post("/strategy_data_sync")
+async def api_strategy_data_sync(body: Optional[Dict[str, Any]] = Body(default=None), request: Request = None) -> Dict[str, Any]:
+    _assert_local_operator_request(request)
+    from data_ingestion.collector import repair_recent_raw_continuity
+    from data_ingestion.labeling import generate_future_return_labels, save_labels_to_db
+    from feature_engine.preprocessor import repair_recent_feature_continuity
+
+    payload = body if isinstance(body, dict) else {}
+    symbol = str(payload.get("symbol") or "BTCUSDT")
+    try:
+        lookback_days = int(payload.get("lookback_days") or 30)
+    except (TypeError, ValueError):
+        lookback_days = 30
+    lookback_days = max(1, min(90, lookback_days))
+    try:
+        max_feature_backfill_rows = int(
+            payload.get("max_feature_backfill_rows")
+            if payload.get("max_feature_backfill_rows") is not None
+            else _STRATEGY_DATA_SYNC_DEFAULT_FEATURE_BACKFILL_ROWS
+        )
+    except (TypeError, ValueError):
+        max_feature_backfill_rows = _STRATEGY_DATA_SYNC_DEFAULT_FEATURE_BACKFILL_ROWS
+    max_feature_backfill_rows = max(0, min(_STRATEGY_DATA_SYNC_MAX_FEATURE_BACKFILL_ROWS, max_feature_backfill_rows))
+    started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    before = _strategy_data_sync_status(symbol=symbol)
+
+    session = get_db()
+    try:
+        raw_repair = repair_recent_raw_continuity(
+            session,
+            symbol,
+            lookback_days=lookback_days,
+            fine_grain_days=lookback_days,
+            return_details=True,
+        )
+        try:
+            raw_inserted_total = int(
+                raw_repair.get("inserted_total", 0)
+                if isinstance(raw_repair, dict)
+                else raw_repair or 0
+            )
+        except (TypeError, ValueError):
+            raw_inserted_total = 0
+        if raw_inserted_total > 0 and hasattr(session, "commit"):
+            # SessionLocal uses autoflush=False; commit raw rows before feature repair
+            # so the feature continuity query sees freshly inserted klines.
+            session.commit()
+            if hasattr(session, "expire_all"):
+                session.expire_all()
+        feature_repair = repair_recent_feature_continuity(
+            session,
+            symbol,
+            lookback_days=lookback_days,
+            max_backfill_rows=max_feature_backfill_rows,
+            return_details=True,
+        )
+        feature_remaining_missing = int((feature_repair or {}).get("remaining_missing") or 0)
+        label_generation_skipped_reason = None
+        label_rows_generated = 0
+        if feature_remaining_missing > 0:
+            label_generation_skipped_reason = "feature_backfill_remaining_missing"
+        else:
+            labels_df = generate_future_return_labels(session, symbol=symbol, horizon_hours=24)
+            label_rows_generated = 0 if labels_df.empty else len(labels_df)
+            if not labels_df.empty:
+                save_labels_to_db(session, labels_df, symbol=symbol, horizon_hours=24)
+    finally:
+        if hasattr(session, "close"):
+            session.close()
+
+    _load_strategy_data_cached.cache_clear()
+    after = _strategy_data_sync_status(symbol=symbol)
+    completed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    next_sync_request = None
+    if feature_remaining_missing > 0:
+        next_sync_request = {
+            "method": "POST",
+            "path": "/api/strategy_data_sync",
+            "body": {
+                "symbol": symbol,
+                "lookback_days": lookback_days,
+                "max_feature_backfill_rows": max_feature_backfill_rows,
+            },
+            "reason": "feature_backfill_remaining_missing",
+        }
+    result = {
+        "status": "completed",
+        "symbol": symbol,
+        "lookback_days": lookback_days,
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "before": before,
+        "after": after,
+        "feature_backfill_limit": max_feature_backfill_rows,
+        "feature_backfill_remaining_missing": feature_remaining_missing,
+        "feature_backfill_deferred": feature_remaining_missing > 0,
+        "next_sync_request": next_sync_request,
+        "raw_repair": raw_repair,
+        "feature_repair": feature_repair,
+        "label_rows_generated": label_rows_generated,
+        "label_generation_skipped_reason": label_generation_skipped_reason,
+    }
+    set_runtime_status("strategy_data_sync", result)
+    return result
 
 
 _NO_DEPLOY_RUNTIME_CLOSURE_STATES = {

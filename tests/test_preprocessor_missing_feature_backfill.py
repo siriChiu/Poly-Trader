@@ -22,7 +22,7 @@ def test_backfill_missing_feature_rows_only_inserts_missing_timestamps(monkeypat
         session.add(FeaturesNormalized(timestamp=base + timedelta(hours=9), symbol="BTCUSDT", feat_eye=0.1))
         session.commit()
 
-        def fake_compute(window):
+        def fake_compute(window, **kwargs):
             ts = window.iloc[-1]["timestamp"]
             return {
                 "timestamp": ts,
@@ -59,6 +59,66 @@ def test_backfill_missing_feature_rows_only_inserts_missing_timestamps(monkeypat
         session.close()
 
 
+def test_backfill_missing_feature_rows_reuses_4h_payload_and_bounds_compute_window(monkeypatch, tmp_path):
+    db_path = tmp_path / "missing_features_bounded.sqlite"
+    session = init_db(f"sqlite:///{db_path}")
+    try:
+        base = datetime(2026, 4, 1, 0, 0, 0)
+        raw_rows = [
+            RawMarketData(
+                timestamp=base + timedelta(hours=i),
+                symbol="BTCUSDT",
+                close_price=100 + i,
+                volume=1000 + i,
+            )
+            for i in range(30)
+        ]
+        session.add_all(raw_rows)
+        session.commit()
+
+        fetch_calls = {"count": 0}
+        payload = [["cached-4h"]]
+        seen = []
+
+        def fake_fetch(limit=300):
+            fetch_calls["count"] += 1
+            return payload
+
+        def fake_compute(window, **kwargs):
+            seen.append((len(window), kwargs.get("ohlcv_4h")))
+            ts = window.iloc[-1]["timestamp"]
+            return {
+                "timestamp": ts,
+                "symbol": "BTCUSDT",
+                "feat_eye_dist": 0.11,
+                "feat_ear_zscore": 0.22,
+                "feat_nose_sigmoid": 0.33,
+                "feat_tongue_pct": 0.44,
+                "feat_body_roc": 0.55,
+                "feat_pulse": 0.66,
+                "feat_aura": 0.77,
+                "feat_mind": 0.88,
+            }
+
+        monkeypatch.setattr(preprocessor, "_fetch_okx_4h_ohlcv", fake_fetch)
+        monkeypatch.setattr(preprocessor, "compute_features_from_raw", fake_compute)
+
+        inserted = preprocessor.backfill_missing_feature_rows(
+            session,
+            "BTCUSDT",
+            max_rows=3,
+            compute_window_rows=12,
+        )
+
+        assert inserted == 3
+        assert fetch_calls["count"] == 1
+        assert len(seen) == 3
+        assert all(length <= 12 for length, _ in seen)
+        assert all(cached is payload for _, cached in seen)
+    finally:
+        session.close()
+
+
 
 def test_repair_recent_feature_continuity_reports_and_repairs_missing_recent_rows(monkeypatch, tmp_path):
     db_path = tmp_path / "recent_feature_continuity.sqlite"
@@ -78,7 +138,7 @@ def test_repair_recent_feature_continuity_reports_and_repairs_missing_recent_row
         session.add(FeaturesNormalized(timestamp=base + timedelta(hours=9), symbol="BTCUSDT", feat_eye=0.1))
         session.commit()
 
-        def fake_compute(window):
+        def fake_compute(window, **kwargs):
             ts = window.iloc[-1]["timestamp"]
             return {
                 "timestamp": ts,
@@ -128,7 +188,7 @@ def test_repair_recent_feature_continuity_can_defer_startup_backfill(monkeypatch
         session.add(FeaturesNormalized(timestamp=base + timedelta(hours=9), symbol="BTCUSDT", feat_eye=0.1))
         session.commit()
 
-        def fail_if_called(window):
+        def fail_if_called(window, **kwargs):
             raise AssertionError("startup continuity check must not compute heavy feature windows when deferred")
 
         monkeypatch.setattr(preprocessor, "compute_features_from_raw", fail_if_called)
@@ -179,7 +239,7 @@ def test_repair_recent_feature_continuity_treats_slash_and_compact_symbols_as_sa
         session.add_all(raw_rows + feature_rows)
         session.commit()
 
-        def fail_if_called(window):
+        def fail_if_called(window, **kwargs):
             raise AssertionError("symbol alias rows should satisfy feature continuity without recomputing")
 
         monkeypatch.setattr(preprocessor, "compute_features_from_raw", fail_if_called)

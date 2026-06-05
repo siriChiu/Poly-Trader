@@ -1,0 +1,164 @@
+{
+  "generated_at": "2026-06-05T03:46:33.530787Z",
+  "artifact": "q15_exact_bucket_row_harvest_proof",
+  "purpose": "Prove exact current-bucket support movement without converting it into deployment clearance.",
+  "source_artifacts": {
+    "live_predict_probe_generated_at": "2026-06-05T03:46:21.654036Z",
+    "q15_support_audit_generated_at": "2026-06-05T03:46:21.646189Z",
+    "q15_support_fill_feasibility_generated_at": "2026-06-05T03:46:28.397005+00:00"
+  },
+  "support_identity": {
+    "target_col": "simulated_pyramid_win",
+    "horizon_minutes": 1440,
+    "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+    "regime_label": "bear",
+    "regime_gate": "BLOCK",
+    "entry_quality_label": "C",
+    "calibration_window": 200,
+    "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+  },
+  "db_meta": {
+    "features_normalized": {
+      "count": 25839,
+      "min_ts": "2024-04-14 07:00:00.000000",
+      "max_ts": "2026-06-05 03:00:00.000000"
+    },
+    "labels": {
+      "count": 69413,
+      "min_ts": "2024-04-14 07:00:00.000000",
+      "max_ts": "2026-06-04 22:00:00.000000"
+    },
+    "raw_market_data": {
+      "count": 35124,
+      "min_ts": "2024-04-13 22:00:00.000000",
+      "max_ts": "2026-06-05 03:00:00.000000"
+    }
+  },
+  "harvest_window": {
+    "calibration_window": 200,
+    "scope_rows": 200,
+    "exact_identity_rows": 183,
+    "exact_bucket_rows": 131,
+    "non_bucket_identity_rows": 52,
+    "minimum_support_rows": 50,
+    "rows_needed_to_minimum": 0,
+    "support_ready_by_count": true,
+    "exact_bucket_metrics": {
+      "rows": 131,
+      "win_rate": 0.3053,
+      "target_counts": {
+        "0": 91,
+        "1": 40
+      },
+      "avg_pnl": -0.0072,
+      "avg_quality": -0.082,
+      "avg_drawdown_penalty": 0.3565,
+      "avg_time_underwater": 0.5779
+    },
+    "latest_exact_bucket_timestamp": "2026-06-04 04:00:00.000000",
+    "oldest_exact_bucket_timestamp": "2026-05-28 21:00:00.000000",
+    "sample_exact_bucket_timestamps": [
+      "2026-06-04 04:00:00.000000",
+      "2026-06-04 02:00:00.000000",
+      "2026-06-04 01:00:00.000000",
+      "2026-06-04 00:00:00.000000",
+      "2026-06-03 23:00:00.000000"
+    ],
+    "symbol_alignment": {
+      "join_policy": "timestamp_plus_canonical_symbol_latest_feature_and_label_id",
+      "canonical_symbol_transform": "remove_slash",
+      "exact_bucket_symbol_join_modes": {
+        "canonical_symbol": 112,
+        "strict_symbol": 19
+      },
+      "exact_bucket_canonical_symbol_recovered_rows": 112,
+      "sample_recovered_pairs": [
+        {
+          "timestamp": "2026-06-04 04:00:00.000000",
+          "feature_symbol": "BTC/USDT",
+          "label_symbol": "BTCUSDT"
+        },
+        {
+          "timestamp": "2026-06-03 08:00:00.000000",
+          "feature_symbol": "BTC/USDT",
+          "label_symbol": "BTCUSDT"
+        },
+        {
+          "timestamp": "2026-06-03 07:00:00.000000",
+          "feature_symbol": "BTC/USDT",
+          "label_symbol": "BTCUSDT"
+        },
+        {
+          "timestamp": "2026-06-03 06:00:00.000000",
+          "feature_symbol": "BTC/USDT",
+          "label_symbol": "BTCUSDT"
+        },
+        {
+          "timestamp": "2026-06-03 05:00:00.000000",
+          "feature_symbol": "BTC/USDT",
+          "label_symbol": "BTCUSDT"
+        }
+      ],
+      "evidence_role": "data_alignment_cleanup_not_deployment_clearance",
+      "live_exposure_allowed": false
+    },
+    "sample_non_bucket_identity_buckets": [
+      "BLOCK|bias200_below_min|q15"
+    ]
+  },
+  "support_progress": {
+    "status": "exact_supported",
+    "reason": "current live exact bucket 已達 minimum support，可轉向 exact-supported deployment verify。",
+    "regression_basis": "current_identity",
+    "current_rows": 131,
+    "previous_rows": 131,
+    "delta_vs_previous": 0,
+    "stagnant_run_count": 4,
+    "stalled_support_accumulation": false,
+    "semantic_signature_delta_vs_previous": 0,
+    "semantic_signature_stagnant_run_count": 4,
+    "semantic_signature_stalled_support_accumulation": false,
+    "previous_route_changed": false,
+    "previous_support_route_verdict": "exact_bucket_supported",
+    "previous_support_governance_route": "exact_live_bucket_supported"
+  },
+  "verdict": {
+    "status": "exact_bucket_row_harvest_support_ready_remaining_gates",
+    "decision": "Current exact bucket rows meet minimum support; this artifact proves support movement only, so live buy/add still waits for model, venue, API guardrail, and bounded-canary gates.",
+    "current_exact_bucket_rows": 131,
+    "previous_rows": 131,
+    "delta_vs_previous": 0,
+    "semantic_signature_delta_vs_previous": 0,
+    "stagnant_run_count": 4,
+    "semantic_signature_stagnant_run_count": 4,
+    "minimum_support_rows": 50,
+    "gap_to_minimum": 0,
+    "rows_needed_to_minimum": 0,
+    "support_gate_ready": true,
+    "deployable": false,
+    "live_exposure_allowed": false,
+    "order_submission_enabled": false,
+    "risk_on_order_enabled": false,
+    "primary_failed_gate": "remaining_live_gates",
+    "time_to_evidence_bucket": "ready_for_remaining_live_execution_gates",
+    "missing_capability_class": "Review",
+    "alternative_solution_required": false,
+    "row_harvest_evidence_role": "current_exact_support_movement_not_deployment_clearance"
+  },
+  "promotion_requirements": [
+    "current_exact_bucket_rows >= minimum_support_rows under the same support identity",
+    "support audit confirms the current identity is deployable support, not proxy/reference support",
+    "high-conviction Top-K or model deployment row remains deployable under fresh live overlay",
+    "venue lifecycle proof passes with credential, ack, cancel, fill, and reconciliation evidence",
+    "bounded live-canary policy is configured before any live buy/add pilot"
+  ],
+  "forbidden_shortcuts": [
+    "lower_minimum_support_rows",
+    "count_non_bucket_identity_rows_as_exact_support",
+    "count_neighbor_or_reference_rows_as_current_exact_support",
+    "enable_live_buy_or_add_from_row_harvest_proof_alone"
+  ],
+  "live_exposure_allowed": false,
+  "order_submission_enabled": false,
+  "risk_on_order_enabled": false
+}

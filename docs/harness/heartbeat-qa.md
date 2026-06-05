@@ -62,6 +62,9 @@
 - `data/recent_drift_report.json`
 - `data/high_conviction_topk_oos_matrix.json`
 - `data/execution_metadata_smoke.json`
+- `data/venue_dry_run_proof.json`
+- `/api/status.data_freshness` 與 `/api/strategy_data_sync.freshness`（資料環境 freshness）；`raw_continuity.status=clean` 只能代表近期時間線無缺孔，不可替代 raw / features / labels / strategy range freshness。
+- `scripts/hb_parallel_runner.py --no-collect` 會在 diagnostics 前檢查上述 freshness；stale 或距 stale ≤10 分鐘時會先觸發 bounded strategy data sync maintenance，summary 必須留下 `strategy_data_sync_maintenance`。
 - `issues.json`
 
 **若失敗：** 先刷新 probe 或標示 stale/reference-only。
@@ -124,10 +127,74 @@ python -m pytest tests/test_heartbeat_harness_contract.py -q
 **Runtime API compact probes（需要本地 API 服務已啟動）：**
 
 ```bash
+curl -fsS http://127.0.0.1:8000/health | python scripts/active_backend_health_probe.py --strict
 curl -fsS http://127.0.0.1:8000/api/status | python scripts/hb_compact_status_probe.py
 curl -fsS http://127.0.0.1:8000/api/models/leaderboard | python scripts/hb_compact_leaderboard_probe.py
+curl -fsS http://127.0.0.1:8000/api/models/leaderboard > /tmp/poly_trader_leaderboard.json
+python scripts/high_conviction_topk_api_consistency_probe.py --leaderboard-file /tmp/poly_trader_leaderboard.json --artifact-file data/high_conviction_topk_oos_matrix.json --strict
 curl -fsS http://127.0.0.1:8000/api/execution/overview | python scripts/hb_compact_execution_overview_probe.py
+tmp_status=$(mktemp) tmp_overview=$(mktemp)
+curl -fsS http://127.0.0.1:8000/api/status > "$tmp_status"
+curl -fsS http://127.0.0.1:8000/api/execution/overview > "$tmp_overview"
+python scripts/venue_dry_run_api_consistency_probe.py --status-file "$tmp_status" --overview-file "$tmp_overview" --artifact-file data/venue_dry_run_proof.json --strict
+python scripts/paper_shadow_outcome_reconciliation.py --persist --strict
+python scripts/paper_shadow_outcome_api_consistency_probe.py --overview-file "$tmp_overview" --artifact-file data/paper_shadow_outcome_reconciliation.json --strict
+python scripts/customer_safe_alternative_api_consistency_probe.py --overview-file "$tmp_overview" --artifact-file data/customer_safe_alternative_proof.json --strict
 ```
+
+The active backend health probe must pass before any API payload is treated as
+operator truth: `/health.runtime_build.head_sync_status` must be
+`current_head_commit`, health must be `ok`, and startup continuity must not be in
+error. `scripts/hb_parallel_runner.py` also runs this strict probe as the
+`active_backend_health_probe` serial lane and records the result in heartbeat
+summary/final status. If it fails with `active_backend_stale_head_commit`,
+restart the active backend and rerun `/health` before compact status /
+leaderboard / execution probes.
+
+The compact execution overview probe must keep the safe-lane contract visible:
+`order_submission_enabled`, `risk_on_order_enabled`, `canary_ready`, `live_ready`,
+Shadow Trade Ledger status/count, time-to-evidence, alternative-solution status,
+paper/shadow worker outcome rehearsal status/counts/ETA/fail-closed booleans,
+venue dry-run blocker/credential boolean fields, and `live_canary_policy_gate`
+status/blockers so canary readiness cannot bypass local policy configuration. Standalone venue proof must
+also keep `data/venue_dry_run_proof.json` fresh so PM can inspect preview / ack /
+cancel / fill / reconciliation status, and `/api/status` plus `/api/execution/overview`
+must consume that artifact instead of rebuilding a divergent proof shape. Use
+`venue_dry_run_api_consistency_probe.py --strict` to fail the heartbeat when
+the API surfaces diverge, risk-on flags open, or secret-like fields leak.
+Standalone paper/shadow outcome reconciliation must keep
+`data/paper_shadow_outcome_reconciliation.json` fresh from local DB truth so PM
+can inspect top-level / `quick_read` pending/resolved/label-replay status,
+pending ETA, duplicate-poll guard, and fail-closed booleans without trusting
+stale API payloads. Use `paper_shadow_outcome_reconciliation.py --persist --strict`
+followed by `paper_shadow_outcome_api_consistency_probe.py --strict` to fail the
+heartbeat when a rehearsal proof exposes order submission, risk-on flags, live
+order submission, missing pending ETA, duplicate-poll leakage, `quick_read` drift
+from nested `summary` / `rehearsal_proof`, API/artifact divergence, or
+secret-like fields.
+Customer-safe alternative proof must also stay artifact/API consistent:
+`data/customer_safe_alternative_proof.json` is the PM/customer-safe source of
+truth, and `/api/execution/overview.customer_safe_alternative_proof` may expose
+only a compact projection. Use
+`customer_safe_alternative_api_consistency_probe.py --strict` to fail the heartbeat when alternative aliases/counts drift, summary
+quick-read fields diverge, fail-closed flags open, the overview loses the
+selected next customer artifact, or secret-like fields leak.
+The compact status probe must also expose `/api/status.execution_surface_contract.live_canary_policy_gate`
+status/pass/blocker fields so Dashboard/Execution Status/Strategy Lab status-only payloads cannot
+silently lose the bounded live-canary policy hard gate.
+
+The compact leaderboard probe must keep profile-governance truth visible:
+`selected_feature_profile`, `support_aware_profile`, `governance_contract`,
+`current_closure`, high-conviction deployable/runtime-blocked counts, support rows/gap,
+Top-K artifact freshness/deployment-blocking status, Top-K refresh state,
+ML cold-load/background-refresh ordering,
+live support overlay freshness, live support probe refresh state,
+request-time runtime overlay status, breaker release math, stale support reference fields,
+and nearest-candidate blocker and gate-failure fields. Use
+`high_conviction_topk_api_consistency_probe.py --strict` to fail the heartbeat
+when `/api/models/leaderboard.high_conviction_topk` diverges from
+`data/high_conviction_topk_oos_matrix.json`, marks blocked candidates deployable,
+loses support rows / breaker release math, or exposes secret-like fields.
 
 **若失敗：** 先修 root cause，不用敘事蓋過紅燈。
 
@@ -173,6 +240,7 @@ curl -fsS http://127.0.0.1:8000/api/execution/overview | python scripts/hb_compa
 **答題規則：**
 - 若 same semantic signature、support `delta_vs_previous=0`、`stagnant_run_count` 上升、或使用者指出反覆 / 趨近平衡，本輪不得輸出 observation-only status refresh。
 - 必須選一個強制分支：Map/Signal redesign、customer-safe shadow proof、venue lifecycle proof、bounded live-canary prep、或 hard no-go with single failed gate。
+- 必須用 compact status probe 摘出 `support_delta_vs_previous`、`support_stagnant_run_count`、`support_semantic_signature_*`、`support_forced_research_action_*`；若 probe 摘不出這些欄位，先修 probe/checker。
 - 若提到 live buy/add，必須同時證明 bounded live-canary policy 已存在：`execution.live_canary.enabled=true`、`allowed_symbols`、symbol `max_base_qty_by_symbol`，且 cap enforcement 在 adapter 前。
 - 若仍不能執行 micro-canary，必須寫出唯一 hard gate（例如 breaker / support / venue / policy）與下一個驗證 artifact；不得說「繼續觀察」作為 fallback。
 

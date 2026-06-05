@@ -13,6 +13,7 @@ from execution.control_plane import (
     PRIMARY_SLEEVE_ORDER,
     build_execution_strategy_source_snapshot,
 )
+from execution.config import resolve_trading_config
 from execution.range_chop_playbook import build_range_chop_playbook
 from execution.risk_control import check_position_size
 
@@ -51,6 +52,282 @@ def _to_int(value: Any) -> Optional[int]:
     return int(number)
 
 
+LIVE_CANARY_MAX_BASE_QTY_CAP = 0.0001
+
+
+def _normalize_symbol(value: Any) -> str:
+    return str(value or "").strip().upper().replace("/", "")
+
+
+def _build_live_canary_policy_gate(config: Optional[Dict[str, Any]], symbol: str) -> Dict[str, Any]:
+    resolved = resolve_trading_config(config or {})
+    live_canary = resolved.get("live_canary") if isinstance(resolved.get("live_canary"), dict) else {}
+    normalized_symbol = _normalize_symbol(symbol)
+    allowed_symbols = [
+        _normalize_symbol(item)
+        for item in _as_list(live_canary.get("allowed_symbols"))
+        if _normalize_symbol(item)
+    ]
+    max_by_symbol_raw = live_canary.get("max_base_qty_by_symbol")
+    max_by_symbol = max_by_symbol_raw if isinstance(max_by_symbol_raw, dict) else {}
+    normalized_caps = {_normalize_symbol(key): value for key, value in max_by_symbol.items()}
+    symbol_max_qty = _to_float(max_by_symbol.get(symbol) or max_by_symbol.get(normalized_symbol) or normalized_caps.get(normalized_symbol))
+
+    mode_is_live = str(resolved.get("mode") or "").strip().lower() == "live"
+    enable_live_trading = bool(resolved.get("enable_live_trading"))
+    live_canary_enabled = bool(live_canary.get("enabled"))
+    explicit_symbol_allowed = bool(allowed_symbols) and normalized_symbol in set(allowed_symbols)
+    symbol_cap_configured = symbol_max_qty is not None and symbol_max_qty > 0
+    symbol_cap_within_bound = symbol_max_qty is not None and 0 < symbol_max_qty <= LIVE_CANARY_MAX_BASE_QTY_CAP
+    kill_switch_clear = not bool(resolved.get("kill_switch"))
+    passed = bool(
+        mode_is_live
+        and enable_live_trading
+        and live_canary_enabled
+        and explicit_symbol_allowed
+        and symbol_cap_configured
+        and symbol_cap_within_bound
+        and kill_switch_clear
+    )
+
+    blockers: List[str] = []
+    if not mode_is_live:
+        blockers.append("execution.mode must be live")
+    if not enable_live_trading:
+        blockers.append("enable_live_trading must be true")
+    if not live_canary_enabled:
+        blockers.append("execution.live_canary.enabled must be true")
+    if not explicit_symbol_allowed:
+        blockers.append("explicit allowed_symbols must include the symbol")
+    if not symbol_cap_configured:
+        blockers.append("symbol max_base_qty_by_symbol cap must be configured")
+    elif not symbol_cap_within_bound:
+        blockers.append(f"symbol max_base_qty_by_symbol cap must be <= {LIVE_CANARY_MAX_BASE_QTY_CAP}")
+    if not kill_switch_clear:
+        blockers.append("kill_switch must be false")
+
+    return {
+        "key": "live_canary_policy_gate",
+        "label": "Live-canary policy gate",
+        "status": "passed" if passed else "blocked",
+        "passed": passed,
+        "current": 1 if passed else 0,
+        "required": 1,
+        "gap": 0 if passed else 1,
+        "summary": (
+            f"mode={resolved.get('mode') or '—'} / enable_live_trading={str(enable_live_trading).lower()} / "
+            f"live_canary.enabled={str(live_canary_enabled).lower()} / "
+            f"allowed_symbol={str(explicit_symbol_allowed).lower()} / "
+            f"symbol_cap={symbol_max_qty if symbol_max_qty is not None else '—'} / "
+            f"max_allowed_cap={LIVE_CANARY_MAX_BASE_QTY_CAP}"
+        ),
+        "blockers": blockers,
+        "next_action": f"若所有 runtime gate 通過，仍必須先配置 explicit allowed_symbols 與每 symbol <= {LIVE_CANARY_MAX_BASE_QTY_CAP} BTC 的 cap，adapter 前才可允許最小 canary。",
+    }
+
+
+def build_live_canary_policy_gate(config: Optional[Dict[str, Any]], symbol: str) -> Dict[str, Any]:
+    return _build_live_canary_policy_gate(config, symbol)
+
+
+def _api_trade_symbol(symbol: Any) -> str:
+    """Prefer the hyphenated spot symbol shape used by operator trade probes."""
+    text = str(symbol or "BTCUSDT").strip().upper().replace("/", "-")
+    if "-" in text:
+        return text
+    for quote in ("USDT", "USDC", "USD"):
+        if text.endswith(quote) and len(text) > len(quote):
+            return f"{text[:-len(quote)]}-{quote}"
+    return text or "BTC-USDT"
+
+
+def _build_milestone_progression(
+    *,
+    symbol: str,
+    canary_ready: bool,
+    shadow_ready: bool,
+    support_passed: bool,
+    release_passed: bool,
+    venue_passed: bool,
+    model_gate_passed: bool,
+    live_canary_policy_passed: bool,
+    blocking_gate: Optional[Dict[str, Any]],
+    venue_dry_run_proof: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Build an operator-safe MILESTONE router so a closed live gate does not deadlock the program.
+
+    The router never unlocks live buy/add by itself.  It gives callers a deterministic
+    next lane: no-order wait, paper/shadow buy, venue proof, or bounded canary only
+    after every hard gate is green.
+    """
+    trade_symbol = _api_trade_symbol(symbol)
+    tiny_shadow_qty = 0.00001
+    blocked_key = str(_as_dict(blocking_gate).get("key") or "")
+    blocked_label = str(_as_dict(blocking_gate).get("label") or "無")
+    proof = _as_dict(venue_dry_run_proof)
+
+    can_enter_shadow = bool(shadow_ready and not canary_ready)
+    if canary_ready:
+        active_lane = "bounded_live_canary"
+        active_label = "M5 bounded live-canary"
+        progression_status = "bounded_canary_ready"
+        preferred_entrypoint: Dict[str, Any] = {
+            "endpoint": "/api/trade",
+            "method": "POST",
+            "payload_template": {"side": "buy", "symbol": trade_symbol, "qty": "<= execution.live_canary.max_base_qty_by_symbol[symbol]"},
+            "expected_result": "僅允許 bounded live-canary cap 內的第一層最小委託；仍由 adapter 前 guardrail 複查。",
+            "live_order_submitted": "only_after_adapter_guardrails_pass",
+        }
+    elif can_enter_shadow:
+        active_lane = "paper_shadow_buy"
+        active_label = "M5 safe paper/shadow entry lane"
+        progression_status = "safe_lane_active"
+        preferred_entrypoint = {
+            "endpoint": "/api/trade",
+            "method": "POST",
+            "payload": {"side": "shadow_buy", "symbol": trade_symbol, "qty": tiny_shadow_qty},
+            "expected_result": "HTTP 200；dry_run=true；shadow_trade=true；live_order_submitted=false。",
+            "live_order_submitted": False,
+        }
+    elif not venue_passed:
+        active_lane = "venue_dry_run_lifecycle"
+        active_label = "M5 venue dry-run lifecycle lane"
+        progression_status = "safe_lane_active"
+        preferred_entrypoint = {
+            "command": proof.get("verify_next") or "python scripts/venue_dry_run_proof.py",
+            "expected_result": "產生 preview / ack / cancel / fill / reconciliation proof；不送 live order。",
+            "live_order_submitted": False,
+        }
+    else:
+        active_lane = "wait_hold_no_order"
+        active_label = "M5 wait/hold no-order lane"
+        progression_status = "safe_lane_active"
+        preferred_entrypoint = {
+            "endpoint": "/api/trade",
+            "method": "POST",
+            "payload": {"side": "wait", "symbol": trade_symbol, "qty": 0},
+            "expected_result": "HTTP 200；no_order_submitted=true。",
+            "live_order_submitted": False,
+        }
+
+    safe_entry_lanes = [
+        {
+            "key": "wait_hold_no_order",
+            "label": "等待 / 觀望 no-order",
+            "can_enter": True,
+            "endpoint": "/api/trade",
+            "payload": {"side": "wait", "symbol": trade_symbol, "qty": 0},
+            "expected_result": "HTTP 200；no_order_submitted=true。",
+            "live_order_submitted": False,
+        },
+        {
+            "key": "paper_shadow_buy",
+            "label": "Paper / Shadow 買入演練",
+            "can_enter": bool(shadow_ready),
+            "endpoint": "/api/trade",
+            "payload": {"side": "shadow_buy", "symbol": trade_symbol, "qty": tiny_shadow_qty},
+            "expected_result": "HTTP 200；dry_run=true；只寫 paper/shadow ledger，不送 OKX live buy/add。",
+            "dry_run_required": True,
+            "live_order_submitted": False,
+        },
+        {
+            "key": "venue_dry_run_lifecycle",
+            "label": "Venue dry-run lifecycle proof",
+            "can_enter": True,
+            "command": proof.get("verify_next") or "python scripts/venue_dry_run_proof.py",
+            "expected_result": "補 preview / ack / cancel / fill / reconciliation 證據鏈；live_exposure_allowed=false。",
+            "live_order_submitted": False,
+        },
+        {
+            "key": "risk_reduction",
+            "label": "減風險 / 取消掛單路徑",
+            "can_enter": True,
+            "endpoint": "/api/trade",
+            "payload_examples": [
+                {"side": "wait", "symbol": trade_symbol, "qty": 0},
+                {"side": "reduce", "symbol": trade_symbol, "qty": tiny_shadow_qty},
+            ],
+            "expected_result": "只降低或不增加曝險；是否可送出由場館/account state 再檢查。",
+            "live_order_submitted": "risk_reduction_only_when_account_state_allows",
+        },
+        {
+            "key": "bounded_live_canary",
+            "label": "Bounded live-canary",
+            "can_enter": bool(canary_ready),
+            "required_gates": ["model_gate", "current_live_support_gate", "circuit_breaker_gate", "venue_gate", "live_canary_policy_gate"],
+            "expected_result": "只有全部 gate passed 且 symbol cap 內，才可進第一層最小 canary；不是 full deploy。",
+        },
+    ]
+
+    milestones = [
+        {
+            "key": "M1_runtime_truth",
+            "label": "M1 現場 truth / no-order safety",
+            "status": "passed",
+            "next_lane_if_blocked": "wait_hold_no_order",
+        },
+        {
+            "key": "M2_support_and_breaker",
+            "label": "M2 即時支持 + 熔斷解除",
+            "status": "passed" if support_passed and release_passed else "blocked",
+            "support_passed": support_passed,
+            "release_passed": release_passed,
+            "next_lane_if_blocked": "paper_shadow_buy" if shadow_ready else "wait_hold_no_order",
+        },
+        {
+            "key": "M3_model_shadow_to_decision",
+            "label": "M3 模型 shadow → decision",
+            "status": "passed" if model_gate_passed else ("safe_lane_active" if shadow_ready else "blocked"),
+            "model_gate_passed": model_gate_passed,
+            "shadow_ready": shadow_ready,
+            "next_lane_if_blocked": "paper_shadow_buy" if shadow_ready else "wait_hold_no_order",
+        },
+        {
+            "key": "M4_venue_lifecycle_proof",
+            "label": "M4 場館 lifecycle proof",
+            "status": "passed" if venue_passed else "safe_lane_active",
+            "venue_passed": venue_passed,
+            "next_lane_if_blocked": "venue_dry_run_lifecycle",
+        },
+        {
+            "key": "M5_bounded_canary_or_safe_lane",
+            "label": "M5 canary / safe practical lane",
+            "status": "passed" if canary_ready else "safe_lane_active",
+            "live_canary_policy_passed": live_canary_policy_passed,
+            "active_lane": active_lane,
+        },
+    ]
+
+    return {
+        "status": progression_status,
+        "current_milestone": "M5",
+        "active_lane": active_lane,
+        "active_lane_label": active_label,
+        "blocked_live_gate_key": blocked_key or None,
+        "blocked_live_gate_label": blocked_label,
+        "auto_adjustment_applied": not canary_ready,
+        "auto_adjustment_reason": (
+            "live buy/add gate 未全過，所以自動轉入可執行的 paper/shadow / dry-run / no-order lane；不是停在 blocked recap。"
+            if not canary_ready
+            else "所有 hard gate 已通過，只能進 bounded canary，不是 full deploy。"
+        ),
+        "preferred_entrypoint": preferred_entrypoint,
+        "fallback_entrypoint": {
+            "endpoint": "/api/trade",
+            "method": "POST",
+            "payload": {"side": "wait", "symbol": trade_symbol, "qty": 0},
+            "expected_result": "HTTP 200；no_order_submitted=true；永遠不送 live order。",
+            "live_order_submitted": False,
+        },
+        "safe_entry_lanes": safe_entry_lanes,
+        "milestones": milestones,
+        "operator_message": (
+            f"MILESTONE 不再只卡死在 {blocked_label}：目前自動進入 {active_label}。"
+            if not canary_ready
+            else "MILESTONE 已到 bounded canary；仍按 cap 與 adapter guardrail 執行。"
+        ),
+    }
+
 
 def _load_high_conviction_topk(status_payload: Dict[str, Any]) -> Dict[str, Any]:
     execution_surface_contract = _as_dict(status_payload.get("execution_surface_contract"))
@@ -85,6 +362,25 @@ def _load_circuit_breaker_audit(status_payload: Dict[str, Any]) -> Dict[str, Any
     audit_path = Path(__file__).resolve().parents[1] / "data" / "circuit_breaker_audit.json"
     try:
         with audit_path.open("r", encoding="utf-8") as fh:
+            return _as_dict(json.load(fh))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _load_customer_safe_alternative_proof(status_payload: Dict[str, Any]) -> Dict[str, Any]:
+    execution_surface_contract = _as_dict(status_payload.get("execution_surface_contract"))
+    execution = _as_dict(status_payload.get("execution"))
+    embedded = _as_dict(
+        status_payload.get("customer_safe_alternative_proof")
+        or execution.get("customer_safe_alternative_proof")
+        or execution_surface_contract.get("customer_safe_alternative_proof")
+    )
+    if embedded:
+        return embedded
+
+    proof_path = Path(__file__).resolve().parents[1] / "data" / "customer_safe_alternative_proof.json"
+    try:
+        with proof_path.open("r", encoding="utf-8") as fh:
             return _as_dict(json.load(fh))
     except (OSError, json.JSONDecodeError):
         return {}
@@ -284,11 +580,504 @@ def _venue_record_for_payload(status_payload: Dict[str, Any]) -> Dict[str, Any]:
     return venues[0] if venues else {}
 
 
+_SECRETISH_FIELD_MARKERS = (
+    "api_key",
+    "apikey",
+    "api_secret",
+    "secret",
+    "password",
+    "passphrase",
+    "private_key",
+    "token",
+)
+
+
+def _secret_safe_payload(value: Any) -> Any:
+    if isinstance(value, dict):
+        safe: Dict[str, Any] = {}
+        for key, item in value.items():
+            key_text = str(key)
+            normalized_key = key_text.lower().replace("-", "_")
+            if any(marker in normalized_key for marker in _SECRETISH_FIELD_MARKERS):
+                continue
+            safe[key] = _secret_safe_payload(item)
+        return safe
+    if isinstance(value, list):
+        return [_secret_safe_payload(item) for item in value]
+    if isinstance(value, str):
+        normalized_value = value.lower().replace("-", "_")
+        if any(marker in normalized_value for marker in _SECRETISH_FIELD_MARKERS):
+            return "[redacted]"
+    return value
+
+
+def _venue_dry_run_proof_for_payload(status_payload: Dict[str, Any]) -> Dict[str, Any]:
+    execution = _as_dict(status_payload.get("execution"))
+    execution_surface_contract = _as_dict(status_payload.get("execution_surface_contract"))
+    return _as_dict(
+        status_payload.get("venue_dry_run_proof")
+        or execution.get("venue_dry_run_proof")
+        or execution_surface_contract.get("venue_dry_run_proof")
+    )
+
+
+def _selected_venue_from_dry_run_proof(proof_payload: Dict[str, Any], target_venue: Any) -> Dict[str, Any]:
+    venues = [item for item in _as_list(proof_payload.get("venues")) if isinstance(item, dict)]
+    target = str(target_venue or "").strip().lower()
+    if target:
+        for venue in venues:
+            if str(venue.get("venue") or "").strip().lower() == target:
+                return venue
+    return venues[0] if venues else {}
+
+
+def _first_text_list(*values: Any) -> List[str]:
+    for value in values:
+        items = [str(item).strip() for item in _as_list(value) if str(item).strip()]
+        if items:
+            return items
+    return []
+
+
+def _normalize_venue_dry_run_artifact(
+    proof_payload: Dict[str, Any],
+    *,
+    symbol: str,
+    execution: Dict[str, Any],
+    fallback_venue_record: Dict[str, Any],
+    execution_reconciliation: Dict[str, Any],
+    live_ready_blockers: List[str],
+) -> Dict[str, Any]:
+    proof = _as_dict(_secret_safe_payload(proof_payload))
+    if not proof:
+        return {}
+
+    selected_venue = _selected_venue_from_dry_run_proof(proof, execution.get("venue"))
+    result = dict(proof)
+    result["artifact"] = _first_text(result.get("artifact"), "venue_dry_run_proof") or "venue_dry_run_proof"
+    result["status"] = _first_text(result.get("status"), "blocked_missing_runtime_backed_proof") or "blocked_missing_runtime_backed_proof"
+    result["symbol"] = _first_text(result.get("symbol"), symbol) or symbol
+    result["venue"] = _first_text(
+        result.get("venue"),
+        selected_venue.get("venue"),
+        fallback_venue_record.get("venue"),
+        execution.get("venue"),
+        "unknown",
+    ) or "unknown"
+    result["secrets_redacted"] = True
+    if "credential_present" not in result:
+        result["credential_present"] = bool(
+            result.get("credentials_configured_any")
+            or selected_venue.get("credential_present")
+            or selected_venue.get("credentials_configured")
+            or fallback_venue_record.get("credentials_configured")
+        )
+    result["live_exposure_allowed"] = bool(result.get("live_exposure_allowed") is True)
+    result["order_submission_enabled"] = bool(result.get("order_submission_enabled") is True)
+    result["risk_on_order_enabled"] = bool(result.get("risk_on_order_enabled") is True)
+    result["dry_run_only"] = result.get("dry_run_only") is not False
+    result["runtime_ready"] = bool(result.get("runtime_ready") is True)
+    blockers = _first_text_list(
+        result.get("runtime_ready_blockers"),
+        result.get("blockers"),
+        selected_venue.get("blockers"),
+        fallback_venue_record.get("blockers"),
+        live_ready_blockers,
+    )
+    result["blockers"] = blockers
+    if "runtime_ready_blockers" not in result:
+        result["runtime_ready_blockers"] = blockers
+    result["proof_state"] = _first_text(
+        result.get("proof_state"),
+        selected_venue.get("proof_state"),
+        selected_venue.get("readiness_state"),
+        fallback_venue_record.get("proof_state"),
+        "missing_runtime_backed_order_lifecycle",
+    )
+    result["operator_next_action"] = _first_text(
+        result.get("operator_next_action"),
+        selected_venue.get("operator_next_action"),
+        fallback_venue_record.get("operator_next_action"),
+        "先跑 dry-run preview，再補 ack / cancel / fill / reconciliation proof。",
+    )
+    result["verify_next"] = _first_text(
+        result.get("verify_next"),
+        selected_venue.get("verify_next"),
+        fallback_venue_record.get("verify_next"),
+        "python scripts/venue_dry_run_proof.py",
+    )
+    for key in (
+        "order_preview",
+        "ack_simulation",
+        "cancel_simulation",
+        "fill_simulation",
+        "reconciliation_check",
+    ):
+        if not isinstance(result.get(key), dict) and isinstance(selected_venue.get(key), dict):
+            result[key] = selected_venue[key]
+    if not isinstance(result.get("reconciliation_check"), dict):
+        result["reconciliation_check"] = {
+            "status": _first_text(execution_reconciliation.get("status"), "limited_evidence_no_runtime_order"),
+            "runtime_backed": False,
+            "summary": _first_text(execution_reconciliation.get("summary"), "尚未有 runtime-backed order / fill lifecycle 可對帳。"),
+        }
+    return result
+
+
+def _customer_safe_false_when_missing(value: Any) -> bool:
+    return bool(value is True)
+
+
+def _customer_safe_int(*values: Any) -> Optional[int]:
+    return _first_int(*values)
+
+
+def _customer_safe_text(*values: Any) -> Optional[str]:
+    return _first_text(*values)
+
+
+def _project_mapping(source: Dict[str, Any], keys: Iterable[str]) -> Dict[str, Any]:
+    return {key: source.get(key) for key in keys if key in source}
+
+
+def _compact_customer_safe_alternative_proof(proof_payload: Dict[str, Any]) -> Dict[str, Any]:
+    proof = _as_dict(proof_payload)
+    if not proof:
+        fallback = {
+            "artifact": "customer_safe_alternative_proof",
+            "status": "missing_artifact_fail_closed",
+            "generated_at": None,
+            "canary_ready": False,
+            "live_exposure_allowed": False,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "alternative_solution_required": True,
+            "alternative_solution_option_count": 0,
+            "alternative_solution_options": 0,
+            "selected_alternative_solution": None,
+            "selected_alternative": None,
+            "selected_next_customer_artifact": "data/customer_safe_alternative_proof.json",
+            "selected_next_artifact": "data/customer_safe_alternative_proof.json",
+            "blocked_live_lane_count": 0,
+            "next_customer_action_count": 0,
+            "alternative_solutions": [],
+            "next_customer_actions": [],
+            "blocked_live_lanes": [],
+            "operator_summary": "customer-safe alternative proof artifact missing; live buy/add and order submission remain fail-closed.",
+        }
+        fallback["summary"] = _project_mapping(
+            fallback,
+            (
+                "canary_ready",
+                "live_exposure_allowed",
+                "order_submission_enabled",
+                "risk_on_order_enabled",
+                "alternative_solution_required",
+                "alternative_solution_option_count",
+                "alternative_solution_options",
+                "selected_alternative_solution",
+                "selected_alternative",
+                "selected_next_customer_artifact",
+                "selected_next_artifact",
+                "blocked_live_lane_count",
+                "next_customer_action_count",
+                "operator_summary",
+            ),
+        )
+        return fallback
+
+    source_summary = _as_dict(proof.get("summary"))
+    source_support = _as_dict(proof.get("current_live_support"))
+    source_topk = _as_dict(proof.get("topk_shadow_candidate_context"))
+    source_venue = _as_dict(proof.get("venue_runtime_proof"))
+    alternative_solutions = [row for row in _as_list(proof.get("alternative_solutions")) if isinstance(row, dict)]
+    next_customer_actions = [row for row in _as_list(proof.get("next_customer_actions")) if isinstance(row, dict)]
+    blocked_live_lanes = [row for row in _as_list(proof.get("blocked_live_lanes")) if isinstance(row, dict)]
+    portfolio = _as_dict(proof.get("alternative_solution_portfolio"))
+
+    option_count = _customer_safe_int(
+        proof.get("alternative_solution_options"),
+        proof.get("alternative_solution_option_count"),
+        source_summary.get("alternative_solution_options"),
+        source_summary.get("alternative_solution_option_count"),
+        portfolio.get("option_count"),
+    )
+    if option_count is None:
+        option_count = len(alternative_solutions)
+
+    selected_alternative = _customer_safe_text(
+        proof.get("selected_alternative_solution"),
+        proof.get("selected_alternative"),
+        source_summary.get("selected_alternative_solution"),
+        source_summary.get("selected_alternative"),
+        portfolio.get("selected_option"),
+    )
+    selected_next_artifact = _customer_safe_text(
+        proof.get("selected_next_customer_artifact"),
+        proof.get("selected_next_artifact"),
+        source_summary.get("selected_next_customer_artifact"),
+        source_summary.get("selected_next_artifact"),
+        portfolio.get("selected_next_artifact"),
+    )
+
+    result = {
+        "artifact": _customer_safe_text(proof.get("artifact"), "customer_safe_alternative_proof") or "customer_safe_alternative_proof",
+        "generated_at": proof.get("generated_at"),
+        "canary_ready": _customer_safe_false_when_missing(proof.get("canary_ready")),
+        "live_exposure_allowed": _customer_safe_false_when_missing(proof.get("live_exposure_allowed")),
+        "order_submission_enabled": _customer_safe_false_when_missing(proof.get("order_submission_enabled")),
+        "risk_on_order_enabled": _customer_safe_false_when_missing(proof.get("risk_on_order_enabled")),
+        "support_rows": _customer_safe_int(
+            proof.get("support_rows"),
+            source_summary.get("support_rows"),
+            source_support.get("current_rows"),
+        ),
+        "minimum_support_rows": _customer_safe_int(
+            proof.get("minimum_support_rows"),
+            source_summary.get("minimum_support_rows"),
+            source_support.get("minimum_support_rows"),
+        ),
+        "support_gap": _customer_safe_int(
+            proof.get("support_gap"),
+            source_summary.get("support_gap"),
+            source_support.get("gap_to_minimum"),
+        ),
+        "blocking_gate": _customer_safe_text(proof.get("blocking_gate"), source_summary.get("blocking_gate")),
+        "primary_blocking_gate": _customer_safe_text(
+            proof.get("primary_blocking_gate"),
+            source_summary.get("primary_blocking_gate"),
+        ),
+        "blocking_gates": [
+            str(item)
+            for item in _as_list(proof.get("blocking_gates") or source_summary.get("blocking_gates"))
+            if str(item).strip()
+        ],
+        "breaker_release_ready": _customer_safe_false_when_missing(
+            proof.get("breaker_release_ready", source_summary.get("breaker_release_ready"))
+        ),
+        "current_recent_window_wins": _customer_safe_int(
+            proof.get("current_recent_window_wins"),
+            source_summary.get("current_recent_window_wins"),
+        ),
+        "required_recent_window_wins": _customer_safe_int(
+            proof.get("required_recent_window_wins"),
+            source_summary.get("required_recent_window_wins"),
+        ),
+        "additional_recent_window_wins_needed": _customer_safe_int(
+            proof.get("additional_recent_window_wins_needed"),
+            source_summary.get("additional_recent_window_wins_needed"),
+        ),
+        "topk_deployable_rows": _customer_safe_int(
+            proof.get("topk_deployable_rows"),
+            source_summary.get("topk_deployable_rows"),
+            source_topk.get("deployable_rows"),
+        ),
+        "topk_risk_qualified_rows": _customer_safe_int(
+            proof.get("topk_risk_qualified_rows"),
+            source_summary.get("topk_risk_qualified_rows"),
+            source_topk.get("risk_qualified_rows"),
+        ),
+        "topk_runtime_blocked_candidate_rows": _customer_safe_int(
+            proof.get("topk_runtime_blocked_candidate_rows"),
+            source_summary.get("topk_runtime_blocked_candidate_rows"),
+            source_topk.get("runtime_blocked_candidate_rows"),
+        ),
+        "topk_support_context_status": _customer_safe_text(
+            proof.get("topk_support_context_status"),
+            source_summary.get("topk_support_context_status"),
+            source_topk.get("support_context_status"),
+        ),
+        "topk_support_context_freshness_status": _customer_safe_text(
+            proof.get("topk_support_context_freshness_status"),
+            source_summary.get("topk_support_context_freshness_status"),
+            source_topk.get("support_context_freshness_status"),
+        ),
+        "topk_support_context_deployment_blocking": _customer_safe_false_when_missing(
+            proof.get(
+                "topk_support_context_deployment_blocking",
+                source_summary.get(
+                    "topk_support_context_deployment_blocking",
+                    source_topk.get("support_context_deployment_blocking"),
+                ),
+            )
+        ),
+        "topk_live_truth_overlay_blocker": _customer_safe_text(
+            proof.get("topk_live_truth_overlay_blocker"),
+            source_summary.get("topk_live_truth_overlay_blocker"),
+            source_topk.get("live_truth_overlay_blocker"),
+        ),
+        "venue_runtime_ready": _customer_safe_false_when_missing(
+            proof.get("venue_runtime_ready", source_summary.get("venue_runtime_ready", source_venue.get("runtime_ready")))
+        ),
+        "venue_status": _customer_safe_text(
+            proof.get("venue_status"),
+            source_summary.get("venue_status"),
+            source_venue.get("status"),
+        ),
+        "blocked_live_lane_count": _customer_safe_int(
+            proof.get("blocked_live_lane_count"),
+            source_summary.get("blocked_live_lane_count"),
+        ),
+        "alternative_solution_required": _customer_safe_false_when_missing(
+            proof.get("alternative_solution_required", source_summary.get("alternative_solution_required"))
+        ),
+        "alternative_solution_option_count": option_count,
+        "alternative_solution_options": option_count,
+        "selected_alternative_solution": selected_alternative,
+        "selected_alternative": selected_alternative,
+        "selected_next_customer_artifact": selected_next_artifact,
+        "selected_next_artifact": selected_next_artifact,
+        "next_customer_action_count": _customer_safe_int(
+            proof.get("next_customer_action_count"),
+            source_summary.get("next_customer_action_count"),
+        ),
+        "operator_summary": _customer_safe_text(source_summary.get("operator_summary"), proof.get("operator_summary")),
+    }
+    if result["blocked_live_lane_count"] is None:
+        result["blocked_live_lane_count"] = len(blocked_live_lanes)
+    if result["next_customer_action_count"] is None:
+        result["next_customer_action_count"] = len(next_customer_actions)
+
+    result["alternative_solution_portfolio"] = _project_mapping(
+        portfolio,
+        (
+            "pm_challenge_answered",
+            "option_count",
+            "selected_option",
+            "selected_next_artifact",
+            "time_to_evidence_bucket",
+            "missing_capability_class",
+        ),
+    )
+    result["alternative_solutions"] = [
+        _project_mapping(
+            row,
+            (
+                "id",
+                "role",
+                "next_artifact",
+                "deployable",
+                "live_exposure_allowed",
+                "order_submission_enabled",
+                "risk_on_order_enabled",
+                "reference_window",
+                "reference_rows",
+            ),
+        )
+        for row in alternative_solutions
+    ]
+    result["next_customer_actions"] = [
+        _project_mapping(
+            row,
+            (
+                "id",
+                "surface",
+                "mode",
+                "action",
+                "expected_evidence",
+                "verify_command",
+                "breaker_release_ready",
+                "current_recent_window_wins",
+                "required_recent_window_wins",
+                "support_rows",
+                "minimum_support_rows",
+                "support_gap",
+                "topk_deployable_rows",
+                "topk_support_context_status",
+                "topk_support_context_freshness_status",
+                "topk_support_context_deployment_blocking",
+                "topk_live_truth_overlay_blocker",
+                "venue_runtime_ready",
+                "live_exposure_allowed",
+                "order_submission_enabled",
+                "risk_on_order_enabled",
+            ),
+        )
+        for row in next_customer_actions
+    ]
+    compact_release_keys = (
+        "primary_blocking_gate",
+        "breaker_release_ready",
+        "current_recent_window_wins",
+        "required_recent_window_wins",
+        "additional_recent_window_wins_needed",
+        "support_rows",
+        "minimum_support_rows",
+        "support_gap",
+        "support_route_verdict",
+        "topk_deployable_rows",
+        "topk_support_context_status",
+        "topk_support_context_freshness_status",
+        "topk_support_context_deployment_blocking",
+        "topk_live_truth_overlay_blocker",
+        "venue_runtime_ready",
+        "venue_status",
+    )
+    result["blocked_live_lanes"] = [
+        {
+            **_project_mapping(
+                row,
+                (
+                    "id",
+                    "blocking_gate",
+                    "blocked_actions",
+                    "live_exposure_allowed",
+                    "order_submission_enabled",
+                    "risk_on_order_enabled",
+                    "allowed_alternative",
+                ),
+            ),
+            "release_condition": _project_mapping(_as_dict(row.get("release_condition")), compact_release_keys),
+        }
+        for row in blocked_live_lanes
+    ]
+    result["summary"] = _project_mapping(
+        result,
+        (
+            "canary_ready",
+            "live_exposure_allowed",
+            "order_submission_enabled",
+            "risk_on_order_enabled",
+            "support_rows",
+            "minimum_support_rows",
+            "support_gap",
+            "blocking_gate",
+            "primary_blocking_gate",
+            "blocking_gates",
+            "breaker_release_ready",
+            "current_recent_window_wins",
+            "required_recent_window_wins",
+            "additional_recent_window_wins_needed",
+            "topk_deployable_rows",
+            "topk_risk_qualified_rows",
+            "topk_runtime_blocked_candidate_rows",
+            "topk_support_context_status",
+            "topk_support_context_freshness_status",
+            "topk_support_context_deployment_blocking",
+            "topk_live_truth_overlay_blocker",
+            "venue_runtime_ready",
+            "venue_status",
+            "blocked_live_lane_count",
+            "alternative_solution_required",
+            "alternative_solution_option_count",
+            "alternative_solution_options",
+            "selected_alternative_solution",
+            "selected_alternative",
+            "selected_next_customer_artifact",
+            "selected_next_artifact",
+            "next_customer_action_count",
+            "operator_summary",
+        ),
+    )
+    return result
+
+
 
 def build_execution_readiness_bundle(
     status_payload: Optional[Dict[str, Any]],
     *,
     range_chop_playbook: Optional[Dict[str, Any]] = None,
+    config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build M5 operator-safe execution readiness, shadow ledger, and venue proof payloads.
 
@@ -308,6 +1097,9 @@ def build_execution_readiness_bundle(
     high_conviction_shadow = _build_high_conviction_shadow_contract(payload)
     range_chop = _as_dict(range_chop_playbook or execution.get("range_chop_playbook") or execution_surface_contract.get("range_chop_playbook") or payload.get("range_chop_playbook"))
     venue_record = _venue_record_for_payload(payload)
+    venue_dry_run_artifact = _venue_dry_run_proof_for_payload(payload)
+    venue_dry_run_artifact_venue = _selected_venue_from_dry_run_proof(venue_dry_run_artifact, execution.get("venue"))
+    customer_safe_alternative_artifact = _load_customer_safe_alternative_proof(payload)
 
     support_progress = _as_dict(live_runtime_truth.get("support_progress"))
     topk_support_context = _as_dict(topk.get("support_context"))
@@ -423,9 +1215,10 @@ def build_execution_readiness_bundle(
         "live_exposure_allowed": False,
         "order_submission_enabled": False,
         "allowed_today": [
+            "用 /api/trade shadow_buy / paper_buy 進入 paper-shadow 實戰演練（dry-run only）",
             "啟動 paper-shadow 訊號帳本並追 24h pyramid outcome",
             "保留減碼 / 取消掛單 / 賣出風險降低路徑",
-            "補 venue dry-run preview、ack、cancel、reconciliation 證據鏈",
+            "補 venue dry-run preview、ack、cancel、fill、reconciliation 證據鏈",
         ],
         "not_allowed": ["買入 / 加倉", "把寬範圍或舊語義支持包裝成部署閉環"],
         "next_review_trigger": "每輪 heartbeat 重新計算 support_delta；若 estimated_days_at_hourly_heartbeat > 7 或無正增量，PM/工程需重排替代路線。",
@@ -465,19 +1258,49 @@ def build_execution_readiness_bundle(
     model_gate_passed = bool(deployable_count > 0)
     model_gate_status = "passed" if model_gate_passed else ("shadow_ready" if model_shadow_ready else "blocked")
 
-    credential_present = bool(
-        venue_record.get("credentials_configured")
-        or _as_dict(account.get("health")).get("credentials_configured")
-        or _as_dict(execution.get("health")).get("credentials_configured")
-    )
-    venue_blockers = [str(item) for item in _as_list(venue_record.get("blockers")) if str(item).strip()]
+    if venue_dry_run_artifact:
+        credential_present = bool(
+            venue_dry_run_artifact.get("credential_present")
+            or venue_dry_run_artifact.get("credentials_configured_any")
+            or venue_dry_run_artifact_venue.get("credential_present")
+            or venue_dry_run_artifact_venue.get("credentials_configured")
+        )
+    else:
+        credential_present = bool(
+            venue_record.get("credentials_configured")
+            or _as_dict(account.get("health")).get("credentials_configured")
+            or _as_dict(execution.get("health")).get("credentials_configured")
+        )
     live_ready_blockers = [str(item) for item in _as_list(execution_surface_contract.get("live_ready_blockers")) if str(item).strip()]
-    proof_state = _first_text(venue_record.get("proof_state"), "missing_runtime_backed_order_lifecycle")
-    venue_passed = bool(credential_present and not venue_blockers and live_ready and proof_state in {"runtime_backed_proof_complete", "ready"})
+    if venue_dry_run_artifact:
+        venue_blockers = _first_text_list(
+            venue_dry_run_artifact.get("runtime_ready_blockers"),
+            venue_dry_run_artifact.get("blockers"),
+            venue_dry_run_artifact_venue.get("blockers"),
+        )
+        proof_state = _first_text(
+            venue_dry_run_artifact.get("proof_state"),
+            venue_dry_run_artifact.get("status"),
+            venue_dry_run_artifact_venue.get("proof_state"),
+            venue_dry_run_artifact_venue.get("readiness_state"),
+            "missing_runtime_backed_order_lifecycle",
+        )
+        venue_passed = bool(
+            (venue_dry_run_artifact.get("runtime_ready") is True or venue_dry_run_artifact_venue.get("runtime_ready") is True)
+            and not venue_blockers
+            and str(venue_dry_run_artifact.get("status") or "").strip() in {"ready", "runtime_ready", "runtime_backed_proof_complete"}
+        )
+    else:
+        venue_blockers = [str(item) for item in _as_list(venue_record.get("blockers")) if str(item).strip()]
+        proof_state = _first_text(venue_record.get("proof_state"), "missing_runtime_backed_order_lifecycle")
+        venue_passed = bool(credential_present and not venue_blockers and live_ready and proof_state in {"runtime_backed_proof_complete", "ready"})
     venue_status = "passed" if venue_passed else "blocked"
 
+    symbol = str(payload.get("symbol") or "BTCUSDT")
+    live_canary_policy_gate = _build_live_canary_policy_gate(config, symbol)
+    live_canary_policy_passed = bool(live_canary_policy_gate.get("passed"))
     shadow_ready = bool(model_shadow_ready or range_chop.get("shadow_available") or range_chop.get("risk_reduction_allowed"))
-    canary_ready = bool(live_ready and model_gate_passed and support_passed and release_passed and venue_passed)
+    canary_ready = bool(live_ready and model_gate_passed and support_passed and release_passed and venue_passed and live_canary_policy_passed)
     risk_on_order_enabled = False
     order_submission_enabled = False
     readiness_status = "canary_ready" if canary_ready else ("shadow_reduce_only" if shadow_ready or range_chop.get("risk_reduction_allowed") else "blocked")
@@ -547,9 +1370,19 @@ def build_execution_readiness_bundle(
             "current": 1 if credential_present else 0,
             "required": 1,
             "gap": 0 if credential_present else 1,
-            "summary": "credential present 已確認" if credential_present else "credential present 尚未有 runtime-backed proof",
+            "summary": (
+                f"venue dry-run proof {venue_dry_run_artifact.get('status')}；runtime_ready "
+                f"{venue_dry_run_artifact.get('runtime_ready_count', '—')}/{venue_dry_run_artifact.get('venues_checked', '—')}"
+                if venue_dry_run_artifact
+                else ("credential present 已確認" if credential_present else "credential present 尚未有 runtime-backed proof")
+            ),
             "blockers": venue_blockers or live_ready_blockers,
-            "next_action": _first_text(venue_record.get("operator_next_action"), "補齊 credential presence、order ack、cancel、fill lifecycle 與 reconciliation proof。"),
+            "next_action": _first_text(
+                venue_dry_run_artifact.get("operator_next_action"),
+                venue_dry_run_artifact_venue.get("operator_next_action"),
+                venue_record.get("operator_next_action"),
+                "補齊 credential presence、order ack、cancel、fill lifecycle 與 reconciliation proof。",
+            ),
         },
         {
             "key": "shadow_observation_gate",
@@ -560,8 +1393,9 @@ def build_execution_readiness_bundle(
             "required": 1,
             "gap": 0 if shadow_ready else 1,
             "summary": "影子觀察可記錄訊號 / 假想 entry / 24h 結果；不送單。" if shadow_ready else "尚未形成可記錄的影子觀察候選。",
-            "next_action": "今天可啟動影子觀察、dry-run preview、ack / cancel simulation 與減風險演練。",
+            "next_action": "今天可啟動影子觀察、dry-run preview、ack / cancel / fill simulation 與減風險演練。",
         },
+        live_canary_policy_gate,
     ]
     gate_by_key = {gate["key"]: gate for gate in gates}
     blocking_gate = None
@@ -570,6 +1404,7 @@ def build_execution_readiness_bundle(
         "current_live_support_gate",
         "venue_gate",
         "model_gate",
+        "live_canary_policy_gate",
         "shadow_observation_gate",
     ):
         gate = gate_by_key.get(gate_key)
@@ -578,8 +1413,9 @@ def build_execution_readiness_bundle(
             break
 
     what_can_do_now = [
+        "用 /api/trade shadow_buy / paper_buy 進入 paper/shadow 實戰演練（dry_run=true，不送 OKX live order）",
         "啟動影子觀察並寫入 Shadow Trade Ledger",
-        "做 venue dry-run proof：order preview、ack simulation、cancel simulation、reconciliation check",
+        "做 venue dry-run proof：order preview、ack simulation、cancel simulation、fill simulation、reconciliation check",
         "減碼 / 取消掛單 / 賣出風險降低路徑仍可用",
         "持續收集即時部署精準支持與 24h pyramid outcome",
     ]
@@ -604,10 +1440,9 @@ def build_execution_readiness_bundle(
         "what_cannot_do_now": what_cannot_do_now,
         "time_to_evidence": time_to_evidence,
         "alternative_solution_review": alternative_solution_review,
-        "next_release_condition": "exact support ≥ 50/50、recent 50 ≥ 15 勝、venue proof chain 完整，且 live_ready=true。",
+        "next_release_condition": "exact support ≥ 50/50、recent 50 ≥ 15 勝、venue proof chain 完整、live_canary policy 完整，且 live_ready=true。",
     }
 
-    symbol = str(payload.get("symbol") or "BTCUSDT")
     timestamp = str(payload.get("timestamp") or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
     structure_bucket = _first_text(live_runtime_truth.get("structure_bucket"), live_runtime_truth.get("current_live_structure_bucket"), "—") or "—"
     regime = f"{_first_text(live_runtime_truth.get('regime_label'), '—')} / {_first_text(live_runtime_truth.get('regime_gate'), '—')} / {structure_bucket}"
@@ -646,14 +1481,14 @@ def build_execution_readiness_bundle(
     }
 
     venue_label = _first_text(venue_record.get("venue"), execution.get("venue"), "unknown") or "unknown"
-    venue_dry_run_proof = {
+    fallback_venue_dry_run_proof = {
         "status": "ready" if venue_passed else "blocked_missing_runtime_backed_proof",
         "venue": venue_label,
         "credential_present": credential_present,
         "secrets_redacted": True,
         "proof_state": proof_state,
         "blockers": venue_blockers or live_ready_blockers or ["credential / order ack / fill lifecycle proof 尚未完成"],
-        "operator_next_action": _first_text(venue_record.get("operator_next_action"), "先跑 dry-run preview，再補 ack / cancel / reconciliation proof。"),
+        "operator_next_action": _first_text(venue_record.get("operator_next_action"), "先跑 dry-run preview，再補 ack / cancel / fill / reconciliation proof。"),
         "verify_next": _first_text(venue_record.get("verify_next"), "python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx"),
         "order_preview": {
             "status": "preview_available",
@@ -671,19 +1506,47 @@ def build_execution_readiness_bundle(
             "status": "simulation_only_waiting_runtime_cancel_ack",
             "runtime_backed": False,
         },
+        "fill_simulation": {
+            "status": "simulation_only_waiting_runtime_fill",
+            "runtime_backed": False,
+        },
         "reconciliation_check": {
             "status": _first_text(execution_reconciliation.get("status"), "limited_evidence_no_runtime_order"),
             "runtime_backed": False,
             "summary": _first_text(execution_reconciliation.get("summary"), "尚未有 runtime-backed order / fill lifecycle 可對帳。"),
         },
     }
+    venue_dry_run_proof = _normalize_venue_dry_run_artifact(
+        venue_dry_run_artifact,
+        symbol=symbol,
+        execution=execution,
+        fallback_venue_record=venue_record,
+        execution_reconciliation=execution_reconciliation,
+        live_ready_blockers=live_ready_blockers,
+    ) or fallback_venue_dry_run_proof
+    customer_safe_alternative_proof = _compact_customer_safe_alternative_proof(customer_safe_alternative_artifact)
 
     distance_to_canary = [
         f"熔斷 gate：{release_summary}",
         f"即時支持 gate：{support_summary}",
         f"time-to-evidence：{time_to_evidence_summary}",
-        "場館 gate：credential present、order preview、ack simulation、cancel simulation、reconciliation check 都必須 runtime-backed。",
+        "場館 gate：credential present、order preview、ack simulation、cancel simulation、fill simulation、reconciliation check 都必須 runtime-backed。",
+        f"Live-canary policy gate：{live_canary_policy_gate.get('summary')}",
     ]
+    milestone_progression = _build_milestone_progression(
+        symbol=symbol,
+        canary_ready=canary_ready,
+        shadow_ready=shadow_ready,
+        support_passed=support_passed,
+        release_passed=release_passed,
+        venue_passed=venue_passed,
+        model_gate_passed=model_gate_passed,
+        live_canary_policy_passed=live_canary_policy_passed,
+        blocking_gate=blocking_gate,
+        venue_dry_run_proof=venue_dry_run_proof,
+    )
+    execution_readiness["milestone_progression"] = milestone_progression
+
     canary_gap_answers = {
         "canary_ready": canary_ready,
         "distance_to_canary": distance_to_canary,
@@ -693,6 +1556,7 @@ def build_execution_readiness_bundle(
         "blocked_gate_summary": blocking_gate.get("summary") if blocking_gate else "所有 gate 已通過，只允許最小 canary。",
         "time_to_evidence": time_to_evidence,
         "alternative_solution_review": alternative_solution_review,
+        "milestone_progression": milestone_progression,
         "first_canary_plan_if_all_gates_pass": {
             "exposure_pct_max": 0.01,
             "pyramid_layer": "20% first layer only",
@@ -708,6 +1572,7 @@ def build_execution_readiness_bundle(
         "execution_readiness": execution_readiness,
         "shadow_trade_ledger": shadow_trade_ledger,
         "venue_dry_run_proof": venue_dry_run_proof,
+        "customer_safe_alternative_proof": customer_safe_alternative_proof,
         "canary_gap_answers": canary_gap_answers,
     }
 
@@ -967,7 +1832,7 @@ def build_execution_overview(
         "operator_message": "可部署資金目前仍先依風險控管頭寸公式估算，再由啟用倉位腿均分；運行控制雖已可持久化，但每個 Bot 的資金帳本仍未落地。",
     }
 
-    readiness_bundle = build_execution_readiness_bundle(payload, range_chop_playbook=range_chop_playbook)
+    readiness_bundle = build_execution_readiness_bundle(payload, range_chop_playbook=range_chop_playbook, config=config)
 
     return {
         "symbol": symbol,

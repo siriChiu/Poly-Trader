@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-05-23T07:54:00+08:00",
+  "updated_at": "2026-06-04T16:59:49+08:00",
   "purpose": "Poly-Trader PM heartbeat contract for customer-side delivery advocacy, claim audit, framework-capture detection, anti-equilibrium review, alternative-solution review, and safety-preserving arbitration between customer urgency and engineering guardrails, forced-execution pivot when no-delta repeats, and bounded live-canary governance.",
   "entrypoints": {
     "pm_charter": "PM_HEARTBEAT.md",
@@ -10,7 +10,14 @@
     "pm_validator": "scripts/pm_heartbeat_check.py",
     "pm_validator_test": "tests/test_pm_heartbeat_contract.py",
     "engineering_heartbeat": "HEARTBEAT.md",
-    "engineering_harness": "docs/harness/README.md"
+    "engineering_harness": "docs/harness/README.md",
+    "high_conviction_topk_api_consistency_probe": "scripts/high_conviction_topk_api_consistency_probe.py",
+    "venue_api_consistency_probe": "scripts/venue_dry_run_api_consistency_probe.py",
+    "customer_safe_alternative_proof": "data/customer_safe_alternative_proof.json",
+    "customer_safe_alternative_api_consistency_probe": "scripts/customer_safe_alternative_api_consistency_probe.py",
+    "paper_shadow_outcome_reconciliation": "data/paper_shadow_outcome_reconciliation.json",
+    "paper_shadow_outcome_reconciliation_cli": "scripts/paper_shadow_outcome_reconciliation.py",
+    "paper_shadow_outcome_api_consistency_probe": "scripts/paper_shadow_outcome_api_consistency_probe.py"
   },
   "required_docs": [
     {
@@ -79,6 +86,9 @@
         "data/live_predict_probe.json",
         "data/high_conviction_topk_oos_matrix.json",
         "data/execution_metadata_smoke.json",
+        "data/venue_dry_run_proof.json",
+        "data/customer_safe_alternative_proof.json",
+        "data/paper_shadow_outcome_reconciliation.json",
         "data/recent_drift_report.json"
       ]
     },
@@ -199,6 +209,34 @@
       "purpose": "support rows, deployment blocker, allowed layers, signal, release boundary"
     },
     {
+      "name": "customer_safe_usable_lane_truth",
+      "paths": [
+        "data/customer_safe_alternative_proof.json",
+        "data/live_predict_probe.json",
+        "data/circuit_breaker_audit.json",
+        "data/high_conviction_topk_oos_matrix.json",
+        "scripts/high_conviction_topk_api_consistency_probe.py",
+        "/api/models/leaderboard.high_conviction_topk",
+        "scripts/customer_safe_alternative_api_consistency_probe.py",
+        "/api/execution/overview.customer_safe_alternative_proof",
+        "data/venue_dry_run_proof.json"
+      ],
+      "purpose": "customer-safe quick-read summary plus source artifacts for support, breaker, Top-K, Top-K API/artifact consistency, overview customer-safe API/artifact consistency, venue gates, and live exposure permission"
+    },
+    {
+      "name": "paper_shadow_rehearsal_truth",
+      "paths": [
+        "scripts/paper_shadow_outcome_reconciliation.py",
+        "scripts/paper_shadow_outcome_api_consistency_probe.py",
+        "data/paper_shadow_outcome_reconciliation.json",
+        "/api/execution/overview.paper_shadow_outcome_reconciliation",
+        "execution/control_plane.py",
+        "server/routes/api.py",
+        "tests/test_execution_run_control.py"
+      ],
+      "purpose": "paper/shadow worker parity and 24h outcome reconciliation proof plus API/artifact consistency; remains fail-closed and never proves live buy/add readiness"
+    },
+    {
       "name": "research_to_delivery_truth",
       "paths": [
         "data/high_conviction_topk_oos_matrix.json",
@@ -209,9 +247,11 @@
     {
       "name": "venue_readiness_truth",
       "paths": [
-        "data/execution_metadata_smoke.json"
+        "data/execution_metadata_smoke.json",
+        "data/venue_dry_run_proof.json",
+        "scripts/venue_dry_run_api_consistency_probe.py"
       ],
-      "purpose": "per-venue runtime proof state and missing lifecycle evidence"
+      "purpose": "per-venue runtime proof state, dry-run lifecycle checklist, missing lifecycle evidence, artifact-first API overview/status source, and strict API consistency proof"
     },
     {
       "name": "recent_pathology_truth",
@@ -288,6 +328,14 @@
     {
       "id": "pm_forced_execution_pivot_guard",
       "description": "PM docs require forced-execution branch selection, 72h micro-canary-or-single-failed-gate decision, and bounded live-canary safety before any live buy/add pilot."
+    },
+    {
+      "id": "pm_customer_safe_alternative_current_truth",
+      "description": "PM checker verifies data/customer_safe_alternative_proof.json summary mirrors nested gates and current live support, breaker, Top-K, and venue artifacts; API consistency probe verifies /api/execution/overview.customer_safe_alternative_proof mirrors aliases, counts, selected next artifact, fail-closed state, and secret-safe surface."
+    },
+    {
+      "id": "pm_paper_shadow_rehearsal_fail_closed_truth",
+      "description": "PM checker verifies data/paper_shadow_outcome_reconciliation.json schema-v2 top-level/quick_read fields mirror nested rehearsal proof and remain fail-closed with no live order submission; heartbeat API consistency probe verifies the route mirrors the artifact."
     }
   ],
   "verification_commands": [

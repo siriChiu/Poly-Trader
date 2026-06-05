@@ -10,6 +10,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import concurrent.futures
 import json
 import os
@@ -19,8 +20,9 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, Optional, Tuple
 
 PROJECT_ROOT = '/home/kazuha/Poly-Trader'
@@ -53,12 +55,22 @@ FAST_SERIAL_TIMEOUTS = {
     # envelope.
     "hb_leaderboard_candidate_probe": 90,
     "topk_walkforward_precision": 90,
+    "high_conviction_topk_api_consistency_probe": 20,
     "hb_q15_support_audit": 20,
     "q15_support_fill_feasibility_scan": 20,
+    "q15_exact_bucket_row_harvest_proof": 20,
+    "q15_drift_rebaseline_backtest": 20,
+    "q15_map_signal_redesign_proof": 20,
     "hb_q15_bucket_root_cause": 20,
     "hb_q15_boundary_replay": 20,
+    "active_backend_health_probe": 20,
     "execution_metadata_smoke": 30,
+    "venue_dry_run_proof": 20,
+    "paper_shadow_outcome_reconciliation": 20,
+    "paper_shadow_outcome_api_consistency_probe": 20,
     "customer_safe_alternative_proof": 20,
+    "customer_safe_alternative_api_consistency_probe": 20,
+    "no_trade_lane_replay": 20,
 }
 FULL_SERIAL_TIMEOUTS = {
     # Candidate-evaluation lanes can become silent for many minutes when the
@@ -69,8 +81,18 @@ FULL_SERIAL_TIMEOUTS = {
     "bull_4h_pocket_ablation": 45,
     "hb_leaderboard_candidate_probe": 90,
     "topk_walkforward_precision": 120,
+    "high_conviction_topk_api_consistency_probe": 20,
+    "q15_exact_bucket_row_harvest_proof": 20,
+    "q15_drift_rebaseline_backtest": 20,
+    "q15_map_signal_redesign_proof": 20,
+    "active_backend_health_probe": 20,
     "execution_metadata_smoke": 30,
+    "venue_dry_run_proof": 20,
+    "paper_shadow_outcome_reconciliation": 20,
+    "paper_shadow_outcome_api_consistency_probe": 20,
     "customer_safe_alternative_proof": 20,
+    "customer_safe_alternative_api_consistency_probe": 20,
+    "no_trade_lane_replay": 20,
 }
 FAST_PARALLEL_TASK_TIMEOUTS = {
     "full_ic": 90,
@@ -88,6 +110,10 @@ FULL_PARALLEL_TASK_TIMEOUTS = {
     "tests": 180,
 }
 COLLECT_TIMEOUT_SECONDS = 180
+STRATEGY_DATA_SYNC_MAINTENANCE_HEADROOM_MINUTES = 10.0
+STRATEGY_DATA_SYNC_MAINTENANCE_SYMBOL = "BTCUSDT"
+STRATEGY_DATA_SYNC_MAINTENANCE_LOOKBACK_DAYS = 2
+STRATEGY_DATA_SYNC_MAINTENANCE_MAX_FEATURE_ROWS = 100
 FAST_CACHE_REUSE_MAX_LABEL_DELTA = 12
 FAST_CACHE_REUSE_MAX_LABEL_TIME_DRIFT_SECONDS = 6 * 3600
 FAST_HEARTBEAT_CRON_BUDGET_SECONDS = 240
@@ -124,6 +150,9 @@ LIVE_DQ_DRILLDOWN_CMD = [PYTHON, "scripts/live_decision_quality_drilldown.py"]
 Q35_SCALING_AUDIT_CMD = [PYTHON, "scripts/hb_q35_scaling_audit.py"]
 Q15_SUPPORT_AUDIT_CMD = [PYTHON, "scripts/hb_q15_support_audit.py"]
 Q15_SUPPORT_FILL_FEASIBILITY_CMD = [PYTHON, "scripts/q15_support_fill_feasibility_scan.py"]
+Q15_EXACT_BUCKET_ROW_HARVEST_PROOF_CMD = [PYTHON, "scripts/q15_exact_bucket_row_harvest_proof.py"]
+Q15_DRIFT_REBASELINE_BACKTEST_CMD = [PYTHON, "scripts/q15_drift_rebaseline_backtest.py"]
+Q15_MAP_SIGNAL_REDESIGN_PROOF_CMD = [PYTHON, "scripts/q15_map_signal_redesign_proof.py"]
 Q15_BUCKET_ROOT_CAUSE_CMD = [PYTHON, "scripts/hb_q15_bucket_root_cause.py"]
 Q15_BOUNDARY_REPLAY_CMD = [PYTHON, "scripts/hb_q15_boundary_replay.py"]
 CIRCUIT_BREAKER_AUDIT_CMD = [PYTHON, "scripts/hb_circuit_breaker_audit.py"]
@@ -132,8 +161,56 @@ BULL_4H_POCKET_ABLATION_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py"]
 BULL_4H_POCKET_ABLATION_REFRESH_CMD = [PYTHON, "scripts/bull_4h_pocket_ablation.py", "--refresh-live-context"]
 LEADERBOARD_CANDIDATE_PROBE_CMD = [PYTHON, "scripts/hb_leaderboard_candidate_probe.py"]
 TOPK_WALKFORWARD_PRECISION_CMD = [PYTHON, "scripts/topk_walkforward_precision.py"]
+HIGH_CONVICTION_TOPK_API_CONSISTENCY_CMD = [
+    PYTHON,
+    "scripts/high_conviction_topk_api_consistency_probe.py",
+    "--base-url",
+    "http://127.0.0.1:8000",
+    "--artifact-file",
+    "data/high_conviction_topk_oos_matrix.json",
+    "--strict",
+    "--compact",
+]
 CUSTOMER_SAFE_ALTERNATIVE_PROOF_CMD = [PYTHON, "scripts/customer_safe_alternative_proof.py"]
+CUSTOMER_SAFE_ALTERNATIVE_API_CONSISTENCY_CMD = [
+    PYTHON,
+    "scripts/customer_safe_alternative_api_consistency_probe.py",
+    "--base-url",
+    "http://127.0.0.1:8000",
+    "--artifact-file",
+    "data/customer_safe_alternative_proof.json",
+    "--strict",
+    "--compact",
+]
+VENUE_DRY_RUN_PROOF_CMD = [PYTHON, "scripts/venue_dry_run_proof.py"]
 LIVE_CANARY_STRUCTURAL_PIVOT_CMD = [PYTHON, "scripts/live_canary_structural_pivot.py"]
+NO_TRADE_LANE_REPLAY_CMD = [PYTHON, "scripts/no_trade_lane_replay.py"]
+PAPER_SHADOW_OUTCOME_RECONCILIATION_CMD = [
+    PYTHON,
+    "scripts/paper_shadow_outcome_reconciliation.py",
+    "--persist",
+    "--strict",
+    "--compact",
+]
+PAPER_SHADOW_OUTCOME_API_CONSISTENCY_CMD = [
+    PYTHON,
+    "scripts/paper_shadow_outcome_api_consistency_probe.py",
+    "--base-url",
+    "http://127.0.0.1:8000",
+    "--artifact-file",
+    "data/paper_shadow_outcome_reconciliation.json",
+    "--strict",
+    "--compact",
+]
+ACTIVE_BACKEND_HEALTH_PROBE_CMD = [
+    PYTHON,
+    "scripts/active_backend_health_probe.py",
+    "--base-url",
+    "http://127.0.0.1:8000",
+    "--timeout",
+    "10",
+    "--strict",
+]
 EXECUTION_METADATA_SMOKE_CMD = [
     PYTHON,
     "scripts/execution_metadata_smoke.py",
@@ -175,6 +252,7 @@ def _format_doc_number(value: Any, digits: int = 1) -> str:
 
 _CURRENT_STATE_DOC_MAX_LINE_LENGTH = 1000
 _CURRENT_STATE_DOC_WRAP_TARGET_LENGTH = 900
+_CURRENT_STATE_DOC_STALE_MTIME_TOLERANCE_SECONDS = 2.0
 
 
 def _compact_support_progress_reason(reason: Any, context: Dict[str, Any] | None = None) -> str:
@@ -376,9 +454,18 @@ def collect_current_state_docs_sync_status() -> Dict[str, Any]:
         ("issues.json", root / "issues.json"),
         ("data/live_predict_probe.json", root / "data" / "live_predict_probe.json"),
         ("data/live_decision_quality_drilldown.json", root / "data" / "live_decision_quality_drilldown.json"),
+        ("data/q15_support_fill_feasibility.json", root / "data" / "q15_support_fill_feasibility.json"),
+        ("data/q15_exact_bucket_row_harvest_proof.json", root / "data" / "q15_exact_bucket_row_harvest_proof.json"),
+        ("data/q15_drift_rebaseline_backtest.json", root / "data" / "q15_drift_rebaseline_backtest.json"),
+        ("data/q15_map_signal_redesign_proof.json", root / "data" / "q15_map_signal_redesign_proof.json"),
+        ("data/customer_safe_alternative_proof.json", root / "data" / "customer_safe_alternative_proof.json"),
+        ("data/no_trade_lane_replay.json", root / "data" / "no_trade_lane_replay.json"),
+        ("data/paper_shadow_outcome_reconciliation.json", root / "data" / "paper_shadow_outcome_reconciliation.json"),
         ("data/execution_metadata_smoke.json", root / "data" / "execution_metadata_smoke.json"),
+        ("data/venue_dry_run_proof.json", root / "data" / "venue_dry_run_proof.json"),
         ("data/leaderboard_feature_profile_probe.json", root / "data" / "leaderboard_feature_profile_probe.json"),
         ("data/high_conviction_topk_oos_matrix.json", root / "data" / "high_conviction_topk_oos_matrix.json"),
+        ("data/live_canary_structural_pivot.json", root / "data" / "live_canary_structural_pivot.json"),
     ]
 
     reference_mtimes = {
@@ -397,7 +484,11 @@ def collect_current_state_docs_sync_status() -> Dict[str, Any]:
             "mtime": mtime.isoformat() if mtime is not None else None,
             "exists": mtime is not None,
         }
-        if latest_reference_mtime is not None and (mtime is None or mtime < latest_reference_mtime):
+        if latest_reference_mtime is not None and (
+            mtime is None
+            or mtime + timedelta(seconds=_CURRENT_STATE_DOC_STALE_MTIME_TOLERANCE_SECONDS)
+            < latest_reference_mtime
+        ):
             stale_docs.append(label)
 
     return {
@@ -619,12 +710,84 @@ def _support_truth_context(
             context[f"support_progress_{field}"] = live_support_progress.get(field)
 
     audit_bucket = _q15_support_audit_bucket(q15_support_audit)
+    support_route = q15_support_audit.get("support_route") or {}
+    support_progress = support_route.get("support_progress") or {}
+
+    def _merge_q15_forced_branch_context(*, set_source: bool = False) -> bool:
+        equilibrium_deadlock = (
+            q15_support_audit.get("equilibrium_deadlock")
+            or support_progress.get("equilibrium_deadlock")
+            or {}
+        )
+        if not isinstance(equilibrium_deadlock, dict) or not equilibrium_deadlock:
+            return False
+        forced_artifact = equilibrium_deadlock.get("forced_research_action_artifact") or {}
+        if not isinstance(forced_artifact, dict):
+            forced_artifact = {}
+        forced_current_live = bool(
+            equilibrium_deadlock.get("confirmed") or forced_artifact.get("required")
+        )
+        bucket_matches = not audit_bucket or audit_bucket == current_bucket
+        if not forced_current_live or not bucket_matches:
+            return False
+        for field in ("verdict", "state", "confirmed", "severity", "failure_mode", "decision"):
+            if equilibrium_deadlock.get(field) is not None:
+                context[f"equilibrium_deadlock_{field}"] = equilibrium_deadlock.get(field)
+        if forced_artifact.get("required") is not None:
+            context["forced_research_action_required"] = forced_artifact.get("required")
+        if forced_artifact.get("output_path") is not None:
+            context["forced_research_action_output_path"] = forced_artifact.get("output_path")
+
+        active_repair_plan = q15_support_audit.get("active_repair_plan") or {}
+        if isinstance(active_repair_plan, dict) and active_repair_plan:
+            forced_branch_decision = (
+                q15_support_audit.get("forced_branch_decision")
+                or active_repair_plan.get("forced_branch_decision")
+                or {}
+            )
+            if isinstance(forced_branch_decision, dict) and forced_branch_decision:
+                for field in (
+                    "status",
+                    "selected_branch",
+                    "single_failed_gate",
+                    "next_validation_artifact",
+                    "decision_clock",
+                ):
+                    if forced_branch_decision.get(field) is not None:
+                        context[f"forced_branch_{field}"] = forced_branch_decision.get(field)
+            for field in (
+                "phase",
+                "component_verify_ready",
+                "live_exposure_allowed",
+                "shadow_or_paper_allowed",
+                "current_signal",
+                "current_allowed_layers",
+                "current_execution_guardrail_reason",
+                "support_status",
+                "forced_research_action_required",
+                "forced_research_action_output_path",
+            ):
+                if active_repair_plan.get(field) is not None:
+                    context[f"active_repair_{field}"] = active_repair_plan.get(field)
+            actions = active_repair_plan.get("actions") or []
+            if isinstance(actions, list):
+                action_ids = [
+                    str(action.get("id"))
+                    for action in actions
+                    if isinstance(action, dict) and action.get("id")
+                ]
+                if action_ids:
+                    context["active_repair_action_ids"] = action_ids
+        if set_source:
+            context["source"] = "q15_support_audit"
+        elif context.get("source") != "q15_support_audit":
+            context["source"] = "live_predictor+q15_forced_branch"
+        return True
+
     use_q15_support_audit = "q15" in str(current_bucket or "") and (
         not audit_bucket or audit_bucket == current_bucket
     )
     if use_q15_support_audit:
-        support_route = q15_support_audit.get("support_route") or {}
-        support_progress = support_route.get("support_progress") or {}
         if support_progress.get("current_rows") is not None:
             context["current_rows"] = support_progress.get("current_rows")
         if support_progress.get("minimum_support_rows") is not None:
@@ -656,19 +819,23 @@ def _support_truth_context(
         ):
             if support_progress.get(field) is not None:
                 context[f"support_progress_{field}"] = support_progress.get(field)
-        equilibrium_deadlock = q15_support_audit.get("equilibrium_deadlock") or support_progress.get("equilibrium_deadlock") or {}
-        if isinstance(equilibrium_deadlock, dict) and equilibrium_deadlock:
-            for field in ("verdict", "state", "confirmed", "severity", "failure_mode", "decision"):
-                if equilibrium_deadlock.get(field) is not None:
-                    context[f"equilibrium_deadlock_{field}"] = equilibrium_deadlock.get(field)
-            forced_artifact = equilibrium_deadlock.get("forced_research_action_artifact") or {}
-            if isinstance(forced_artifact, dict):
-                if forced_artifact.get("required") is not None:
-                    context["forced_research_action_required"] = forced_artifact.get("required")
-                if forced_artifact.get("output_path") is not None:
-                    context["forced_research_action_output_path"] = forced_artifact.get("output_path")
         active_repair_plan = q15_support_audit.get("active_repair_plan") or {}
         if isinstance(active_repair_plan, dict) and active_repair_plan:
+            forced_branch_decision = (
+                q15_support_audit.get("forced_branch_decision")
+                or active_repair_plan.get("forced_branch_decision")
+                or {}
+            )
+            if isinstance(forced_branch_decision, dict) and forced_branch_decision:
+                for field in (
+                    "status",
+                    "selected_branch",
+                    "single_failed_gate",
+                    "next_validation_artifact",
+                    "decision_clock",
+                ):
+                    if forced_branch_decision.get(field) is not None:
+                        context[f"forced_branch_{field}"] = forced_branch_decision.get(field)
             for field in (
                 "phase",
                 "component_verify_ready",
@@ -691,7 +858,11 @@ def _support_truth_context(
                 context["gap_to_minimum"] = active_repair_plan.get("gap_to_minimum")
             actions = active_repair_plan.get("actions") or []
             if isinstance(actions, list):
-                action_ids = [str(action.get("id")) for action in actions if isinstance(action, dict) and action.get("id")]
+                action_ids = [
+                    str(action.get("id"))
+                    for action in actions
+                    if isinstance(action, dict) and action.get("id")
+                ]
                 if action_ids:
                     context["active_repair_action_ids"] = action_ids
             legacy_evidence = active_repair_plan.get("legacy_semantic_evidence") or {}
@@ -709,7 +880,10 @@ def _support_truth_context(
                 ):
                     if legacy_evidence.get(field) is not None:
                         context[f"legacy_semantic_evidence_{field}"] = legacy_evidence.get(field)
+        _merge_q15_forced_branch_context(set_source=True)
         context["source"] = "q15_support_audit"
+    else:
+        _merge_q15_forced_branch_context()
 
     if context.get("gap_to_minimum") in (None, ""):
         try:
@@ -829,6 +1003,11 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
     active_repair_layers = support_context.get("active_repair_current_allowed_layers")
     active_repair_guardrail = support_context.get("active_repair_current_execution_guardrail_reason")
     active_repair_actions = support_context.get("active_repair_action_ids") or []
+    forced_branch_status = support_context.get("forced_branch_status")
+    forced_branch_selected = support_context.get("forced_branch_selected_branch")
+    forced_branch_single_gate = support_context.get("forced_branch_single_failed_gate")
+    forced_branch_next_artifact = support_context.get("forced_branch_next_validation_artifact")
+    forced_branch_clock = support_context.get("forced_branch_decision_clock")
     legacy_evidence_verdict = support_context.get("legacy_semantic_evidence_verdict")
     legacy_evidence_supports_current = support_context.get("legacy_semantic_evidence_supports_current_identity")
     legacy_evidence_promotable = support_context.get("legacy_semantic_evidence_promotable_to_same_identity_history")
@@ -848,6 +1027,11 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
             active_repair_layers,
             active_repair_guardrail,
             active_repair_actions,
+            forced_branch_status,
+            forced_branch_selected,
+            forced_branch_single_gate,
+            forced_branch_next_artifact,
+            forced_branch_clock,
             legacy_evidence_verdict,
             legacy_evidence_supports_current,
             legacy_evidence_promotable,
@@ -932,6 +1116,16 @@ def _support_progress_docs_line(support_context: Dict[str, Any] | None) -> str:
             repair_parts.append(f"`guardrail={active_repair_guardrail}`")
         if active_repair_actions:
             repair_parts.append(f"`actions={','.join(str(item) for item in active_repair_actions)}`")
+        if forced_branch_status not in (None, ""):
+            repair_parts.append(f"`forced_branch_status={forced_branch_status}`")
+        if forced_branch_selected not in (None, ""):
+            repair_parts.append(f"`forced_branch_selected={forced_branch_selected}`")
+        if forced_branch_single_gate not in (None, ""):
+            repair_parts.append(f"`single_failed_gate={forced_branch_single_gate}`")
+        if forced_branch_next_artifact not in (None, ""):
+            repair_parts.append(f"`next_validation_artifact={forced_branch_next_artifact}`")
+        if forced_branch_clock not in (None, ""):
+            repair_parts.append(f"`decision_clock={forced_branch_clock}`")
         if legacy_evidence_verdict not in (None, ""):
             repair_parts.append(f"`legacy_evidence={legacy_evidence_verdict}`")
         if legacy_evidence_supports_current is not None:
@@ -2677,6 +2871,164 @@ def _execution_venue_issue_summary(context: Dict[str, Any] | None) -> Dict[str, 
     }
 
 
+def _venue_dry_run_docs_context(payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    if payload is None:
+        payload = _read_json_file(Path(PROJECT_ROOT) / "data" / "venue_dry_run_proof.json")
+    if not isinstance(payload, dict) or not payload:
+        return {
+            "available": False,
+            "generated_at": "—",
+            "status": "artifact_missing_or_unparseable",
+            "runtime_ready": False,
+            "runtime_ready_count": 0,
+            "venues_checked": 0,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "dry_run_only": True,
+            "ack_status": "blocked_missing_runtime_backed_proof",
+            "cancel_status": "blocked_missing_runtime_backed_proof",
+            "fill_status": "blocked_missing_runtime_backed_proof",
+            "reconciliation_status": "blocked_missing_runtime_backed_proof",
+            "venues": [],
+        }
+
+    venues: list[Dict[str, Any]] = []
+    for row in payload.get("venues") or []:
+        if not isinstance(row, dict):
+            continue
+        order_preview = row.get("order_preview") if isinstance(row.get("order_preview"), dict) else {}
+        venues.append(
+            {
+                "venue": row.get("venue") or "unknown",
+                "adapter_supported": row.get("adapter_supported"),
+                "enabled_in_config": row.get("enabled_in_config"),
+                "credentials_configured": row.get("credentials_configured"),
+                "proof_state": row.get("proof_state") or "—",
+                "runtime_ready": row.get("runtime_ready"),
+                "order_preview_status": order_preview.get("status") or "—",
+            }
+        )
+
+    def _stage_status(key: str) -> str:
+        stage = payload.get(key) if isinstance(payload.get(key), dict) else {}
+        return str(stage.get("status") or "—")
+
+    return {
+        "available": True,
+        "generated_at": payload.get("generated_at") or "—",
+        "status": payload.get("status") or "—",
+        "runtime_ready": payload.get("runtime_ready"),
+        "runtime_ready_count": payload.get("runtime_ready_count"),
+        "venues_checked": payload.get("venues_checked"),
+        "order_submission_enabled": payload.get("order_submission_enabled"),
+        "risk_on_order_enabled": payload.get("risk_on_order_enabled"),
+        "dry_run_only": payload.get("dry_run_only"),
+        "ack_status": _stage_status("ack_simulation"),
+        "cancel_status": _stage_status("cancel_simulation"),
+        "fill_status": _stage_status("fill_simulation"),
+        "reconciliation_status": _stage_status("reconciliation_check"),
+        "venues": venues,
+    }
+
+
+def _venue_dry_run_summary_doc_line(context: Dict[str, Any] | None = None) -> str:
+    context = context if isinstance(context, dict) else _venue_dry_run_docs_context()
+    status = (
+        f"`artifact=data/venue_dry_run_proof.json` / "
+        f"`venue_dry_run_status={context.get('status') or '—'}` / "
+        f"`generated_at={context.get('generated_at') or '—'}` / "
+        f"`runtime_ready={_format_bool_for_docs(context.get('runtime_ready'))}` / "
+        f"`runtime_ready_count={context.get('runtime_ready_count', '—')}` / "
+        f"`venues_checked={context.get('venues_checked', '—')}` / "
+        f"`order_submission_enabled={_format_bool_for_docs(context.get('order_submission_enabled'))}` / "
+        f"`risk_on_order_enabled={_format_bool_for_docs(context.get('risk_on_order_enabled'))}` / "
+        f"`dry_run_only={_format_bool_for_docs(context.get('dry_run_only'))}` / "
+        f"`ack={context.get('ack_status') or '—'}` / "
+        f"`cancel={context.get('cancel_status') or '—'}` / "
+        f"`fill={context.get('fill_status') or '—'}` / "
+        f"`reconciliation={context.get('reconciliation_status') or '—'}`"
+    )
+    venues = context.get("venues") if isinstance(context.get("venues"), list) else []
+    if not venues:
+        return status + "；`venue_dry_run_rows=missing`（fail-closed）"
+    venue_text = " / ".join(
+        (
+            f"`{venue.get('venue') or 'unknown'}="
+            f"preview={venue.get('order_preview_status') or '—'},"
+            f"runtime_ready={_format_bool_for_docs(venue.get('runtime_ready'))},"
+            f"credentials_configured={_format_bool_for_docs(venue.get('credentials_configured'))}`"
+        )
+        for venue in venues[:4]
+        if isinstance(venue, dict)
+    )
+    return f"{status}；{venue_text}"
+
+
+def _hours_until_doc_text(value: Any, *, now: datetime | None = None) -> str:
+    target = _safe_parse_datetime(value)
+    if target is None:
+        return "—"
+    checked_at = now or datetime.now(timezone.utc)
+    remaining_hours = max(
+        (target.astimezone(timezone.utc) - checked_at.astimezone(timezone.utc)).total_seconds(),
+        0.0,
+    ) / 3600.0
+    return _format_doc_number(remaining_hours, 3)
+
+
+def _paper_shadow_outcome_docs_context(payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    if payload is None:
+        payload = _read_json_file(Path(PROJECT_ROOT) / "data" / "paper_shadow_outcome_reconciliation.json")
+    if not isinstance(payload, dict) or not payload:
+        return {"available": False}
+    artifact = payload.get("artifact") if isinstance(payload.get("artifact"), dict) else payload
+    summary = artifact.get("summary") if isinstance(artifact.get("summary"), dict) else {}
+    proof = artifact.get("rehearsal_proof") if isinstance(artifact.get("rehearsal_proof"), dict) else {}
+    next_reconcile_at = proof.get("next_reconcile_at")
+    return {
+        "available": True,
+        "generated_at": artifact.get("generated_at") or "—",
+        "status": artifact.get("status") or "—",
+        "worker_poll_events": summary.get("worker_poll_events", "—"),
+        "pending_outcomes": summary.get("pending_outcomes", "—"),
+        "resolved_outcomes": summary.get("resolved_outcomes", "—"),
+        "awaiting_label_replay": summary.get("awaiting_label_replay", "—"),
+        "live_order_submitted": summary.get("live_order_submitted"),
+        "rehearsal_status": proof.get("status") or "—",
+        "can_poll_workers": proof.get("can_poll_workers"),
+        "poll_blocked_by_pending_outcome": proof.get("poll_blocked_by_pending_outcome"),
+        "order_submission_enabled": proof.get("order_submission_enabled"),
+        "risk_on_order_enabled": proof.get("risk_on_order_enabled"),
+        "proof_live_order_submitted": proof.get("live_order_submitted"),
+        "next_reconcile_at": next_reconcile_at or "—",
+        "current_pending_hours_remaining_hours": _hours_until_doc_text(next_reconcile_at),
+        "artifact_pending_hours_remaining_hours": proof.get("pending_hours_remaining_min", "—"),
+    }
+
+
+def _paper_shadow_outcome_summary_doc_line(context: Dict[str, Any] | None = None) -> str:
+    context = context if isinstance(context, dict) else _paper_shadow_outcome_docs_context()
+    if not context.get("available"):
+        return ""
+    return (
+        "`artifact=data/paper_shadow_outcome_reconciliation.json` / "
+        f"`status={context.get('status') or '—'}` / "
+        f"`rehearsal_status={context.get('rehearsal_status') or '—'}` / "
+        f"`worker_poll_events={context.get('worker_poll_events', '—')}` / "
+        f"`pending_outcomes={context.get('pending_outcomes', '—')}` / "
+        f"`resolved_outcomes={context.get('resolved_outcomes', '—')}` / "
+        f"`awaiting_label_replay={context.get('awaiting_label_replay', '—')}` / "
+        f"`can_poll_workers={_format_bool_for_docs(context.get('can_poll_workers'))}` / "
+        f"`poll_blocked_by_pending_outcome={_format_bool_for_docs(context.get('poll_blocked_by_pending_outcome'))}` / "
+        f"`order_submission_enabled={_format_bool_for_docs(context.get('order_submission_enabled'))}` / "
+        f"`risk_on_order_enabled={_format_bool_for_docs(context.get('risk_on_order_enabled'))}` / "
+        f"`live_order_submitted={_format_bool_for_docs(context.get('proof_live_order_submitted'))}` / "
+        f"`next_reconcile_at={context.get('next_reconcile_at') or '—'}` / "
+        f"`current_pending_hours_remaining_hours={context.get('current_pending_hours_remaining_hours') or '—'}` / "
+        f"`artifact_pending_hours_remaining_hours={context.get('artifact_pending_hours_remaining_hours', '—')}`"
+    )
+
+
 def _sync_execution_venue_issue_summary(
     issues: list[Dict[str, Any]],
     execution_venue_context: Dict[str, Any] | None = None,
@@ -2876,6 +3228,59 @@ def _candidate_artifact_refresh_context(
         "artifact_age_hours_by_lane": artifact_age_hours_by_lane,
         "has_stale_fallback": bool(stale_fallback_lanes),
         "docs_line": " / ".join(_format_candidate_lane_status_for_docs(lane) for lane in lane_summaries),
+    }
+
+
+def _active_backend_health_docs_context(
+    serial_results: Dict[str, Dict[str, Any]] | None,
+    *,
+    now: datetime | None = None,
+) -> Dict[str, Any]:
+    payload = (serial_results or {}).get("active_backend_health_probe")
+    summary = _normalize_serial_result_for_docs("active_backend_health_probe", payload, now=now)
+    if not summary:
+        return {}
+
+    result_payload = payload.get("result") if isinstance(payload, dict) and isinstance(payload.get("result"), dict) else payload
+    result_payload = result_payload if isinstance(result_payload, dict) else {}
+    stdout = str(result_payload.get("stdout") or summary.get("stdout_preview") or "").strip()
+    health: dict[str, Any] = {}
+    if stdout:
+        try:
+            parsed = json.loads(stdout)
+            if isinstance(parsed, dict):
+                health = parsed
+        except json.JSONDecodeError:
+            health = {}
+
+    status = "passed" if summary.get("success") else "failed"
+    parts = [
+        f"`active_backend_health_probe={status}`",
+        f"`returncode={summary.get('returncode')}`",
+    ]
+    for label, key in (
+        ("strict_ok", "strict_ok"),
+        ("head_sync_status", "head_sync_status"),
+        ("raw_continuity", "raw_continuity_status"),
+        ("feature_continuity", "feature_continuity_status"),
+        ("restart_required", "restart_required"),
+        ("process_started_at", "process_started_at"),
+        ("source", "source"),
+    ):
+        if key in health:
+            parts.append(f"`{label}={health.get(key)}`")
+    if health.get("blockers"):
+        blocker_values = health.get("blockers")
+        if not isinstance(blocker_values, list):
+            blocker_values = [blocker_values]
+        blockers = "|".join(str(item) for item in blocker_values)
+        parts.append(f"`blockers={blockers}`")
+
+    return {
+        "summary": summary,
+        "health": health,
+        "docs_line": " / ".join(parts)
+        + "；heartbeat runner 會在 API operator proof 前 fail-fast，stale backend 不可被當成 current truth。",
     }
 
 
@@ -3790,6 +4195,7 @@ def overwrite_current_state_docs(
     collect_attempted: bool = True,
     serial_results: Dict[str, Dict[str, Any]] | None = None,
     parallel_results: Dict[str, Dict[str, Any]] | None = None,
+    strategy_data_sync_maintenance: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     counts = counts or {}
     source_blockers = source_blockers or {}
@@ -3802,7 +4208,10 @@ def overwrite_current_state_docs(
     issues = _load_open_current_state_issues()
     leaderboard_candidate_diagnostics = _leaderboard_docs_context(leaderboard_candidate_diagnostics, issues)
     execution_venue_context = _execution_venue_docs_context()
+    venue_dry_run_context = _venue_dry_run_docs_context()
+    paper_shadow_outcome_context = _paper_shadow_outcome_docs_context()
     candidate_refresh_context = _candidate_artifact_refresh_context(serial_results)
+    active_backend_health_context = _active_backend_health_docs_context(serial_results)
     parallel_failure_context = _parallel_task_failure_context(
         parallel_results,
         run_label=run_label,
@@ -3838,6 +4247,39 @@ def overwrite_current_state_docs(
         if collect_attempted
         else "diagnostics refresh 完成（collect skipped）"
     )
+    maintenance_payload = strategy_data_sync_maintenance or {}
+    maintenance_decision = (
+        maintenance_payload.get("decision")
+        if isinstance(maintenance_payload.get("decision"), dict)
+        else {}
+    )
+    maintenance_lanes = maintenance_decision.get("lanes") if isinstance(maintenance_decision, dict) else []
+    if not isinstance(maintenance_lanes, list):
+        maintenance_lanes = []
+    maintenance_lane_text = ",".join(
+        str(item.get("lane"))
+        for item in maintenance_lanes
+        if isinstance(item, dict) and item.get("lane") not in (None, "")
+    )
+    if not maintenance_lane_text:
+        maintenance_lane_text = "none"
+
+    def _doc_bool(value: Any) -> str:
+        if value is None:
+            return "—"
+        if isinstance(value, bool):
+            return str(value).lower()
+        return str(value)
+
+    strategy_data_sync_maintenance_line = ""
+    if maintenance_payload:
+        strategy_data_sync_maintenance_line = (
+            f"`strategy_data_sync_maintenance.attempted={_doc_bool(maintenance_payload.get('attempted'))}` / "
+            f"`success={_doc_bool(maintenance_payload.get('success'))}` / "
+            f"`reason={maintenance_payload.get('reason', '—')}` / "
+            f"`lanes={maintenance_lane_text}` / "
+            f"`headroom_min={_format_doc_number(maintenance_decision.get('headroom_minutes'), 1)}`"
+        )
     release = (live_predictor_diagnostics.get("deployment_blocker_details") or {}).get("release_condition") or {}
     deployment_blocker = str(live_predictor_diagnostics.get("deployment_blocker") or "—")
     breaker_root_cause = str(((circuit_breaker_audit.get("root_cause") or {}).get("verdict")) or "")
@@ -3959,6 +4401,22 @@ def overwrite_current_state_docs(
         high_conviction_shadow_orid_lines = [
             f"- high-conviction paper shadow：{shadow_contract_line}；Execution Console selective sleeve 可啟動影子觀察，但 `risk_on_order_enabled=false`，只收集 runtime mirror / event log / reconciliation context。"
         ]
+    paper_shadow_outcome_line = _paper_shadow_outcome_summary_doc_line(paper_shadow_outcome_context)
+    paper_shadow_outcome_fact_lines: list[str] = []
+    paper_shadow_outcome_roadmap_lines: list[str] = []
+    paper_shadow_outcome_orid_lines: list[str] = []
+    if paper_shadow_outcome_line:
+        paper_shadow_outcome_fact_lines = [
+            "- **Paper/shadow worker outcome reconciliation 已納入 current-state truth**",
+            f"  - {paper_shadow_outcome_line}；這是 24h 演練證據與 pending guard，不是 live-ready 訊號。",
+        ]
+        paper_shadow_outcome_roadmap_lines = [
+            "- **Paper/shadow worker outcome reconciliation 已納入 current plan**",
+            f"  - {paper_shadow_outcome_line}；pending 期間禁止重複 worker poll，且真實送單仍維持 fail-closed。",
+        ]
+        paper_shadow_outcome_orid_lines = [
+            f"- paper/shadow outcome reconciliation：{paper_shadow_outcome_line}；演練鏈路可用但 `order_submission_enabled=false` / `risk_on_order_enabled=false` / `live_order_submitted=false`。"
+        ]
     current_support_bucket = _current_support_bucket(live_predictor_diagnostics, q15_support_audit)
     support_scope_label = _support_scope_label(current_support_bucket)
     support_scope_operator_label = _support_scope_operator_label(current_support_bucket)
@@ -3980,6 +4438,92 @@ def overwrite_current_state_docs(
     support_progress_line = _support_progress_docs_line(support_context)
     support_progress_doc_lines = [support_progress_line] if support_progress_line else []
     anti_equilibrium_context = _anti_equilibrium_doc_context(support_context)
+    live_canary_pivot = _read_json_file(Path(PROJECT_ROOT) / "data" / "live_canary_structural_pivot.json")
+    live_canary_pivot_quick_read = (
+        live_canary_pivot.get("quick_read")
+        if isinstance(live_canary_pivot.get("quick_read"), dict)
+        else {}
+    )
+    live_canary_pivot_truth = live_canary_pivot.get("current_truth") if isinstance(live_canary_pivot.get("current_truth"), dict) else {}
+    live_canary_pivot_decision = live_canary_pivot.get("structural_decision") if isinstance(live_canary_pivot.get("structural_decision"), dict) else {}
+    live_canary_pivot_gate = live_canary_pivot.get("micro_canary_gate") if isinstance(live_canary_pivot.get("micro_canary_gate"), dict) else {}
+
+    def _pivot_quick_read_value(key: str, *fallbacks: Any) -> Any:
+        for source in (live_canary_pivot_quick_read, live_canary_pivot):
+            value = source.get(key)
+            if value not in (None, ""):
+                return value
+        for value in fallbacks:
+            if value not in (None, ""):
+                return value
+        return "—"
+
+    pivot_lane_actionability = live_canary_pivot_truth.get("current_lane_actionability") or "—"
+    pivot_support_evidence_role = live_canary_pivot_truth.get("support_evidence_role") or "—"
+    pivot_operator_interpretation = live_canary_pivot_truth.get("operator_interpretation") or "—"
+    pivot_map_signal_lane = live_canary_pivot_decision.get("map_signal_forced_lane") or "—"
+    pivot_map_signal_next_artifact = live_canary_pivot_decision.get("map_signal_next_validation_artifact") or "—"
+    pivot_lane_doc_line = ""
+    if pivot_lane_actionability != "—":
+        pivot_lane_doc_line = (
+            f"`live_canary_structural_pivot.current_lane_actionability={pivot_lane_actionability}` / "
+            f"`support_evidence_role={pivot_support_evidence_role}` / "
+            f"`map_signal_forced_lane={pivot_map_signal_lane}`；"
+            f"{pivot_operator_interpretation} next={pivot_map_signal_next_artifact}"
+        )
+    pivot_quick_read_doc_line = ""
+    if live_canary_pivot:
+        pivot_quick_read_doc_line = (
+            "`artifact=data/live_canary_structural_pivot.json` / "
+            f"`quick_read.deployment_blocker={_pivot_quick_read_value('deployment_blocker', deployment_blocker)}` / "
+            f"`bucket={_pivot_quick_read_value('current_live_structure_bucket', live_predictor_diagnostics.get('current_live_structure_bucket'))}` / "
+            f"`actionability={_pivot_quick_read_value('current_lane_actionability', live_canary_pivot_truth.get('current_lane_actionability'))}` / "
+            f"`support={_pivot_quick_read_value('support_rows', live_canary_pivot_truth.get('support_rows'))}/"
+            f"{_pivot_quick_read_value('minimum_support_rows', live_canary_pivot_truth.get('minimum_support_rows'))}` / "
+            f"`gap={_pivot_quick_read_value('support_gap', live_canary_pivot_truth.get('support_gap'))}` / "
+            f"`support_route={_pivot_quick_read_value('support_route_verdict', support_route_verdict)}` / "
+            f"`release_ready={_doc_bool(_pivot_quick_read_value('release_ready'))}` / "
+            f"`recent_window_wins={_pivot_quick_read_value('recent_window_wins')}/"
+            f"{_pivot_quick_read_value('required_recent_window_wins')}` / "
+            f"`additional_recent_window_wins_needed={_pivot_quick_read_value('additional_recent_window_wins_needed')}` / "
+            f"`deployable_rows={_pivot_quick_read_value('deployable_rows')}` / "
+            f"`paper_shadow_available={_doc_bool(_pivot_quick_read_value('paper_shadow_available'))}` / "
+            f"`venue_runtime_ready={_doc_bool(_pivot_quick_read_value('venue_runtime_ready'))}` / "
+            f"`live_canary_policy_ready={_doc_bool(_pivot_quick_read_value('live_canary_policy_ready'))}` / "
+            f"`micro_canary_ready={_doc_bool(_pivot_quick_read_value('micro_canary_ready', live_canary_pivot_gate.get('micro_canary_ready')))}` / "
+            f"`order_submission_enabled={_doc_bool(_pivot_quick_read_value('order_submission_enabled', live_canary_pivot_gate.get('order_submission_enabled')))}` / "
+            f"`single_failed_gate_for_72h_decision={_pivot_quick_read_value('single_failed_gate_for_72h_decision', live_canary_pivot_decision.get('single_failed_gate_for_72h_decision'), live_canary_pivot_gate.get('single_failed_gate_for_72h_decision'))}` / "
+            f"`next_validation_artifact={_pivot_quick_read_value('next_validation_artifact', live_canary_pivot_decision.get('next_validation_artifact'))}`"
+        )
+    no_trade_lane_replay = _read_json_file(Path(PROJECT_ROOT) / "data" / "no_trade_lane_replay.json")
+    no_trade_replay_decision = (
+        no_trade_lane_replay.get("replay_decision")
+        if isinstance(no_trade_lane_replay.get("replay_decision"), dict)
+        else {}
+    )
+    no_trade_replay_truth = (
+        no_trade_lane_replay.get("current_truth")
+        if isinstance(no_trade_lane_replay.get("current_truth"), dict)
+        else {}
+    )
+    no_trade_replay_checks = (
+        no_trade_lane_replay.get("machine_checks")
+        if isinstance(no_trade_lane_replay.get("machine_checks"), dict)
+        else {}
+    )
+    no_trade_replay_doc_line = ""
+    if no_trade_replay_decision:
+        no_trade_replay_doc_line = (
+            f"`no_trade_lane_replay.verdict={no_trade_replay_decision.get('verdict', '—')}` / "
+            f"`validated={no_trade_replay_decision.get('validated', '—')}` / "
+            f"`deployable={no_trade_replay_decision.get('deployable', '—')}` / "
+            f"`risk_on_order_enabled={no_trade_replay_decision.get('risk_on_order_enabled', '—')}` / "
+            f"`order_submission_enabled={no_trade_replay_decision.get('order_submission_enabled', '—')}` / "
+            f"`buy_add_support_closure_allowed={no_trade_replay_decision.get('buy_add_support_closure_allowed', '—')}` / "
+            f"`support={no_trade_replay_truth.get('support_rows', '—')}/{no_trade_replay_truth.get('minimum_support_rows', '—')}` / "
+            f"`checks_all_passed={no_trade_replay_checks.get('all_passed', '—')}`；"
+            "這是觀望 / reduce-only / paper-shadow replay proof，不是 risk-on support closure。"
+        )
     support_fill_feasibility = collect_q15_support_fill_feasibility_diagnostics()
     support_fill_doc_lines: list[str] = []
     support_fill_roadmap_lines: list[str] = []
@@ -4023,14 +4567,185 @@ def overwrite_current_state_docs(
         ]
         support_fill_next_gate_lines = [
             "4. **依 PM handoff 追 exact support-fill movement 與 alternative-solution proof**",
-            "   - 驗證：`python scripts/q15_support_fill_feasibility_scan.py`、`python scripts/customer_safe_alternative_proof.py`、`data/q15_support_fill_feasibility.json`、`data/customer_safe_alternative_proof.json`、`docs/analysis/q15_support_fill_feasibility.md`、`docs/analysis/customer_safe_alternative_proof.md`、`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` 是否同步 exact bucket rows / identity rows / missing capability / alternative solution",
+            "   - 驗證：`python scripts/q15_support_fill_feasibility_scan.py`、`python scripts/q15_exact_bucket_row_harvest_proof.py`、`python scripts/customer_safe_alternative_proof.py`、`python scripts/customer_safe_alternative_api_consistency_probe.py --strict`、`data/q15_support_fill_feasibility.json`、`data/q15_exact_bucket_row_harvest_proof.json`、`data/customer_safe_alternative_proof.json`、`docs/analysis/q15_support_fill_feasibility.md`、`docs/analysis/q15_exact_bucket_row_harvest_proof.md`、`docs/analysis/customer_safe_alternative_proof.md`、`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` 是否同步 exact bucket rows / identity rows / delta / missing capability / alternative solution / overview API proof",
             "   - 升級 blocker：若 exact bucket rows 仍低於門檻卻沒有 missing_capability / time_to_evidence / alternative_solution artifact，或 identity/proxy/reference rows 被包裝成 deployable。",
-        "5. **反平衡 forced-execution gate：same semantic signature + support delta=0 不得再回到 observation-only**",
-        "   - 驗證：`docs/plans/2026-05-23-live-canary-structural-pivot.md`、`data/live_canary_structural_pivot.json`、`python -m pytest tests/test_execution_service.py -k live_canary -q`、`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` forced branch",
-        "   - 升級 blocker：若 72h 內沒有 bounded micro-canary policy proof 或 single failed gate，或下一輪 heartbeat 只重述 wait/support gap",
+            "5. **反平衡 forced-execution gate：same semantic signature + support delta=0 不得再回到 observation-only**",
+            "   - 驗證：`python scripts/q15_drift_rebaseline_backtest.py`、`python scripts/q15_map_signal_redesign_proof.py`、`data/q15_drift_rebaseline_backtest.json`、`data/q15_map_signal_redesign_proof.json`、`docs/analysis/q15_drift_rebaseline_backtest.md`、`docs/analysis/q15_map_signal_redesign_proof.md`、`docs/plans/2026-05-23-live-canary-structural-pivot.md`、`data/live_canary_structural_pivot.json`、`data/no_trade_lane_replay.json`、`python -m pytest tests/test_execution_service.py -k live_canary -q`、`ISSUES.md / ROADMAP.md / ORID_DECISIONS.md` forced branch",
+            "   - 升級 blocker：若 72h 內沒有 bounded micro-canary policy proof、drift rebaseline 或 Map/Signal redesign single failed gate，或下一輪 heartbeat 只重述 wait/support gap",
         ]
         support_fill_success_lines = [
             "- support-fill feasibility 維持 PM-safe：current exact bucket rows、identity rows、missing capability、time-to-evidence、alternative-solution artifact 可見，且 identity/proxy/reference rows 不可升級成 deployable truth",
+        ]
+    q15_exact_harvest = collect_q15_exact_bucket_row_harvest_diagnostics()
+    exact_harvest_doc_lines: list[str] = []
+    exact_harvest_roadmap_lines: list[str] = []
+    exact_harvest_orid_lines: list[str] = []
+    exact_harvest_success_lines: list[str] = []
+    if q15_exact_harvest:
+        exact_harvest_identity = q15_exact_harvest.get("support_identity") or {}
+        exact_harvest_bucket = exact_harvest_identity.get("current_live_structure_bucket") or live_predictor_diagnostics.get(
+            "current_live_structure_bucket",
+            "—",
+        )
+        exact_harvest_line = (
+            "`artifact=data/q15_exact_bucket_row_harvest_proof.json` / "
+            f"`status={q15_exact_harvest.get('status') or '—'}` / "
+            f"`bucket={exact_harvest_bucket}` / "
+            f"`exact_rows={q15_exact_harvest.get('current_exact_bucket_rows', '—')}/"
+            f"{q15_exact_harvest.get('minimum_support_rows', '—')}` / "
+            f"`previous_rows={q15_exact_harvest.get('previous_rows', '—')}` / "
+            f"`delta={q15_exact_harvest.get('delta_vs_previous', '—')}` / "
+            f"`identity_rows={q15_exact_harvest.get('exact_identity_rows', '—')}` / "
+            f"`non_bucket_identity_rows={q15_exact_harvest.get('non_bucket_identity_rows', '—')}` / "
+            f"`gap={q15_exact_harvest.get('gap_to_minimum', '—')}` / "
+            f"`time_to_evidence={q15_exact_harvest.get('time_to_evidence_bucket') or '—'}` / "
+            f"`primary_failed_gate={q15_exact_harvest.get('primary_failed_gate') or '—'}` / "
+            f"`live_exposure_allowed={_doc_bool(q15_exact_harvest.get('live_exposure_allowed'))}` / "
+            f"`order_submission_enabled={_doc_bool(q15_exact_harvest.get('order_submission_enabled'))}`"
+        )
+        exact_harvest_artifact_line = (
+            f"{exact_harvest_line}；row harvest proof 只證明 exact support movement，"
+            "不可單獨當成 deployment clearance。"
+        )
+        exact_harvest_doc_lines = [
+            "- **Exact bucket row-harvest proof 已納入 current-state docs**",
+            f"  - {exact_harvest_artifact_line}",
+        ]
+        exact_harvest_roadmap_lines = [
+            "- **exact bucket row-harvest proof 已補上 support movement 證據**",
+            f"  - {exact_harvest_artifact_line}",
+        ]
+        exact_harvest_orid_lines = [
+            f"- exact bucket row-harvest proof：{exact_harvest_artifact_line}"
+        ]
+        exact_harvest_success_lines = [
+            "- exact bucket row-harvest proof 維持 fail-closed：current exact rows、previous rows、delta、gap、identity rows 與 live_exposure_allowed=false 必須同時可見，正位移不可被包裝成 live clearance",
+        ]
+    q15_drift_rebaseline = collect_q15_drift_rebaseline_diagnostics()
+    drift_rebaseline_doc_lines: list[str] = []
+    drift_rebaseline_roadmap_lines: list[str] = []
+    drift_rebaseline_orid_lines: list[str] = []
+    drift_rebaseline_success_lines: list[str] = []
+    if q15_drift_rebaseline:
+        drift_rebaseline_line = (
+            "`artifact=data/q15_drift_rebaseline_backtest.json` / "
+            f"`status={q15_drift_rebaseline.get('status') or '—'}` / "
+            f"`candidate={q15_drift_rebaseline.get('selected_candidate_id') or '—'}` / "
+            f"`candidate_status={q15_drift_rebaseline.get('selected_candidate_status') or '—'}` / "
+            f"`current_window_rows={q15_drift_rebaseline.get('selected_current_window_rows', '—')}/"
+            f"{q15_drift_rebaseline.get('minimum_support_rows', '—')}` / "
+            f"`all_history_rows={q15_drift_rebaseline.get('selected_all_history_rows', '—')}` / "
+            f"`current_exact={q15_drift_rebaseline.get('current_exact_bucket_rows', '—')}/"
+            f"{q15_drift_rebaseline.get('minimum_support_rows', '—')}` / "
+            f"`gap={q15_drift_rebaseline.get('gap_to_minimum', '—')}` / "
+            f"`primary_failed_gate={q15_drift_rebaseline.get('primary_failed_gate') or '—'}` / "
+            f"`live_exposure_allowed={_doc_bool(q15_drift_rebaseline.get('live_exposure_allowed'))}` / "
+            f"`order_submission_enabled={_doc_bool(q15_drift_rebaseline.get('order_submission_enabled'))}` / "
+            f"`recent_drift={q15_drift_rebaseline.get('recent_drift_window') or '—'}:"
+            f"{q15_drift_rebaseline.get('recent_drift_win_rate', '—')}:"
+            f"{q15_drift_rebaseline.get('recent_drift_dominant_regime') or '—'}`"
+        )
+        drift_rebaseline_artifact_line = (
+            f"{drift_rebaseline_line}；歷史 rebaseline candidate 只能作 OOS replay / redesign 參考，"
+            "不可當成 current-live deployment clearance。"
+        )
+        drift_rebaseline_doc_lines = [
+            "- **drift-aware rebaseline proof 已納入 forced-execution current-state docs**",
+            f"  - {drift_rebaseline_artifact_line}",
+        ]
+        drift_rebaseline_roadmap_lines = [
+            "- **drift-aware rebaseline backtest 已補上反平衡 forced branch 證據**",
+            f"  - {drift_rebaseline_artifact_line}",
+        ]
+        drift_rebaseline_orid_lines = [
+            f"- drift-aware rebaseline forced branch：{drift_rebaseline_artifact_line}"
+        ]
+        drift_rebaseline_success_lines = [
+            "- drift-aware rebaseline proof 維持 fail-closed：current window rows、all-history rows、primary failed gate 與 live_exposure_allowed=false 必須同時可見，歷史 candidate 不可包裝成 live clearance",
+        ]
+    q15_map_signal = collect_q15_map_signal_redesign_diagnostics()
+    map_signal_doc_lines: list[str] = []
+    map_signal_roadmap_lines: list[str] = []
+    map_signal_orid_lines: list[str] = []
+    map_signal_success_lines: list[str] = []
+    if q15_map_signal:
+        map_signal_line = (
+            "`artifact=data/q15_map_signal_redesign_proof.json` / "
+            f"`status={q15_map_signal.get('status') or '—'}` / "
+            f"`candidate={q15_map_signal.get('selected_candidate_id') or '—'}` / "
+            f"`candidate_status={q15_map_signal.get('selected_candidate_status') or '—'}` / "
+            f"`target_bucket={q15_map_signal.get('selected_target_bucket') or '—'}` / "
+            f"`current_window_rows={q15_map_signal.get('selected_current_window_rows', '—')}/"
+            f"{q15_map_signal.get('minimum_support_rows', '—')}` / "
+            f"`all_history_rows={q15_map_signal.get('selected_all_history_rows', '—')}` / "
+            f"`best_reference={q15_map_signal.get('best_reference_candidate_id') or '—'}:"
+            f"{q15_map_signal.get('best_reference_all_history_rows', '—')}` / "
+            f"`root_cause={q15_map_signal.get('root_cause_verdict') or '—'}:"
+            f"{q15_map_signal.get('root_cause_candidate_patch_type') or '—'}:"
+            f"{q15_map_signal.get('root_cause_candidate_patch_feature') or '—'}` / "
+            f"`dominant_neighbor={q15_map_signal.get('root_cause_dominant_neighbor_bucket') or '—'}:"
+            f"{q15_map_signal.get('root_cause_dominant_neighbor_rows', '—')}` / "
+            f"`primary_failed_gate={q15_map_signal.get('primary_failed_gate') or '—'}` / "
+            f"`live_exposure_allowed={_doc_bool(q15_map_signal.get('live_exposure_allowed'))}` / "
+            f"`order_submission_enabled={_doc_bool(q15_map_signal.get('order_submission_enabled'))}`"
+        )
+        map_signal_artifact_line = (
+            f"{map_signal_line}；Map/Signal redesign rows are replay inputs only until current-window support, "
+            "OOS, support audit, API guardrail, venue, and bounded-canary gates pass."
+        )
+        map_signal_doc_lines = [
+            "- **Map/Signal redesign proof 已納入 forced-execution current-state docs**",
+            f"  - {map_signal_artifact_line}",
+        ]
+        map_signal_roadmap_lines = [
+            "- **Map/Signal redesign proof 已補上反平衡 forced branch 證據**",
+            f"  - {map_signal_artifact_line}",
+        ]
+        map_signal_orid_lines = [
+            f"- Map/Signal redesign forced branch：{map_signal_artifact_line}"
+        ]
+        map_signal_success_lines = [
+            "- Map/Signal redesign proof 維持 fail-closed：selected bucket、current-window rows、all-history rows、root-cause candidate、primary failed gate 與 live_exposure_allowed=false 必須同時可見，不可把 neighbor/q35/reference rows 包裝成 current exact support",
+        ]
+    customer_safe_proof = collect_customer_safe_alternative_proof_diagnostics()
+    customer_safe_doc_lines: list[str] = []
+    customer_safe_roadmap_lines: list[str] = []
+    customer_safe_orid_lines: list[str] = []
+    if customer_safe_proof:
+        customer_safe_line = (
+            "`artifact=data/customer_safe_alternative_proof.json` / "
+            f"`live_exposure_allowed={_doc_bool(customer_safe_proof.get('live_exposure_allowed'))}` / "
+            f"`order_submission_enabled={_doc_bool(customer_safe_proof.get('order_submission_enabled'))}` / "
+            f"`risk_on_order_enabled={_doc_bool(customer_safe_proof.get('risk_on_order_enabled'))}` / "
+            f"`primary_blocking_gate={customer_safe_proof.get('primary_blocking_gate') or '—'}` / "
+            f"`support={customer_safe_proof.get('support_rows', '—')}/{customer_safe_proof.get('minimum_support_rows', '—')}` / "
+            f"`gap={customer_safe_proof.get('support_gap', '—')}` / "
+            f"`topk_deployable_rows={customer_safe_proof.get('topk_deployable_rows', '—')}` / "
+            f"`topk_support_context_status={customer_safe_proof.get('topk_support_context_status') or '—'}` / "
+            f"`topk_support_context_freshness={customer_safe_proof.get('topk_support_context_freshness_status') or '—'}` / "
+            f"`topk_support_context_deployment_blocking={_doc_bool(customer_safe_proof.get('topk_support_context_deployment_blocking'))}` / "
+            f"`topk_live_truth_overlay_blocker={customer_safe_proof.get('topk_live_truth_overlay_blocker') or '—'}` / "
+            f"`venue_status={customer_safe_proof.get('venue_status') or '—'}` / "
+            f"`blocked_live_lanes={customer_safe_proof.get('blocked_live_lane_count', '—')}` / "
+            f"`alternative_solution_required={_doc_bool(customer_safe_proof.get('alternative_solution_required'))}` / "
+            f"`alternative_solution_options={customer_safe_proof.get('alternative_solution_option_count', '—')}` / "
+            f"`selected_alternative={customer_safe_proof.get('selected_alternative_solution') or '—'}` / "
+            f"`next_customer_actions={customer_safe_proof.get('next_customer_action_count', '—')}` / "
+            f"`selected_next_artifact={customer_safe_proof.get('selected_next_customer_artifact') or '—'}`"
+        )
+        customer_safe_ids = ", ".join(customer_safe_proof.get("alternative_solution_ids") or []) or "—"
+        customer_safe_actions = ", ".join(customer_safe_proof.get("next_customer_action_ids") or []) or "—"
+        customer_safe_blocked = ", ".join(customer_safe_proof.get("blocked_live_lane_ids") or []) or "—"
+        customer_safe_doc_lines = [
+            "- **Customer-safe alternative quick-read proof 已納入 current-state truth**",
+            f"  - {customer_safe_line}；alternatives={customer_safe_ids}；next_actions={customer_safe_actions}；blocked_live={customer_safe_blocked}；這是 paper/shadow / dry-run / reduce-only proof，不是 live-ready 訊號。",
+        ]
+        customer_safe_roadmap_lines = [
+            "- **Customer-safe alternative quick-read proof 已納入 current plan**",
+            f"  - {customer_safe_line}；PM / operator 可直接讀 quick-read 欄位，不必從 nested proof 推斷是否可送單。",
+        ]
+        customer_safe_orid_lines = [
+            f"- customer-safe alternative proof：{customer_safe_line}；買入 / 加倉 / risk-on automation 仍 fail-closed，safe lane 只包含 paper/shadow、dry-run、等待 / 觀望與減風險。"
         ]
     range_chop_context_text = " ".join(
         str(value)
@@ -4082,16 +4797,17 @@ def overwrite_current_state_docs(
         ]
     m5_readiness_fact_lines = [
         "- **M5 實戰準備度總卡已產品化**",
-        "  - `/api/execution/overview` 已輸出 `execution_readiness / shadow_trade_ledger / venue_dry_run_proof / canary_gap_answers`，且 `data/customer_safe_alternative_proof.json` / `docs/analysis/customer_safe_alternative_proof.md` 會把 PM alternative-solution handoff 濃縮成 customer-safe proof；模型 gate / 即時支持 gate / 熔斷 gate / 場館 gate / 影子觀察 gate 一次顯示。credential present 只顯示布林 / 狀態，不輸出 secret；影子觀察與減風險可前進，買入 / 加倉仍鎖住。",
+        "  - 模型 gate / 即時支持 gate / 熔斷 gate / 場館 gate / live-canary policy gate / 影子觀察 gate 一次顯示；credential present 只顯示布林 / 狀態，不輸出 secret；影子觀察與減風險可前進，買入 / 加倉仍鎖住。",
+        "  - `/api/status` 會載入 `data/venue_dry_run_proof.json` 並在 `execution_surface_contract.live_canary_policy_gate` 顯示本地 bounded-canary policy gate；Dashboard / Execution Status / Strategy Lab status-only summaries 也會顯示同一 gate 與繁中 blocker copy；`/api/execution/overview` artifact-first 輸出 `execution_readiness / shadow_trade_ledger / venue_dry_run_proof / customer_safe_alternative_proof / canary_gap_answers`，且可用 `scripts/venue_dry_run_api_consistency_probe.py --strict` 驗證 status / overview / artifact 同源、fail-closed、secret-safe，並可用 `scripts/customer_safe_alternative_api_consistency_probe.py --strict` 驗證 customer-safe overview / artifact aliases、counts、selected next artifact、fail-closed、secret-safe 同源；`data/customer_safe_alternative_proof.json` / `docs/analysis/customer_safe_alternative_proof.md` 會把 PM alternative-solution handoff 濃縮成 customer-safe proof。",
     ]
     m5_readiness_roadmap_lines = [
         "- **M5 實戰準備度總卡已產品化：Shadow Trade Ledger + Venue dry-run proof + canary gap 答案**",
         "  - Shadow Trade Ledger 記錄訊號時間、candidate model、confidence、當時 regime、假想 entry、之後 24h 結果與是否符合 pyramid win；只做影子帳本，不送單。",
-        "  - Venue dry-run proof 顯示 credential present、order preview、ack simulation、cancel simulation、reconciliation check；credential present 只顯示布林 / 狀態，不輸出 secret。",
+        "  - Venue dry-run proof 由 `data/venue_dry_run_proof.json` 進入 `/api/status`，`/api/status.execution_surface_contract.live_canary_policy_gate` 與 `/api/execution/overview.execution_readiness.gates[]` 都會顯示 `live_canary_policy_gate`；Dashboard / Execution Status / Strategy Lab status-only summaries 也顯示同一 gate 與繁中 blocker copy；`/api/execution/overview` artifact-first 顯示 credential present、order preview、ack simulation、cancel simulation、fill simulation、reconciliation check；credential present 只顯示布林 / 狀態，不輸出 secret；route/API consistency 可用 `scripts/venue_dry_run_api_consistency_probe.py --strict` 驗證。",
         "  - UI 直接回答：目前距離 canary 還差什麼、今天可以演練什麼、哪一個 gate 卡住、如果 gate 全過，第一筆 canary 如何執行。",
     ]
     m5_readiness_orid_lines = [
-        "- M5 實戰準備度：Execution Console 已把實戰準備度、Shadow Trade Ledger、Venue dry-run proof 與 canary gap 答案產品化；credential present 只顯示布林 / 狀態，不輸出 secret；影子觀察 / 減風險可做，買入 / 加倉仍鎖住。"
+        "- M5 實戰準備度：Execution Console 已把實戰準備度、Shadow Trade Ledger、Venue dry-run proof、live-canary policy gate 與 canary gap 答案產品化；`/api/status.execution_surface_contract.live_canary_policy_gate` 與 `/api/execution/overview.execution_readiness.gates[]` 同步顯示本地 bounded-canary policy gate；Dashboard / Execution Status / Strategy Lab status-only summaries 也顯示同一 gate 與繁中 blocker copy；`/api/status` / `/api/execution/overview` 以 `data/venue_dry_run_proof.json` 為 artifact-first 來源，並可用 `scripts/venue_dry_run_api_consistency_probe.py --strict` 驗證 status / overview / artifact 同源、fail-closed、secret-safe；credential present 只顯示布林 / 狀態，不輸出 secret；影子觀察 / 減風險可做，買入 / 加倉仍鎖住。"
     ]
     live_predictor_docs_context = live_predictor_diagnostics
     persisted_live_probe_for_docs = _read_json_file(Path(PROJECT_ROOT) / "data" / "live_predict_probe.json")
@@ -4311,7 +5027,9 @@ def overwrite_current_state_docs(
     )
     top_source_blockers_line = _top_source_blockers_docs_line(source_blockers)
     execution_venue_line = _execution_venue_summary_doc_line(execution_venue_context)
+    venue_dry_run_line = _venue_dry_run_summary_doc_line(venue_dry_run_context)
     candidate_refresh_line = candidate_refresh_context.get("docs_line") or "—"
+    active_backend_health_line = str(active_backend_health_context.get("docs_line") or "")
     candidate_refresh_fact_lines = []
     candidate_refresh_goal_lines = []
     if candidate_refresh_context.get("has_stale_fallback"):
@@ -4478,13 +5196,21 @@ def overwrite_current_state_docs(
         "## 當前主線事實",
         f"- **最新 {heartbeat_mode_label} #{run_label} {completion_phrase}**",
         f"  - {counts_line}",
+        *([f"  - {strategy_data_sync_maintenance_line}"] if strategy_data_sync_maintenance_line else []),
         f"  - 歷史覆蓋確認：{history_line}",
         f"  - `simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`",
         facts_blocker_heading,
         f"  - {blocker_line}",
         f"  - {support_line}",
         *[f"  - {line}" for line in support_progress_doc_lines],
+        *([f"  - {pivot_lane_doc_line}"] if pivot_lane_doc_line else []),
+        *([f"  - live-canary structural pivot quick-read：{pivot_quick_read_doc_line}；這是 72h hard-gate summary，不是 live clearance。"] if pivot_quick_read_doc_line else []),
+        *([f"  - {no_trade_replay_doc_line}"] if no_trade_replay_doc_line else []),
         *support_fill_doc_lines,
+        *exact_harvest_doc_lines,
+        *drift_rebaseline_doc_lines,
+        *map_signal_doc_lines,
+        *customer_safe_doc_lines,
         "- **anti-equilibrium forced execution governor 已啟用**",
         f"  - {anti_equilibrium_context['state_line']}",
         "  - forced branches：Venue lifecycle proof / Model shadow to decision / Strategy micro-canary readiness / Map-Signal redesign / hard no-go single failed gate。",
@@ -4502,8 +5228,10 @@ def overwrite_current_state_docs(
         f"  - top source blockers：{top_source_blockers_line}",
         f"  - fin_netflow：{fin_line}",
         f"  - venue：{execution_venue_line}；`execution_metadata_smoke.venues[]` 已提供 per-venue `adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next` 給 Dashboard / Execution / Lab 直接顯示 adapter、credential boolean 與證據缺口；operator UI 會先 humanize backend error（例如 `unsupported venue` → `不支援的交易場館`），避免 raw venue error 洩漏到操作員畫面",
+        f"  - venue dry-run proof：{venue_dry_run_line}；standalone artifact 可重跑、只做 dry-run preview / ack / cancel / fill / reconciliation checklist，`order_submission_enabled=false`。",
         "- **Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）**",
         "  - 前端快捷：`manual_buy=paused_when_status_syncing_or_deployment_blocked` / `automation_enable=paused_when_status_syncing_or_deployment_blocked`；`/api/status` 初次同步前與阻塞期間只暫停買入 / 加倉與啟用自動模式，減碼 / 賣出風險降低、等待 / 觀望、切到手動模式、查看阻塞原因與重新整理仍可用。`/api/status` / `/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷或冷啟動時 8s default 把可用 payload 誤報成 `API timeout` / `載入失敗`。後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點；阻塞時真實買入 / 加倉回 409 `current_live_deployment_blocker`，仍保留等待 / 觀望、減倉 / 賣出風險降低，以及 `shadow_buy` / `paper_buy` 強制 dry-run paper/shadow 演練路徑；`data/live_predict_probe.json` 同步輸出 `api_trade_guardrail_active / api_trade_buy_guardrail / api_trade_allowed_risk_off_sides` 作為 machine-readable proof",
+        *([f"  - active backend health：{active_backend_health_line}"] if active_backend_health_line else []),
         "- **Dashboard 啟動連續性 guardrail 已納入 feature deferred truth**",
         "  - `/api/status.feature_continuity.status=deferred` 或 `repair_deferred=true` 時，Dashboard 連續性卡改用警示色並顯示 `特徵缺口已延後到心跳維護收斂`；避免 raw continuity clean/repaired 時，把啟動期 feature 缺口誤讀成全綠。",
         execution_status_fact_heading,
@@ -4513,11 +5241,12 @@ def overwrite_current_state_docs(
         "- **Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe**",
         "  - `formatHighConvictionRuntimeSignalLabel()` 統一把即時訊號 enum 轉成繁中操作語；最接近部署候選列不再把內部訊號 token 直接丟給 operator，避免 OOS-pass / runtime-blocked 候選被誤讀為可部署動作。",
         *high_conviction_shadow_fact_lines,
+        *paper_shadow_outcome_fact_lines,
         *range_chop_fact_lines,
         *m5_readiness_fact_lines,
         "- **heartbeat current-state docs overwrite sync 已自動化**",
         "  - `scripts/hb_parallel_runner.py` 現在會在 `auto_propose_fixes.py` 後自動覆寫 `ISSUES.md / ROADMAP.md / ORID_DECISIONS.md`",
-        "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/q15_support_fill_feasibility.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
+        "  - 目的：避免 markdown docs 落後 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/q15_support_fill_feasibility.json / data/q15_exact_bucket_row_harvest_proof.json / data/q15_drift_rebaseline_backtest.json / data/q15_map_signal_redesign_proof.json / data/no_trade_lane_replay.json / data/paper_shadow_outcome_reconciliation.json / data/execution_metadata_smoke.json / data/venue_dry_run_proof.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json`，讓 cron 心跳真正完成 docs overwrite 閉環",
         "",
         "---",
         "",
@@ -4613,6 +5342,7 @@ def overwrite_current_state_docs(
         "## 已完成",
         f"- **{heartbeat_mode_label} #{run_label} {completion_phrase}**",
         f"  - {counts_line}",
+        *([f"  - {strategy_data_sync_maintenance_line}"] if strategy_data_sync_maintenance_line else []),
         f"  - 歷史覆蓋確認：{history_line}",
         f"  - {blocker_line}",
         f"  - {pathology_line}",
@@ -4623,6 +5353,7 @@ def overwrite_current_state_docs(
         "  - 這條 lane 的目的不是美化文件，而是避免 `issues.json / live artifacts` 已更新、markdown docs 卻仍停在舊 truth 的治理裂縫",
         "- **Execution Console / `/api/trade` 操作入口已 fail-closed（同步中 + 阻塞 + 直接 API）**",
         "  - `/api/status` 初次同步前或部署阻塞存在時，買入 / 加倉與啟用自動模式快捷操作顯示暫停並保持 disabled；減碼 / 賣出風險降低、等待 / 觀望、切到手動模式、查看阻塞原因與重新整理仍可用；`/api/status` / `/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免後端並行診斷或冷啟動時 8s default 把可用 payload 誤報成 `API timeout` / `載入失敗`；後端 `POST /api/trade` 對買入 / 加倉會先讀即時部署阻塞點，阻塞時真實買入 / 加倉回 409 `current_live_deployment_blocker`，仍保留等待 / 觀望、減倉 / 賣出風險降低，以及 `shadow_buy` / `paper_buy` 強制 dry-run paper/shadow 演練路徑；`data/live_predict_probe.json` 同步輸出 `api_trade_guardrail_active / api_trade_buy_guardrail / api_trade_allowed_risk_off_sides` 作為 machine-readable proof",
+        *([f"  - active backend health serial lane：{active_backend_health_line}"] if active_backend_health_line else []),
         "- **Dashboard 啟動連續性 guardrail 已納入 feature deferred truth**",
         "  - `/api/status.feature_continuity.status=deferred` 或 `repair_deferred=true` 時，Dashboard 連續性卡改用警示色並顯示 `特徵缺口已延後到心跳維護收斂`；避免 raw continuity clean/repaired 時，把啟動期 feature 缺口誤讀成全綠。",
         execution_status_roadmap_heading,
@@ -4632,14 +5363,22 @@ def overwrite_current_state_docs(
         "- **Strategy Lab 高信心 OOS 列級訊號 copy 已 operator-safe**",
         "  - 列級 `signal` 透過 `formatHighConvictionRuntimeSignalLabel()` 轉成繁中操作語；即時分桶 / 支持 / release gate 未解除前，候選列維持模擬觀察 / 影子驗證 / 僅觀察，不用內部 enum 暗示可部署。",
         *high_conviction_shadow_roadmap_lines,
+        *paper_shadow_outcome_roadmap_lines,
         *range_chop_roadmap_lines,
         *m5_readiness_roadmap_lines,
         "- **anti-equilibrium forced execution governor 已成為 current plan contract**",
         f"  - {anti_equilibrium_context['state_line']}",
+        *([f"  - {pivot_lane_doc_line}"] if pivot_lane_doc_line else []),
+        *([f"  - live-canary structural pivot quick-read：{pivot_quick_read_doc_line}；operator 可直接讀 quick_read，不必從 nested gate 推斷是否可送單。"] if pivot_quick_read_doc_line else []),
+        *([f"  - {no_trade_replay_doc_line}"] if no_trade_replay_doc_line else []),
+        *exact_harvest_roadmap_lines,
         "  - bounded live-canary guard 已在 execution service 形成 hard gate：live buy/add 若缺 explicit `execution.live_canary` allowlist 與 symbol qty cap，adapter 前拒單；reduce/sell 風險降低路徑保留。",
         "- **本輪 current-state docs 已同步到最新 artifacts**",
-        "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/q15_support_fill_feasibility.json / data/execution_metadata_smoke.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json` 的 current-state truth 已對齊",
+        "  - docs 與 `issues.json / data/live_predict_probe.json / data/live_decision_quality_drilldown.json / data/q15_support_fill_feasibility.json / data/q15_exact_bucket_row_harvest_proof.json / data/q15_drift_rebaseline_backtest.json / data/q15_map_signal_redesign_proof.json / data/customer_safe_alternative_proof.json / data/no_trade_lane_replay.json / data/paper_shadow_outcome_reconciliation.json / data/execution_metadata_smoke.json / data/venue_dry_run_proof.json / data/leaderboard_feature_profile_probe.json / data/high_conviction_topk_oos_matrix.json` 的 current-state truth 已對齊",
         *support_fill_roadmap_lines,
+        *drift_rebaseline_roadmap_lines,
+        *map_signal_roadmap_lines,
+        *customer_safe_roadmap_lines,
         "- **反平衡強制執行 contract**",
         f"  - {anti_equilibrium_context['contract_line']}",
         *parallel_failure_roadmap_lines,
@@ -4670,6 +5409,10 @@ def overwrite_current_state_docs(
         f"- {support_line}",
         *[f"- {line}" for line in support_progress_doc_lines],
         *support_fill_roadmap_lines,
+        *exact_harvest_roadmap_lines,
+        *drift_rebaseline_roadmap_lines,
+        *map_signal_roadmap_lines,
+        *customer_safe_roadmap_lines,
         f"- {patch_context['docs_line']}",
         *([f"- {q35_scaling_doc_line}"] if q35_scaling_doc_line else []),
         "**成功標準**",
@@ -4688,9 +5431,12 @@ def overwrite_current_state_docs(
         f"- top source blockers：{top_source_blockers_line}",
         f"- fin_netflow：{fin_line}",
         f"- venue blockers：{execution_venue_line}；metadata smoke venue rows 已帶 adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next；runtime_ready=true 且 blockers 清空前仍禁止 canary/live-ready 文案",
+        f"- venue dry-run proof：{venue_dry_run_line}",
+        *([f"- active backend health serial lane：{active_backend_health_line}"] if active_backend_health_line else []),
+        *([f"- paper/shadow outcome proof：{paper_shadow_outcome_line}"] if paper_shadow_outcome_line else []),
         "- docs automation：markdown docs 不再允許落後 live artifacts",
         "**成功標準**",
-        "- Strategy Lab 不回退 placeholder-only；venue/source blockers 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。",
+        "- Strategy Lab 不回退 placeholder-only；venue/source blockers 與 paper/shadow outcome proof 在 operator-facing surfaces 維持可見；docs automation 每輪心跳都自動完成 overwrite sync。",
         "",
         *high_conviction_roadmap_lines,
         "---",
@@ -4703,8 +5449,8 @@ def overwrite_current_state_docs(
         "   - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`",
         "   - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據",
         next_gate_line3,
-        "   - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、下輪 heartbeat docs sync status",
-        next_gate_line3_blocker,
+        "   - 驗證：browser `/lab`、`curl http://127.0.0.1:<active-backend>/api/models/leaderboard`（依 `/health` 選 8000/8001 健康 lane，不要硬綁單一 port）、`data/q15_support_audit.json`、`data/execution_metadata_smoke.json`、`data/venue_dry_run_proof.json`、`data/paper_shadow_outcome_reconciliation.json`、下輪 heartbeat docs sync status",
+        next_gate_line3_blocker.replace("venue/source blocker 消失", "venue/source blocker 或 paper-shadow outcome proof 消失"),
         *support_fill_next_gate_lines,
         *(
             [
@@ -4723,6 +5469,9 @@ def overwrite_current_state_docs(
         f"- {support_truth_label} 維持：**{support_truth_ratio} + {support_success_verdict} + {support_success_status}**",
         "- recent canonical diagnostics 與 current blocker pocket 需同步可見，不被 generic 問題稀釋",
         *support_fill_success_lines,
+        *exact_harvest_success_lines,
+        *drift_rebaseline_success_lines,
+        *map_signal_success_lines,
         anti_equilibrium_context["success_line"],
         f"- {leaderboard_governance_label} 維持；venue/source blockers 持續可見",
         "- heartbeat runner 每輪自動完成：**issue 對齊 → patch/automation lane → verify artifacts → docs overwrite sync**",
@@ -4751,7 +5500,15 @@ def overwrite_current_state_docs(
     live_regime = live_predictor_diagnostics.get("regime_label") or "—"
     live_gate = live_predictor_diagnostics.get("regime_gate") or "—"
     live_bucket = live_predictor_diagnostics.get("current_live_structure_bucket") or "—"
-    docs_sync_line = f"current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown / support-fill feasibility / leaderboard_feature_profile_probe / high_conviction_topk` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，等待 / 觀望與減碼保留；`/api/status` / `/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout` / `載入失敗`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留等待 / 觀望與減倉 / 賣出風險降低路徑；Dashboard 啟動連續性卡會把 feature deferred / repair_deferred 顯示成警示與心跳維護收斂文案；{execution_status_docs_sync_clause}；{runtime_copy_docs_clause}；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，讓 Dashboard / Execution / Lab 直接顯示實單證據缺口，且 venue error 會先轉成操作員繁中 copy（例如不支援的交易場館）"
+    docs_sync_line = f"current-state docs 已 overwrite sync 到 `issues.json / live probe / drilldown / support-fill feasibility / customer_safe_alternative_proof / live_canary_structural_pivot / no_trade_lane_replay / paper_shadow_outcome_reconciliation / venue_dry_run_proof / leaderboard_feature_profile_probe / high_conviction_topk` 最新 truth；`/execution` 快捷列已補上 `/api/status` 初次同步 fail-closed：買入 / 啟用自動模式暫停，等待 / 觀望與減碼保留；`/api/status` / `/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout，避免 8s default 把可用 Bot 營運 payload 誤報成 `API timeout` / `載入失敗`；`/api/trade` 買入 / 加倉直接入口也會依即時部署阻塞點 409 暫停，且保留等待 / 觀望與減倉 / 賣出風險降低路徑；Dashboard 啟動連續性卡會把 feature deferred / repair_deferred 顯示成警示與心跳維護收斂文案；{execution_status_docs_sync_clause}；{runtime_copy_docs_clause}；metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，customer-safe alternative proof 已輸出 alternative options / next customer actions / blocked live lanes quick-read，live-canary structural pivot 已輸出 72h hard-gate quick_read / top-level aliases，且 `/api/execution/overview.customer_safe_alternative_proof` 可用 `scripts/customer_safe_alternative_api_consistency_probe.py --strict` 驗證 artifact/API aliases / counts / selected next artifact / fail-closed / secret-safe 同源，standalone venue dry-run proof 已輸出 preview / ack / cancel / fill / reconciliation fail-closed status，high-conviction Top-K 可用 `scripts/high_conviction_topk_api_consistency_probe.py --strict` 驗證 `/api/models/leaderboard.high_conviction_topk` 與 artifact counts / nearest candidate / support rows / breaker release math / fail-closed / secret-safe 同源，paper-shadow outcome reconciliation 已輸出 worker poll / pending outcome / ETA / fail-closed proof，且 `/api/execution/overview.paper_shadow_outcome_reconciliation` 可用 `scripts/paper_shadow_outcome_api_consistency_probe.py --strict` 驗證 artifact/API 同源、quick-read、pending guard、fail-closed、secret-safe；`/api/status` / `/api/execution/overview` 會以 `data/venue_dry_run_proof.json` 為 artifact-first 來源並可用 `scripts/venue_dry_run_api_consistency_probe.py --strict` 驗證同源 / fail-closed / secret-safe；`/api/status.execution_surface_contract.live_canary_policy_gate` 與 `/api/execution/overview.execution_readiness.gates[]` 也會顯示 `live_canary_policy_gate`，缺 mode/live flag/allowlist/symbol cap/kill switch 時仍鎖住 canary；Dashboard / Execution Status / Strategy Lab status-only summaries 會顯示同一 policy gate 與繁中 blocker copy；venue error 會先轉成操作員繁中 copy（例如不支援的交易場館）"
+
+    docs_sync_line = docs_sync_line.replace(
+        "support-fill feasibility / customer_safe_alternative_proof",
+        "support-fill feasibility / q15_exact_bucket_row_harvest_proof / q15_drift_rebaseline_backtest / q15_map_signal_redesign_proof / customer_safe_alternative_proof",
+    ).replace(
+        "metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，customer-safe alternative proof",
+        "metadata smoke venue rows 已帶 per-venue proof_state / blockers / operator_next_action / verify_next，exact row-harvest proof 已輸出 current exact rows / previous rows / delta / gap 並 fail-closed，drift-aware rebaseline backtest 已輸出 current-window vs all-history candidate 差異且 live_exposure_allowed=false，Map/Signal redesign proof 已輸出 current-window vs all-history/current metric gate 並 fail-closed，customer-safe alternative proof",
+    )
 
     orid_lines = [
         "# ORID_DECISIONS.md — Current ORID Only",
@@ -4764,15 +5521,25 @@ def overwrite_current_state_docs(
         "",
         "### O｜客觀事實",
         f"- {orid_completion_phrase}：{counts_line}；歷史覆蓋確認：{history_line}；`simulated_pyramid_win={_format_pct_for_docs(counts.get('simulated_pyramid_win_rate'), 2)}`。",
+        *([f"- strategy data freshness maintenance：{strategy_data_sync_maintenance_line}。"] if strategy_data_sync_maintenance_line else []),
         f"- 即時部署阻塞點：{blocker_line}。",
         f"- {support_scope_label} truth：{support_line}。",
         *[f"- {line}。" for line in support_progress_doc_lines],
+        *([f"- live-canary structural pivot lane role：{pivot_lane_doc_line}"] if pivot_lane_doc_line else []),
+        *([f"- live-canary structural pivot quick-read：{pivot_quick_read_doc_line}；72h hard-gate truth 已可 machine-read。"] if pivot_quick_read_doc_line else []),
+        *([f"- no-trade lane replay：{no_trade_replay_doc_line}"] if no_trade_replay_doc_line else []),
         *support_fill_orid_lines,
+        *exact_harvest_orid_lines,
+        *drift_rebaseline_orid_lines,
+        *map_signal_orid_lines,
+        *customer_safe_orid_lines,
         f"- latest recent-window diagnostics：{pathology_line}。",
         *([f"- current blocking pathological pocket：{blocking_pathology_line}。"] if blocking_pathology_line else []),
         f"- leaderboard / governance：{leaderboard_line}。",
-        f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；top source blockers={top_source_blockers_line}；fin_netflow={fin_line}；venue={execution_venue_line}；metadata smoke venue rows 已帶 adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next。",
+        f"- source / venue blockers：`blocked_sparse_features={source_blockers.get('blocked_count', '—')}`；top source blockers={top_source_blockers_line}；fin_netflow={fin_line}；venue={execution_venue_line}；metadata smoke venue rows 已帶 adapter_supported / enabled_in_config / credentials_configured / proof_state / runtime_ready / blockers / operator_next_action / verify_next；venue_dry_run={venue_dry_run_line}。",
+        *([f"- active local API proof：{active_backend_health_line}"] if active_backend_health_line else []),
         *high_conviction_shadow_orid_lines,
+        *paper_shadow_outcome_orid_lines,
         anti_equilibrium_context["orid_fact_line"],
         "- bounded live-canary hard gate：live buy/add pilot 必須 `execution.live_canary.enabled=true` + explicit `allowed_symbols` + symbol-specific `max_base_qty_by_symbol`，缺 policy / 超 cap 會 adapter-pre 拒單；reduce/sell 風險降低路徑保留。",
         *range_chop_orid_lines,
@@ -4797,8 +5564,8 @@ def overwrite_current_state_docs(
         orid_action_line.rstrip("。") + "；`/execution` 操作入口在同步中 / 已阻塞時只對買入 / 加倉與啟用自動模式 fail-closed，等待 / 觀望與減碼保留；直接 API 買入 / 加倉也必須 409 暫停，等待 / 觀望與減倉 / 賣出保留風險降低路徑。",
         *high_conviction_orid_action_lines,
         "- **反平衡 forced-execution gate**：若 72h 內不能執行 bounded micro-canary，必須寫明唯一失敗 gate（breaker / support / venue / policy / model shadow outcome）與下一個驗證 artifact；不得再輸出 observation-only heartbeat。",
-        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/q15_support_fill_feasibility.json`、`docs/analysis/q15_support_fill_feasibility.md`、`data/leaderboard_feature_profile_probe.json`、`data/high_conviction_topk_oos_matrix.json`、`data/execution_metadata_smoke.json`、`docs/plans/2026-05-23-live-canary-structural-pivot.md`、`data/live_canary_structural_pivot.json`。",
-        "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、等待 / 觀望與減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python scripts/q15_support_fill_feasibility_scan.py`、`python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx binance`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`、`python -m pytest tests/test_execution_service.py -k live_canary -q`。",
+        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/q15_support_fill_feasibility.json`、`data/q15_exact_bucket_row_harvest_proof.json`、`data/q15_drift_rebaseline_backtest.json`、`data/q15_map_signal_redesign_proof.json`、`docs/analysis/q15_exact_bucket_row_harvest_proof.md`、`docs/analysis/q15_drift_rebaseline_backtest.md`、`docs/analysis/q15_map_signal_redesign_proof.md`、`data/no_trade_lane_replay.json`、`data/paper_shadow_outcome_reconciliation.json`、`docs/analysis/no_trade_lane_replay.md`、`docs/analysis/q15_support_fill_feasibility.md`、`data/leaderboard_feature_profile_probe.json`、`data/high_conviction_topk_oos_matrix.json`、`data/execution_metadata_smoke.json`、`data/venue_dry_run_proof.json`、`docs/analysis/venue_dry_run_proof.md`、`docs/plans/2026-05-23-live-canary-structural-pivot.md`、`data/live_canary_structural_pivot.json`。",
+        "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、等待 / 觀望與減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python scripts/no_trade_lane_replay.py`、`python scripts/q15_support_fill_feasibility_scan.py`、`python scripts/q15_exact_bucket_row_harvest_proof.py`、`python scripts/q15_drift_rebaseline_backtest.py`、`python scripts/q15_map_signal_redesign_proof.py`、`python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx binance`、`python scripts/venue_dry_run_proof.py`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`、`python -m pytest tests/test_execution_service.py -k live_canary -q`。",
         orid_fail_line,
         "",
     ]
@@ -5891,6 +6658,240 @@ def run_collect_step(skip: bool = False, run_label: str | None = None) -> Dict[s
         }
 
 
+def _float_or_none(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _strategy_data_freshness_payload(status_payload: Dict[str, Any] | None) -> Dict[str, Any]:
+    if not isinstance(status_payload, dict):
+        return {}
+    freshness = status_payload.get("freshness")
+    if isinstance(freshness, dict):
+        return freshness
+    if status_payload.get("overall_status") or any(
+        isinstance(status_payload.get(lane), dict) for lane in ("raw", "features", "labels", "strategy")
+    ):
+        return status_payload
+    return {}
+
+
+def _strategy_freshness_remaining_minutes(lane_payload: Dict[str, Any]) -> float | None:
+    stale_after_minutes = _float_or_none(lane_payload.get("stale_after_minutes"))
+    if stale_after_minutes is None:
+        return None
+
+    lag_vs_reference_minutes = _float_or_none(lane_payload.get("lag_vs_reference_minutes"))
+    if lag_vs_reference_minutes is not None:
+        expected_lag_minutes = _float_or_none(lane_payload.get("expected_lag_minutes")) or 0.0
+        return expected_lag_minutes + stale_after_minutes - lag_vs_reference_minutes
+
+    age_minutes = _float_or_none(lane_payload.get("age_minutes"))
+    if age_minutes is None:
+        return None
+    return stale_after_minutes - age_minutes
+
+
+def _strategy_data_sync_maintenance_decision(
+    status_payload: Dict[str, Any] | None,
+    *,
+    headroom_minutes: float = STRATEGY_DATA_SYNC_MAINTENANCE_HEADROOM_MINUTES,
+) -> Dict[str, Any]:
+    freshness = _strategy_data_freshness_payload(status_payload)
+    if not freshness:
+        return {
+            "needed": False,
+            "reason": "freshness_unavailable",
+            "headroom_minutes": float(headroom_minutes),
+            "overall_status": None,
+            "data_pipeline_ready": None,
+            "lanes": [],
+        }
+
+    lanes: list[Dict[str, Any]] = []
+    for lane in ("raw", "features", "labels", "strategy"):
+        lane_payload = freshness.get(lane) or {}
+        if not isinstance(lane_payload, dict):
+            continue
+        lane_status = lane_payload.get("status")
+        remaining_minutes = _strategy_freshness_remaining_minutes(lane_payload)
+        trigger_reason = None
+        if lane_status != "fresh":
+            trigger_reason = f"status_{lane_status or 'unknown'}"
+        elif remaining_minutes is not None and remaining_minutes <= headroom_minutes:
+            trigger_reason = "near_stale"
+        if trigger_reason:
+            lanes.append(
+                {
+                    "lane": lane,
+                    "reason": trigger_reason,
+                    "status": lane_status,
+                    "latest_at": lane_payload.get("latest_at"),
+                    "age_minutes": lane_payload.get("age_minutes"),
+                    "stale_after_minutes": lane_payload.get("stale_after_minutes"),
+                    "expected_lag_minutes": lane_payload.get("expected_lag_minutes"),
+                    "lag_vs_reference_minutes": lane_payload.get("lag_vs_reference_minutes"),
+                    "remaining_minutes": round(remaining_minutes, 1) if remaining_minutes is not None else None,
+                }
+            )
+
+    blocking_lanes = freshness.get("blocking_lanes") or []
+    if not isinstance(blocking_lanes, list):
+        blocking_lanes = []
+    if any(str(lane.get("reason", "")).startswith("status_") for lane in lanes):
+        reason = "stale_lanes"
+    elif lanes:
+        reason = "near_stale_lanes"
+    else:
+        reason = "freshness_within_headroom"
+    return {
+        "needed": bool(lanes),
+        "reason": reason,
+        "headroom_minutes": float(headroom_minutes),
+        "overall_status": freshness.get("overall_status"),
+        "data_pipeline_ready": freshness.get("data_pipeline_ready"),
+        "blocking_lanes": blocking_lanes,
+        "lanes": lanes,
+    }
+
+
+def _compact_strategy_data_freshness(status_payload: Dict[str, Any] | None) -> Dict[str, Any]:
+    freshness = _strategy_data_freshness_payload(status_payload)
+    if not freshness:
+        return {}
+    return {
+        "checked_at": freshness.get("checked_at") or (status_payload or {}).get("checked_at"),
+        "overall_status": freshness.get("overall_status"),
+        "data_pipeline_ready": freshness.get("data_pipeline_ready"),
+        "blocking_lanes": freshness.get("blocking_lanes") or [],
+        "raw": {
+            key: (freshness.get("raw") or {}).get(key)
+            for key in ("status", "latest_at", "age_minutes", "stale_after_minutes", "reason")
+        },
+        "features": {
+            key: (freshness.get("features") or {}).get(key)
+            for key in ("status", "latest_at", "age_minutes", "stale_after_minutes", "reason")
+        },
+        "labels": {
+            key: (freshness.get("labels") or {}).get(key)
+            for key in (
+                "status",
+                "latest_at",
+                "age_minutes",
+                "stale_after_minutes",
+                "expected_lag_minutes",
+                "lag_vs_reference_minutes",
+                "reason",
+            )
+        },
+        "strategy": {
+            key: (freshness.get("strategy") or {}).get(key)
+            for key in ("status", "latest_at", "age_minutes", "stale_after_minutes", "reason")
+        },
+    }
+
+
+def collect_strategy_data_sync_status(symbol: str = STRATEGY_DATA_SYNC_MAINTENANCE_SYMBOL) -> Dict[str, Any]:
+    from server.routes import api as api_module
+
+    return api_module._strategy_data_sync_status(symbol=symbol)
+
+
+def _run_strategy_data_sync_operator_request(body: Dict[str, Any]) -> Dict[str, Any]:
+    from server.routes import api as api_module
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        request = SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"))
+        return asyncio.run(api_module.api_strategy_data_sync(body, request=request))
+    raise RuntimeError("strategy_data_sync maintenance must run from the synchronous heartbeat runner")
+
+
+def run_strategy_data_sync_maintenance(
+    skip_collect: bool,
+    *,
+    symbol: str = STRATEGY_DATA_SYNC_MAINTENANCE_SYMBOL,
+    headroom_minutes: float = STRATEGY_DATA_SYNC_MAINTENANCE_HEADROOM_MINUTES,
+) -> Dict[str, Any]:
+    if not skip_collect:
+        return {
+            "attempted": False,
+            "success": True,
+            "reason": "collect_enabled",
+            "decision": {"needed": False, "reason": "collect_enabled", "headroom_minutes": headroom_minutes},
+        }
+
+    try:
+        before_status = collect_strategy_data_sync_status(symbol=symbol)
+    except Exception as exc:
+        return {
+            "attempted": False,
+            "success": False,
+            "reason": "status_read_failed",
+            "error": str(exc),
+            "decision": {"needed": False, "reason": "status_read_failed", "headroom_minutes": headroom_minutes},
+        }
+
+    decision = _strategy_data_sync_maintenance_decision(before_status, headroom_minutes=headroom_minutes)
+    if not decision.get("needed"):
+        return {
+            "attempted": False,
+            "success": True,
+            "reason": decision.get("reason") or "freshness_within_headroom",
+            "decision": decision,
+            "before": _compact_strategy_data_freshness(before_status),
+        }
+
+    request_body = {
+        "symbol": symbol,
+        "lookback_days": STRATEGY_DATA_SYNC_MAINTENANCE_LOOKBACK_DAYS,
+        "max_feature_backfill_rows": STRATEGY_DATA_SYNC_MAINTENANCE_MAX_FEATURE_ROWS,
+    }
+    try:
+        response = _run_strategy_data_sync_operator_request(request_body)
+    except Exception as exc:
+        return {
+            "attempted": True,
+            "success": False,
+            "returncode": -1,
+            "reason": "sync_request_failed",
+            "error": str(exc),
+            "request": request_body,
+            "decision": decision,
+            "before": _compact_strategy_data_freshness(before_status),
+        }
+
+    response_payload = response if isinstance(response, dict) else {}
+    after_status = response_payload.get("after")
+    after_decision = _strategy_data_sync_maintenance_decision(after_status, headroom_minutes=headroom_minutes)
+    after_freshness = _strategy_data_freshness_payload(after_status)
+    success = bool(
+        response_payload.get("status") == "completed"
+        and after_freshness.get("overall_status") == "fresh"
+    )
+    return {
+        "attempted": True,
+        "success": success,
+        "returncode": 0 if success else 1,
+        "reason": "sync_completed" if success else "sync_completed_but_freshness_not_clear",
+        "request": request_body,
+        "decision": decision,
+        "before": _compact_strategy_data_freshness(before_status),
+        "after": _compact_strategy_data_freshness(after_status),
+        "after_decision": after_decision,
+        "feature_backfill_deferred": bool(response_payload.get("feature_backfill_deferred")),
+        "feature_backfill_remaining_missing": response_payload.get("feature_backfill_remaining_missing"),
+        "label_rows_generated": response_payload.get("label_rows_generated"),
+        "raw_repair": response_payload.get("raw_repair"),
+        "feature_repair": response_payload.get("feature_repair"),
+    }
+
+
 def collect_source_blockers() -> Dict[str, Any]:
     coverage_payload = compute_sqlite_feature_coverage(DB_PATH)
     blocker_summary = build_source_blocker_summary(coverage_payload)
@@ -5991,6 +6992,18 @@ def run_q15_support_fill_feasibility() -> Dict[str, Any]:
     return _run_serial_command(Q15_SUPPORT_FILL_FEASIBILITY_CMD)
 
 
+def run_q15_exact_bucket_row_harvest_proof() -> Dict[str, Any]:
+    return _run_serial_command(Q15_EXACT_BUCKET_ROW_HARVEST_PROOF_CMD)
+
+
+def run_q15_drift_rebaseline_backtest() -> Dict[str, Any]:
+    return _run_serial_command(Q15_DRIFT_REBASELINE_BACKTEST_CMD)
+
+
+def run_q15_map_signal_redesign_proof() -> Dict[str, Any]:
+    return _run_serial_command(Q15_MAP_SIGNAL_REDESIGN_PROOF_CMD)
+
+
 def run_q15_bucket_root_cause() -> Dict[str, Any]:
     return _run_serial_command(Q15_BUCKET_ROOT_CAUSE_CMD)
 
@@ -6054,6 +7067,16 @@ def run_high_conviction_topk_refresh() -> Dict[str, Any]:
     return _run_serial_command(TOPK_WALKFORWARD_PRECISION_CMD)
 
 
+def run_high_conviction_topk_api_consistency_probe() -> Dict[str, Any]:
+    """Verify the active leaderboard API mirrors the Top-K OOS matrix contract."""
+    return _run_serial_command(HIGH_CONVICTION_TOPK_API_CONSISTENCY_CMD)
+
+
+def run_active_backend_health_probe() -> Dict[str, Any]:
+    """Fail fast when the operator API backend is stale or startup continuity is not usable."""
+    return _run_serial_command(ACTIVE_BACKEND_HEALTH_PROBE_CMD)
+
+
 def run_execution_metadata_smoke() -> Dict[str, Any]:
     """Refresh the canonical venue lifecycle proof artifact for operator gates.
 
@@ -6063,6 +7086,38 @@ def run_execution_metadata_smoke() -> Dict[str, Any]:
     or no-proof runtime-readiness snapshot from a previous manual run.
     """
     return _run_serial_command(EXECUTION_METADATA_SMOKE_CMD)
+
+
+def run_venue_dry_run_proof() -> Dict[str, Any]:
+    """Refresh standalone venue dry-run proof from fresh metadata smoke.
+
+    PM/customer-safe gates need a rerunnable artifact that separates public
+    metadata readability from runtime-backed ack/cancel/fill/reconciliation
+    proof. This lane keeps `data/venue_dry_run_proof.json` current without
+    submitting orders or exposing credential values.
+    """
+    return _run_serial_command(VENUE_DRY_RUN_PROOF_CMD)
+
+
+def run_paper_shadow_outcome_reconciliation() -> Dict[str, Any]:
+    """Refresh paper/shadow 24h worker outcome proof from the local DB.
+
+    This keeps `data/paper_shadow_outcome_reconciliation.json` current before
+    customer-safe/PM docs consume it. The CLI strict gate fails if any order
+    submission or risk-on flag leaks into the rehearsal proof.
+    """
+    return _run_serial_command(PAPER_SHADOW_OUTCOME_RECONCILIATION_CMD)
+
+
+def run_paper_shadow_outcome_api_consistency_probe() -> Dict[str, Any]:
+    """Verify live API paper/shadow proof mirrors the refreshed artifact.
+
+    Heartbeat treats `data/paper_shadow_outcome_reconciliation.json` as the
+    durable source of rehearsal truth. This lane checks the active backend route
+    exposes the same schema-v2 quick-read and fail-closed fields before PM/docs
+    call the API surface customer-usable.
+    """
+    return _run_serial_command(PAPER_SHADOW_OUTCOME_API_CONSISTENCY_CMD)
 
 
 def run_customer_safe_alternative_proof() -> Dict[str, Any]:
@@ -6076,6 +7131,16 @@ def run_customer_safe_alternative_proof() -> Dict[str, Any]:
     return _run_serial_command(CUSTOMER_SAFE_ALTERNATIVE_PROOF_CMD)
 
 
+def run_customer_safe_alternative_api_consistency_probe() -> Dict[str, Any]:
+    """Verify live API customer-safe proof mirrors the refreshed artifact.
+
+    The PM-safe artifact is the durable truth for customer-usable alternatives.
+    This lane checks `/api/execution/overview` exposes the same compact aliases,
+    counts, fail-closed flags, and secret-safe surface before docs rely on it.
+    """
+    return _run_serial_command(CUSTOMER_SAFE_ALTERNATIVE_API_CONSISTENCY_CMD)
+
+
 def run_live_canary_structural_pivot() -> Dict[str, Any]:
     """Refresh the forced-execution live-canary pivot from fresh artifacts.
 
@@ -6084,6 +7149,16 @@ def run_live_canary_structural_pivot() -> Dict[str, Any]:
     canary plan from carrying stale support / breaker / venue numbers.
     """
     return _run_serial_command(LIVE_CANARY_STRUCTURAL_PIVOT_CMD)
+
+
+def run_no_trade_lane_replay() -> Dict[str, Any]:
+    """Refresh the current BLOCK/no-trade lane replay proof.
+
+    This forced-execution lane validates abstain / reduce-only / paper-shadow
+    behavior from the current live probe and recent drift artifact. It is not a
+    deployment support closure and must stay fail-closed for buy/add exposure.
+    """
+    return _run_serial_command(NO_TRADE_LANE_REPLAY_CMD)
 
 
 def run_auto_propose(run_label: str | None = None) -> Dict[str, Any]:
@@ -6166,6 +7241,17 @@ def _artifact_recency_snapshot(
     diagnostics = diagnostics or {}
     if isinstance(diagnostics, dict):
         generated_at = diagnostics.get("generated_at")
+    if not generated_at and path.exists():
+        try:
+            artifact_payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            artifact_payload = {}
+        if isinstance(artifact_payload, dict):
+            generated_at = (
+                artifact_payload.get("generated_at")
+                or artifact_payload.get("artifact_generated_at")
+                or artifact_payload.get("artifact_freshness_checked_at")
+            )
     if generated_at:
         snapshot["artifact_generated_at"] = generated_at
         try:
@@ -6375,6 +7461,7 @@ def save_summary(
     docs_sync=None,
     progress_path=None,
     serial_results=None,
+    strategy_data_sync_maintenance=None,
 ):
     passed = sum(1 for r in results.values() if r["success"])
     total = len(results)
@@ -6407,6 +7494,12 @@ def save_summary(
             "stdout_preview": collect_result.get("stdout", "")[:2000],
             "stderr_preview": collect_result.get("stderr", "")[:1000],
             "continuity_repair": continuity_repair,
+        },
+        "strategy_data_sync_maintenance": strategy_data_sync_maintenance
+        or {
+            "attempted": False,
+            "success": True,
+            "reason": "not_recorded",
         },
         "db_counts": counts,
         "historical_coverage_confirmation": historical_coverage_confirmation,
@@ -7283,6 +8376,221 @@ def collect_q15_support_fill_feasibility_diagnostics() -> Dict[str, Any]:
     }
 
 
+def collect_q15_drift_rebaseline_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "q15_drift_rebaseline_backtest.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    verdict = payload.get("verdict") if isinstance(payload.get("verdict"), dict) else {}
+    drift = payload.get("recent_drift_context") if isinstance(payload.get("recent_drift_context"), dict) else {}
+    return {
+        "generated_at": payload.get("generated_at"),
+        "artifact": payload.get("artifact"),
+        "support_identity": payload.get("support_identity") or {},
+        "verdict": verdict,
+        "status": verdict.get("status"),
+        "decision": verdict.get("decision"),
+        "selected_candidate_id": verdict.get("selected_candidate_id"),
+        "selected_candidate_status": verdict.get("selected_candidate_status"),
+        "selected_current_window_rows": verdict.get("selected_current_window_rows"),
+        "selected_all_history_rows": verdict.get("selected_all_history_rows"),
+        "current_exact_bucket_rows": verdict.get("current_exact_bucket_rows"),
+        "minimum_support_rows": verdict.get("minimum_support_rows"),
+        "gap_to_minimum": verdict.get("gap_to_minimum"),
+        "live_exposure_allowed": verdict.get("live_exposure_allowed"),
+        "order_submission_enabled": verdict.get("order_submission_enabled"),
+        "primary_failed_gate": verdict.get("primary_failed_gate"),
+        "recent_drift_window": drift.get("window"),
+        "recent_drift_win_rate": drift.get("win_rate"),
+        "recent_drift_dominant_regime": drift.get("dominant_regime"),
+        "recent_drift_dominant_regime_share": drift.get("dominant_regime_share"),
+    }
+
+
+def collect_q15_exact_bucket_row_harvest_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "q15_exact_bucket_row_harvest_proof.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    verdict = payload.get("verdict") if isinstance(payload.get("verdict"), dict) else {}
+    harvest = payload.get("harvest_window") if isinstance(payload.get("harvest_window"), dict) else {}
+    progress = payload.get("support_progress") if isinstance(payload.get("support_progress"), dict) else {}
+    return {
+        "generated_at": payload.get("generated_at"),
+        "artifact": payload.get("artifact"),
+        "support_identity": payload.get("support_identity") or {},
+        "verdict": verdict,
+        "status": verdict.get("status"),
+        "decision": verdict.get("decision"),
+        "current_exact_bucket_rows": verdict.get("current_exact_bucket_rows"),
+        "previous_rows": verdict.get("previous_rows"),
+        "delta_vs_previous": verdict.get("delta_vs_previous"),
+        "semantic_signature_delta_vs_previous": verdict.get("semantic_signature_delta_vs_previous"),
+        "stagnant_run_count": verdict.get("stagnant_run_count"),
+        "semantic_signature_stagnant_run_count": verdict.get("semantic_signature_stagnant_run_count"),
+        "minimum_support_rows": verdict.get("minimum_support_rows"),
+        "gap_to_minimum": verdict.get("gap_to_minimum"),
+        "rows_needed_to_minimum": verdict.get("rows_needed_to_minimum"),
+        "support_gate_ready": verdict.get("support_gate_ready"),
+        "time_to_evidence_bucket": verdict.get("time_to_evidence_bucket"),
+        "missing_capability_class": verdict.get("missing_capability_class"),
+        "alternative_solution_required": verdict.get("alternative_solution_required"),
+        "primary_failed_gate": verdict.get("primary_failed_gate"),
+        "live_exposure_allowed": verdict.get("live_exposure_allowed"),
+        "order_submission_enabled": verdict.get("order_submission_enabled"),
+        "risk_on_order_enabled": verdict.get("risk_on_order_enabled"),
+        "exact_identity_rows": harvest.get("exact_identity_rows"),
+        "non_bucket_identity_rows": harvest.get("non_bucket_identity_rows"),
+        "progress_status": progress.get("status"),
+        "progress_regression_basis": progress.get("regression_basis"),
+    }
+
+
+def collect_q15_map_signal_redesign_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "q15_map_signal_redesign_proof.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    verdict = payload.get("verdict") if isinstance(payload.get("verdict"), dict) else {}
+    root = payload.get("root_cause_context") if isinstance(payload.get("root_cause_context"), dict) else {}
+    lane = root.get("exact_live_lane") if isinstance(root.get("exact_live_lane"), dict) else {}
+    return {
+        "generated_at": payload.get("generated_at"),
+        "artifact": payload.get("artifact"),
+        "support_identity": payload.get("support_identity") or {},
+        "verdict": verdict,
+        "status": verdict.get("status"),
+        "decision": verdict.get("decision"),
+        "selected_candidate_id": verdict.get("selected_candidate_id"),
+        "selected_candidate_status": verdict.get("selected_candidate_status"),
+        "selected_redesign_type": verdict.get("selected_redesign_type"),
+        "selected_target_bucket": verdict.get("selected_target_bucket"),
+        "selected_current_window_rows": verdict.get("selected_current_window_rows"),
+        "selected_all_history_rows": verdict.get("selected_all_history_rows"),
+        "best_reference_candidate_id": verdict.get("best_reference_candidate_id"),
+        "best_reference_target_bucket": verdict.get("best_reference_target_bucket"),
+        "best_reference_current_window_rows": verdict.get("best_reference_current_window_rows"),
+        "best_reference_all_history_rows": verdict.get("best_reference_all_history_rows"),
+        "current_exact_bucket_rows": verdict.get("current_exact_bucket_rows"),
+        "minimum_support_rows": verdict.get("minimum_support_rows"),
+        "gap_to_minimum": verdict.get("gap_to_minimum"),
+        "live_exposure_allowed": verdict.get("live_exposure_allowed"),
+        "order_submission_enabled": verdict.get("order_submission_enabled"),
+        "primary_failed_gate": verdict.get("primary_failed_gate"),
+        "root_cause_verdict": root.get("verdict"),
+        "root_cause_candidate_patch_type": root.get("candidate_patch_type"),
+        "root_cause_candidate_patch_feature": root.get("candidate_patch_feature"),
+        "root_cause_dominant_neighbor_bucket": lane.get("dominant_neighbor_bucket"),
+        "root_cause_dominant_neighbor_rows": lane.get("dominant_neighbor_rows"),
+        "root_cause_near_boundary_rows": lane.get("near_boundary_rows"),
+    }
+
+
+def collect_customer_safe_alternative_proof_diagnostics() -> Dict[str, Any]:
+    result_path = Path(PROJECT_ROOT) / "data" / "customer_safe_alternative_proof.json"
+    if not result_path.exists():
+        return {}
+    try:
+        payload = json.loads(result_path.read_text())
+    except Exception:
+        return {}
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    portfolio = (
+        payload.get("alternative_solution_portfolio")
+        if isinstance(payload.get("alternative_solution_portfolio"), dict)
+        else {}
+    )
+    alternative_solutions = payload.get("alternative_solutions")
+    if not isinstance(alternative_solutions, list):
+        alternative_solutions = portfolio.get("options") if isinstance(portfolio.get("options"), list) else []
+    blocked_live_lanes = payload.get("blocked_live_lanes") if isinstance(payload.get("blocked_live_lanes"), list) else []
+    next_customer_actions = (
+        payload.get("next_customer_actions")
+        if isinstance(payload.get("next_customer_actions"), list)
+        else []
+    )
+    return {
+        "generated_at": payload.get("generated_at"),
+        "artifact": payload.get("artifact") or "customer_safe_alternative_proof",
+        "summary": summary,
+        "live_exposure_allowed": payload.get("live_exposure_allowed", summary.get("live_exposure_allowed")),
+        "order_submission_enabled": payload.get("order_submission_enabled", summary.get("order_submission_enabled")),
+        "risk_on_order_enabled": payload.get("risk_on_order_enabled", summary.get("risk_on_order_enabled")),
+        "blocking_gate": payload.get("blocking_gate", summary.get("blocking_gate")),
+        "primary_blocking_gate": payload.get("primary_blocking_gate", summary.get("primary_blocking_gate")),
+        "support_rows": payload.get("support_rows", summary.get("support_rows")),
+        "minimum_support_rows": payload.get("minimum_support_rows", summary.get("minimum_support_rows")),
+        "support_gap": payload.get("support_gap", summary.get("support_gap")),
+        "topk_deployable_rows": payload.get("topk_deployable_rows", summary.get("topk_deployable_rows")),
+        "topk_support_context_status": payload.get(
+            "topk_support_context_status",
+            summary.get("topk_support_context_status"),
+        ),
+        "topk_support_context_freshness_status": payload.get(
+            "topk_support_context_freshness_status",
+            summary.get("topk_support_context_freshness_status"),
+        ),
+        "topk_support_context_deployment_blocking": payload.get(
+            "topk_support_context_deployment_blocking",
+            summary.get("topk_support_context_deployment_blocking"),
+        ),
+        "topk_live_truth_overlay_blocker": payload.get(
+            "topk_live_truth_overlay_blocker",
+            summary.get("topk_live_truth_overlay_blocker"),
+        ),
+        "venue_status": payload.get("venue_status", summary.get("venue_status")),
+        "venue_runtime_ready": payload.get("venue_runtime_ready", summary.get("venue_runtime_ready")),
+        "blocked_live_lane_count": payload.get(
+            "blocked_live_lane_count",
+            summary.get("blocked_live_lane_count", len(blocked_live_lanes)),
+        ),
+        "alternative_solution_required": payload.get(
+            "alternative_solution_required",
+            summary.get("alternative_solution_required"),
+        ),
+        "alternative_solution_option_count": payload.get(
+            "alternative_solution_option_count",
+            summary.get("alternative_solution_option_count", len(alternative_solutions)),
+        ),
+        "selected_alternative_solution": payload.get(
+            "selected_alternative_solution",
+            summary.get("selected_alternative_solution", portfolio.get("selected_option")),
+        ),
+        "selected_next_customer_artifact": payload.get(
+            "selected_next_customer_artifact",
+            summary.get("selected_next_customer_artifact", portfolio.get("selected_next_artifact")),
+        ),
+        "next_customer_action_count": payload.get(
+            "next_customer_action_count",
+            summary.get("next_customer_action_count", len(next_customer_actions)),
+        ),
+        "alternative_solution_ids": [
+            str(item.get("id"))
+            for item in alternative_solutions
+            if isinstance(item, dict) and item.get("id")
+        ],
+        "blocked_live_lane_ids": [
+            str(item.get("id"))
+            for item in blocked_live_lanes
+            if isinstance(item, dict) and item.get("id")
+        ],
+        "next_customer_action_ids": [
+            str(item.get("id"))
+            for item in next_customer_actions
+            if isinstance(item, dict) and item.get("id")
+        ],
+    }
+
+
 def collect_q15_bucket_root_cause_diagnostics() -> Dict[str, Any]:
     result_path = Path(PROJECT_ROOT) / "data" / "q15_bucket_root_cause.json"
     if not result_path.exists():
@@ -7935,10 +9243,39 @@ def main(argv=None):
 
     write_progress(
         run_label,
+        "strategy_data_sync_maintenance",
+        details={
+            "collect_attempted": collect_result.get("attempted", False),
+            "no_collect": bool(args.no_collect),
+            "headroom_minutes": STRATEGY_DATA_SYNC_MAINTENANCE_HEADROOM_MINUTES,
+        },
+    )
+    strategy_data_sync_maintenance = run_strategy_data_sync_maintenance(skip_collect=args.no_collect)
+    if strategy_data_sync_maintenance.get("attempted"):
+        decision_lanes = (strategy_data_sync_maintenance.get("decision") or {}).get("lanes") or []
+        lane_text = ",".join(str(item.get("lane")) for item in decision_lanes) or "unknown"
+        print(
+            "🛰️ Strategy data sync maintenance："
+            f"{'通過' if strategy_data_sync_maintenance.get('success') else '失敗'} "
+            f"reason={strategy_data_sync_maintenance.get('reason')} lanes={lane_text}"
+        )
+    elif not strategy_data_sync_maintenance.get("success", True):
+        print(
+            "⚠️  Strategy data freshness maintenance skipped with error："
+            f"{strategy_data_sync_maintenance.get('reason')} {strategy_data_sync_maintenance.get('error', '')}"
+        )
+
+    write_progress(
+        run_label,
         "counts_and_source_blockers",
         details={
             "collect_attempted": collect_result.get("attempted", False),
             "collect_success": collect_result.get("success", False),
+            "strategy_data_sync_maintenance": {
+                "attempted": strategy_data_sync_maintenance.get("attempted", False),
+                "success": strategy_data_sync_maintenance.get("success", False),
+                "reason": strategy_data_sync_maintenance.get("reason"),
+            },
         },
     )
     counts = quick_counts()
@@ -8829,6 +10166,104 @@ def main(argv=None):
             f"missing={q15_support_fill_feasibility_summary.get('missing_capability_class')}"
         )
 
+    write_progress(run_label, "q15_exact_bucket_row_harvest_proof")
+    q15_exact_harvest_result = run_q15_exact_bucket_row_harvest_proof()
+    q15_exact_harvest_summary = collect_q15_exact_bucket_row_harvest_diagnostics()
+    print(
+        f"🌾 Q15 exact row-harvest proof：{'通過' if q15_exact_harvest_result['success'] else '失敗'} "
+        f"(rc={q15_exact_harvest_result['returncode']})"
+    )
+    if q15_exact_harvest_result.get("stdout"):
+        lines = q15_exact_harvest_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- q15_exact_bucket_row_harvest_proof ---\n{preview}")
+    if q15_exact_harvest_result.get("stderr"):
+        print(f"\n--- q15_exact_bucket_row_harvest_proof stderr ---\n{q15_exact_harvest_result['stderr']}")
+    if q15_exact_harvest_summary:
+        print(
+            "🌾 Q15 exact row harvest："
+            f"status={q15_exact_harvest_summary.get('status')} "
+            f"rows={q15_exact_harvest_summary.get('current_exact_bucket_rows')}/"
+            f"{q15_exact_harvest_summary.get('minimum_support_rows')} "
+            f"delta={q15_exact_harvest_summary.get('delta_vs_previous')} "
+            f"gap={q15_exact_harvest_summary.get('gap_to_minimum')} "
+            f"live={q15_exact_harvest_summary.get('live_exposure_allowed')}"
+        )
+
+    write_progress(run_label, "q15_drift_rebaseline_backtest")
+    q15_drift_rebaseline_result = run_q15_drift_rebaseline_backtest()
+    q15_drift_rebaseline_summary = collect_q15_drift_rebaseline_diagnostics()
+    print(
+        f"🧭 Q15 drift rebaseline backtest：{'通過' if q15_drift_rebaseline_result['success'] else '失敗'} "
+        f"(rc={q15_drift_rebaseline_result['returncode']})"
+    )
+    if q15_drift_rebaseline_result.get("stdout"):
+        lines = q15_drift_rebaseline_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- q15_drift_rebaseline_backtest ---\n{preview}")
+    if q15_drift_rebaseline_result.get("stderr"):
+        print(f"\n--- q15_drift_rebaseline_backtest stderr ---\n{q15_drift_rebaseline_result['stderr']}")
+    if q15_drift_rebaseline_summary:
+        print(
+            "🧭 Q15 drift rebaseline："
+            f"status={q15_drift_rebaseline_summary.get('status')} "
+            f"selected={q15_drift_rebaseline_summary.get('selected_candidate_id')} "
+            f"current_window_rows={q15_drift_rebaseline_summary.get('selected_current_window_rows')} "
+            f"all_rows={q15_drift_rebaseline_summary.get('selected_all_history_rows')} "
+            f"live={q15_drift_rebaseline_summary.get('live_exposure_allowed')}"
+        )
+
+    write_progress(run_label, "q15_map_signal_redesign_proof")
+    q15_map_signal_result = run_q15_map_signal_redesign_proof()
+    q15_map_signal_summary = collect_q15_map_signal_redesign_diagnostics()
+    print(
+        f"🧭 Q15 Map/Signal redesign proof：{'通過' if q15_map_signal_result['success'] else '失敗'} "
+        f"(rc={q15_map_signal_result['returncode']})"
+    )
+    if q15_map_signal_result.get("stdout"):
+        lines = q15_map_signal_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- q15_map_signal_redesign_proof ---\n{preview}")
+    if q15_map_signal_result.get("stderr"):
+        print(f"\n--- q15_map_signal_redesign_proof stderr ---\n{q15_map_signal_result['stderr']}")
+    if q15_map_signal_summary:
+        print(
+            "🧭 Q15 Map/Signal redesign："
+            f"status={q15_map_signal_summary.get('status')} "
+            f"selected={q15_map_signal_summary.get('selected_candidate_id')} "
+            f"target={q15_map_signal_summary.get('selected_target_bucket')} "
+            f"current_window_rows={q15_map_signal_summary.get('selected_current_window_rows')} "
+            f"all_rows={q15_map_signal_summary.get('selected_all_history_rows')} "
+            f"live={q15_map_signal_summary.get('live_exposure_allowed')}"
+        )
+
+    if (
+        q15_exact_harvest_result.get("success")
+        or q15_drift_rebaseline_result.get("success")
+        or q15_map_signal_result.get("success")
+    ):
+        write_progress(run_label, "q15_forced_branch_q15_support_resync")
+        q15_support_result = run_q15_support_audit()
+        q15_support_summary = collect_q15_support_audit_diagnostics()
+        print(
+            f"🧩 Q15 support audit (forced-branch-resynced)：{'通過' if q15_support_result['success'] else '失敗'} "
+            f"(rc={q15_support_result['returncode']})"
+        )
+        if q15_support_result.get("stdout"):
+            lines = q15_support_result["stdout"].split("\n")
+            preview = "\n".join(lines[:20])
+            if len(lines) > 20:
+                preview += "\n...\n" + "\n".join(lines[-8:])
+            print(f"\n--- hb_q15_support_audit (forced-branch-resynced) ---\n{preview}")
+        if q15_support_result.get("stderr"):
+            print(f"\n--- hb_q15_support_audit (forced-branch-resynced) stderr ---\n{q15_support_result['stderr']}")
+
     write_progress(run_label, "q15_boundary_replay")
     q15_boundary_replay_result = run_q15_boundary_replay()
     q15_boundary_replay_summary = collect_q15_boundary_replay_diagnostics()
@@ -8856,6 +10291,50 @@ def main(argv=None):
             f"layers_after={counterfactual.get('allowed_layers_after')}"
         )
 
+    write_progress(run_label, "active_backend_health_probe")
+    active_backend_health_probe_result = run_active_backend_health_probe()
+    print(
+        f"Active backend health：{'通過' if active_backend_health_probe_result['success'] else '失敗'} "
+        f"(rc={active_backend_health_probe_result['returncode']})"
+    )
+    if active_backend_health_probe_result.get("stdout"):
+        lines = active_backend_health_probe_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- active_backend_health_probe ---\n{preview}")
+    if active_backend_health_probe_result.get("stderr"):
+        print(f"\n--- active_backend_health_probe stderr ---\n{active_backend_health_probe_result['stderr']}")
+
+    high_conviction_topk_api_context_synced = _sync_high_conviction_topk_matrix_live_context(
+        live_predictor_diagnostics,
+    )
+    write_progress(
+        run_label,
+        "high_conviction_topk_api_consistency_probe",
+        details={"live_context_sync_applied_before_probe": high_conviction_topk_api_context_synced},
+    )
+    high_conviction_topk_api_consistency_result = run_high_conviction_topk_api_consistency_probe()
+    high_conviction_topk_api_consistency_result[
+        "live_context_sync_applied_before_probe"
+    ] = high_conviction_topk_api_context_synced
+    print(
+        "🎯 High-conviction Top-K API consistency："
+        f"{'通過' if high_conviction_topk_api_consistency_result['success'] else '失敗'} "
+        f"(rc={high_conviction_topk_api_consistency_result['returncode']})"
+    )
+    if high_conviction_topk_api_consistency_result.get("stdout"):
+        lines = high_conviction_topk_api_consistency_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- high_conviction_topk_api_consistency_probe ---\n{preview}")
+    if high_conviction_topk_api_consistency_result.get("stderr"):
+        print(
+            "\n--- high_conviction_topk_api_consistency_probe stderr ---\n"
+            f"{high_conviction_topk_api_consistency_result['stderr']}"
+        )
+
     write_progress(run_label, "execution_metadata_smoke")
     execution_metadata_smoke_result = run_execution_metadata_smoke()
     print(
@@ -8870,6 +10349,59 @@ def main(argv=None):
         print(f"\n--- execution_metadata_smoke ---\n{preview}")
     if execution_metadata_smoke_result.get("stderr"):
         print(f"\n--- execution_metadata_smoke stderr ---\n{execution_metadata_smoke_result['stderr']}")
+
+    write_progress(run_label, "venue_dry_run_proof")
+    venue_dry_run_proof_result = run_venue_dry_run_proof()
+    print(
+        f"🧾 Venue dry-run proof：{'通過' if venue_dry_run_proof_result['success'] else '失敗'} "
+        f"(rc={venue_dry_run_proof_result['returncode']})"
+    )
+    if venue_dry_run_proof_result.get("stdout"):
+        lines = venue_dry_run_proof_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- venue_dry_run_proof ---\n{preview}")
+    if venue_dry_run_proof_result.get("stderr"):
+        print(f"\n--- venue_dry_run_proof stderr ---\n{venue_dry_run_proof_result['stderr']}")
+
+    write_progress(run_label, "paper_shadow_outcome_reconciliation")
+    paper_shadow_outcome_reconciliation_result = run_paper_shadow_outcome_reconciliation()
+    print(
+        "Paper/shadow outcome reconciliation："
+        f"{'通過' if paper_shadow_outcome_reconciliation_result['success'] else '失敗'} "
+        f"(rc={paper_shadow_outcome_reconciliation_result['returncode']})"
+    )
+    if paper_shadow_outcome_reconciliation_result.get("stdout"):
+        lines = paper_shadow_outcome_reconciliation_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- paper_shadow_outcome_reconciliation ---\n{preview}")
+    if paper_shadow_outcome_reconciliation_result.get("stderr"):
+        print(
+            "\n--- paper_shadow_outcome_reconciliation stderr ---\n"
+            f"{paper_shadow_outcome_reconciliation_result['stderr']}"
+        )
+
+    write_progress(run_label, "paper_shadow_outcome_api_consistency_probe")
+    paper_shadow_outcome_api_consistency_result = run_paper_shadow_outcome_api_consistency_probe()
+    print(
+        "Paper/shadow API consistency："
+        f"{'通過' if paper_shadow_outcome_api_consistency_result['success'] else '失敗'} "
+        f"(rc={paper_shadow_outcome_api_consistency_result['returncode']})"
+    )
+    if paper_shadow_outcome_api_consistency_result.get("stdout"):
+        lines = paper_shadow_outcome_api_consistency_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- paper_shadow_outcome_api_consistency_probe ---\n{preview}")
+    if paper_shadow_outcome_api_consistency_result.get("stderr"):
+        print(
+            "\n--- paper_shadow_outcome_api_consistency_probe stderr ---\n"
+            f"{paper_shadow_outcome_api_consistency_result['stderr']}"
+        )
 
     write_progress(run_label, "customer_safe_alternative_proof")
     customer_safe_alternative_proof_result = run_customer_safe_alternative_proof()
@@ -8886,6 +10418,25 @@ def main(argv=None):
     if customer_safe_alternative_proof_result.get("stderr"):
         print(f"\n--- customer_safe_alternative_proof stderr ---\n{customer_safe_alternative_proof_result['stderr']}")
 
+    write_progress(run_label, "customer_safe_alternative_api_consistency_probe")
+    customer_safe_alternative_api_consistency_result = run_customer_safe_alternative_api_consistency_probe()
+    print(
+        "Customer-safe alternative API consistency："
+        f"{'通過' if customer_safe_alternative_api_consistency_result['success'] else '失敗'} "
+        f"(rc={customer_safe_alternative_api_consistency_result['returncode']})"
+    )
+    if customer_safe_alternative_api_consistency_result.get("stdout"):
+        lines = customer_safe_alternative_api_consistency_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- customer_safe_alternative_api_consistency_probe ---\n{preview}")
+    if customer_safe_alternative_api_consistency_result.get("stderr"):
+        print(
+            "\n--- customer_safe_alternative_api_consistency_probe stderr ---\n"
+            f"{customer_safe_alternative_api_consistency_result['stderr']}"
+        )
+
     write_progress(run_label, "live_canary_structural_pivot")
     live_canary_structural_pivot_result = run_live_canary_structural_pivot()
     print(
@@ -8900,6 +10451,21 @@ def main(argv=None):
         print(f"\n--- live_canary_structural_pivot ---\n{preview}")
     if live_canary_structural_pivot_result.get("stderr"):
         print(f"\n--- live_canary_structural_pivot stderr ---\n{live_canary_structural_pivot_result['stderr']}")
+
+    write_progress(run_label, "no_trade_lane_replay")
+    no_trade_lane_replay_result = run_no_trade_lane_replay()
+    print(
+        f"🧭 No-trade lane replay：{'通過' if no_trade_lane_replay_result['success'] else '失敗'} "
+        f"(rc={no_trade_lane_replay_result['returncode']})"
+    )
+    if no_trade_lane_replay_result.get("stdout"):
+        lines = no_trade_lane_replay_result["stdout"].split("\n")
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += "\n...\n" + "\n".join(lines[-8:])
+        print(f"\n--- no_trade_lane_replay ---\n{preview}")
+    if no_trade_lane_replay_result.get("stderr"):
+        print(f"\n--- no_trade_lane_replay stderr ---\n{no_trade_lane_replay_result['stderr']}")
 
     write_progress(run_label, "auto_propose")
     auto_propose_result = run_auto_propose(run_label)
@@ -8961,6 +10527,10 @@ def main(argv=None):
             "result": high_conviction_topk_result,
             "artifact_path": Path(PROJECT_ROOT) / "data" / "high_conviction_topk_oos_matrix.json",
         },
+        "high_conviction_topk_api_consistency_probe": {
+            "result": high_conviction_topk_api_consistency_result,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "high_conviction_topk_oos_matrix.json",
+        },
         "hb_q15_support_audit": {
             "result": q15_support_result,
             "diagnostics": q15_support_summary,
@@ -8976,22 +10546,60 @@ def main(argv=None):
             "diagnostics": q15_support_fill_feasibility_summary,
             "artifact_path": Path(PROJECT_ROOT) / "data" / "q15_support_fill_feasibility.json",
         },
+        "q15_exact_bucket_row_harvest_proof": {
+            "result": q15_exact_harvest_result,
+            "diagnostics": q15_exact_harvest_summary,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "q15_exact_bucket_row_harvest_proof.json",
+        },
+        "q15_drift_rebaseline_backtest": {
+            "result": q15_drift_rebaseline_result,
+            "diagnostics": q15_drift_rebaseline_summary,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "q15_drift_rebaseline_backtest.json",
+        },
+        "q15_map_signal_redesign_proof": {
+            "result": q15_map_signal_result,
+            "diagnostics": q15_map_signal_summary,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "q15_map_signal_redesign_proof.json",
+        },
         "hb_q15_boundary_replay": {
             "result": q15_boundary_replay_result,
             "diagnostics": q15_boundary_replay_summary,
             "artifact_path": Path(PROJECT_ROOT) / "data" / "q15_boundary_replay.json",
         },
+        "active_backend_health_probe": {
+            "result": active_backend_health_probe_result,
+        },
         "execution_metadata_smoke": {
             "result": execution_metadata_smoke_result,
             "artifact_path": Path(PROJECT_ROOT) / "data" / "execution_metadata_smoke.json",
+        },
+        "venue_dry_run_proof": {
+            "result": venue_dry_run_proof_result,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "venue_dry_run_proof.json",
+        },
+        "paper_shadow_outcome_reconciliation": {
+            "result": paper_shadow_outcome_reconciliation_result,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "paper_shadow_outcome_reconciliation.json",
+        },
+        "paper_shadow_outcome_api_consistency_probe": {
+            "result": paper_shadow_outcome_api_consistency_result,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "paper_shadow_outcome_reconciliation.json",
         },
         "customer_safe_alternative_proof": {
             "result": customer_safe_alternative_proof_result,
             "artifact_path": Path(PROJECT_ROOT) / "data" / "customer_safe_alternative_proof.json",
         },
+        "customer_safe_alternative_api_consistency_probe": {
+            "result": customer_safe_alternative_api_consistency_result,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "customer_safe_alternative_proof.json",
+        },
         "live_canary_structural_pivot": {
             "result": live_canary_structural_pivot_result,
             "artifact_path": Path(PROJECT_ROOT) / "data" / "live_canary_structural_pivot.json",
+        },
+        "no_trade_lane_replay": {
+            "result": no_trade_lane_replay_result,
+            "artifact_path": Path(PROJECT_ROOT) / "data" / "no_trade_lane_replay.json",
         },
         "auto_propose_fixes": {
             "result": auto_propose_result,
@@ -9034,6 +10642,7 @@ def main(argv=None):
         collect_attempted=bool(collect_result.get("attempted", False)),
         serial_results=serial_result_payload,
         parallel_results=results,
+        strategy_data_sync_maintenance=strategy_data_sync_maintenance,
     )
     pm_status_sync: Dict[str, Any] = {"attempted": True}
     try:
@@ -9106,6 +10715,7 @@ def main(argv=None):
         docs_sync=docs_sync,
         progress_path=progress_path,
         serial_results=serial_result_payload,
+        strategy_data_sync_maintenance=strategy_data_sync_maintenance,
     )
     final_status = "success"
     serial_results = [
@@ -9116,17 +10726,29 @@ def main(argv=None):
         circuit_breaker_audit_result,
         leaderboard_probe_result,
         high_conviction_topk_result,
+        high_conviction_topk_api_consistency_result,
         q15_support_result,
         q15_bucket_root_cause_result,
         q15_support_fill_feasibility_result,
+        q15_exact_harvest_result,
+        q15_drift_rebaseline_result,
+        q15_map_signal_result,
         q15_boundary_replay_result,
+        active_backend_health_probe_result,
         execution_metadata_smoke_result,
+        venue_dry_run_proof_result,
+        paper_shadow_outcome_reconciliation_result,
+        paper_shadow_outcome_api_consistency_result,
         customer_safe_alternative_proof_result,
+        customer_safe_alternative_api_consistency_result,
         live_canary_structural_pivot_result,
+        no_trade_lane_replay_result,
         auto_propose_result,
     ]
     if not collect_result.get("success", True):
         final_status = "failed"
+    elif not strategy_data_sync_maintenance.get("success", True):
+        final_status = "completed_with_failures"
     elif any(not result.get("success") for result in results.values()):
         final_status = "completed_with_failures"
     elif any(not result.get("success", True) for result in serial_results if result is not None):
@@ -9140,6 +10762,11 @@ def main(argv=None):
             "mode": summary.get("mode"),
             "stats": summary.get("stats") or {},
             "collect_success": collect_result.get("success", False),
+            "strategy_data_sync_maintenance": {
+                "attempted": strategy_data_sync_maintenance.get("attempted", False),
+                "success": strategy_data_sync_maintenance.get("success", False),
+                "reason": strategy_data_sync_maintenance.get("reason"),
+            },
         },
     )
     refresh_summary_runtime_progress(summary_path, progress_path)

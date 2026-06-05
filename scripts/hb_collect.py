@@ -25,6 +25,17 @@ SYMBOL = "BTC/USDT"
 ACTIVE_HEARTBEAT_HORIZONS = {240, 1440}
 
 
+def _symbol_variants(symbol: str | None) -> list[str]:
+    if not symbol:
+        return []
+    text = str(symbol)
+    compact = text.replace("/", "")
+    variants = {text, compact}
+    if "/" not in text and text.endswith("USDT") and len(text) > 4:
+        variants.add(f"{text[:-4]}/USDT")
+    return sorted(v for v in variants if v)
+
+
 def _coerce_dt(value):
     if value is None or isinstance(value, datetime):
         return value
@@ -34,9 +45,10 @@ def _coerce_dt(value):
 def _max_raw_gap_hours_since(session, since_ts: datetime | None, symbol: str = SYMBOL) -> float | None:
     if since_ts is None:
         return None
+    symbol_variants = _symbol_variants(symbol)
     raw_rows = (
         session.query(RawMarketData.timestamp)
-        .filter(RawMarketData.symbol == symbol, RawMarketData.timestamp >= since_ts)
+        .filter(RawMarketData.symbol.in_(symbol_variants), RawMarketData.timestamp >= since_ts)
         .order_by(RawMarketData.timestamp)
         .all()
     )
@@ -64,8 +76,10 @@ def summarize_label_horizons(
     exist in the DB for diagnostics, but should not be surfaced as active pipeline blockers.
     """
     active_horizons = set(active_horizons or ACTIVE_HEARTBEAT_HORIZONS)
+    symbol_variants = _symbol_variants(symbol)
+    symbol_key = str(symbol or "").replace("/", "")
     latest_raw = session.query(RawMarketData.timestamp).filter(
-        RawMarketData.symbol == symbol
+        RawMarketData.symbol.in_(symbol_variants)
     ).order_by(RawMarketData.timestamp.desc()).first()
     latest_raw_ts = _coerce_dt(latest_raw[0]) if latest_raw else None
 
@@ -77,12 +91,12 @@ def summarize_label_horizons(
                    SUM(CASE WHEN simulated_pyramid_win IS NOT NULL THEN 1 ELSE 0 END) AS target_rows,
                    MAX(CASE WHEN simulated_pyramid_win IS NOT NULL THEN timestamp END) AS latest_target_ts
             FROM labels
-            WHERE symbol = :symbol
+            WHERE replace(symbol, '/', '') = :symbol_key
             GROUP BY horizon_minutes
             ORDER BY horizon_minutes
             """
         ),
-        {"symbol": symbol},
+        {"symbol_key": symbol_key},
     ).fetchall()
 
     summary = []

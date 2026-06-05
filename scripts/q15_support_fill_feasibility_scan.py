@@ -102,6 +102,38 @@ def _metric_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _symbol_alignment_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summarize strict vs canonical symbol joins for support-count auditability."""
+
+    mode_counts = Counter(str(row.get("symbol_join_mode") or "unknown") for row in rows)
+    recovered_rows = [
+        row
+        for row in rows
+        if row.get("symbol_join_mode") == "canonical_symbol"
+        and row.get("symbol") != row.get("label_symbol")
+    ]
+    return {
+        "join_policy": "timestamp_plus_canonical_symbol_latest_feature_and_label_id",
+        "canonical_symbol_transform": "remove_slash",
+        "dedupe_policy": "max_id_per_timestamp_canonical_symbol_for_features_and_labels",
+        "total_joined_rows": len(rows),
+        "strict_symbol_rows": int(mode_counts.get("strict_symbol") or 0),
+        "canonical_symbol_rows": int(mode_counts.get("canonical_symbol") or 0),
+        "unknown_symbol_mode_rows": int(mode_counts.get("unknown") or 0),
+        "canonical_symbol_recovered_rows": len(recovered_rows),
+        "sample_recovered_pairs": [
+            {
+                "timestamp": row.get("timestamp"),
+                "feature_symbol": row.get("symbol"),
+                "label_symbol": row.get("label_symbol"),
+            }
+            for row in recovered_rows[:5]
+        ],
+        "live_exposure_allowed": False,
+        "evidence_role": "data_alignment_cleanup_not_deployment_clearance",
+    }
+
+
 def support_identity_from_artifacts(
     probe: dict[str, Any],
     q15_audit: dict[str, Any] | None = None,
@@ -175,9 +207,28 @@ def fetch_labeled_decision_rows(
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     query = """
+        WITH feature_latest AS (
+            SELECT
+                timestamp,
+                REPLACE(COALESCE(symbol, ''), '/', '') AS symbol_key,
+                MAX(id) AS feature_id
+            FROM features_normalized
+            GROUP BY timestamp, REPLACE(COALESCE(symbol, ''), '/', '')
+        ),
+        label_latest AS (
+            SELECT
+                timestamp,
+                REPLACE(COALESCE(symbol, ''), '/', '') AS symbol_key,
+                MAX(id) AS label_id
+            FROM labels
+            WHERE horizon_minutes = ?
+              AND simulated_pyramid_win IS NOT NULL
+            GROUP BY timestamp, REPLACE(COALESCE(symbol, ''), '/', '')
+        )
         SELECT
             f.timestamp,
             f.symbol,
+            l.symbol AS label_symbol,
             f.regime_label,
             f.feat_4h_bias200,
             f.feat_4h_bias50,
@@ -192,10 +243,12 @@ def fetch_labeled_decision_rows(
             l.simulated_pyramid_quality,
             l.simulated_pyramid_drawdown_penalty,
             l.simulated_pyramid_time_underwater
-        FROM features_normalized f
-        JOIN labels l ON f.timestamp = l.timestamp AND f.symbol = l.symbol
-        WHERE l.horizon_minutes = ?
-          AND l.simulated_pyramid_win IS NOT NULL
+        FROM feature_latest fl
+        JOIN features_normalized f ON f.id = fl.feature_id
+        JOIN label_latest ll
+          ON ll.timestamp = fl.timestamp
+         AND ll.symbol_key = fl.symbol_key
+        JOIN labels l ON l.id = ll.label_id
         ORDER BY f.timestamp DESC
     """
     raw_rows = conn.execute(query, (horizon_minutes,)).fetchall()
@@ -221,6 +274,8 @@ def fetch_labeled_decision_rows(
             {
                 "timestamp": row["timestamp"],
                 "symbol": row["symbol"],
+                "label_symbol": row["label_symbol"],
+                "symbol_join_mode": "strict_symbol" if row["symbol"] == row["label_symbol"] else "canonical_symbol",
                 "regime_label": profile.get("regime_label"),
                 "regime_gate": profile.get("regime_gate"),
                 "entry_quality_label": profile.get("entry_quality_label"),
@@ -717,6 +772,7 @@ def build_feasibility_report(
             "joined_labeled_rows": joined_rows,
             "current_calibration_window_filled": current_window_filled,
             "db_meta": db_meta or {},
+            "symbol_alignment": _symbol_alignment_summary(rows),
         },
         "verdict": verdict,
         "support_identity_compression_proof": compression_proof,
@@ -770,6 +826,14 @@ def markdown(report: dict[str, Any]) -> str:
         f"- joined labeled rows: **{coverage.get('joined_labeled_rows')}**",
         f"- current calibration window filled: **{coverage.get('current_calibration_window_filled')}**",
     ])
+    symbol_alignment = coverage.get("symbol_alignment") if isinstance(coverage.get("symbol_alignment"), dict) else {}
+    if symbol_alignment:
+        lines.extend([
+            f"- symbol join policy: `{symbol_alignment.get('join_policy')}`",
+            f"- canonical symbol recovered rows: **{symbol_alignment.get('canonical_symbol_recovered_rows')}** "
+            f"(strict={symbol_alignment.get('strict_symbol_rows')}, canonical={symbol_alignment.get('canonical_symbol_rows')})",
+            "- symbol alignment evidence role: data cleanup only; live exposure remains fail-closed until all live gates pass.",
+        ])
     db_meta = coverage.get("db_meta") or {}
     for table, meta in db_meta.items():
         lines.append(

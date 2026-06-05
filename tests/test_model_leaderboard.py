@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
 
@@ -10,6 +11,14 @@ from backtesting.model_leaderboard import ModelLeaderboard
 from model import train as train_module
 from server.routes import api as api_module
 from server.routes.api import load_model_leaderboard_frame
+
+
+def _fresh_live_probe_generated_at() -> str:
+    return (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
+
+
+def _stale_live_probe_generated_at() -> str:
+    return (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat().replace("+00:00", "Z")
 
 
 @pytest.fixture
@@ -682,6 +691,7 @@ def test_build_model_leaderboard_payload_includes_high_conviction_topk(monkeypat
 def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatch, tmp_path: Path):
     artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
     live_probe = tmp_path / "live_predict_probe.json"
+    live_generated_at = _fresh_live_probe_generated_at()
     artifact.write_text(
         json.dumps(
             {
@@ -732,7 +742,7 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
     live_probe.write_text(
         json.dumps(
             {
-                "generated_at": "2026-04-29T19:03:45Z",
+                "generated_at": live_generated_at,
                 "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
                 "support_route_verdict": "exact_bucket_unsupported_block",
                 "support_governance_route": "no_support_proxy",
@@ -792,6 +802,8 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
     assert support_context["support_rows_needed"] == 50
     assert support_context["live_truth_overlay_applied"] is True
     assert support_context["live_truth_source_artifact"] == str(live_probe)
+    assert support_context["support_context_status"] == "fresh_live_probe_overlay"
+    assert support_context["support_context_freshness"]["status"] == "fresh"
     nearest = summary["nearest_deployable_rows"][0]
     assert nearest["signal"] == "HOLD"
     assert nearest["allowed_layers"] == 0
@@ -819,6 +831,7 @@ def test_high_conviction_topk_support_context_uses_fresher_live_probe(monkeypatc
 def test_high_conviction_topk_embedded_live_probe_release_math_survives_matrix_refresh(monkeypatch, tmp_path: Path):
     artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
     live_probe = tmp_path / "live_predict_probe.json"
+    live_generated_at = _fresh_live_probe_generated_at()
     artifact.write_text(
         json.dumps(
             {
@@ -826,7 +839,7 @@ def test_high_conviction_topk_embedded_live_probe_release_math_survives_matrix_r
                 "target_col": "simulated_pyramid_win",
                 "samples": 1234,
                 "support_context": {
-                    "source_live_probe_generated_at": "2026-04-29T19:03:45Z",
+                    "source_live_probe_generated_at": live_generated_at,
                     "support_route_verdict": "exact_bucket_present_but_below_minimum",
                     "deployment_blocker": "circuit_breaker_active",
                     "current_live_structure_bucket_rows": 22,
@@ -860,7 +873,7 @@ def test_high_conviction_topk_embedded_live_probe_release_math_survives_matrix_r
     live_probe.write_text(
         json.dumps(
             {
-                "generated_at": "2026-04-29T19:03:45Z",
+                "generated_at": live_generated_at,
                 "deployment_blocker": "circuit_breaker_active",
                 "runtime_closure_state": "circuit_breaker_active",
                 "support_route_verdict": "exact_bucket_present_but_below_minimum",
@@ -888,7 +901,7 @@ def test_high_conviction_topk_embedded_live_probe_release_math_survives_matrix_r
 
     support_context = summary["support_context"]
     assert support_context["live_truth_overlay_applied"] is True
-    assert support_context["live_truth_generated_at"] == "2026-04-29T19:03:45Z"
+    assert support_context["live_truth_generated_at"] == live_generated_at
     assert support_context["release_ready"] is False
     assert support_context["current_recent_window_wins"] == 14
     assert support_context["required_recent_window_wins"] == 15
@@ -904,6 +917,7 @@ def test_high_conviction_topk_embedded_live_probe_release_math_survives_matrix_r
 def test_high_conviction_topk_live_support_overlay_fail_closes_stale_deployable_rows(monkeypatch, tmp_path: Path):
     artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
     live_probe = tmp_path / "live_predict_probe.json"
+    live_generated_at = _fresh_live_probe_generated_at()
     artifact.write_text(
         json.dumps(
             {
@@ -958,7 +972,7 @@ def test_high_conviction_topk_live_support_overlay_fail_closes_stale_deployable_
     live_probe.write_text(
         json.dumps(
             {
-                "generated_at": "2026-04-29T19:03:45Z",
+                "generated_at": live_generated_at,
                 "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
                 "support_route_verdict": "exact_bucket_present_but_below_minimum",
                 "support_governance_route": "exact_live_bucket_present_but_below_minimum",
@@ -986,6 +1000,7 @@ def test_high_conviction_topk_live_support_overlay_fail_closes_stale_deployable_
     assert summary["deployment_ready"] is False
     support_context = summary["support_context"]
     assert support_context["live_truth_overlay_applied"] is True
+    assert support_context["support_context_status"] == "fresh_live_probe_overlay"
     assert support_context["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
     assert support_context["current_live_structure_bucket_rows"] == 9
     assert support_context["minimum_support_rows"] == 50
@@ -1009,9 +1024,104 @@ def test_high_conviction_topk_live_support_overlay_fail_closes_stale_deployable_
     assert summary["best_rows"][0] == nearest
 
 
+def test_high_conviction_topk_stale_live_probe_fail_closes_support_context(monkeypatch, tmp_path: Path):
+    artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
+    live_probe = tmp_path / "live_predict_probe.json"
+    stale_generated_at = _stale_live_probe_generated_at()
+    artifact.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-29T10:15:21Z",
+                "target_col": "simulated_pyramid_win",
+                "samples": 1234,
+                "support_context": {
+                    "support_route_verdict": "exact_bucket_supported",
+                    "support_route_deployable": True,
+                    "deployment_blocker": "none",
+                    "runtime_closure_state": "breaker_clear",
+                    "current_live_structure_bucket": "CAUTION|embedded_supported|q35",
+                    "current_live_structure_bucket_rows": 80,
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 0,
+                },
+                "rows": [
+                    {
+                        "model": "xgboost",
+                        "feature_profile": "current_full",
+                        "regime": "bull",
+                        "top_k": "top_2pct",
+                        "oos_roi": 0.24,
+                        "win_rate": 0.74,
+                        "profit_factor": 3.1,
+                        "max_drawdown": 0.035,
+                        "worst_fold": 0.04,
+                        "trade_count": 96,
+                        "support_route": "exact_bucket_supported",
+                        "support_route_deployable": True,
+                        "deployment_blocker": "none",
+                        "runtime_closure_state": "breaker_clear",
+                        "deployable_verdict": "deployable",
+                        "deployment_candidate_tier": "deployable",
+                        "gate_failures": [],
+                        "model_gate_failures": [],
+                        "live_gate_failures": [],
+                        "oos_gate_passed": True,
+                        "blocked_only_by_live_guardrails": False,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    live_probe.write_text(
+        json.dumps(
+            {
+                "generated_at": stale_generated_at,
+                "current_live_structure_bucket": "CAUTION|stale_supported_probe|q35",
+                "support_route_verdict": "exact_bucket_supported",
+                "support_route_deployable": True,
+                "deployment_blocker": "none",
+                "runtime_closure_state": "breaker_clear",
+                "support_progress": {
+                    "current_rows": 80,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_LIVE_PREDICT_PROBE_PATH", live_probe, raising=False)
+
+    summary = api_module._load_high_conviction_topk_summary(artifact)
+
+    assert summary["deployable_count"] == 0
+    support_context = summary["support_context"]
+    assert support_context["support_context_status"] == "stale_live_probe_shadow_only"
+    assert support_context["support_context_freshness"]["status"] == "stale"
+    assert support_context["live_truth_overlay_applied"] is False
+    assert support_context["live_truth_overlay_blocker"] == "artifact_older_than_policy"
+    assert support_context["support_route_verdict"] == "stale_live_support_context"
+    assert support_context["deployment_blocker"] == "stale_live_support_context"
+    assert support_context["current_live_structure_bucket"] == "stale_live_support_context"
+    assert support_context["stale_support_context_reference"]["current_live_structure_bucket"] == "CAUTION|stale_supported_probe|q35"
+    nearest = summary["nearest_deployable_rows"][0]
+    assert nearest["deployable_verdict"] == "not_deployable"
+    assert nearest["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+    assert nearest["support_context_status"] == "stale_live_probe_shadow_only"
+    assert nearest["support_route"] == "stale_live_support_context"
+    assert nearest["current_live_structure_bucket"] == "stale_live_support_context"
+    assert nearest["live_gate_failures"] == [
+        "support_route_not_deployable",
+        "deployment_blocker_active",
+        "breaker_release_not_ready",
+    ]
+
+
 def test_high_conviction_topk_summary_recomputes_model_gates_before_promotion(monkeypatch, tmp_path: Path):
     artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
     live_probe = tmp_path / "live_predict_probe.json"
+    live_generated_at = _fresh_live_probe_generated_at()
     artifact.write_text(
         json.dumps(
             {
@@ -1063,7 +1173,7 @@ def test_high_conviction_topk_summary_recomputes_model_gates_before_promotion(mo
     live_probe.write_text(
         json.dumps(
             {
-                "generated_at": "2026-04-29T19:03:45Z",
+                "generated_at": live_generated_at,
                 "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
                 "support_route_verdict": "exact_bucket_supported",
                 "support_route_deployable": True,
@@ -1102,6 +1212,7 @@ def test_high_conviction_topk_summary_recomputes_model_gates_before_promotion(mo
 def test_high_conviction_topk_release_math_fail_closes_otherwise_deployable_rows(monkeypatch, tmp_path: Path):
     artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
     live_probe = tmp_path / "live_predict_probe.json"
+    live_generated_at = _fresh_live_probe_generated_at()
     artifact.write_text(
         json.dumps(
             {
@@ -1146,7 +1257,7 @@ def test_high_conviction_topk_release_math_fail_closes_otherwise_deployable_rows
     live_probe.write_text(
         json.dumps(
             {
-                "generated_at": "2026-04-29T19:03:45Z",
+                "generated_at": live_generated_at,
                 "support_route_verdict": "exact_bucket_supported",
                 "support_route_deployable": True,
                 "deployment_blocker": "none",
@@ -2564,12 +2675,161 @@ def test_api_model_leaderboard_returns_cached_payload_without_recompute(monkeypa
         },
     )
     monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: None)
+    monkeypatch.setattr(api_module, "_ensure_high_conviction_topk_refresh", lambda force=False: None)
+    async def fake_high_conviction_topk():
+        return None
+
+    monkeypatch.setattr(
+        api_module,
+        "_load_high_conviction_topk_summary_for_current_request",
+        fake_high_conviction_topk,
+        raising=False,
+    )
 
     import asyncio
     result = asyncio.run(api_module.api_model_leaderboard())
 
     assert result["leaderboard"][0]["model_name"] == "cached_model"
     assert result["cached"] is True
+
+
+
+def test_api_model_leaderboard_accepts_strategy_lab_refresh_alias(monkeypatch):
+    monkeypatch.setattr(api_module, "MODEL_LB_CACHE_PATH", Path("/tmp/nonexistent_polytrader_cache.json"))
+    monkeypatch.setattr(
+        api_module,
+        "_MODEL_LB_CACHE",
+        {
+            "payload": {"leaderboard": [{"model_name": "cached_model"}], "count": 1},
+            "updated_at": 4102444800.0,
+            "refreshing": False,
+            "error": None,
+        },
+    )
+    refresh_calls = []
+    topk_refresh_calls = []
+    monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: refresh_calls.append(force))
+    monkeypatch.setattr(api_module, "_ensure_high_conviction_topk_refresh", lambda force=False: topk_refresh_calls.append(force))
+
+    async def fake_high_conviction_topk():
+        return None
+
+    monkeypatch.setattr(
+        api_module,
+        "_load_high_conviction_topk_summary_for_current_request",
+        fake_high_conviction_topk,
+        raising=False,
+    )
+
+    import asyncio
+    result = asyncio.run(api_module.api_model_leaderboard(refresh=True))
+
+    assert refresh_calls == [True]
+    assert topk_refresh_calls == [True]
+    assert result["leaderboard"][0]["model_name"] == "cached_model"
+    assert result["cached"] is True
+
+
+
+def test_api_model_leaderboard_loads_live_topk_before_model_refresh(monkeypatch):
+    monkeypatch.setattr(api_module, "MODEL_LB_CACHE_PATH", Path("/tmp/nonexistent_polytrader_cache.json"))
+    monkeypatch.setattr(
+        api_module,
+        "_MODEL_LB_CACHE",
+        {
+            "payload": {"leaderboard": [{"model_name": "cached_model"}], "count": 1},
+            "updated_at": 4102444800.0,
+            "refreshing": False,
+            "error": None,
+        },
+    )
+    order = []
+    monkeypatch.setattr(api_module, "_ensure_high_conviction_topk_refresh", lambda force=False: order.append(("topk_refresh", force)))
+    monkeypatch.setattr(api_module, "_load_leaderboard_governance_summary", lambda: None)
+
+    async def fake_high_conviction_topk():
+        order.append(("live_topk", None))
+        return None
+
+    monkeypatch.setattr(
+        api_module,
+        "_load_high_conviction_topk_summary_for_current_request",
+        fake_high_conviction_topk,
+        raising=False,
+    )
+    monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: order.append(("model_refresh", force)))
+
+    import asyncio
+    result = asyncio.run(api_module.api_model_leaderboard(refresh=True))
+
+    assert order == [("topk_refresh", True), ("live_topk", None), ("model_refresh", True)]
+    assert result["leaderboard"][0]["model_name"] == "cached_model"
+
+
+
+def test_high_conviction_topk_refresh_starts_when_artifact_is_stale(monkeypatch, tmp_path: Path):
+    artifact = tmp_path / "high_conviction_topk_oos_matrix.json"
+    artifact.write_text(
+        json.dumps({"generated_at": "2026-06-03T00:00:00+00:00", "rows": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "HIGH_CONVICTION_TOPK_PATH", artifact)
+    monkeypatch.setattr(
+        api_module,
+        "_HIGH_CONVICTION_TOPK_REFRESH_STATE",
+        {
+            "refreshing": False,
+            "error": None,
+            "last_refresh_attempt_at": 0.0,
+            "last_refresh_completed_at": None,
+            "last_refresh_reason": None,
+        },
+    )
+    refresh_calls = []
+    monkeypatch.setattr(
+        api_module,
+        "_spawn_high_conviction_topk_refresh_thread",
+        lambda reason: refresh_calls.append(reason) or True,
+    )
+
+    api_module._ensure_high_conviction_topk_refresh()
+
+    assert refresh_calls == ["artifact_stale"]
+
+
+
+def test_high_conviction_request_time_overlay_clears_stale_live_blocker():
+    stale_context = {
+        "support_context_status": "stale_live_probe_shadow_only",
+        "live_truth_overlay_blocker": "artifact_older_than_policy",
+        "stale_support_context_reference": {
+            "current_live_structure_bucket_rows": 6,
+            "deployment_blocker": "circuit_breaker_active",
+        },
+        "current_live_structure_bucket_rows": 0,
+        "deployment_blocker": "stale_live_support_context",
+    }
+    live_truth = {
+        "generated_at": "2026-06-03T12:04:23Z",
+        "source_artifact": "runtime_live_runtime_truth",
+        "support_context_status": "fresh_runtime_truth_overlay",
+        "support_context_freshness": {"status": "fresh", "deployment_blocking": False},
+        "live_truth_freshness": {"status": "fresh", "deployment_blocking": False},
+        "current_live_structure_bucket_rows": 6,
+        "deployment_blocker": "circuit_breaker_active",
+    }
+
+    merged = api_module._overlay_high_conviction_support_context(
+        stale_context,
+        topk_generated_at="2026-06-03T11:21:08Z",
+        live_truth=live_truth,
+    )
+
+    assert merged["support_context_status"] == "fresh_runtime_truth_overlay"
+    assert merged["current_live_structure_bucket_rows"] == 6
+    assert merged["deployment_blocker"] == "circuit_breaker_active"
+    assert merged["live_truth_overlay_blocker"] is None
+    assert "stale_support_context_reference" not in merged
 
 
 
@@ -2598,11 +2858,10 @@ def test_api_model_leaderboard_refreshes_cached_high_conviction_live_support_ove
         },
     )
     monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: None)
+    monkeypatch.setattr(api_module, "_ensure_high_conviction_topk_refresh", lambda force=False: None)
     monkeypatch.setattr(api_module, "_load_leaderboard_governance_summary", lambda: None)
-    monkeypatch.setattr(
-        api_module,
-        "_load_high_conviction_topk_summary",
-        lambda: {
+    async def fake_high_conviction_topk():
+        return {
             "support_context": {
                 "support_governance_route": "exact_live_bucket_present_but_below_minimum",
                 "current_live_structure_bucket_rows": 9,
@@ -2612,7 +2871,13 @@ def test_api_model_leaderboard_refreshes_cached_high_conviction_live_support_ove
                 "deployment_blocker": "under_minimum_exact_live_structure_bucket",
                 "live_truth_overlay_applied": True,
             }
-        },
+        }
+
+    monkeypatch.setattr(
+        api_module,
+        "_load_high_conviction_topk_summary_for_current_request",
+        fake_high_conviction_topk,
+        raising=False,
     )
 
     import asyncio
@@ -2625,6 +2890,76 @@ def test_api_model_leaderboard_refreshes_cached_high_conviction_live_support_ove
     assert support_context["support_route_deployable"] is False
     assert support_context["deployment_blocker"] == "under_minimum_exact_live_structure_bucket"
     assert support_context["live_truth_overlay_applied"] is True
+
+
+
+def test_api_model_leaderboard_passes_request_time_live_truth_to_high_conviction_topk(monkeypatch):
+    monkeypatch.setattr(api_module, "MODEL_LB_CACHE_PATH", Path("/tmp/nonexistent_polytrader_cache.json"))
+    monkeypatch.setattr(
+        api_module,
+        "_MODEL_LB_CACHE",
+        {
+            "payload": {
+                "leaderboard": [{"model_name": "cached_model"}],
+                "count": 1,
+                "high_conviction_topk": {
+                    "support_context": {
+                        "support_context_status": "stale_live_probe_shadow_only",
+                        "deployment_blocker": "stale_live_support_context",
+                    }
+                },
+            },
+            "updated_at": 4102444800.0,
+            "refreshing": False,
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: None)
+    monkeypatch.setattr(api_module, "_ensure_high_conviction_topk_refresh", lambda force=False: None)
+    monkeypatch.setattr(api_module, "_load_leaderboard_governance_summary", lambda: None)
+    monkeypatch.setattr(api_module, "get_confidence_prediction", lambda: {"signal": "CIRCUIT_BREAKER"})
+    monkeypatch.setattr(
+        api_module,
+        "_build_live_runtime_closure_surface",
+        lambda confidence_payload: {
+            "generated_at": "2026-06-03T12:04:23Z",
+            "support_context_status": "fresh_runtime_truth_overlay",
+            "deployment_blocker": "circuit_breaker_active",
+            "current_live_structure_bucket_rows": 6,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 44,
+        },
+    )
+
+    captured: dict = {}
+
+    def fake_topk_summary(*, limit=12, live_truth=None, path=None):
+        captured["limit"] = limit
+        captured["live_truth"] = live_truth
+        return {
+            "support_context": {
+                "support_context_status": live_truth["support_context_status"],
+                "deployment_blocker": live_truth["deployment_blocker"],
+                "current_live_structure_bucket_rows": live_truth["current_live_structure_bucket_rows"],
+                "minimum_support_rows": live_truth["minimum_support_rows"],
+                "current_live_structure_bucket_gap_to_minimum": live_truth[
+                    "current_live_structure_bucket_gap_to_minimum"
+                ],
+            }
+        }
+
+    monkeypatch.setattr(api_module, "_load_high_conviction_topk_summary", fake_topk_summary)
+
+    import asyncio
+    result = asyncio.run(api_module.api_model_leaderboard())
+
+    assert captured["live_truth"]["support_context_status"] == "fresh_runtime_truth_overlay"
+    assert captured["limit"] == 12
+    support_context = result["high_conviction_topk"]["support_context"]
+    assert support_context["support_context_status"] == "fresh_runtime_truth_overlay"
+    assert support_context["deployment_blocker"] == "circuit_breaker_active"
+    assert support_context["current_live_structure_bucket_rows"] == 6
+    assert support_context["current_live_structure_bucket_gap_to_minimum"] == 44
 
 
 
@@ -2661,6 +2996,7 @@ def test_api_model_leaderboard_reload_newer_disk_cache_into_runtime(monkeypatch,
         },
     )
     monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: None)
+    monkeypatch.setattr(api_module, "_ensure_high_conviction_topk_refresh", lambda force=False: None)
 
     import asyncio
     result = asyncio.run(api_module.api_model_leaderboard())
@@ -2736,6 +3072,7 @@ def test_api_model_leaderboard_prefers_newer_snapshot_over_older_disk_cache(monk
         },
     )
     monkeypatch.setattr(api_module, "_ensure_model_leaderboard_refresh", lambda force=False: None)
+    monkeypatch.setattr(api_module, "_ensure_high_conviction_topk_refresh", lambda force=False: None)
 
     import asyncio
     result = asyncio.run(api_module.api_model_leaderboard())

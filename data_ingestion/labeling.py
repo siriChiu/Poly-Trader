@@ -23,6 +23,17 @@ DEFAULT_PYRAMID_LAYER2_DROP = -0.02
 DEFAULT_PYRAMID_LAYER3_DROP = -0.05
 
 
+def _symbol_variants(symbol: str | None) -> list[str]:
+    if not symbol:
+        return []
+    text = str(symbol)
+    compact = text.replace("/", "")
+    variants = {text, compact}
+    if "/" not in text and text.endswith("USDT") and len(text) > 4:
+        variants.add(f"{text[:-4]}/USDT")
+    return sorted(v for v in variants if v)
+
+
 def _simulate_pyramid_outcome(
     horizon_prices: Iterable[float],
     entry_price: float,
@@ -127,9 +138,10 @@ def generate_future_return_labels(
     # P0: canonical feature rows must align on (timestamp, symbol).
     # Prefer exact-symbol rows, but fall back to legacy NULL-symbol rows only when no
     # canonical row exists for the timestamp.
+    symbol_variants = _symbol_variants(symbol)
     query = (
         session.query(FeaturesNormalized)
-        .filter((FeaturesNormalized.symbol == symbol) | (FeaturesNormalized.symbol.is_(None)))
+        .filter((FeaturesNormalized.symbol.in_(symbol_variants)) | (FeaturesNormalized.symbol.is_(None)))
         .order_by(FeaturesNormalized.timestamp, FeaturesNormalized.symbol.is_(None))
     )
     rows = query.all()
@@ -145,9 +157,11 @@ def generate_future_return_labels(
         seen_feature_ts.add(r.timestamp)
         feature_times.append(r.timestamp)
     # 取 RawMarketData 的價格時間序列
-    raw_query = session.query(RawMarketData).filter(
-        RawMarketData.symbol == symbol
-    ).order_by(RawMarketData.timestamp)
+    raw_query = (
+        session.query(RawMarketData)
+        .filter(RawMarketData.symbol.in_(symbol_variants))
+        .order_by(RawMarketData.timestamp)
+    )
     raw_rows = raw_query.all()
     if not raw_rows:
         logger.error("無原始價格數據")
@@ -276,9 +290,10 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
         return
 
     # 建立 timestamp → regime_label 映射(從 features_normalized)
+    symbol_variants = _symbol_variants(symbol)
     feature_rows = (
         session.query(FeaturesNormalized.timestamp, FeaturesNormalized.regime_label, FeaturesNormalized.symbol)
-        .filter((FeaturesNormalized.symbol == symbol) | (FeaturesNormalized.symbol.is_(None)))
+        .filter((FeaturesNormalized.symbol.in_(symbol_variants)) | (FeaturesNormalized.symbol.is_(None)))
         .order_by(FeaturesNormalized.timestamp, FeaturesNormalized.symbol.is_(None))
         .all()
     )
@@ -293,7 +308,7 @@ def save_labels_to_db(session: Session, labels_df: pd.DataFrame, symbol: str = "
     # 取得現有行
     existing_rows = {
         str(r.timestamp): r for r in session.query(Labels)
-        .filter(Labels.symbol == symbol, Labels.horizon_minutes == horizon_hours * 60)
+        .filter(Labels.symbol.in_(symbol_variants), Labels.horizon_minutes == horizon_hours * 60)
         .all()
     }
 

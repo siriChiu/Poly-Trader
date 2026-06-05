@@ -80,6 +80,42 @@ def test_summarize_label_horizons_marks_active_horizon_blocked_by_raw_gap(tmp_pa
         session.close()
 
 
+def test_summarize_label_horizons_normalizes_symbol_variants(tmp_path):
+    db_path = tmp_path / "hb_collect_symbol_variants.sqlite"
+    session = init_db(f"sqlite:///{db_path}")
+    try:
+        latest_raw = datetime(2026, 6, 3, 14, 0, 0)
+        latest_label = datetime(2026, 6, 2, 15, 0, 0)
+        session.add(RawMarketData(timestamp=latest_raw, symbol="BTCUSDT", close_price=1.0))
+        session.add_all(
+            [
+                Labels(
+                    timestamp=datetime(2026, 5, 27, 9, 0, 0),
+                    symbol="BTC/USDT",
+                    horizon_minutes=1440,
+                    simulated_pyramid_win=0,
+                ),
+                Labels(
+                    timestamp=latest_label,
+                    symbol="BTCUSDT",
+                    horizon_minutes=1440,
+                    simulated_pyramid_win=1,
+                ),
+            ]
+        )
+        session.commit()
+
+        summary = summarize_label_horizons(session, "BTC/USDT")
+
+        by_horizon = {row["horizon_minutes"]: row for row in summary}
+        assert by_horizon[1440]["total_rows"] == 2
+        assert by_horizon[1440]["target_rows"] == 2
+        assert by_horizon[1440]["latest_target_ts"].startswith("2026-06-02 15:00:00")
+        assert by_horizon[1440]["freshness"] == "expected_horizon_lag"
+    finally:
+        session.close()
+
+
 def test_save_labels_to_db_backfills_canonical_columns_for_existing_rows(tmp_path):
     db_path = tmp_path / "hb_collect_backfill.sqlite"
     session = init_db(f"sqlite:///{db_path}")

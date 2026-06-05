@@ -14,6 +14,19 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+FEATURE_BACKFILL_COMPUTE_WINDOW_ROWS = 512
+
+
+def _fetch_okx_4h_ohlcv(limit: int = 300):
+    try:
+        import ccxt
+
+        exchange = ccxt.okx({"enableRateLimit": True, "verbose": False})
+        return exchange.fetch_ohlcv("BTC/USDT", "4h", limit=limit)
+    except Exception as exc:
+        logger.warning("4H OHLCV fetch failed: %s", exc)
+        return None
+
 
 def _symbol_variants(symbol: str | None) -> list[str]:
     """Return DB symbol spellings that should be treated as the same market.
@@ -33,7 +46,7 @@ def _symbol_variants(symbol: str | None) -> list[str]:
     return sorted(v for v in variants if v)
 
 
-def _compute_technical_indicators_from_df(df: pd.DataFrame) -> Dict[str, float]:
+def _compute_technical_indicators_from_df(df: pd.DataFrame, *, ohlcv_4h=None) -> Dict[str, float]:
     """Compute IC-validated technical indicators from OHLCV data.
     
     P0: Now also fetches 4H data from OKX for 4H timeframe features.
@@ -67,9 +80,8 @@ def _compute_technical_indicators_from_df(df: pd.DataFrame) -> Dict[str, float]:
     # ─── P0: 4H Timeframe Features ───
     # Fetch 4H data from OKX and compute 4H support-line bias features
     try:
-        import ccxt
-        exchange = ccxt.okx({"enableRateLimit": True, "verbose": False})
-        ohlcv_4h = exchange.fetch_ohlcv("BTC/USDT", "4h", limit=300)
+        if ohlcv_4h is None:
+            ohlcv_4h = _fetch_okx_4h_ohlcv(limit=300)
         if ohlcv_4h and len(ohlcv_4h) >= 200:
             candles_4h = {
                 "timestamps": np.array([o[0] for o in ohlcv_4h]),
@@ -171,7 +183,7 @@ def load_latest_raw_data(
     return pd.DataFrame(data)
 
 
-def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
+def compute_features_from_raw(df: pd.DataFrame, *, ohlcv_4h=None) -> Optional[Dict]:
     """
     計算 8 個 IC-validated 特徵（最新一筆）。
     需要至少 72 筆歷史數據才能計算完整特徵。
@@ -384,7 +396,7 @@ def compute_features_from_raw(df: pd.DataFrame) -> Optional[Dict]:
     # ─── P0 #H161: Technical Indicators (5 IC-validated) ───
     # MACD-Hist IC=+0.1485, RSI IC=+0.0992, VWAP IC=+0.0969,
     # ATR IC=+0.0835, BB% IC=+0.0595 — all far exceed legacy senses
-    ti = _compute_technical_indicators_from_df(df)
+    ti = _compute_technical_indicators_from_df(df, ohlcv_4h=ohlcv_4h)
     features["feat_rsi14"] = ti.get("feat_rsi14", 0.5)
     features["feat_macd_hist"] = ti.get("feat_macd_hist", 0.0)
     features["feat_atr_pct"] = ti.get("feat_atr_pct", 0.0)
@@ -778,6 +790,7 @@ def backfill_missing_feature_rows(
     *,
     lookback_days: int | None = None,
     max_rows: int | None = None,
+    compute_window_rows: int = FEATURE_BACKFILL_COMPUTE_WINDOW_ROWS,
 ) -> int:
     """Compute features for raw timestamps that do not yet have a feature row.
 
@@ -800,6 +813,8 @@ def backfill_missing_feature_rows(
 
     inserted = 0
     min_window = 10
+    ohlcv_4h = _fetch_okx_4h_ohlcv(limit=300)
+    effective_window_rows = max(int(compute_window_rows or 0), min_window)
     for end_idx in range(min_window, len(df) + 1):
         if max_rows is not None and inserted >= max_rows:
             break
@@ -808,7 +823,8 @@ def backfill_missing_feature_rows(
             continue
         if cutoff is not None and ts < cutoff:
             continue
-        features = compute_features_from_raw(df.iloc[:end_idx])
+        start_idx = max(0, end_idx - effective_window_rows)
+        features = compute_features_from_raw(df.iloc[start_idx:end_idx], ohlcv_4h=ohlcv_4h)
         if not features:
             continue
         saved = save_features_to_db(session, features)
@@ -830,6 +846,7 @@ def repair_recent_feature_continuity(
     lookback_days: int = 30,
     expected_gap_hours: float = 4.0,
     max_backfill_rows: int | None = None,
+    compute_window_rows: int = FEATURE_BACKFILL_COMPUTE_WINDOW_ROWS,
     return_details: bool = False,
 ) -> int | Dict:
     """Backfill missing feature rows for recent raw timestamps and report continuity status."""
@@ -861,6 +878,7 @@ def repair_recent_feature_continuity(
         symbol,
         lookback_days=lookback_days,
         max_rows=max_backfill_rows,
+        compute_window_rows=compute_window_rows,
     )
 
     existing_after = _load_existing_feature_timestamps(session, symbol)
@@ -873,6 +891,7 @@ def repair_recent_feature_continuity(
         "symbol": symbol,
         "lookback_days": lookback_days,
         "max_backfill_rows": max_backfill_rows,
+        "compute_window_rows": compute_window_rows,
         "raw_rows_in_window": len(eligible_recent_timestamps),
         "missing_before": len(missing_before),
         "inserted_total": inserted,

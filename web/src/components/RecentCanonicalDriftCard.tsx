@@ -161,8 +161,33 @@ function formatRegimeLossLabel(_label: string, payload?: CanonicalTailRegimeBrea
   return `${losses}/${rows} (${formatPct(payload.loss_rate)})`;
 }
 
+function hasMeaningfulRootCauseValue(value: unknown): boolean {
+  if (value === null || typeof value === "undefined") return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value === "number" || typeof value === "boolean") return true;
+  if (Array.isArray(value)) return value.some((item) => hasMeaningfulRootCauseValue(item));
+  if (typeof value === "object") return Object.values(value).some((item) => hasMeaningfulRootCauseValue(item));
+  return true;
+}
+
+function hasCanonicalTailRootCauseContent(rootCause?: CanonicalTailRootCause | null): rootCause is CanonicalTailRootCause {
+  if (!rootCause) return false;
+  return [
+    rootCause.window,
+    rootCause.rows,
+    rootCause.losses,
+    rootCause.wins,
+    rootCause.loss_path_breakdown,
+    rootCause.regime_breakdown,
+    rootCause.dominant_loss_regime,
+    rootCause.top_4h_shift_features,
+    rootCause.feature_shift,
+    rootCause.key_findings,
+  ].some((value) => hasMeaningfulRootCauseValue(value));
+}
+
 function renderCanonicalTailRootCause(rootCause?: CanonicalTailRootCause | null) {
-  if (!rootCause) return null;
+  if (!hasCanonicalTailRootCauseContent(rootCause)) return null;
   const pathBreakdown = rootCause.loss_path_breakdown ?? {};
   const regimeBreakdown = rootCause.regime_breakdown ?? {};
   const topShiftLabels = formatFeatureLabels(rootCause.top_4h_shift_features ?? null);

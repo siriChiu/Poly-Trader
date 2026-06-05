@@ -112,6 +112,161 @@ def test_q35_audit_summary_preserves_runtime_floor_cross_blocker_truth(tmp_path,
     assert summary["candidate_patch_feature"] == "feat_4h_bias50_formula"
 
 
+def test_drilldown_prefers_fresh_root_cause_artifact_over_stale_probe_copy(tmp_path, monkeypatch):
+    probe_path = tmp_path / "live_predict_probe.json"
+    root_cause_path = tmp_path / "q15_bucket_root_cause.json"
+    out_json = tmp_path / "live_decision_quality_drilldown.json"
+    out_md = tmp_path / "live_decision_quality_drilldown.md"
+    q35_path = tmp_path / "q35_scaling_audit.json"
+    q35_path.write_text("{}", encoding="utf-8")
+
+    root_cause_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-06-05T03:20:58Z",
+                "bucket_scope_label": "current-live q00 bucket",
+                "verdict": "same_lane_neighbor_bucket_dominates",
+                "candidate_patch_type": "structure_component_scoring",
+                "candidate_patch_feature": "feat_4h_bb_pct_b",
+                "reason": "same exact lane neighbor dominates.",
+                "verify_next": "compare current row with dominant neighbor 4H component diff.",
+                "current_live": {
+                    "structure_bucket": "BLOCK|bias200_below_min|q00",
+                    "structure_quality": 0.0593,
+                    "q15_threshold": 0.15,
+                    "q35_threshold": 0.35,
+                    "support_status": "exact_supported",
+                    "support_route_verdict": "exact_bucket_supported",
+                    "support_current_rows": 131,
+                    "support_minimum_rows": 50,
+                    "support_gap_to_minimum": 0,
+                    "gap_to_q35_boundary": 0.2907,
+                },
+                "exact_live_lane": {
+                    "dominant_neighbor_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                    "dominant_neighbor_rows": 174,
+                    "near_boundary_rows": 293,
+                },
+                "candidate_patch": {"type": "structure_component_scoring", "feature": "feat_4h_bb_pct_b"},
+                "floor_gap_attribution": {
+                    "trade_floor": 0.55,
+                    "entry_quality": 0.5788,
+                    "remaining_gap_to_floor": 0.0,
+                },
+                "artifact_context_freshness": {
+                    "verdict": "current_context",
+                    "mismatched_fields": [],
+                    "reference_mismatched_fields": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    probe_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-06-05T03:18:48Z",
+                "feature_timestamp": "2026-06-05 03:00:00",
+                "target_col": "simulated_pyramid_win",
+                "signal": "HOLD",
+                "confidence": 0.6,
+                "should_trade": False,
+                "regime_label": "bear",
+                "regime_gate": "BLOCK",
+                "entry_quality": 0.5788,
+                "entry_quality_label": "C",
+                "entry_quality_components": {
+                    "entry_quality": 0.5788,
+                    "trade_floor": 0.55,
+                    "base_quality": 0.752,
+                    "base_quality_weight": 0.75,
+                    "structure_quality": 0.0593,
+                    "structure_quality_weight": 0.25,
+                    "base_components": [],
+                    "structure_components": [],
+                },
+                "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+                "deployment_blocker_reason": "toxic exact bucket",
+                "deployment_blocker_source": "decision_quality_contract",
+                "deployment_blocker_details": {
+                    "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+                    "current_live_structure_bucket_rows": 131,
+                    "exact_live_structure_bucket_rows": 131,
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 0,
+                    "support_route_verdict": "exact_bucket_supported",
+                    "support_route_deployable": True,
+                    "support_progress": {
+                        "status": "exact_supported",
+                        "current_rows": 131,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 0,
+                    },
+                },
+                "support_progress": {
+                    "status": "exact_supported",
+                    "current_rows": 131,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 0,
+                },
+                "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+                "current_live_structure_bucket_rows": 131,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 0,
+                "support_route_verdict": "exact_bucket_supported",
+                "support_route_deployable": True,
+                "allowed_layers_raw": 0,
+                "allowed_layers_raw_reason": "regime_gate_block",
+                "allowed_layers": 0,
+                "allowed_layers_reason": "exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
+                "execution_guardrail_reason": "exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade",
+                "runtime_closure_state": "deployment_guardrail_blocks_trade",
+                "runtime_closure_summary": "current bucket blocked by toxic exact bucket",
+                "floor_cross_verdict": "floor_already_crossed_and_support_ready",
+                "decision_quality_scope_pathology_summary": {},
+                "decision_quality_scope_diagnostics": {},
+                "current_bucket_root_cause": {
+                    "verdict": "current_exact_support_under_minimum",
+                    "candidate_patch_type": "support_accumulation_or_semantic_rebaseline",
+                    "candidate_patch_feature": None,
+                    "support_current_rows": 19,
+                    "support_minimum_rows": 50,
+                    "support_gap_to_minimum": 31,
+                },
+                "q15_bucket_root_cause": {
+                    "verdict": "current_exact_support_under_minimum",
+                    "candidate_patch_type": "support_accumulation_or_semantic_rebaseline",
+                    "candidate_patch_feature": None,
+                    "support_current_rows": 19,
+                    "support_minimum_rows": 50,
+                    "support_gap_to_minimum": 31,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(live_drilldown, "PROBE_PATH", probe_path)
+    monkeypatch.setattr(live_drilldown, "Q15_BUCKET_ROOT_CAUSE_PATH", root_cause_path)
+    monkeypatch.setattr(live_drilldown, "Q35_AUDIT_PATH", q35_path)
+    monkeypatch.setattr(live_drilldown, "OUT_JSON", out_json)
+    monkeypatch.setattr(live_drilldown, "OUT_MD", out_md)
+
+    live_drilldown.main()
+
+    payload = json.loads(out_json.read_text(encoding="utf-8"))
+    markdown = out_md.read_text(encoding="utf-8")
+
+    assert payload["current_bucket_root_cause"]["verdict"] == "same_lane_neighbor_bucket_dominates"
+    assert payload["current_bucket_root_cause"]["candidate_patch_type"] == "structure_component_scoring"
+    assert payload["current_bucket_root_cause"]["candidate_patch_feature"] == "feat_4h_bb_pct_b"
+    assert payload["current_bucket_root_cause"]["support_current_rows"] == 131
+    assert payload["current_bucket_root_cause"]["support_gap_to_minimum"] == 0
+    assert payload["q15_bucket_root_cause"]["support_current_rows"] == 131
+    assert "exact_support=131/50" in markdown
+    assert "exact_support=19/50" not in markdown
+
+
 def test_component_gap_attribution_identifies_best_single_component_and_bias50_counterfactual():
     eq_components = {
         "entry_quality": 0.499,

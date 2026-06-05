@@ -460,6 +460,38 @@ def test_load_recent_canonical_drift_summary_maps_nested_reference_window_compar
     assert blocking["summary"]["reference_window_comparison"]["top_mean_shift_features"][0]["feature"] == "feat_vix"
 
 
+def test_load_recent_canonical_drift_summary_drops_empty_tail_root_cause_placeholder(tmp_path):
+    artifact = {
+        "generated_at": "2026-04-22T03:24:15.971116+00:00",
+        "target_col": "simulated_pyramid_win",
+        "horizon_minutes": 1440,
+        "primary_window": {
+            "window": 100,
+            "alerts": [],
+            "summary": {
+                "rows": 100,
+                "win_rate": 0.58,
+                "drift_interpretation": "healthy",
+            },
+        },
+        "canonical_tail_root_cause": {
+            "generated_at": "2026-04-22T03:24:15.971116+00:00",
+            "loss_path_breakdown": {},
+            "regime_breakdown": {},
+            "top_4h_shift_features": [],
+            "feature_shift": {},
+            "key_findings": [],
+        },
+    }
+    artifact_path = tmp_path / "recent_drift_report.json"
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+
+    summary = api_module._load_recent_canonical_drift_summary(artifact_path)
+
+    assert summary["primary_window"]["summary"]["rows"] == 100
+    assert "canonical_tail_root_cause" not in summary
+
+
 
 def test_load_recent_canonical_drift_summary_falls_back_to_issue_blocking_window_when_artifact_placeholder_is_empty(tmp_path, monkeypatch):
     artifact = {
@@ -627,8 +659,39 @@ def test_load_recent_canonical_drift_summary_falls_back_to_issue_blocking_window
     assert summary["blocking_window"]["summary"]["reference_window_comparison"]["top_mean_shift_features"][0]["feature"] == "feat_4h_bias200"
 
 
+def test_execution_surface_contract_syncs_runtime_readiness_from_metadata_smoke():
+    contract = api_module._build_execution_surface_contract()
+
+    synced = api_module._sync_execution_surface_contract_readiness(
+        contract,
+        {
+            "runtime_ready": False,
+            "readiness_scope": "venue_runtime_proof_required",
+            "readiness_state": "blocked_until_runtime_lifecycle_proof",
+            "runtime_ready_blockers": ["order ack lifecycle 尚未驗證", "fill lifecycle 尚未驗證"],
+        },
+    )
+
+    assert synced["live_ready"] is False
+    assert synced["readiness_scope"] == "venue_runtime_proof_required"
+    assert synced["readiness_state"] == "blocked_until_runtime_lifecycle_proof"
+    assert synced["live_ready_blockers"] == ["order ack lifecycle 尚未驗證", "fill lifecycle 尚未驗證"]
+    assert "live exchange credential 尚未驗證" not in synced["live_ready_blockers"]
+
+
 def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     reconciliation_payload = {"status": "warning", "summary": "reconciliation evidence"}
+    venue_dry_run_proof_payload = {
+        "artifact": "venue_dry_run_proof",
+        "status": "blocked_missing_runtime_backed_proof",
+        "credential_present": False,
+        "runtime_ready": False,
+        "secrets_redacted": True,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "dry_run_only": True,
+        "fill_simulation": {"status": "blocked_missing_credentials"},
+    }
     monkeypatch.setattr(api_module, "get_runtime_status", lambda key, default=None: {
         "raw_continuity": {
             "status": "repaired",
@@ -640,8 +703,9 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
         },
     }.get(key, default))
     monkeypatch.setattr(api_module, "is_automation_enabled", lambda: True)
-    monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "okx"}, "execution": {"mode": "paper", "venue": "okx", "venues": {"okx": {"enabled": True}}}})
+    monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "okx"}, "execution": {"mode": "paper", "enable_live_trading": False, "venue": "okx", "venues": {"okx": {"enabled": True}}}})
     monkeypatch.setattr(api_module, "_ensure_execution_metadata_smoke_governance", lambda cfg, symbol: {"all_ok": True, "ok_count": 1, "venues_checked": 1, "venues": [{"venue": "okx", "ok": True}], "governance": {"status": "healthy"}})
+    monkeypatch.setattr(api_module, "_load_venue_dry_run_proof_summary", lambda: venue_dry_run_proof_payload)
     monkeypatch.setattr(api_module, "_load_recent_canonical_drift_summary", lambda: {
         "generated_at": "2026-04-22T00:00:00Z",
         "primary_window": {
@@ -705,6 +769,17 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["execution"]["guardrails"]["consecutive_failures"] >= 0
     assert payload["execution_reconciliation"] == reconciliation_payload
     assert payload["execution_metadata_smoke"]["ok_count"] == 1
+    assert payload["venue_dry_run_proof"] == venue_dry_run_proof_payload
+    assert payload["execution"]["venue_dry_run_proof"] == venue_dry_run_proof_payload
+    assert payload["execution_surface_contract"]["venue_dry_run_proof"] == venue_dry_run_proof_payload
+    status_policy_gate = payload["execution_surface_contract"]["live_canary_policy_gate"]
+    assert payload["execution"]["live_canary_policy_gate"] == status_policy_gate
+    assert status_policy_gate["key"] == "live_canary_policy_gate"
+    assert status_policy_gate["status"] == "blocked"
+    assert status_policy_gate["passed"] is False
+    assert "execution.mode must be live" in status_policy_gate["blockers"]
+    assert "enable_live_trading must be true" in status_policy_gate["blockers"]
+    assert "live_canary.enabled=false" in status_policy_gate["summary"]
     assert payload["execution_surface_contract"]["canonical_execution_route"] == "dashboard"
     assert payload["execution_surface_contract"]["canonical_surface_label"] == "Dashboard / Execution 狀態面板"
     assert payload["execution_surface_contract"]["operations_surface"]["route"] == "/execution"
@@ -757,6 +832,50 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
         "order ack lifecycle 尚未驗證",
         "fill lifecycle 尚未驗證",
     ]
+
+
+def test_load_venue_dry_run_proof_summary_is_secret_safe(monkeypatch, tmp_path):
+    proof_path = tmp_path / "venue_dry_run_proof.json"
+    proof_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-06-04T04:00:00Z",
+                "artifact": "venue_dry_run_proof",
+                "status": "blocked_missing_runtime_backed_proof",
+                "credential_present": False,
+                "runtime_ready": False,
+                "secrets_redacted": False,
+                "api_key": "should_not_leak",
+                "password": "should_not_leak",
+                "runtime_ready_blockers": ["runtime-backed fill proof missing"],
+                "order_preview": {
+                    "status": "blocked_missing_credentials",
+                    "order_submission_enabled": False,
+                    "secret_token": "should_not_leak",
+                },
+                "fill_simulation": {"status": "blocked_missing_credentials", "runtime_backed": False},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_module, "_VENUE_DRY_RUN_PROOF_PATH", proof_path)
+
+    payload = api_module._load_venue_dry_run_proof_summary()
+
+    assert payload is not None
+    assert payload["artifact"] == "venue_dry_run_proof"
+    assert payload["artifact_path"] == str(proof_path)
+    assert payload["status"] == "blocked_missing_runtime_backed_proof"
+    assert payload["secrets_redacted"] is True
+    assert payload["order_submission_enabled"] is False
+    assert payload["risk_on_order_enabled"] is False
+    assert payload["dry_run_only"] is True
+    assert payload["runtime_ready"] is False
+    assert payload["fill_simulation"]["status"] == "blocked_missing_credentials"
+    assert payload["blockers"] == ["runtime-backed fill proof missing"]
+    assert "api_key" not in str(payload).lower()
+    assert "password" not in str(payload).lower()
+    assert "token" not in str(payload).lower()
 
 
 def test_live_runtime_truth_marks_aligned_exact_support_under_minimum_as_blocking():
@@ -1437,6 +1556,7 @@ def test_api_status_passes_db_session_into_execution_service(monkeypatch):
     monkeypatch.setattr(api_module, "get_db", lambda: db_session)
     monkeypatch.setattr(api_module, "get_runtime_status", lambda key, default=None: default)
     monkeypatch.setattr(api_module, "_ensure_execution_metadata_smoke_governance", lambda cfg, symbol: None)
+    monkeypatch.setattr(api_module, "_load_venue_dry_run_proof_summary", lambda: None)
     monkeypatch.setattr(api_module, "is_automation_enabled", lambda: False)
     monkeypatch.setattr(api_module, "get_config", lambda: {
         "trading": {"dry_run": False, "symbol": "BTCUSDT", "venue": "okx"},

@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -9,6 +9,66 @@ from backtesting import strategy_lab
 from server.routes import api as api_module
 from model import predictor as predictor_module
 from model import q35_bias50_calibration as q35_calibration_module
+
+
+def test_live_decision_quality_contract_normalizes_symbol_variants_for_support_rows(tmp_path, monkeypatch):
+    from database.models import FeaturesNormalized, Labels, init_db
+
+    session = init_db(f"sqlite:///{tmp_path / 'symbol_variant_support.db'}")
+    features = {
+        "regime_label": "bear",
+        "feat_4h_bias200": -12.0,
+        "feat_4h_bias50": -11.0,
+        "feat_4h_bb_pct_b": 0.2,
+        "feat_4h_dist_bb_lower": 0.8,
+        "feat_4h_dist_swing_low": 1.0,
+        "feat_nose": 0.3,
+        "feat_pulse": 0.2,
+        "feat_ear": 0.4,
+    }
+    profile = predictor_module._build_live_decision_profile(features)
+    base_ts = datetime(2026, 6, 1, 0, 0, 0)
+    for idx in range(60):
+        ts = base_ts + timedelta(hours=idx)
+        session.add(
+            FeaturesNormalized(
+                timestamp=ts,
+                symbol="BTC/USDT",
+                **features,
+            )
+        )
+        session.add(
+            Labels(
+                timestamp=ts,
+                symbol="BTCUSDT",
+                horizon_minutes=1440,
+                simulated_pyramid_win=1 if idx % 3 == 0 else 0,
+                simulated_pyramid_pnl=0.01 if idx % 3 == 0 else -0.01,
+                simulated_pyramid_quality=0.3 if idx % 3 == 0 else -0.1,
+                simulated_pyramid_drawdown_penalty=0.15,
+                simulated_pyramid_time_underwater=0.4,
+            )
+        )
+    session.commit()
+    monkeypatch.setattr(
+        predictor_module,
+        "_load_dynamic_window_guardrail",
+        lambda: {"recommended_best_n": 60, "raw_best_guardrailed": False, "recommended_alerts": []},
+    )
+
+    contract = predictor_module._infer_live_decision_quality_contract(
+        session,
+        profile,
+        horizon_minutes=1440,
+        lookback_rows=60,
+    )
+
+    exact_scope = contract["decision_quality_scope_diagnostics"]["regime_label+regime_gate+entry_quality_label"]
+    assert contract["decision_quality_calibration_window"] == 60
+    assert exact_scope["current_live_structure_bucket"] == profile["structure_bucket"]
+    assert exact_scope["current_live_structure_bucket_rows"] == 60
+    assert exact_scope["current_live_structure_bucket_metrics"]["rows"] == 60
+    session.close()
 
 
 class _FakeQuery:
@@ -173,6 +233,33 @@ def test_api_feature_coverage_flags_low_distinct_series(monkeypatch):
     assert result["features"]["4h_ma_order"]["chart_usable"] is True
     assert result["features"]["4h_ma_order"]["score_usable"] is True
     assert result["features"]["4h_ma_order"]["maturity_tier"] == "core"
+
+
+def test_current_live_deployment_blocker_history_builds_rolling_line_points():
+    rows = [
+        {"timestamp": datetime(2026, 1, 1, 0, idx), "target": target}
+        for idx, target in enumerate([1, 0, 0, 0, 0, 0])
+    ]
+
+    payload = api_module._build_circuit_breaker_history_from_rows(
+        rows,
+        visible_limit=3,
+        window_size=5,
+        win_rate_floor=0.4,
+        streak_threshold=3,
+        horizon_minutes=1440,
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["rows_available"] == 6
+    assert len(payload["points"]) == 3
+    latest = payload["latest"]
+    assert latest["consecutive_loss_streak"] == 5
+    assert latest["recent_window_wins"] == 0
+    assert latest["recent_window_win_rate"] == 0.0
+    assert latest["additional_recent_window_wins_needed"] == 2
+    assert latest["triggered_by"] == ["streak", "recent_win_rate"]
+    assert latest["circuit_breaker_active"] is True
 
 
 def test_circuit_breaker_uses_simulated_target_column():

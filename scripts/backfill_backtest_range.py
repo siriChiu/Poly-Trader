@@ -102,11 +102,19 @@ def compute_missing_range(
     raw_start = _parse_ts(coverage.get("raw", {}).get("start"))
     feature_start = _parse_ts(coverage.get("features", {}).get("start"))
     label_start = _parse_ts(coverage.get("labels", {}).get("start"))
+    raw_end = _parse_ts(coverage.get("raw", {}).get("end"))
+    feature_end = _parse_ts(coverage.get("features", {}).get("end"))
+    label_end = _parse_ts(coverage.get("labels", {}).get("end"))
 
     missing_raw_start = raw_start is None or start_dt < raw_start
     missing_feature_start = feature_start is None or start_dt < feature_start
     missing_label_start = label_start is None or start_dt < label_start
-    requested_days = max(1, int((datetime.utcnow() - start_dt).total_seconds() / 86400) + 2)
+    missing_raw_end = raw_end is None or end_dt > raw_end
+    missing_feature_end = feature_end is None or end_dt > feature_end
+    missing_label_end = label_end is None or end_dt > label_end
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    requested_until = max(now_utc, end_dt)
+    requested_days = max(1, int((requested_until - start_dt).total_seconds() / 86400) + 2)
 
     return {
         "target_start": _iso(start_dt),
@@ -115,7 +123,17 @@ def compute_missing_range(
         "missing_raw_start": missing_raw_start,
         "missing_feature_start": missing_feature_start,
         "missing_label_start": missing_label_start,
-        "needs_backfill": missing_raw_start or missing_feature_start or missing_label_start,
+        "missing_raw_end": missing_raw_end,
+        "missing_feature_end": missing_feature_end,
+        "missing_label_end": missing_label_end,
+        "needs_backfill": (
+            missing_raw_start
+            or missing_feature_start
+            or missing_label_start
+            or missing_raw_end
+            or missing_feature_end
+            or missing_label_end
+        ),
     }
 
 
@@ -171,11 +189,16 @@ def run_backfill_pipeline(
     if apply_changes and plan["needs_backfill"]:
         if progress_callback:
             progress_callback("plan", {"plan": plan, "coverage_before": coverage_before})
-        if plan["missing_raw_start"]:
+        if plan["missing_raw_start"] or plan["missing_raw_end"]:
             if progress_callback:
                 progress_callback("raw", {"requested_days": plan["requested_days"]})
             actions["raw_rows_inserted"] = fetch_and_store_raw_history(session, symbol, plan["requested_days"])
-        if plan["missing_raw_start"] or plan["missing_feature_start"]:
+        if (
+            plan["missing_raw_start"]
+            or plan["missing_raw_end"]
+            or plan["missing_feature_start"]
+            or plan["missing_feature_end"]
+        ):
             if progress_callback:
                 progress_callback("features", {"symbol": symbol})
             actions["feature_rows_inserted"] = backfill_missing_feature_rows(session, symbol=symbol, lookback_days=None)
@@ -183,7 +206,14 @@ def run_backfill_pipeline(
                 progress_callback("4h_distance", {"symbol": symbol})
             backfill_4h_distance_module.main()
             actions["four_h_distance_refreshed"] = True
-        if plan["missing_raw_start"] or plan["missing_feature_start"] or plan["missing_label_start"]:
+        if (
+            plan["missing_raw_start"]
+            or plan["missing_raw_end"]
+            or plan["missing_feature_start"]
+            or plan["missing_feature_end"]
+            or plan["missing_label_start"]
+            or plan["missing_label_end"]
+        ):
             if progress_callback:
                 progress_callback("labels", {"horizon_hours": horizon_hours})
             labels_df = generate_future_return_labels(session, symbol=symbol, horizon_hours=horizon_hours)

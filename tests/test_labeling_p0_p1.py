@@ -1,11 +1,14 @@
 from datetime import datetime
 from pathlib import Path
 
-from database.models import FeaturesNormalized, RawMarketData, init_db
+import pandas as pd
+
+from database.models import FeaturesNormalized, Labels, RawMarketData, init_db
 from data_ingestion.labeling import (
     DEFAULT_LONG_MAX_DD_PCT,
     DEFAULT_LONG_TP_PCT,
     generate_future_return_labels,
+    save_labels_to_db,
 )
 from feature_engine.preprocessor import save_features_to_db
 
@@ -145,5 +148,79 @@ def test_generate_future_return_labels_uses_path_aware_long_win(tmp_path: Path):
         assert row["simulated_pyramid_drawdown_penalty"] >= 0
         assert 0 <= row["simulated_pyramid_time_underwater"] <= 1
         assert row["label_spot_long_win"] == 1
+    finally:
+        session.close()
+
+
+def test_generate_future_return_labels_accepts_symbol_variants(tmp_path: Path):
+    session = init_db(_sqlite_url(tmp_path / "label_symbol_variants.db"))
+    try:
+        ts0 = datetime(2026, 1, 5, 0, 0, 0)
+        session.add(FeaturesNormalized(timestamp=ts0, symbol="BTC/USDT"))
+        session.add_all(
+            [
+                RawMarketData(timestamp=ts0, symbol="BTCUSDT", close_price=100.0),
+                RawMarketData(timestamp=ts0.replace(hour=12), symbol="BTCUSDT", close_price=103.0),
+                RawMarketData(timestamp=ts0.replace(day=6), symbol="BTCUSDT", close_price=104.0),
+            ]
+        )
+        session.commit()
+
+        labels_df = generate_future_return_labels(session, symbol="BTCUSDT", horizon_hours=24)
+
+        assert len(labels_df) == 1
+        assert labels_df.iloc[0]["timestamp"] == ts0
+        assert labels_df.iloc[0]["label_spot_long_win"] == 1
+    finally:
+        session.close()
+
+
+def test_save_labels_to_db_updates_existing_symbol_variant_row(tmp_path: Path):
+    session = init_db(_sqlite_url(tmp_path / "save_label_symbol_variants.db"))
+    try:
+        ts0 = datetime(2026, 1, 6, 0, 0, 0)
+        session.add_all(
+            [
+                FeaturesNormalized(timestamp=ts0, symbol="BTC/USDT", regime_label="bull"),
+                Labels(
+                    timestamp=ts0,
+                    symbol="BTC/USDT",
+                    horizon_minutes=1440,
+                    future_return_pct=None,
+                    label_spot_long_win=None,
+                    label_up=None,
+                ),
+            ]
+        )
+        session.commit()
+
+        labels_df = pd.DataFrame(
+            [
+                {
+                    "timestamp": ts0,
+                    "future_return_pct": 0.04,
+                    "future_max_drawdown": -0.01,
+                    "future_max_runup": 0.05,
+                    "label_spot_long_win": 1,
+                    "label_spot_long_tp_hit": 1,
+                    "label_spot_long_quality": 1.3,
+                    "simulated_pyramid_win": 1,
+                    "simulated_pyramid_pnl": 0.02,
+                    "simulated_pyramid_quality": 0.4,
+                    "simulated_pyramid_drawdown_penalty": 0.2,
+                    "simulated_pyramid_time_underwater": 0.1,
+                    "label_sell_win": 0,
+                    "label_up": 1,
+                }
+            ]
+        )
+
+        save_labels_to_db(session, labels_df, symbol="BTCUSDT", horizon_hours=24)
+
+        rows = session.query(Labels).filter(Labels.horizon_minutes == 1440).all()
+        assert len(rows) == 1
+        assert rows[0].symbol == "BTC/USDT"
+        assert rows[0].label_spot_long_win == 1
+        assert rows[0].regime_label == "bull"
     finally:
         session.close()

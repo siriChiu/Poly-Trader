@@ -267,6 +267,8 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
     assert gates["current_live_support_gate"]["gap"] == 48
     assert gates["circuit_breaker_gate"]["gap"] == 7
     assert gates["venue_gate"]["status"] == "blocked"
+    assert gates["live_canary_policy_gate"]["status"] == "blocked"
+    assert "execution.mode must be live" in gates["live_canary_policy_gate"]["blockers"]
     assert gates["shadow_observation_gate"]["status"] == "ready"
     assert "買入 / 加倉" in " ".join(readiness["what_cannot_do_now"])
     assert "影子觀察" in " ".join(readiness["what_can_do_now"])
@@ -277,8 +279,17 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
     assert readiness["alternative_solution_review"]["status"] == "required"
     assert readiness["alternative_solution_review"]["live_exposure_allowed"] is False
     assert readiness["alternative_solution_review"]["order_submission_enabled"] is False
+    assert "shadow_buy" in " ".join(readiness["alternative_solution_review"]["allowed_today"])
     assert "啟動 paper-shadow" in " ".join(readiness["alternative_solution_review"]["allowed_today"])
     assert "買入 / 加倉" in " ".join(readiness["alternative_solution_review"]["not_allowed"])
+    milestone = readiness["milestone_progression"]
+    assert milestone["status"] == "safe_lane_active"
+    assert milestone["current_milestone"] == "M5"
+    assert milestone["active_lane"] == "paper_shadow_buy"
+    assert milestone["auto_adjustment_applied"] is True
+    assert milestone["preferred_entrypoint"]["endpoint"] == "/api/trade"
+    assert milestone["preferred_entrypoint"]["payload"] == {"side": "shadow_buy", "symbol": "BTC-USDT", "qty": 0.00001}
+    assert milestone["preferred_entrypoint"]["live_order_submitted"] is False
 
     ledger = payload["shadow_trade_ledger"]
     assert ledger["status"] == "recording_ready"
@@ -300,6 +311,7 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
     assert venue_proof["order_preview"]["order_submission_enabled"] is False
     assert venue_proof["ack_simulation"]["runtime_backed"] is False
     assert venue_proof["cancel_simulation"]["runtime_backed"] is False
+    assert venue_proof["fill_simulation"]["runtime_backed"] is False
     assert venue_proof["reconciliation_check"]["runtime_backed"] is False
 
     answers = payload["canary_gap_answers"]
@@ -308,8 +320,11 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
     assert any("還差 48" in item for item in answers["distance_to_canary"])
     assert any("還差 7" in item for item in answers["distance_to_canary"])
     assert any("time-to-evidence" in item for item in answers["distance_to_canary"])
+    assert any("Live-canary policy gate" in item for item in answers["distance_to_canary"])
     assert answers["time_to_evidence"]["status"] == "indeterminate_stalled_support"
     assert answers["alternative_solution_review"]["status"] == "required"
+    assert answers["milestone_progression"]["active_lane"] == "paper_shadow_buy"
+    assert answers["milestone_progression"]["preferred_entrypoint"]["payload"]["side"] == "shadow_buy"
     readiness_text = str(readiness) + str(answers)
     for raw_token in ["broader bucket", "reference support", "risk-on", "live automation", "deployable"]:
         assert raw_token not in readiness_text
@@ -318,6 +333,338 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
     assert answers["first_canary_plan_if_all_gates_pass"]["exposure_pct_max"] == 0.01
     assert answers["first_canary_plan_if_all_gates_pass"]["add_exposure_enabled"] is False
 
+
+def test_execution_readiness_requires_live_canary_policy_after_runtime_gates_pass():
+    status_payload = _status_payload()
+    status_payload["execution_surface_contract"]["live_ready"] = True
+    status_payload["execution_surface_contract"]["live_ready_blockers"] = []
+    live_truth = status_payload["execution"]["live_runtime_truth"]
+    live_truth.update(
+        {
+            "deployment_blocker": None,
+            "runtime_closure_state": "ready",
+            "allowed_layers": 1,
+            "current_live_structure_bucket": "ALLOW|trend|q65",
+            "current_live_structure_bucket_rows": 50,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 0,
+            "support_route_verdict": "exact_bucket_supported",
+            "support_progress": {
+                "current_rows": 50,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 0,
+            },
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "recent_window": 50,
+                    "current_recent_window_wins": 16,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 0,
+                    "release_ready": True,
+                }
+            },
+        }
+    )
+    high_conviction_topk = {
+        "deployment_readiness_status": "deployable_candidates_available",
+        "risk_qualified_count": 1,
+        "runtime_blocked_candidate_count": 0,
+        "deployable_count": 1,
+        "nearest_deployable_rows": [{"model_name": "random_forest", "threshold_name": "top_2pct"}],
+    }
+    status_payload["execution_surface_contract"]["high_conviction_topk"] = high_conviction_topk
+    status_payload["execution"]["high_conviction_topk"] = high_conviction_topk
+    status_payload["venue_dry_run_proof"] = {
+        "artifact": "venue_dry_run_proof",
+        "status": "runtime_backed_proof_complete",
+        "credential_present": True,
+        "secrets_redacted": True,
+        "runtime_ready": True,
+        "runtime_ready_count": 1,
+        "venues_checked": 1,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "dry_run_only": True,
+        "runtime_ready_blockers": [],
+        "order_preview": {"status": "ready", "order_submission_enabled": False},
+        "ack_simulation": {"status": "ready", "runtime_backed": True},
+        "cancel_simulation": {"status": "ready", "runtime_backed": True},
+        "fill_simulation": {"status": "ready", "runtime_backed": True},
+        "reconciliation_check": {"status": "ready", "runtime_backed": True},
+    }
+
+    missing_policy_payload = build_execution_overview(status_payload, config={"execution": {"mode": "paper", "enable_live_trading": False}})
+    missing_policy_readiness = missing_policy_payload["execution_readiness"]
+    missing_policy_gates = {gate["key"]: gate for gate in missing_policy_readiness["gates"]}
+    assert missing_policy_readiness["canary_ready"] is False
+    assert missing_policy_readiness["blocking_gate_key"] == "live_canary_policy_gate"
+    assert missing_policy_gates["live_canary_policy_gate"]["status"] == "blocked"
+    assert "execution.mode must be live" in missing_policy_gates["live_canary_policy_gate"]["blockers"]
+
+    too_wide_policy_payload = build_execution_overview(
+        status_payload,
+        config={
+            "trading": {"dry_run": False},
+            "execution": {
+                "mode": "live",
+                "enable_live_trading": True,
+                "live_canary": {
+                    "enabled": True,
+                    "allowed_symbols": ["BTC/USDT"],
+                    "max_base_qty_by_symbol": {"BTC/USDT": 0.001},
+                },
+            },
+        },
+    )
+    too_wide_gates = {gate["key"]: gate for gate in too_wide_policy_payload["execution_readiness"]["gates"]}
+    assert too_wide_policy_payload["execution_readiness"]["canary_ready"] is False
+    assert too_wide_gates["live_canary_policy_gate"]["status"] == "blocked"
+    assert "symbol max_base_qty_by_symbol cap must be <= 0.0001" in too_wide_gates["live_canary_policy_gate"]["blockers"]
+
+    ready_policy_payload = build_execution_overview(
+        status_payload,
+        config={
+            "trading": {"dry_run": False},
+            "execution": {
+                "mode": "live",
+                "enable_live_trading": True,
+                "live_canary": {
+                    "enabled": True,
+                    "allowed_symbols": ["BTC/USDT"],
+                    "max_base_qty_by_symbol": {"BTC/USDT": 0.0001},
+                },
+            },
+        },
+    )
+    ready_readiness = ready_policy_payload["execution_readiness"]
+    ready_gates = {gate["key"]: gate for gate in ready_readiness["gates"]}
+    assert ready_gates["live_canary_policy_gate"]["status"] == "passed"
+    assert ready_readiness["canary_ready"] is True
+    assert ready_readiness["status"] == "canary_ready"
+    assert ready_readiness["milestone_progression"]["status"] == "bounded_canary_ready"
+    assert ready_readiness["milestone_progression"]["active_lane"] == "bounded_live_canary"
+
+
+
+def test_build_execution_overview_prefers_standalone_venue_dry_run_proof_artifact():
+    status_payload = _status_payload()
+    status_payload["execution_metadata_smoke"] = {
+        "venues": [
+            {
+                "venue": "okx",
+                "credentials_configured": True,
+                "proof_state": "runtime_backed_proof_complete",
+                "blockers": [],
+                "operator_next_action": "metadata fallback should not win",
+            }
+        ]
+    }
+    status_payload["venue_dry_run_proof"] = {
+        "artifact": "venue_dry_run_proof",
+        "artifact_path": "data/venue_dry_run_proof.json",
+        "status": "blocked_missing_runtime_backed_proof",
+        "symbol": "BTC/USDT",
+        "runtime_ready": False,
+        "runtime_ready_count": 0,
+        "venues_checked": 2,
+        "credential_present": False,
+        "secrets_redacted": True,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "dry_run_only": True,
+        "runtime_ready_blockers": ["runtime-backed fill proof missing"],
+        "api_key": "should_not_leak",
+        "password": "should_not_leak",
+        "venues": [
+            {
+                "venue": "okx",
+                "credentials_configured": False,
+                "credential_present": False,
+                "proof_state": "public_metadata_only",
+                "runtime_ready": False,
+                "blockers": ["runtime-backed fill proof missing"],
+                "order_preview": {
+                    "status": "blocked_missing_credentials",
+                    "order_submission_enabled": False,
+                    "api_key": "should_not_leak",
+                },
+                "ack_simulation": {"status": "blocked_missing_credentials", "runtime_backed": False},
+                "cancel_simulation": {"status": "blocked_missing_credentials", "runtime_backed": False},
+                "fill_simulation": {"status": "blocked_missing_credentials", "runtime_backed": False},
+                "reconciliation_check": {"status": "blocked_missing_credentials", "runtime_backed": False},
+                "operator_next_action": "standalone artifact action",
+            }
+        ],
+        "operator_next_action": "standalone artifact action",
+        "verify_next": "python scripts/venue_dry_run_proof.py",
+    }
+
+    payload = build_execution_overview(status_payload, config={"trading": {"max_position_ratio": 0.10}})
+
+    venue_proof = payload["venue_dry_run_proof"]
+    assert venue_proof["artifact"] == "venue_dry_run_proof"
+    assert venue_proof["artifact_path"] == "data/venue_dry_run_proof.json"
+    assert venue_proof["status"] == "blocked_missing_runtime_backed_proof"
+    assert venue_proof["runtime_ready"] is False
+    assert venue_proof["runtime_ready_count"] == 0
+    assert venue_proof["venues_checked"] == 2
+    assert venue_proof["credential_present"] is False
+    assert venue_proof["secrets_redacted"] is True
+    assert venue_proof["order_preview"]["status"] == "blocked_missing_credentials"
+    assert venue_proof["ack_simulation"]["status"] == "blocked_missing_credentials"
+    assert venue_proof["cancel_simulation"]["status"] == "blocked_missing_credentials"
+    assert venue_proof["fill_simulation"]["status"] == "blocked_missing_credentials"
+    assert venue_proof["reconciliation_check"]["status"] == "blocked_missing_credentials"
+    assert venue_proof["operator_next_action"] == "standalone artifact action"
+    assert "api_key" not in str(venue_proof).lower()
+    assert "password" not in str(venue_proof).lower()
+    assert "token" not in str(venue_proof).lower()
+
+    gates = {gate["key"]: gate for gate in payload["execution_readiness"]["gates"]}
+    assert gates["venue_gate"]["status"] == "blocked"
+    assert gates["venue_gate"]["summary"] == "venue dry-run proof blocked_missing_runtime_backed_proof；runtime_ready 0/2"
+    assert gates["venue_gate"]["next_action"] == "standalone artifact action"
+
+
+
+def test_build_execution_overview_exposes_compact_customer_safe_alternative_proof():
+    status_payload = _status_payload()
+    status_payload["customer_safe_alternative_proof"] = {
+        "artifact": "customer_safe_alternative_proof",
+        "generated_at": "2026-06-04T08:41:17Z",
+        "canary_ready": False,
+        "live_exposure_allowed": False,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "support_rows": 0,
+        "minimum_support_rows": 50,
+        "support_gap": 50,
+        "blocking_gate": "circuit_breaker_gate",
+        "primary_blocking_gate": "circuit_breaker_gate",
+        "blocking_gates": ["circuit_breaker_gate", "current_live_support_gate", "model_gate", "venue_gate"],
+        "breaker_release_ready": False,
+        "current_recent_window_wins": 9,
+        "required_recent_window_wins": 15,
+        "additional_recent_window_wins_needed": 6,
+        "topk_deployable_rows": 0,
+        "topk_risk_qualified_rows": 6,
+        "topk_runtime_blocked_candidate_rows": 6,
+        "topk_support_context_status": "fresh_live_probe_overlay",
+        "topk_support_context_freshness_status": "fresh",
+        "topk_support_context_deployment_blocking": False,
+        "topk_live_truth_overlay_blocker": "—",
+        "venue_runtime_ready": False,
+        "venue_status": "blocked_missing_runtime_backed_proof",
+        "blocked_live_lane_count": 1,
+        "alternative_solution_required": True,
+        "alternative_solution_option_count": 3,
+        "alternative_solution_options": 3,
+        "selected_alternative_solution": "paper_shadow_decision_support_sleeve",
+        "selected_alternative": "paper_shadow_decision_support_sleeve",
+        "selected_next_customer_artifact": "data/customer_safe_alternative_proof.json",
+        "selected_next_artifact": "data/customer_safe_alternative_proof.json",
+        "next_customer_action_count": 1,
+        "summary": {
+            "operator_summary": "只允許 paper/shadow；真實買入 / 加倉維持 fail-closed。",
+        },
+        "alternative_solution_portfolio": {
+            "pm_challenge_answered": True,
+            "option_count": 3,
+            "selected_option": "paper_shadow_decision_support_sleeve",
+            "selected_next_artifact": "data/customer_safe_alternative_proof.json",
+            "time_to_evidence_bucket": "semantic_rebaseline_review_required_before_reference_rows_count",
+            "missing_capability_class": "Constraint/Review",
+        },
+        "alternative_solutions": [
+            {
+                "id": "paper_shadow_decision_support_sleeve",
+                "role": "customer_usable_now",
+                "next_artifact": "data/customer_safe_alternative_proof.json",
+                "deployable": False,
+                "live_exposure_allowed": False,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+            },
+            {
+                "id": "semantic_rebaseline_review",
+                "role": "support_policy_alternative",
+                "next_artifact": "OOS + Top-K support audit replay",
+                "deployable": False,
+                "live_exposure_allowed": False,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+            },
+            {
+                "id": "venue_dry_run_readiness_proof",
+                "role": "delivery_risk_reduction",
+                "next_artifact": "venue dry-run lifecycle proof checklist",
+                "deployable": False,
+                "live_exposure_allowed": False,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+            },
+        ],
+        "next_customer_actions": [
+            {
+                "id": "open_execution_paper_shadow",
+                "surface": "/execution",
+                "mode": "paper_shadow",
+                "expected_evidence": "paper/shadow outcome proof",
+                "live_exposure_allowed": False,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+            }
+        ],
+        "blocked_live_lanes": [
+            {
+                "id": "live_buy_add_exposure",
+                "blocking_gate": "circuit_breaker_gate",
+                "blocked_actions": ["live_buy", "live_add"],
+                "live_exposure_allowed": False,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+                "allowed_alternative": "paper/shadow dry-run",
+                "release_condition": {
+                    "primary_blocking_gate": "circuit_breaker_gate",
+                    "breaker_release_ready": False,
+                    "current_recent_window_wins": 9,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 6,
+                    "support_rows": 0,
+                    "minimum_support_rows": 50,
+                    "support_gap": 50,
+                    "topk_deployable_rows": 0,
+                    "venue_runtime_ready": False,
+                    "venue_status": "blocked_missing_runtime_backed_proof",
+                },
+            }
+        ],
+        "source_artifacts": {"runtime_context": {"api_key": "should_not_leak"}},
+    }
+
+    payload = build_execution_overview(status_payload, config={"trading": {"max_position_ratio": 0.10}})
+
+    proof = payload["customer_safe_alternative_proof"]
+    assert proof["artifact"] == "customer_safe_alternative_proof"
+    assert proof["live_exposure_allowed"] is False
+    assert proof["order_submission_enabled"] is False
+    assert proof["risk_on_order_enabled"] is False
+    assert proof["support_rows"] == 0
+    assert proof["support_gap"] == 50
+    assert proof["alternative_solution_options"] == 3
+    assert proof["alternative_solution_option_count"] == 3
+    assert proof["selected_alternative"] == "paper_shadow_decision_support_sleeve"
+    assert proof["selected_alternative"] == proof["selected_alternative_solution"]
+    assert proof["selected_next_artifact"] == proof["selected_next_customer_artifact"]
+    assert proof["summary"]["selected_alternative"] == proof["selected_alternative"]
+    assert proof["summary"]["alternative_solution_options"] == 3
+    assert len(proof["alternative_solutions"]) == 3
+    assert proof["alternative_solutions"][0]["deployable"] is False
+    assert proof["next_customer_actions"][0]["order_submission_enabled"] is False
+    assert proof["blocked_live_lanes"][0]["release_condition"]["support_gap"] == 50
+    assert "source_artifacts" not in proof
+    assert "api_key" not in str(proof).lower()
+    assert "should_not_leak" not in str(proof)
 
 
 def test_high_conviction_shadow_contract_preserves_zero_support_rows_needed():
@@ -444,7 +791,23 @@ def test_build_execution_overview_exposes_strategy_snapshot_summary(monkeypatch,
 
 def test_api_execution_overview_wraps_status_payload_and_registers_execution_control_routes(monkeypatch, tmp_path):
     async def _fake_status():
-        return _status_payload()
+        payload = _status_payload()
+        payload["venue_dry_run_proof"] = {
+            "artifact": "venue_dry_run_proof",
+            "artifact_path": "data/venue_dry_run_proof.json",
+            "status": "blocked_missing_runtime_backed_proof",
+            "credential_present": False,
+            "secrets_redacted": True,
+            "runtime_ready": False,
+            "runtime_ready_count": 0,
+            "venues_checked": 2,
+            "order_preview": {"status": "blocked_missing_credentials", "order_submission_enabled": False},
+            "ack_simulation": {"status": "blocked_missing_credentials", "runtime_backed": False},
+            "cancel_simulation": {"status": "blocked_missing_credentials", "runtime_backed": False},
+            "fill_simulation": {"status": "blocked_missing_credentials", "runtime_backed": False},
+            "reconciliation_check": {"status": "blocked_missing_credentials", "runtime_backed": False},
+        }
+        return payload
 
     _seed_execution_strategy_catalog(tmp_path, monkeypatch)
     session = init_db(f"sqlite:///{tmp_path / 'execution_console.db'}")
@@ -459,6 +822,8 @@ def test_api_execution_overview_wraps_status_payload_and_registers_execution_con
     assert payload["symbol"] == "BTCUSDT"
     assert payload["controls_mode"] == "stateful_run_control_beta"
     assert payload["summary"]["active_profiles"] == 3
+    assert payload["venue_dry_run_proof"]["artifact_path"] == "data/venue_dry_run_proof.json"
+    assert payload["venue_dry_run_proof"]["fill_simulation"]["status"] == "blocked_missing_credentials"
     assert payload["profile_cards"][0]["controls_mode"] == "stateful_run_control_beta"
     assert payload["profile_cards"][0]["strategy_binding"]["status"] == "saved_strategy_bound"
     assert payload["strategy_source_summary"]["route"] == "/api/execution/strategies/source"

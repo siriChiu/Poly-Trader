@@ -8,7 +8,7 @@ assert spec.loader is not None
 spec.loader.exec_module(q15_boundary_replay)
 
 
-def test_build_report_marks_boundary_as_relabel_when_support_is_preexisting_q35():
+def test_build_report_marks_boundary_as_relabel_when_support_is_preexisting_q35(monkeypatch):
     probe = {
         "feature_timestamp": "2026-04-15 08:22:43",
         "target_col": "simulated_pyramid_win",
@@ -35,6 +35,7 @@ def test_build_report_marks_boundary_as_relabel_when_support_is_preexisting_q35(
         },
     }
     support_audit = {
+        "feature_timestamp": "2026-04-15 08:22:43",
         "target_col": "simulated_pyramid_win",
         "current_live": {
             "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
@@ -44,6 +45,8 @@ def test_build_report_marks_boundary_as_relabel_when_support_is_preexisting_q35(
         "floor_cross_legality": {"verdict": "math_cross_possible_but_illegal_without_exact_support"},
     }
     root_cause = {
+        "generated_at": "2026-06-03T12:15:00Z",
+        "feature_timestamp": "2026-04-15 08:22:43",
         "target_col": "simulated_pyramid_win",
         "current_live": {
             "structure_bucket": "CAUTION|structure_quality_caution|q15",
@@ -61,8 +64,15 @@ def test_build_report_marks_boundary_as_relabel_when_support_is_preexisting_q35(
         },
     }
 
+    monkeypatch.setattr(q15_boundary_replay, "_utc_now_iso", lambda: "2026-06-03T12:20:00Z")
+
     report = q15_boundary_replay.build_report(probe, support_audit, root_cause)
 
+    assert report["generated_at"] == "2026-06-03T12:20:00Z"
+    assert report["feature_timestamp"] == "2026-04-15 08:22:43"
+    assert report["current_live"]["feature_timestamp"] == "2026-04-15 08:22:43"
+    assert report["artifact_context_freshness"]["support_audit_feature_timestamp"] == "2026-04-15 08:22:43"
+    assert report["artifact_context_freshness"]["root_cause_feature_timestamp"] == "2026-04-15 08:22:43"
     assert report["verdict"] == "boundary_relabels_into_existing_q35_support"
     assert report["boundary_replay"]["replay_scope_bucket_rows"] == 76
     assert report["boundary_replay"]["generated_rows_via_boundary_only"] == 2

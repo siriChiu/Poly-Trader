@@ -59,6 +59,7 @@ Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 
    - 讀取 `ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md` 與最新 machine artifacts。
 
 2. **Facts collection**
+   - `--no-collect` heartbeat 仍必須檢查 `/api/strategy_data_sync` freshness；raw/features/labels/strategy 任一 lane 已 stale，或距 stale 門檻剩餘 ≤10 分鐘時，先執行本機 bounded strategy data sync maintenance，再進入 diagnostics。
    - raw/features/labels counts
    - live predictor / runtime closure
    - recent drift / circuit breaker
@@ -150,6 +151,9 @@ Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 
 ```bash
 source venv/bin/activate
 python scripts/heartbeat_harness_check.py --format text
+python scripts/pm_heartbeat_check.py --format text
+python scripts/repo_cleanroom_audit.py --format text
+python scripts/active_backend_health_probe.py --base-url http://127.0.0.1:8000 --timeout 10 --strict
 python -m pytest tests/test_heartbeat_harness_contract.py -q
 python -m pytest tests/test_repo_hygiene.py -q
 python -m pytest tests/test_server_startup.py -k 'api_trade or current_live_trade_blocker' -q

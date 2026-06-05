@@ -271,6 +271,12 @@ execution:
   venue: "okx"
   enable_live_trading: false
   kill_switch: false
+  live_canary:
+    enabled: false
+    allowed_symbols:
+      - "BTC/USDT"
+    max_base_qty_by_symbol:
+      "BTC/USDT": 0.0001
   venues:
     okx:
       enabled: true
@@ -278,6 +284,16 @@ execution:
       api_secret: ""
       passphrase: ""
 ```
+
+OKX credentials must stay outside tracked files. Set `OKX_API_KEY`, `OKX_API_SECRET`, and `OKX_PASSPHRASE` in the local shell or service environment; `POLY_TRADER_OKX_API_KEY`, `POLY_TRADER_OKX_API_SECRET`, and `POLY_TRADER_OKX_PASSPHRASE` are also supported.
+
+### Paper/shadow worker rehearsal
+
+Execution Console 的 run 啟動會 freeze Strategy Lab saved strategy 成 bundle hash / path；`selective` 影子觀察若尚未有 saved strategy，會用 high-conviction Top-K runtime contract 生成 `high_conviction_topk_shadow` synthetic bundle，只供 paper/shadow parity 與 outcome proof。Operator 可在本機呼叫 `POST /api/execution/workers/poll`，或按 Bot 營運頁的「同步 worker」，讓 backend-managed state poller 驗證 `execution_runs.state=running` 與 bundle hash parity，並寫入 `paper_shadow_worker_poll` 演練事件。若同一 running run 已有未滿 24h 的 proposal，API 會回 `pending_outcome_blocked`，不重複寫入 poll event。
+
+這個路徑只產生 fail-closed paper/shadow proposal：`order_submission_enabled=false`、`risk_on_order_enabled=false`、`live_order_submitted=false`。它不是 OKX live worker，也不會繞過 current-live / venue / bounded canary gate。
+
+Outcome reconciliation 由 `GET /api/execution/workers/outcomes` 讀取；本機 operator 可用 `POST /api/execution/workers/reconcile` 重新產生 `data/paper_shadow_outcome_reconciliation.json`。`artifact.rehearsal_proof.status` 會指出下一步：`needs_paper_shadow_run`、`needs_worker_poll`、`pending_observation_window`、`label_replay_required`、`resolved_evidence_ready` 或 `bundle_parity_blocked`；pending 期間 `can_poll_workers=false`，並會帶 `next_reconcile_at` / `pending_hours_remaining_min`。它是演練證據，不是 live-ready 訊號，且 `order_submission_enabled=false` / `risk_on_order_enabled=false` 必須維持。
 
 
 ## 快速開始
@@ -372,6 +388,7 @@ Poly-Trader/
 ├── tests/                     # pytest contract / regression tests
 ├── docs/
 │   ├── harness/               # heartbeat harness engineering map / Q&A / contract
+│   ├── pm/                    # PM heartbeat current-state contract / generated PM status
 │   ├── plans/                 # 實作計畫
 │   └── analysis/              # 可重跑分析摘要與 sweep 結果
 ├── HEARTBEAT.md               # 心跳流程規範（不是每輪 log）
@@ -392,6 +409,8 @@ Poly-Trader/
 | [ISSUES.md](ISSUES.md) | Current issues only，由 heartbeat overwrite sync |
 | [HEARTBEAT.md](HEARTBEAT.md) | heartbeat 執行流程規範；每輪 `data/heartbeat_*` log 不進 git |
 | [docs/harness/README.md](docs/harness/README.md) | heartbeat harness engineering map、Q&A gate 與 checker 入口；可用 `scripts/heartbeat_harness_check.py` 驗證 |
+| [docs/pm/pm-status.md](docs/pm/pm-status.md) | PM current-state status，由 `scripts/sync_pm_status.py` 從 artifacts 生成；可用 `scripts/pm_heartbeat_check.py` 驗證 |
+| `scripts/repo_cleanroom_audit.py` | 本地 cleanroom audit / safe cleanup；保留 venv、DB、model、current-state artifacts，不用 `git clean -fdX` |
 | `docs/plans/` | 實作規劃 |
 | `docs/analysis/` | 可重跑分析摘要、sweep 與研究結果 |
 | `scripts/legacy_checks/` | 歷史一次性診斷腳本；正式 workflow 不應依賴 |

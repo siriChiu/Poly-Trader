@@ -1,41 +1,99 @@
 {
-  "generated_at": "2026-05-28T08:12:00.054816Z",
+  "generated_at": "2026-06-05T03:47:03.285566Z",
   "artifact": "live_canary_structural_pivot",
+  "quick_read": {
+    "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+    "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+    "current_lane_actionability": "no_trade_block_lane",
+    "support_evidence_role": "no_trade_decision_validation_not_deployable_support",
+    "map_signal_forced_lane": "no_trade_lane_audit",
+    "current_lane_next_validation_artifact": "data/no_trade_lane_replay.json；驗證觀望 / reduce-only 行為，不把它寫成 risk-on support closure。",
+    "support_rows": 131,
+    "minimum_support_rows": 50,
+    "support_gap": 0,
+    "support_route_verdict": "exact_bucket_supported",
+    "support_governance_route": "exact_live_bucket_supported",
+    "support_ready": true,
+    "release_ready": true,
+    "recent_window_wins": 20,
+    "required_recent_window_wins": 15,
+    "additional_recent_window_wins_needed": 0,
+    "topk_deployable": false,
+    "deployable_rows": 0,
+    "paper_shadow_available": true,
+    "venue_runtime_ready": false,
+    "live_canary_policy_ready": false,
+    "micro_canary_ready": false,
+    "live_exposure_allowed": false,
+    "risk_on_order_enabled": false,
+    "order_submission_enabled": false,
+    "single_failed_gate_for_72h_decision": "model_shadow_outcome_gate",
+    "single_failed_gate": "model_shadow_outcome_gate",
+    "next_validation_artifact": "data/high_conviction_topk_oos_matrix.json + Shadow Trade Ledger 24h pyramid outcome rows"
+  },
+  "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+  "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+  "current_lane_actionability": "no_trade_block_lane",
+  "support_evidence_role": "no_trade_decision_validation_not_deployable_support",
+  "map_signal_forced_lane": "no_trade_lane_audit",
+  "current_lane_next_validation_artifact": "data/no_trade_lane_replay.json；驗證觀望 / reduce-only 行為，不把它寫成 risk-on support closure。",
+  "support_rows": 131,
+  "minimum_support_rows": 50,
+  "support_gap": 0,
+  "support_route_verdict": "exact_bucket_supported",
+  "support_governance_route": "exact_live_bucket_supported",
+  "support_ready": true,
+  "release_ready": true,
+  "recent_window_wins": 20,
+  "required_recent_window_wins": 15,
+  "additional_recent_window_wins_needed": 0,
+  "topk_deployable": false,
+  "deployable_rows": 0,
+  "paper_shadow_available": true,
+  "venue_runtime_ready": false,
+  "live_canary_policy_ready": false,
+  "micro_canary_ready": false,
+  "live_exposure_allowed": false,
+  "risk_on_order_enabled": false,
+  "order_submission_enabled": false,
+  "single_failed_gate_for_72h_decision": "model_shadow_outcome_gate",
+  "single_failed_gate": "model_shadow_outcome_gate",
+  "next_validation_artifact": "data/high_conviction_topk_oos_matrix.json + Shadow Trade Ledger 24h pyramid outcome rows",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-28T08:11:51.420742Z"
+      "generated_at": "2026-06-05T03:46:21.654036Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-28T08:11:31.825985Z"
+      "generated_at": "2026-06-05T03:46:13.125173Z"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-28T08:11:37.709825+00:00"
+      "generated_at": "2026-06-05T03:43:30.458510+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-28T08:11:58.092478Z"
+      "generated_at": "2026-06-05T03:46:51.433403Z"
     },
     "customer_safe_alternative_proof": {
       "path": "data/customer_safe_alternative_proof.json",
       "exists": true,
-      "generated_at": "2026-05-28T08:11:59.052029Z"
+      "generated_at": "2026-06-05T03:46:58.278212Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-28T08:11:55.501749+00:00"
+      "generated_at": "2026-06-05T03:46:28.397005+00:00"
     },
     "q15_support_audit": {
       "path": "data/q15_support_audit.json",
       "exists": true,
-      "generated_at": "2026-05-28 08:11:06.846868"
+      "generated_at": "2026-06-05T03:46:46.272471Z"
     }
   },
   "pm_handoff_carried_forward": {
@@ -44,27 +102,31 @@
     "forbidden_shortcut": "不可降低 live gate；不可把 proxy/reference/OOS/shadow/dry-run 包裝成 live deployability。"
   },
   "current_truth": {
-    "deployment_blocker": "circuit_breaker_active",
-    "structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
-    "support_rows": 14,
+    "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+    "structure_bucket": "BLOCK|bias200_below_min|q00",
+    "current_lane_actionability": "no_trade_block_lane",
+    "support_evidence_role": "no_trade_decision_validation_not_deployable_support",
+    "operator_interpretation": "當前即時 lane 是 BLOCK / 不交易決策 lane。0/50 exact support 應視為無風險觀望驗證，不是可收集來支撐買入 / 加倉部署的 support。",
+    "map_signal_forced_lane": "no_trade_lane_audit",
+    "support_rows": 131,
     "minimum_support_rows": 50,
-    "support_gap": 36,
-    "support_route_verdict": "exact_bucket_present_but_below_minimum",
-    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-    "support_delta_vs_previous": 1,
-    "stagnant_run_count": 0,
-    "semantic_signature_delta_vs_previous": 1,
-    "semantic_signature_stagnant_run_count": 0,
+    "support_gap": 0,
+    "support_route_verdict": "exact_bucket_supported",
+    "support_governance_route": "exact_live_bucket_supported",
+    "support_delta_vs_previous": 0,
+    "stagnant_run_count": 4,
+    "semantic_signature_delta_vs_previous": 0,
+    "semantic_signature_stagnant_run_count": 4,
     "equilibrium_deadlock_confirmed": false,
     "equilibrium_deadlock_verdict": "not_applicable_current_live_not_target_lane",
     "forced_research_action_required": false,
     "forced_research_action_output_path": "data/equilibrium_deadlock_research_action.json",
-    "release_ready": false,
+    "release_ready": true,
     "recent_window_size": 50,
-    "recent_window_wins": 0,
+    "recent_window_wins": 20,
     "required_recent_window_wins": 15,
-    "additional_recent_window_wins_needed": 15,
-    "current_streak": 180,
+    "additional_recent_window_wins_needed": 0,
+    "current_streak": 2,
     "venue_runtime_ready": false,
     "okx_credentials_configured": false,
     "risk_qualified_rows": 6,
@@ -88,73 +150,69 @@
       "oos_gate_passed": true,
       "blocked_only_by_live_guardrails": true,
       "gate_failures": [
-        "support_route_not_deployable",
-        "deployment_blocker_active",
-        "breaker_release_not_ready"
+        "deployment_blocker_active"
       ],
       "live_gate_failures": [
-        "support_route_not_deployable",
-        "deployment_blocker_active",
-        "breaker_release_not_ready"
+        "deployment_blocker_active"
       ],
-      "support_route": "exact_bucket_present_but_below_minimum",
-      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-      "support_route_deployable": false,
-      "deployment_blocker": "circuit_breaker_active",
-      "runtime_closure_state": "circuit_breaker_active",
-      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
-      "current_live_structure_bucket_rows": 14,
+      "support_route": "exact_bucket_supported",
+      "support_governance_route": "exact_live_bucket_supported",
+      "support_route_deployable": true,
+      "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+      "runtime_closure_state": "deployment_guardrail_blocks_trade",
+      "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+      "current_live_structure_bucket_rows": 131,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 36,
-      "release_ready": false,
-      "current_recent_window_wins": 0,
+      "current_live_structure_bucket_gap_to_minimum": 0,
+      "release_ready": true,
+      "current_recent_window_wins": 20,
       "required_recent_window_wins": 15,
-      "additional_recent_window_wins_needed": 15,
+      "additional_recent_window_wins_needed": 0,
       "verdict": "not_deployable"
     }
   },
   "structural_decision": {
     "decision": "停止重複 observation-only。每輪刷新 live-canary pivot，將 readiness 拆成 support、breaker、model-shadow、venue lifecycle、live-canary policy 五個 gate。",
     "non_negotiable_invariant": "No risk-on buy/add while any support, breaker, model-shadow, venue lifecycle, or canary policy gate is failing.",
-    "single_failed_gate_for_72h_decision": "circuit_breaker_gate",
+    "single_failed_gate_for_72h_decision": "model_shadow_outcome_gate",
     "supplementary_blockers_not_used_as_single_gate": [
-      "current_live_support_gate",
-      "model_shadow_outcome_gate",
       "venue_lifecycle_gate",
       "live_canary_policy_gate"
     ],
-    "next_validation_artifact": "data/circuit_breaker_audit.json after 24h canonical tail outcomes improve",
+    "next_validation_artifact": "data/high_conviction_topk_oos_matrix.json + Shadow Trade Ledger 24h pyramid outcome rows",
     "artifact_refresh_patch": "scripts/live_canary_structural_pivot.py now derives this plan from fresh runtime artifacts and q15 support audit deadlock state, and is wired into hb_parallel_runner serial lanes.",
     "equilibrium_deadlock_verdict": "not_applicable_current_live_not_target_lane",
     "forced_research_action_required": false,
-    "forced_research_action_output_path": "data/equilibrium_deadlock_research_action.json"
+    "forced_research_action_output_path": "data/equilibrium_deadlock_research_action.json",
+    "current_lane_actionability": "no_trade_block_lane",
+    "support_evidence_role": "no_trade_decision_validation_not_deployable_support",
+    "map_signal_forced_lane": "no_trade_lane_audit",
+    "map_signal_next_validation_artifact": "data/no_trade_lane_replay.json；驗證觀望 / reduce-only 行為，不把它寫成 risk-on support closure。"
   },
   "micro_canary_gate": {
     "micro_canary_ready": false,
     "live_exposure_allowed": false,
     "risk_on_order_enabled": false,
     "order_submission_enabled": false,
-    "single_failed_gate_for_72h_decision": "circuit_breaker_gate",
+    "single_failed_gate_for_72h_decision": "model_shadow_outcome_gate",
     "supplementary_blockers_not_used_as_single_gate": [
-      "current_live_support_gate",
-      "model_shadow_outcome_gate",
       "venue_lifecycle_gate",
       "live_canary_policy_gate"
     ],
     "gates": {
       "current_live_support_gate": {
-        "ready": false,
-        "current": 14,
+        "ready": true,
+        "current": 131,
         "required": 50,
-        "gap": 36,
+        "gap": 0,
         "reason": "current-live exact support must reach the minimum with matching support_identity."
       },
       "circuit_breaker_gate": {
-        "ready": false,
-        "current_recent_window_wins": 0,
+        "ready": true,
+        "current_recent_window_wins": 20,
         "required_recent_window_wins": 15,
-        "additional_recent_window_wins_needed": 15,
-        "current_streak": 180,
+        "additional_recent_window_wins_needed": 0,
+        "current_streak": 2,
         "reason": "recent canonical 24h outcomes must clear streak and win-rate release math."
       },
       "model_shadow_outcome_gate": {
@@ -168,7 +226,7 @@
         "ready": false,
         "runtime_ready": false,
         "okx_credentials_configured": false,
-        "readiness_state": "blocked_until_runtime_lifecycle_proof",
+        "readiness_state": "blocked_missing_runtime_backed_proof",
         "reason": "exchange credential boolean plus ack/fill/cancel/reconciliation proof must be runtime-backed."
       },
       "live_canary_policy_gate": {
@@ -176,8 +234,8 @@
         "execution_mode": "paper",
         "enable_live_trading": false,
         "live_canary_enabled": false,
-        "allowed_symbols_configured": false,
-        "max_base_qty_by_symbol_configured": false,
+        "allowed_symbols_configured": true,
+        "max_base_qty_by_symbol_configured": true,
         "reason": "local config must opt into explicit live_canary with symbol cap before adapter order submission."
       }
     }
@@ -215,7 +273,7 @@
       "lane": "C_strategy_micro_canary",
       "goal": "Actual strategy live exposure, but only as bounded pilot rather than full deployment.",
       "can_start_now": false,
-      "status": "blocked_by_circuit_breaker_gate",
+      "status": "blocked_by_model_shadow_outcome_gate",
       "blocks_strategy_risk": false,
       "live_exposure": "max one first-layer position, tiny symbol cap, no auto-add, no pyramiding until post-trade proof is clean",
       "entry_gate": [
@@ -234,18 +292,21 @@
     },
     {
       "lane": "D_map_signal_redesign_for_current_bucket",
-      "goal": "When exact current bucket support remains below minimum with support delta=0, stop waiting for rows and produce a Map/Signal redesign proof path.",
-      "can_start_now": false,
-      "status": "standby",
+      "goal": "Current BLOCK/no-trade lane should be audited as abstain/reduce-only evidence, not harvested as buy/add deployment support.",
+      "can_start_now": true,
+      "status": "no_trade_lane_audit_required",
       "blocks_strategy_risk": true,
       "live_exposure": "none",
       "exit_gate": "A new support identity / semantic bucket map is proposed, replayed, and proven without reclassifying reference rows as deployable support.",
-      "semantic_signature_delta_vs_previous": 1,
-      "semantic_signature_stagnant_run_count": 0,
+      "semantic_signature_delta_vs_previous": 0,
+      "semantic_signature_stagnant_run_count": 4,
       "equilibrium_deadlock_confirmed": false,
       "equilibrium_deadlock_verdict": "not_applicable_current_live_not_target_lane",
+      "forced_research_action_required": false,
       "forced_research_action_output_path": "data/equilibrium_deadlock_research_action.json",
-      "next_artifact": "data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket BLOCK|bear_bias200_hard_block|q00 after Map/Signal redesign or exact-bucket row harvest"
+      "current_lane_actionability": "no_trade_block_lane",
+      "support_evidence_role": "no_trade_decision_validation_not_deployable_support",
+      "next_artifact": "data/no_trade_lane_replay.json；驗證觀望 / reduce-only 行為，不把它寫成 risk-on support closure。"
     }
   ],
   "operator_config_snapshot_redacted": {
@@ -254,8 +315,8 @@
     "execution_mode": "paper",
     "enable_live_trading": false,
     "live_canary_enabled": false,
-    "allowed_symbols_configured": false,
-    "max_base_qty_by_symbol_configured": false,
+    "allowed_symbols_configured": true,
+    "max_base_qty_by_symbol_configured": true,
     "policy_ready": false,
     "credential_values_redacted": true
   },
@@ -299,6 +360,6 @@
     "micro_canary_ready": false,
     "live_exposure_allowed": false,
     "order_submission_enabled": false,
-    "reason": "primary_failed_gate=circuit_breaker_gate; next_validation_artifact=data/circuit_breaker_audit.json after 24h canonical tail outcomes improve"
+    "reason": "primary_failed_gate=model_shadow_outcome_gate; next_validation_artifact=data/high_conviction_topk_oos_matrix.json + Shadow Trade Ledger 24h pyramid outcome rows"
   }
 }

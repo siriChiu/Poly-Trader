@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +19,9 @@ TOP_PCTS = [0.01, 0.02, 0.05, 0.10]
 MODELS = ["xgboost", "random_forest", "logistic_regression"]
 OUT_PATH = Path("data/high_conviction_topk_oos_matrix.json")
 LEGACY_OUT_PATH = Path("model/topk_walkforward_precision.json")
+LIVE_PROBE_PATH = Path("data/live_predict_probe.json")
+CIRCUIT_BREAKER_AUDIT_PATH = Path("data/circuit_breaker_audit.json")
+LIVE_PROBE_REFRESH_SCRIPT = PROJECT_ROOT / "scripts" / "hb_predict_probe.py"
 MINIMUM_DEPLOYMENT_GATES = {
     "min_trades": 50,
     "min_win_rate": 0.60,
@@ -28,6 +32,7 @@ MINIMUM_DEPLOYMENT_GATES = {
 }
 LIVE_GUARDRAIL_FAILURES = {"support_route_not_deployable", "deployment_blocker_active", "breaker_release_not_ready"}
 ARTIFACT_STALE_AFTER_MINUTES = 60.0
+LIVE_PROBE_STALE_AFTER_MINUTES = 30.0
 
 
 def artifact_freshness_fields(generated_at: Any, *, now: datetime | None = None) -> dict[str, Any]:
@@ -61,6 +66,213 @@ def artifact_freshness_fields(generated_at: Any, *, now: datetime | None = None)
         }
     )
     return payload
+
+
+def live_probe_freshness_fields(generated_at: Any, *, now: datetime | None = None) -> dict[str, Any]:
+    """Freshness contract for live support context used by Top-K deployment gates."""
+    checked_at = now or datetime.now(timezone.utc)
+    payload: dict[str, Any] = {
+        "status": "unavailable",
+        "reason": "missing_generated_at",
+        "generated_at": generated_at,
+        "checked_at": checked_at.isoformat(),
+        "age_minutes": None,
+        "stale_after_minutes": LIVE_PROBE_STALE_AFTER_MINUTES,
+        "deployment_blocking": True,
+    }
+    if not generated_at:
+        return payload
+    try:
+        generated_dt = datetime.fromisoformat(str(generated_at).replace("Z", "+00:00"))
+        if generated_dt.tzinfo is None:
+            generated_dt = generated_dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        payload["reason"] = "invalid_generated_at"
+        return payload
+    age_minutes = max((checked_at - generated_dt).total_seconds(), 0.0) / 60.0
+    status = "fresh" if age_minutes <= LIVE_PROBE_STALE_AFTER_MINUTES else "stale"
+    payload.update(
+        {
+            "status": status,
+            "reason": "artifact_within_policy" if status == "fresh" else "artifact_older_than_policy",
+            "age_minutes": age_minutes,
+            "deployment_blocking": status != "fresh",
+        }
+    )
+    return payload
+
+
+def _load_probe_payload(probe_path: Path = LIVE_PROBE_PATH) -> tuple[dict[str, Any], Optional[str]]:
+    if not probe_path.exists():
+        return {}, "missing_live_probe"
+    try:
+        payload = json.loads(probe_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}, "unreadable_live_probe"
+    if not isinstance(payload, dict):
+        return {}, "invalid_live_probe_payload"
+    return payload, None
+
+
+def _probe_freshness_from_path(probe_path: Path = LIVE_PROBE_PATH) -> dict[str, Any]:
+    payload, error = _load_probe_payload(probe_path)
+    generated_at = payload.get("generated_at") or payload.get("feature_timestamp") if payload else None
+    freshness = live_probe_freshness_fields(generated_at)
+    if error and freshness.get("reason") == "missing_generated_at":
+        freshness["reason"] = error
+    return freshness
+
+
+def _load_circuit_breaker_release_condition(path: Path = CIRCUIT_BREAKER_AUDIT_PATH) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    candidates = [
+        payload.get("release_condition"),
+        payload.get("aligned_scope", {}).get("release_condition") if isinstance(payload.get("aligned_scope"), dict) else None,
+        payload.get("canonical_scope"),
+    ]
+    keys = {
+        "release_ready",
+        "blocked_by",
+        "streak_release_ready",
+        "recent_win_rate_release_ready",
+        "streak_must_be_below",
+        "current_streak",
+        "recent_window",
+        "recent_win_rate_floor",
+        "current_recent_window_win_rate",
+        "current_recent_window_wins",
+        "required_recent_window_wins",
+        "additional_recent_window_wins_needed",
+    }
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        release = {key: candidate.get(key) for key in keys if candidate.get(key) is not None}
+        if release.get("release_ready") is not None:
+            return release
+    return {}
+
+
+def _refresh_live_predict_probe_if_stale(probe_path: Path = LIVE_PROBE_PATH) -> dict[str, Any]:
+    before = _probe_freshness_from_path(probe_path)
+    result: dict[str, Any] = {
+        "attempted": False,
+        "status": "skipped_fresh_probe" if not before.get("deployment_blocking") else "stale_probe_detected",
+        "reason": before.get("reason"),
+        "before": before,
+        "after": before,
+        "refresh_script": str(LIVE_PROBE_REFRESH_SCRIPT),
+    }
+    if not before.get("deployment_blocking"):
+        return result
+    if not LIVE_PROBE_REFRESH_SCRIPT.exists():
+        result.update({
+            "status": "refresh_unavailable",
+            "error": "missing_hb_predict_probe_script",
+        })
+        return result
+    result["attempted"] = True
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(LIVE_PROBE_REFRESH_SCRIPT)],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=False,
+        )
+    except Exception as exc:
+        result.update({
+            "status": "refresh_failed",
+            "error": f"{type(exc).__name__}: {exc}",
+        })
+        return result
+
+    after = _probe_freshness_from_path(probe_path)
+    result["after"] = after
+    result["returncode"] = completed.returncode
+    if completed.returncode != 0:
+        result.update({
+            "status": "refresh_failed",
+            "error": f"hb_predict_probe_exit_{completed.returncode}",
+        })
+    elif after.get("deployment_blocking"):
+        result.update({
+            "status": "refresh_still_stale",
+            "error": after.get("reason"),
+        })
+    else:
+        result.update({
+            "status": "refreshed",
+            "error": None,
+        })
+    return result
+
+
+def _stale_live_support_context(context: dict, freshness: dict[str, Any]) -> dict:
+    source_generated_at = context.get("source_live_probe_generated_at")
+    source_artifact = context.get("live_truth_source_artifact")
+    minimum_rows = context.get("minimum_support_rows") or 50
+    try:
+        minimum_rows = int(minimum_rows)
+    except (TypeError, ValueError):
+        minimum_rows = 50
+    reference_keys = (
+        "current_live_structure_bucket",
+        "current_live_structure_bucket_rows",
+        "minimum_support_rows",
+        "current_live_structure_bucket_gap_to_minimum",
+        "support_route_verdict",
+        "support_governance_route",
+        "deployment_blocker",
+        "runtime_closure_state",
+        "support_progress_status",
+        "source_live_probe_generated_at",
+        "live_truth_source_artifact",
+    )
+    return {
+        "generated_at": source_generated_at,
+        "source_artifact": source_artifact,
+        "support_context_status": "stale_live_probe_shadow_only",
+        "support_context_freshness": freshness,
+        "live_truth_freshness": freshness,
+        "support_context_refresh": context.get("support_context_refresh"),
+        "live_truth_overlay_applied": False,
+        "live_truth_overlay_blocker": freshness.get("reason") or "stale_live_probe",
+        "source_live_probe_generated_at": source_generated_at,
+        "live_truth_source_artifact": source_artifact,
+        "stale_support_context_reference": {
+            key: context.get(key) for key in reference_keys if context.get(key) is not None
+        },
+        "support_route_verdict": "stale_live_support_context",
+        "support_governance_route": "stale_live_support_context",
+        "support_governance_reference_evidence": {
+            "reference_only": True,
+            "reason": "stale_live_probe",
+            "source_live_probe_generated_at": source_generated_at,
+            "source_artifact": source_artifact,
+        },
+        "support_route_deployable": False,
+        "deployment_blocker": "stale_live_support_context",
+        "runtime_closure_state": "stale_live_support_context_shadow_only",
+        "current_live_structure_bucket": "stale_live_support_context",
+        "current_live_structure_bucket_rows": 0,
+        "minimum_support_rows": minimum_rows,
+        "current_live_structure_bucket_gap_to_minimum": minimum_rows,
+        "allowed_layers": 0,
+        "signal": "ABSTAIN",
+        "execution_guardrail_reason": "live_support_context_stale; high_conviction_topk_shadow_only",
+        "release_ready": False,
+        "support_progress_status": "stale_live_probe_shadow_only",
+        "support_rows_needed": minimum_rows,
+    }
 
 
 def _round_or_none(value: Any, digits: int = 4) -> Optional[float]:
@@ -101,21 +313,28 @@ def _pnl_series_for_subset(sub: pd.DataFrame) -> pd.Series:
     return pd.Series([], dtype=float)
 
 
-def _load_support_context() -> dict:
+def _load_support_context(*, auto_refresh: bool = False) -> dict:
     """Load current-live support/blocker truth so top-k candidates fail closed."""
-    probe_path = Path("data/live_predict_probe.json")
+    probe_path = LIVE_PROBE_PATH
+    refresh_status = _refresh_live_predict_probe_if_stale(probe_path) if auto_refresh else None
     if not probe_path.exists():
-        return {
+        context = {
             "support_route_verdict": "not_evaluated",
             "deployment_blocker": "unknown",
         }
+        if refresh_status is not None:
+            context["support_context_refresh"] = refresh_status
+        return context
     try:
         probe = json.loads(probe_path.read_text(encoding="utf-8"))
     except Exception:
-        return {
+        context = {
             "support_route_verdict": "not_evaluated",
             "deployment_blocker": "unreadable_live_probe",
         }
+        if refresh_status is not None:
+            context["support_context_refresh"] = refresh_status
+        return context
     keys = [
         "support_route_verdict",
         "support_governance_route",
@@ -145,6 +364,8 @@ def _load_support_context() -> dict:
     release_condition = blocker_details.get("release_condition") if isinstance(blocker_details.get("release_condition"), dict) else {}
     if not release_condition and isinstance(probe.get("release_condition"), dict):
         release_condition = probe.get("release_condition")
+    if not release_condition:
+        release_condition = _load_circuit_breaker_release_condition()
     recent_window = blocker_details.get("recent_window") if isinstance(blocker_details.get("recent_window"), dict) else {}
     if not recent_window and isinstance(probe.get("recent_window"), dict):
         recent_window = probe.get("recent_window")
@@ -208,11 +429,21 @@ def _load_support_context() -> dict:
     for alias_key, context_key in alias_field_map.items():
         if context.get(alias_key) is None and context.get(context_key) is not None:
             context[alias_key] = context.get(context_key)
-    if probe.get("generated_at"):
-        context["source_live_probe_generated_at"] = probe.get("generated_at")
+    probe_generated_at = probe.get("generated_at") or probe.get("feature_timestamp")
+    if probe_generated_at:
+        context["source_live_probe_generated_at"] = probe_generated_at
     context["live_truth_source_artifact"] = str(probe_path)
+    if refresh_status is not None:
+        context["support_context_refresh"] = refresh_status
     context.setdefault("support_route_verdict", "not_evaluated")
     context.setdefault("deployment_blocker", None)
+    freshness = live_probe_freshness_fields(probe_generated_at)
+    if freshness.get("deployment_blocking"):
+        return _stale_live_support_context(context, freshness)
+    context["support_context_status"] = "fresh_live_probe_overlay"
+    context["support_context_freshness"] = freshness
+    context["live_truth_freshness"] = freshness
+    context["live_truth_overlay_applied"] = True
     return context
 
 
@@ -252,6 +483,13 @@ TOP_LEVEL_LIVE_GATE_SUMMARY_KEYS = (
     "support_rows_needed",
     "source_live_probe_generated_at",
     "live_truth_source_artifact",
+    "support_context_status",
+    "support_context_freshness",
+    "support_context_refresh",
+    "live_truth_freshness",
+    "live_truth_overlay_applied",
+    "live_truth_overlay_blocker",
+    "stale_support_context_reference",
 )
 
 
@@ -541,6 +779,13 @@ def build_high_conviction_oos_matrix_rows(
                 "support_rows_needed": support_context.get("support_rows_needed"),
                 "source_live_probe_generated_at": support_context.get("source_live_probe_generated_at"),
                 "live_truth_source_artifact": support_context.get("live_truth_source_artifact"),
+                "support_context_status": support_context.get("support_context_status"),
+                "support_context_freshness": support_context.get("support_context_freshness"),
+                "support_context_refresh": support_context.get("support_context_refresh"),
+                "live_truth_freshness": support_context.get("live_truth_freshness"),
+                "live_truth_overlay_applied": support_context.get("live_truth_overlay_applied"),
+                "live_truth_overlay_blocker": support_context.get("live_truth_overlay_blocker"),
+                "stale_support_context_reference": support_context.get("stale_support_context_reference"),
                 "minimum_deployment_gates": gates,
                 "deployable_verdict": deployable_verdict,
                 "deployment_candidate_tier": deployment_candidate_tier,
@@ -612,6 +857,12 @@ HIGH_CONVICTION_CANDIDATE_SUMMARY_KEYS = (
     "support_rows_needed",
     "source_live_probe_generated_at",
     "live_truth_source_artifact",
+    "support_context_status",
+    "support_context_freshness",
+    "live_truth_freshness",
+    "live_truth_overlay_applied",
+    "live_truth_overlay_blocker",
+    "stale_support_context_reference",
 )
 
 
@@ -858,7 +1109,7 @@ def evaluate_model(data: pd.DataFrame, target_col: str, model_name: str) -> dict
 
 def main() -> None:
     data, target_col = load_frame()
-    support_context = _load_support_context()
+    support_context = _load_support_context(auto_refresh=True)
     generated_at = datetime.now(timezone.utc).isoformat()
     result = {
         "generated_at": generated_at,

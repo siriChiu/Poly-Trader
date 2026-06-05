@@ -34,7 +34,15 @@ The PM heartbeat is a repo-native harness for product management:
 | `ISSUES.md` / `ROADMAP.md` / `ORID_DECISIONS.md` | Current engineering truth |
 | `data/live_predict_probe.json` | Current live blocker / signal / support truth |
 | `data/high_conviction_topk_oos_matrix.json` | Research-to-deployment candidate truth |
+| `scripts/high_conviction_topk_api_consistency_probe.py --strict` | Route/API proof that `/api/models/leaderboard.high_conviction_topk` mirrors the Top-K artifact counts, nearest candidate gate, support rows, breaker release math, fail-closed state, and secret-safe surface |
 | `data/execution_metadata_smoke.json` | Venue readiness and proof gaps |
+| `data/venue_dry_run_proof.json` | Venue dry-run preview and lifecycle proof checklist; source for `/api/status.venue_dry_run_proof` and `/api/execution/overview.venue_dry_run_proof` |
+| `data/customer_safe_alternative_proof.json` | Customer-safe usable-lane proof; `scripts/pm_heartbeat_check.py` verifies its quick-read `summary` mirrors nested gates and current live artifacts |
+| `scripts/customer_safe_alternative_api_consistency_probe.py --strict` | Route/API proof that `/api/execution/overview.customer_safe_alternative_proof` mirrors the customer-safe artifact aliases, counts, selected next artifact, fail-closed state, and secret-safe surface |
+| `data/paper_shadow_outcome_reconciliation.json` | Paper/shadow worker parity and 24h outcome rehearsal proof; schema v2 exposes top-level / `quick_read` pending, ETA, resolved, label-replay, duplicate-poll guard, and fail-closed fields; PM checker verifies it remains fail-closed with no live order submission |
+| `scripts/paper_shadow_outcome_reconciliation.py --persist --strict` | Refreshes paper/shadow worker parity and 24h outcome rehearsal proof from local DB truth before PM/docs consume it |
+| `scripts/paper_shadow_outcome_api_consistency_probe.py --strict` | Route/API proof that `/api/execution/overview.paper_shadow_outcome_reconciliation` mirrors the artifact schema-v2 quick-read, pending guard, fail-closed flags, and secret-safe surface |
+| `scripts/venue_dry_run_api_consistency_probe.py` | Route/API proof that status, execution overview, and artifact venue proof are consistent, fail-closed, and secret-safe |
 | `data/recent_drift_report.json` | Recent regime / quality pathology |
 
 ---

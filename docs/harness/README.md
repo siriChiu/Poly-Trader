@@ -27,8 +27,15 @@
 | `docs/harness/heartbeat-qa.md` | 每輪 heartbeat 的一問一答 gate |
 | `docs/harness/heartbeat-harness-contract.json` | machine-readable harness 契約 |
 | `scripts/heartbeat_harness_check.py` | 機械檢查：檔案、連結、Q&A gate、doc references |
+| `scripts/active_backend_health_probe.py` | 驗證 active `/health` 是 current-head、startup continuity 可用；stale backend 要先重啟，不能拿舊 API payload 當 operator truth |
+| `scripts/high_conviction_topk_api_consistency_probe.py` | 驗證 `/api/models/leaderboard.high_conviction_topk` 與 `data/high_conviction_topk_oos_matrix.json` 的 counts、nearest candidate、support rows、breaker release math、fail-closed gate、secret-safe 欄位同源 |
+| `scripts/venue_dry_run_api_consistency_probe.py` | 驗證 `data/venue_dry_run_proof.json`、`/api/status`、`/api/execution/overview` 的 venue proof 同源、fail-closed、secret-safe；status compact probe 另需保留 `live_canary_policy_gate` |
+| `scripts/paper_shadow_outcome_reconciliation.py` | 重算並持久化 `data/paper_shadow_outcome_reconciliation.json`；schema v2 提供 top-level / `quick_read` pending、ETA、resolved、label-replay 與 fail-closed flags；pending 期間禁止重複 worker poll，24h 後轉 resolved 或 label replay，且 strict gate 保持 fail-closed |
+| `scripts/paper_shadow_outcome_api_consistency_probe.py` | 驗證 `/api/execution/overview.paper_shadow_outcome_reconciliation` 與 `data/paper_shadow_outcome_reconciliation.json` 的 schema-v2 quick-read、pending guard、fail-closed flags、secret-safe 欄位同源 |
+| `scripts/customer_safe_alternative_api_consistency_probe.py` | 驗證 `/api/execution/overview.customer_safe_alternative_proof` 與 `data/customer_safe_alternative_proof.json` 的 alternative aliases、counts、summary mirror、fail-closed flags、secret-safe 欄位同源 |
+| `scripts/repo_cleanroom_audit.py` | 盤點 / 清理 repo 本地 generated noise；只刪 root scratch scripts、per-run heartbeat logs、cache、frontend build output 與 CatBoost scratch，保留 venv、DB、model、current-state artifacts |
 | `ISSUES.md` / `ROADMAP.md` / `ORID_DECISIONS.md` | current-state only，由 heartbeat overwrite sync |
-| `scripts/hb_parallel_runner.py` | heartbeat runner 主入口 |
+| `scripts/hb_parallel_runner.py` | heartbeat runner 主入口；序列 lane 會先跑 active backend health strict probe，失敗會進 summary / final status |
 | `scripts/auto_propose_fixes.py` | blocker 自動提出 / 更新 / resolve |
 
 > 原則：`AGENTS.md` 是地圖，不是手冊；詳細規則放到 `HEARTBEAT.md`、`docs/harness/*` 與可測腳本。
@@ -71,10 +78,12 @@
 ```bash
 source venv/bin/activate  # 若 venv 可用；此 checker 僅用 Python stdlib
 python scripts/heartbeat_harness_check.py --format text
+python scripts/repo_cleanroom_audit.py --format text
 python -m pytest tests/test_heartbeat_harness_contract.py -q
 ```
 
 `heartbeat_harness_check.py` 只檢查 harness 結構，不會修改任何 runtime artifact。若它失敗，優先修入口地圖、Q&A gate 或 contract，而不是繞過檢查。
+`repo_cleanroom_audit.py --clean` 只清本地 generated noise；不要用 `git clean -fdX` 取代它，因為後者會刪 venv / DB / model / current-state artifacts。
 
 ---
 

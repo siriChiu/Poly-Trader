@@ -225,7 +225,7 @@ def test_strategy_lab_prefers_same_origin_strategy_fetches_for_dev_runtime():
         "window.clearTimeout(sameOriginTimeoutId);",
         "Fall back to fetchApi below when same-origin proxy is unavailable or hangs.",
         "const res = await fetchStrategyLabEndpointJson(endpoint) as any;",
-        "const data = await fetchStrategyLabEndpointJson(\"/api/strategy_data_range\")",
+        "const data = await fetchStrategyLabEndpointJson(\"/api/strategy_data_sync\")",
         "const detail = await fetchStrategyLabEndpointJson(`/api/strategies/${encodeURIComponent(strategyName)}`) as StrategyEntry;",
     ]
     for snippet in required_snippets:

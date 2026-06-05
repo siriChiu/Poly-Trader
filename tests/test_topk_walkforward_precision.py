@@ -1,6 +1,7 @@
 import json
 import runpy
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -25,6 +26,42 @@ def test_artifact_freshness_fields_are_machine_readable_deployment_gate():
     assert stale["artifact_freshness_status"] == "stale"
     assert stale["artifact_freshness_reason"] == "artifact_older_than_policy"
     assert stale["artifact_deployment_blocking"] is True
+
+
+def test_live_probe_freshness_fields_are_machine_readable_support_gate():
+    now = topk.datetime(2026, 5, 2, 2, 30, tzinfo=topk.timezone.utc)
+    fresh = topk.live_probe_freshness_fields("2026-05-02T02:05:00+00:00", now=now)
+    stale = topk.live_probe_freshness_fields("2026-05-02T01:50:00+00:00", now=now)
+
+    assert fresh["status"] == "fresh"
+    assert fresh["deployment_blocking"] is False
+    assert fresh["stale_after_minutes"] == 30.0
+    assert stale["status"] == "stale"
+    assert stale["reason"] == "artifact_older_than_policy"
+    assert stale["deployment_blocking"] is True
+
+
+def test_refresh_live_predict_probe_skips_when_probe_is_fresh(monkeypatch, tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    generated_at = (topk.datetime.now(topk.timezone.utc) - timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps({"generated_at": generated_at}),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("fresh probe should not trigger hb_predict_probe refresh")
+
+    monkeypatch.setattr(topk.subprocess, "run", fail_if_called)
+
+    result = topk._refresh_live_predict_probe_if_stale()
+
+    assert result["attempted"] is False
+    assert result["status"] == "skipped_fresh_probe"
+    assert result["before"]["status"] == "fresh"
+    assert result["after"]["status"] == "fresh"
 
 
 def test_direct_script_execution_bootstraps_project_root(monkeypatch, tmp_path):
@@ -291,10 +328,11 @@ def test_build_high_conviction_oos_matrix_release_not_ready_blocks_otherwise_dep
 def test_load_support_context_preserves_current_live_support_progress(monkeypatch, tmp_path):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
+    generated_at = (topk.datetime.now(topk.timezone.utc) - timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
     (data_dir / "live_predict_probe.json").write_text(
         json.dumps(
             {
-                "generated_at": "2026-04-30T05:28:04.465304Z",
+                "generated_at": generated_at,
                 "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
                 "support_route_verdict": "exact_bucket_unsupported_block",
                 "support_governance_route": "no_support_proxy",
@@ -345,8 +383,11 @@ def test_load_support_context_preserves_current_live_support_progress(monkeypatc
     assert context["current_live_structure_bucket_gap_to_minimum"] == 50
     assert context["allowed_layers"] == 0
     assert context["signal"] == "HOLD"
-    assert context["source_live_probe_generated_at"] == "2026-04-30T05:28:04.465304Z"
+    assert context["source_live_probe_generated_at"] == generated_at
     assert context["live_truth_source_artifact"] == "data/live_predict_probe.json"
+    assert context["support_context_status"] == "fresh_live_probe_overlay"
+    assert context["support_context_freshness"]["status"] == "fresh"
+    assert context["live_truth_overlay_applied"] is True
     assert context["release_condition"]["release_ready"] is False
     assert context["release_ready"] is False
     assert context["recent_window"] == 50
@@ -390,8 +431,233 @@ def test_load_support_context_preserves_current_live_support_progress(monkeypatc
     assert row["support_rows_needed"] == 50
     assert row["stagnant_run_count"] == 4
     assert row["stalled_support_accumulation"] is True
+    assert row["support_context_status"] == "fresh_live_probe_overlay"
     assert row["deployable_verdict"] == "not_deployable"
     assert "support_route_not_deployable" in row["live_gate_failures"]
+
+
+def test_load_support_context_falls_back_to_circuit_breaker_audit_release(monkeypatch, tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    generated_at = (topk.datetime.now(topk.timezone.utc) - timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "generated_at": generated_at,
+                "current_live_structure_bucket": "BLOCK|bias200_below_min|q15",
+                "support_route_verdict": "insufficient_support_everywhere",
+                "support_governance_route": "exact_live_lane_proxy_available",
+                "deployment_blocker": "unsupported_exact_live_structure_bucket",
+                "runtime_closure_state": "patch_inactive_or_blocked",
+                "support_progress": {
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "circuit_breaker_audit.json").write_text(
+        json.dumps(
+            {
+                "verdict": "breaker_clear",
+                "release_condition": {
+                    "release_ready": True,
+                    "recent_window": 50,
+                    "current_recent_window_win_rate": 0.4,
+                    "current_recent_window_wins": 20,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    context = topk._load_support_context()
+
+    assert context["release_condition"]["release_ready"] is True
+    assert context["release_ready"] is True
+    assert context["recent_window"] == 50
+    assert context["current_recent_window_win_rate"] == pytest.approx(0.4)
+    assert context["current_recent_window_wins"] == 20
+    assert context["required_recent_window_wins"] == 15
+    assert context["additional_recent_window_wins_needed"] == 0
+
+
+def test_load_support_context_auto_refreshes_stale_live_probe(monkeypatch, tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    stale_generated_at = (topk.datetime.now(topk.timezone.utc) - timedelta(minutes=45)).isoformat().replace("+00:00", "Z")
+    fresh_generated_at = (topk.datetime.now(topk.timezone.utc) - timedelta(minutes=2)).isoformat().replace("+00:00", "Z")
+    probe_path = data_dir / "live_predict_probe.json"
+    probe_path.write_text(
+        json.dumps(
+            {
+                "generated_at": stale_generated_at,
+                "current_live_structure_bucket": "CAUTION|stale_reference|q35",
+                "support_route_verdict": "exact_bucket_supported",
+                "support_route_deployable": True,
+                "deployment_blocker": "none",
+                "runtime_closure_state": "breaker_clear",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    def fake_refresh(probe_path=topk.LIVE_PROBE_PATH):
+        probe_path.write_text(
+            json.dumps(
+                {
+                    "generated_at": fresh_generated_at,
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+                    "current_live_structure_bucket_rows": 6,
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 44,
+                    "support_route_verdict": "exact_bucket_present_but_below_minimum",
+                    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+                    "support_route_deployable": False,
+                    "deployment_blocker": "circuit_breaker_active",
+                    "runtime_closure_state": "circuit_breaker_active",
+                    "support_progress": {
+                        "current_rows": 6,
+                        "minimum_support_rows": 50,
+                        "gap_to_minimum": 44,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        return {
+            "attempted": True,
+            "status": "refreshed",
+            "before": {"status": "stale"},
+            "after": {"status": "fresh"},
+            "error": None,
+        }
+
+    monkeypatch.setattr(topk, "_refresh_live_predict_probe_if_stale", fake_refresh)
+
+    context = topk._load_support_context(auto_refresh=True)
+
+    assert context["support_context_status"] == "fresh_live_probe_overlay"
+    assert context["support_context_freshness"]["status"] == "fresh"
+    assert context["support_context_refresh"]["status"] == "refreshed"
+    assert context["live_truth_overlay_applied"] is True
+    assert context["source_live_probe_generated_at"] == fresh_generated_at
+    assert context["deployment_blocker"] == "circuit_breaker_active"
+    assert context["support_route_verdict"] == "exact_bucket_present_but_below_minimum"
+    assert context["current_live_structure_bucket_rows"] == 6
+    assert context["current_live_structure_bucket_gap_to_minimum"] == 44
+
+
+def test_load_support_context_fail_closes_stale_live_probe(monkeypatch, tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    stale_generated_at = (topk.datetime.now(topk.timezone.utc) - timedelta(minutes=45)).isoformat().replace("+00:00", "Z")
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "generated_at": stale_generated_at,
+                "current_live_structure_bucket": "CAUTION|stale_reference|q35",
+                "current_live_structure_bucket_rows": 80,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 0,
+                "support_route_verdict": "exact_bucket_supported",
+                "support_route_deployable": True,
+                "deployment_blocker": "none",
+                "runtime_closure_state": "breaker_clear",
+                "support_progress": {
+                    "current_rows": 80,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    context = topk._load_support_context()
+
+    assert context["support_context_status"] == "stale_live_probe_shadow_only"
+    assert context["support_context_freshness"]["status"] == "stale"
+    assert context["live_truth_overlay_applied"] is False
+    assert context["live_truth_overlay_blocker"] == "artifact_older_than_policy"
+    assert context["support_route_verdict"] == "stale_live_support_context"
+    assert context["support_route_deployable"] is False
+    assert context["deployment_blocker"] == "stale_live_support_context"
+    assert context["runtime_closure_state"] == "stale_live_support_context_shadow_only"
+    assert context["current_live_structure_bucket"] == "stale_live_support_context"
+    assert context["current_live_structure_bucket_rows"] == 0
+    assert context["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert context["stale_support_context_reference"]["current_live_structure_bucket"] == "CAUTION|stale_reference|q35"
+
+    rows = topk.build_high_conviction_oos_matrix_rows(
+        "random_forest",
+        {
+            "folds": [
+                {"fold": 0, "top_slices": {"top_2pct": {"trade_count": 80, "n": 80, "win_rate": 0.70, "oos_roi": 0.04, "profit_factor": 2.0, "max_drawdown": 0.03}}},
+                {"fold": 1, "top_slices": {"top_2pct": {"trade_count": 80, "n": 80, "win_rate": 0.68, "oos_roi": 0.03, "profit_factor": 1.9, "max_drawdown": 0.04}}},
+            ],
+            "aggregate_top_slices": {
+                "top_2pct": {"trade_count": 80, "n": 80, "win_rate": 0.69, "oos_roi": 0.11, "profit_factor": 2.0, "max_drawdown": 0.04, "wins": 55, "losses": 25}
+            },
+            "aggregate_regime_top_slices": {},
+        },
+        support_context=context,
+    )
+    row = rows[0]
+    assert row["deployable_verdict"] == "not_deployable"
+    assert row["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+    assert row["support_context_status"] == "stale_live_probe_shadow_only"
+    assert row["live_gate_failures"] == ["support_route_not_deployable", "deployment_blocker_active", "breaker_release_not_ready"]
+
+
+def test_load_support_context_auto_refresh_failure_stays_shadow_only(monkeypatch, tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    stale_generated_at = (topk.datetime.now(topk.timezone.utc) - timedelta(minutes=45)).isoformat().replace("+00:00", "Z")
+    (data_dir / "live_predict_probe.json").write_text(
+        json.dumps(
+            {
+                "generated_at": stale_generated_at,
+                "current_live_structure_bucket": "CAUTION|stale_reference|q35",
+                "current_live_structure_bucket_rows": 80,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 0,
+                "support_route_verdict": "exact_bucket_supported",
+                "support_route_deployable": True,
+                "deployment_blocker": "none",
+                "runtime_closure_state": "breaker_clear",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        topk,
+        "_refresh_live_predict_probe_if_stale",
+        lambda probe_path=topk.LIVE_PROBE_PATH: {
+            "attempted": True,
+            "status": "refresh_failed",
+            "before": {"status": "stale"},
+            "after": {"status": "stale"},
+            "error": "probe_error",
+        },
+    )
+
+    context = topk._load_support_context(auto_refresh=True)
+
+    assert context["support_context_status"] == "stale_live_probe_shadow_only"
+    assert context["support_context_refresh"]["status"] == "refresh_failed"
+    assert context["support_context_freshness"]["status"] == "stale"
+    assert context["support_route_deployable"] is False
+    assert context["deployment_blocker"] == "stale_live_support_context"
+    assert context["live_truth_overlay_applied"] is False
 
 
 def test_coalesce_regime_label_handles_merge_suffixes():

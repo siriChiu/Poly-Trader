@@ -14,18 +14,20 @@ trading:
   venue: "okx"
 
 execution:
-  mode: "paper"   # paper | live_canary | live
+  mode: "paper"
   venue: "okx"
   enable_live_trading: false
   kill_switch: false
-  max_daily_loss_pct: 0.03
+  live_canary:
+    enabled: false
+    allowed_symbols:
+      - "BTC/USDT"
+    max_base_qty_by_symbol:
+      "BTC/USDT": 0.0001
   venues:
     okx:
       enabled: true
       default_type: "spot"
-      api_key: ""
-      api_secret: ""
-      passphrase: ""
 
 coinalyze:
   api_key: ""

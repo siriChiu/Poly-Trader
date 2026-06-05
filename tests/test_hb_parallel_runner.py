@@ -48,6 +48,105 @@ def test_parse_args_allows_fast_without_hb():
     assert hb_parallel_runner.resolve_run_label(args) == "fast"
 
 
+def _noop_strategy_data_sync_maintenance(skip_collect=False, **kwargs):
+    return {"attempted": False, "success": True, "reason": "test_noop"}
+
+
+def _strategy_sync_status(raw_age_minutes=20.0, feature_age_minutes=20.0, strategy_age_minutes=20.0):
+    return {
+        "freshness": {
+            "checked_at": "2026-06-04T02:50:00Z",
+            "overall_status": "fresh",
+            "data_pipeline_ready": True,
+            "blocking_lanes": [],
+            "raw": {
+                "status": "fresh",
+                "latest_at": "2026-06-04T02:00:00Z",
+                "age_minutes": raw_age_minutes,
+                "stale_after_minutes": 60.0,
+                "reason": "artifact_within_policy",
+            },
+            "features": {
+                "status": "fresh",
+                "latest_at": "2026-06-04T02:00:00Z",
+                "age_minutes": feature_age_minutes,
+                "stale_after_minutes": 60.0,
+                "reason": "artifact_within_policy",
+            },
+            "labels": {
+                "status": "fresh",
+                "latest_at": "2026-06-03T03:00:00Z",
+                "age_minutes": 1430.0,
+                "stale_after_minutes": 180.0,
+                "expected_lag_minutes": 1440.0,
+                "lag_vs_reference_minutes": 1380.0,
+                "reason": "artifact_within_policy",
+            },
+            "strategy": {
+                "status": "fresh",
+                "latest_at": "2026-06-04T02:00:00Z",
+                "age_minutes": strategy_age_minutes,
+                "stale_after_minutes": 60.0,
+                "reason": "artifact_within_policy",
+            },
+        }
+    }
+
+
+def test_strategy_data_sync_maintenance_decision_triggers_near_stale_raw_without_label_false_positive():
+    status = _strategy_sync_status(raw_age_minutes=55.0, feature_age_minutes=20.0, strategy_age_minutes=20.0)
+
+    decision = hb_parallel_runner._strategy_data_sync_maintenance_decision(status, headroom_minutes=10.0)
+
+    assert decision["needed"] is True
+    assert decision["reason"] == "near_stale_lanes"
+    assert [lane["lane"] for lane in decision["lanes"]] == ["raw"]
+    assert decision["lanes"][0]["remaining_minutes"] == 5.0
+
+
+def test_strategy_data_sync_maintenance_runs_operator_sync_when_no_collect_near_stale(monkeypatch):
+    before = _strategy_sync_status(raw_age_minutes=58.0, feature_age_minutes=58.0, strategy_age_minutes=58.0)
+    after = _strategy_sync_status(raw_age_minutes=1.0, feature_age_minutes=1.0, strategy_age_minutes=1.0)
+    captured = {}
+
+    def _fake_sync(body):
+        captured["body"] = body
+        return {
+            "status": "completed",
+            "after": after,
+            "feature_backfill_deferred": False,
+            "feature_backfill_remaining_missing": 0,
+            "label_rows_generated": 12,
+            "raw_repair": {"inserted_total": 1},
+            "feature_repair": {"inserted": 1},
+        }
+
+    monkeypatch.setattr(hb_parallel_runner, "collect_strategy_data_sync_status", lambda symbol="BTCUSDT": before)
+    monkeypatch.setattr(hb_parallel_runner, "_run_strategy_data_sync_operator_request", _fake_sync)
+
+    result = hb_parallel_runner.run_strategy_data_sync_maintenance(skip_collect=True)
+
+    assert result["attempted"] is True
+    assert result["success"] is True
+    assert result["reason"] == "sync_completed"
+    assert captured["body"] == {
+        "symbol": "BTCUSDT",
+        "lookback_days": 2,
+        "max_feature_backfill_rows": 100,
+    }
+    assert [lane["lane"] for lane in result["decision"]["lanes"]] == ["raw", "features", "strategy"]
+    assert result["after"]["overall_status"] == "fresh"
+    assert result["label_rows_generated"] == 12
+
+
+def test_strategy_data_sync_maintenance_skips_when_collect_is_enabled():
+    result = hb_parallel_runner.run_strategy_data_sync_maintenance(skip_collect=False)
+
+    assert result["attempted"] is False
+    assert result["success"] is True
+    assert result["reason"] == "collect_enabled"
+
+
 def test_execution_metadata_smoke_lane_uses_explicit_okx_and_binance_venues(monkeypatch):
     calls = []
 
@@ -62,6 +161,133 @@ def test_execution_metadata_smoke_lane_uses_explicit_okx_and_binance_venues(monk
     assert result["success"] is True
     assert calls == [hb_parallel_runner.EXECUTION_METADATA_SMOKE_CMD]
     assert calls[0][-5:] == ["--symbol", "BTCUSDT", "--venues", "okx", "binance"]
+
+
+def test_venue_dry_run_proof_lane_runs_generator(monkeypatch):
+    calls = []
+
+    def fake_run_serial_command(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run_serial_command)
+
+    result = hb_parallel_runner.run_venue_dry_run_proof()
+
+    assert result["success"] is True
+    assert calls == [hb_parallel_runner.VENUE_DRY_RUN_PROOF_CMD]
+    assert calls[0][-1] == "scripts/venue_dry_run_proof.py"
+
+
+def test_high_conviction_topk_api_consistency_lane_runs_live_strict_probe(monkeypatch):
+    calls = []
+
+    def fake_run_serial_command(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "{}", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run_serial_command)
+
+    result = hb_parallel_runner.run_high_conviction_topk_api_consistency_probe()
+
+    assert result["success"] is True
+    assert calls == [hb_parallel_runner.HIGH_CONVICTION_TOPK_API_CONSISTENCY_CMD]
+    assert calls[0][1:] == [
+        "scripts/high_conviction_topk_api_consistency_probe.py",
+        "--base-url",
+        "http://127.0.0.1:8000",
+        "--artifact-file",
+        "data/high_conviction_topk_oos_matrix.json",
+        "--strict",
+        "--compact",
+    ]
+
+
+def test_paper_shadow_outcome_reconciliation_lane_runs_persist_strict(monkeypatch):
+    calls = []
+
+    def fake_run_serial_command(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "{}", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run_serial_command)
+
+    result = hb_parallel_runner.run_paper_shadow_outcome_reconciliation()
+
+    assert result["success"] is True
+    assert calls == [hb_parallel_runner.PAPER_SHADOW_OUTCOME_RECONCILIATION_CMD]
+    assert calls[0][-3:] == ["--persist", "--strict", "--compact"]
+    assert calls[0][-4] == "scripts/paper_shadow_outcome_reconciliation.py"
+
+
+def test_paper_shadow_outcome_api_consistency_lane_runs_live_strict_probe(monkeypatch):
+    calls = []
+
+    def fake_run_serial_command(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "{}", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run_serial_command)
+
+    result = hb_parallel_runner.run_paper_shadow_outcome_api_consistency_probe()
+
+    assert result["success"] is True
+    assert calls == [hb_parallel_runner.PAPER_SHADOW_OUTCOME_API_CONSISTENCY_CMD]
+    assert calls[0][1:] == [
+        "scripts/paper_shadow_outcome_api_consistency_probe.py",
+        "--base-url",
+        "http://127.0.0.1:8000",
+        "--artifact-file",
+        "data/paper_shadow_outcome_reconciliation.json",
+        "--strict",
+        "--compact",
+    ]
+
+
+def test_customer_safe_alternative_api_consistency_lane_runs_live_strict_probe(monkeypatch):
+    calls = []
+
+    def fake_run_serial_command(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "{}", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run_serial_command)
+
+    result = hb_parallel_runner.run_customer_safe_alternative_api_consistency_probe()
+
+    assert result["success"] is True
+    assert calls == [hb_parallel_runner.CUSTOMER_SAFE_ALTERNATIVE_API_CONSISTENCY_CMD]
+    assert calls[0][1:] == [
+        "scripts/customer_safe_alternative_api_consistency_probe.py",
+        "--base-url",
+        "http://127.0.0.1:8000",
+        "--artifact-file",
+        "data/customer_safe_alternative_proof.json",
+        "--strict",
+        "--compact",
+    ]
+
+
+def test_active_backend_health_lane_runs_strict_current_head_probe(monkeypatch):
+    calls = []
+
+    def fake_run_serial_command(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "{}", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run_serial_command)
+
+    result = hb_parallel_runner.run_active_backend_health_probe()
+
+    assert result["success"] is True
+    assert calls == [hb_parallel_runner.ACTIVE_BACKEND_HEALTH_PROBE_CMD]
+    assert calls[0][-5:] == [
+        "--base-url",
+        "http://127.0.0.1:8000",
+        "--timeout",
+        "10",
+        "--strict",
+    ]
 
 
 def test_live_canary_structural_pivot_lane_runs_generator(monkeypatch):
@@ -94,6 +320,54 @@ def test_q15_support_fill_feasibility_lane_runs_scan_script(monkeypatch):
     assert result["success"] is True
     assert calls == [hb_parallel_runner.Q15_SUPPORT_FILL_FEASIBILITY_CMD]
     assert calls[0][-1] == "scripts/q15_support_fill_feasibility_scan.py"
+
+
+def test_q15_exact_bucket_row_harvest_lane_runs_proof_script(monkeypatch):
+    calls = []
+
+    def fake_run_serial_command(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run_serial_command)
+
+    result = hb_parallel_runner.run_q15_exact_bucket_row_harvest_proof()
+
+    assert result["success"] is True
+    assert calls == [hb_parallel_runner.Q15_EXACT_BUCKET_ROW_HARVEST_PROOF_CMD]
+    assert calls[0][-1] == "scripts/q15_exact_bucket_row_harvest_proof.py"
+
+
+def test_q15_drift_rebaseline_lane_runs_backtest_script(monkeypatch):
+    calls = []
+
+    def fake_run_serial_command(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run_serial_command)
+
+    result = hb_parallel_runner.run_q15_drift_rebaseline_backtest()
+
+    assert result["success"] is True
+    assert calls == [hb_parallel_runner.Q15_DRIFT_REBASELINE_BACKTEST_CMD]
+    assert calls[0][-1] == "scripts/q15_drift_rebaseline_backtest.py"
+
+
+def test_q15_map_signal_redesign_lane_runs_proof_script(monkeypatch):
+    calls = []
+
+    def fake_run_serial_command(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return {"attempted": True, "success": True, "returncode": 0, "stdout": "ok", "stderr": ""}
+
+    monkeypatch.setattr(hb_parallel_runner, "_run_serial_command", fake_run_serial_command)
+
+    result = hb_parallel_runner.run_q15_map_signal_redesign_proof()
+
+    assert result["success"] is True
+    assert calls == [hb_parallel_runner.Q15_MAP_SIGNAL_REDESIGN_PROOF_CMD]
+    assert calls[0][-1] == "scripts/q15_map_signal_redesign_proof.py"
 
 
 def test_execution_venue_docs_context_preserves_runtime_proof_truth_without_raw_errors():
@@ -1336,6 +1610,13 @@ def test_support_truth_context_surfaces_q15_support_stagnation_metadata():
                 {"id": "collect_exact_current_bucket_rows"},
                 {"id": "force_q15_support_audit_refresh"},
             ],
+            "forced_branch_decision": {
+                "status": "hard_no_go_recorded",
+                "selected_branch": "hard_no_go_single_failed_gate",
+                "single_failed_gate": "circuit_breaker_gate",
+                "next_validation_artifact": "data/circuit_breaker_audit.json",
+                "decision_clock": "72h_micro_canary_or_single_failed_gate",
+            },
         },
     }
 
@@ -1355,6 +1636,11 @@ def test_support_truth_context_surfaces_q15_support_stagnation_metadata():
     assert context["active_repair_current_allowed_layers"] == 0
     assert context["active_repair_current_execution_guardrail_reason"] == "under_minimum_exact_live_structure_bucket"
     assert context["active_repair_action_ids"] == ["collect_exact_current_bucket_rows", "force_q15_support_audit_refresh"]
+    assert context["forced_branch_status"] == "hard_no_go_recorded"
+    assert context["forced_branch_selected_branch"] == "hard_no_go_single_failed_gate"
+    assert context["forced_branch_single_failed_gate"] == "circuit_breaker_gate"
+    assert context["forced_branch_next_validation_artifact"] == "data/circuit_breaker_audit.json"
+    assert context["forced_branch_decision_clock"] == "72h_micro_canary_or_single_failed_gate"
     assert context["legacy_semantic_evidence_verdict"] == "reference_only_semantic_mismatch_or_missing_fields"
     assert context["legacy_semantic_evidence_supports_current_identity"] is False
     assert context["legacy_semantic_evidence_promotable_to_same_identity_history"] is False
@@ -1369,10 +1655,78 @@ def test_support_truth_context_surfaces_q15_support_stagnation_metadata():
     assert "live_exposure_allowed=False" in doc_line
     assert "shadow_or_paper_allowed=True" in doc_line
     assert "actions=collect_exact_current_bucket_rows,force_q15_support_audit_refresh" in doc_line
+    assert "forced_branch_status=hard_no_go_recorded" in doc_line
+    assert "forced_branch_selected=hard_no_go_single_failed_gate" in doc_line
+    assert "single_failed_gate=circuit_breaker_gate" in doc_line
+    assert "next_validation_artifact=data/circuit_breaker_audit.json" in doc_line
+    assert "decision_clock=72h_micro_canary_or_single_failed_gate" in doc_line
     assert "legacy_evidence=reference_only_semantic_mismatch_or_missing_fields" in doc_line
     assert "legacy_supports_current_identity=False" in doc_line
     assert "legacy_promotable=False" in doc_line
     assert "legacy_mismatched=regime_label,calibration_window" in doc_line
+
+
+def test_support_truth_context_merges_non_q15_current_live_forced_branch():
+    live_predictor_diagnostics = {
+        "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+        "current_live_structure_bucket_rows": 0,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 50,
+        "support_route_verdict": "exact_bucket_unsupported_block",
+        "support_governance_route": "exact_live_lane_proxy_available",
+        "support_progress": {
+            "status": "semantic_rebaseline_under_minimum",
+            "current_rows": 0,
+            "minimum_support_rows": 50,
+            "gap_to_minimum": 50,
+            "delta_vs_previous": 0,
+            "stagnant_run_count": 5,
+        },
+    }
+    q15_support_audit = {
+        "current_live": {
+            "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+        },
+        "equilibrium_deadlock": {
+            "verdict": "equilibrium_deadlock_confirmed",
+            "confirmed": True,
+            "state": "confirmed",
+            "forced_research_action_artifact": {
+                "required": True,
+                "output_path": "data/equilibrium_deadlock_research_action.json",
+            },
+        },
+        "forced_branch_decision": {
+            "status": "hard_no_go_recorded",
+            "selected_branch": "hard_no_go_single_failed_gate",
+            "single_failed_gate": "circuit_breaker_gate",
+            "next_validation_artifact": "data/circuit_breaker_audit.json",
+            "decision_clock": "72h_micro_canary_or_single_failed_gate",
+        },
+        "active_repair_plan": {
+            "phase": "equilibrium_deadlock_escape",
+            "live_exposure_allowed": False,
+            "shadow_or_paper_allowed": True,
+            "forced_research_action_required": True,
+        },
+    }
+
+    context = hb_parallel_runner._support_truth_context(live_predictor_diagnostics, q15_support_audit)
+    doc_line = hb_parallel_runner._support_progress_docs_line(context)
+
+    assert context["source"] == "live_predictor+q15_forced_branch"
+    assert context["support_route_verdict"] == "exact_bucket_unsupported_block"
+    assert context["equilibrium_deadlock_verdict"] == "equilibrium_deadlock_confirmed"
+    assert context["equilibrium_deadlock_confirmed"] is True
+    assert context["forced_research_action_required"] is True
+    assert context["forced_branch_status"] == "hard_no_go_recorded"
+    assert context["forced_branch_selected_branch"] == "hard_no_go_single_failed_gate"
+    assert context["forced_branch_single_failed_gate"] == "circuit_breaker_gate"
+    assert context["forced_branch_next_validation_artifact"] == "data/circuit_breaker_audit.json"
+    assert context["active_repair_phase"] == "equilibrium_deadlock_escape"
+    assert "equilibrium_deadlock=equilibrium_deadlock_confirmed" in doc_line
+    assert "forced_branch_status=hard_no_go_recorded" in doc_line
+    assert "single_failed_gate=circuit_breaker_gate" in doc_line
 
 
 def test_current_live_issue_summary_surfaces_q15_active_repair_plan():
@@ -2405,8 +2759,10 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
     probe_json = data_dir / "live_predict_probe.json"
     drilldown_json = data_dir / "live_decision_quality_drilldown.json"
     smoke_json = data_dir / "execution_metadata_smoke.json"
+    venue_dry_run_json = data_dir / "venue_dry_run_proof.json"
     leaderboard_json = data_dir / "leaderboard_feature_profile_probe.json"
     topk_json = data_dir / "high_conviction_topk_oos_matrix.json"
+    live_canary_json = data_dir / "live_canary_structural_pivot.json"
 
     issues_md.write_text("old issues", encoding="utf-8")
     roadmap_md.write_text("old roadmap", encoding="utf-8")
@@ -2415,8 +2771,10 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
     probe_json.write_text("{}", encoding="utf-8")
     drilldown_json.write_text("{}", encoding="utf-8")
     smoke_json.write_text("{}", encoding="utf-8")
+    venue_dry_run_json.write_text("{}", encoding="utf-8")
     leaderboard_json.write_text("{}", encoding="utf-8")
     topk_json.write_text("{}", encoding="utf-8")
+    live_canary_json.write_text("{}", encoding="utf-8")
 
     now = time.time()
     os.utime(issues_md, (now - 20, now - 20))
@@ -2426,8 +2784,10 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
     os.utime(probe_json, (now + 6, now + 6))
     os.utime(drilldown_json, (now + 7, now + 7))
     os.utime(smoke_json, (now + 8, now + 8))
-    os.utime(leaderboard_json, (now + 9, now + 9))
-    os.utime(topk_json, (now + 10, now + 10))
+    os.utime(venue_dry_run_json, (now + 9, now + 9))
+    os.utime(leaderboard_json, (now + 10, now + 10))
+    os.utime(topk_json, (now + 11, now + 11))
+    os.utime(live_canary_json, (now + 12, now + 12))
 
     status = hb_parallel_runner.collect_current_state_docs_sync_status()
 
@@ -2439,9 +2799,44 @@ def test_collect_current_state_docs_sync_status_flags_stale_docs(tmp_path, monke
         "data/live_predict_probe.json",
         "data/live_decision_quality_drilldown.json",
         "data/execution_metadata_smoke.json",
+        "data/venue_dry_run_proof.json",
         "data/leaderboard_feature_profile_probe.json",
         "data/high_conviction_topk_oos_matrix.json",
+        "data/live_canary_structural_pivot.json",
     ]
+
+
+def test_collect_current_state_docs_sync_status_allows_same_run_mtime_jitter(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    docs = [
+        tmp_path / "ISSUES.md",
+        tmp_path / "ROADMAP.md",
+        tmp_path / "ORID_DECISIONS.md",
+    ]
+    references = [
+        tmp_path / "issues.json",
+        data_dir / "high_conviction_topk_oos_matrix.json",
+        data_dir / "live_canary_structural_pivot.json",
+    ]
+    for path in docs:
+        path.write_text("current docs", encoding="utf-8")
+    for path in references:
+        path.write_text("{}", encoding="utf-8")
+
+    now = time.time()
+    for path in docs:
+        os.utime(path, (now, now))
+    jitter = hb_parallel_runner._CURRENT_STATE_DOC_STALE_MTIME_TOLERANCE_SECONDS / 2
+    for path in references:
+        os.utime(path, (now + jitter, now + jitter))
+
+    status = hb_parallel_runner.collect_current_state_docs_sync_status()
+
+    assert status["ok"] is True
+    assert status["stale_docs"] == []
 
 
 
@@ -2667,6 +3062,27 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
             "leaderboard_payload_cache_age_sec": 4001,
         },
         run_mode="full",
+        serial_results={
+            "active_backend_health_probe": {
+                "result": {
+                    "attempted": True,
+                    "success": True,
+                    "returncode": 0,
+                    "stdout": json.dumps(
+                        {
+                            "strict_ok": True,
+                            "head_sync_status": "current_head_commit",
+                            "raw_continuity_status": "clean",
+                            "feature_continuity_status": "clean",
+                            "restart_required": False,
+                            "process_started_at": "2026-06-04T06:57:44Z",
+                            "source": "http://127.0.0.1:8000/health",
+                        }
+                    ),
+                    "stderr": "",
+                }
+            }
+        },
     )
 
     assert result["success"] is True
@@ -2686,6 +3102,10 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "curl http://127.0.0.1:8000/api/models/leaderboard" not in issues_md
     assert "current-state docs overwrite sync 已自動化" in roadmap_md
     assert "Execution Console / `/api/trade` 已 fail-closed（同步中 + 阻塞 + 直接 API）" in issues_md
+    assert "active_backend_health_probe=passed" in issues_md
+    assert "head_sync_status=current_head_commit" in issues_md
+    assert "active backend health serial lane" in roadmap_md
+    assert "active local API proof" in orid_md
     assert "Dashboard 啟動連續性 guardrail 已納入 feature deferred truth" in issues_md
     assert "特徵缺口已延後到心跳維護收斂" in issues_md
     assert "`/api/execution/overview` / `/api/execution/runs` 已走 20s operator-workspace timeout" in issues_md
@@ -2704,9 +3124,22 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "減碼 / 取消掛單可用，但進攻買入 / 加倉仍鎖住" in orid_md
     combined_docs = "\n".join([issues_md, roadmap_md, orid_md])
     assert "M5 實戰準備度總卡已產品化" in issues_md
-    assert "模型 gate / 即時支持 gate / 熔斷 gate / 場館 gate / 影子觀察 gate" in issues_md
+    assert "模型 gate / 即時支持 gate / 熔斷 gate / 場館 gate / live-canary policy gate / 影子觀察 gate" in issues_md
+    assert "`live_canary_policy_gate`" in combined_docs
+    assert "/api/status.execution_surface_contract.live_canary_policy_gate" in combined_docs
+    assert "Dashboard / Execution Status / Strategy Lab status-only summaries" in combined_docs
     assert "Shadow Trade Ledger" in roadmap_md
     assert "Venue dry-run proof" in roadmap_md
+    assert "`/api/status` 會載入 `data/venue_dry_run_proof.json`" in issues_md
+    assert "`/api/execution/overview` artifact-first" in issues_md
+    assert "venue_dry_run_api_consistency_probe.py --strict" in combined_docs
+    assert "status / overview / artifact 同源" in combined_docs
+    assert "fail-closed、secret-safe" in combined_docs
+    assert "high_conviction_topk_api_consistency_probe.py --strict" in combined_docs
+    assert "counts / nearest candidate / support rows / breaker release math / fail-closed / secret-safe" in combined_docs
+    assert "paper_shadow_outcome_api_consistency_probe.py --strict" in combined_docs
+    assert "artifact/API 同源、quick-read、pending guard、fail-closed、secret-safe" in combined_docs
+    assert "fill simulation" in roadmap_md
     assert "目前距離 canary 還差什麼" in roadmap_md
     assert "今天可以演練什麼" in roadmap_md
     assert "哪一個 gate 卡住" in roadmap_md
@@ -2867,6 +3300,105 @@ def test_overwrite_current_state_docs_surfaces_support_fill_feasibility_pm_press
         ),
         encoding="utf-8",
     )
+    (data_dir / "q15_exact_bucket_row_harvest_proof.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-20T06:13:27+00:00",
+                "artifact": "q15_exact_bucket_row_harvest_proof",
+                "support_identity": {
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                },
+                "harvest_window": {
+                    "exact_identity_rows": 11,
+                    "exact_bucket_rows": 0,
+                    "non_bucket_identity_rows": 11,
+                },
+                "verdict": {
+                    "status": "exact_bucket_row_harvest_no_current_rows",
+                    "current_exact_bucket_rows": 0,
+                    "previous_rows": 0,
+                    "delta_vs_previous": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                    "rows_needed_to_minimum": 50,
+                    "support_gate_ready": False,
+                    "time_to_evidence_bucket": "unknown_until_exact_identity_rows_start_accumulating",
+                    "missing_capability_class": "Signal/Support",
+                    "alternative_solution_required": True,
+                    "primary_failed_gate": "current_live_support_gate",
+                    "live_exposure_allowed": False,
+                    "order_submission_enabled": False,
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "q15_drift_rebaseline_backtest.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-20T06:13:57+00:00",
+                "artifact": "q15_drift_rebaseline_backtest",
+                "verdict": {
+                    "status": "reference_candidate_found_but_current_window_unproven",
+                    "decision": "keep_fail_closed_replay_required",
+                    "selected_candidate_id": "semantic_entry_quality_family",
+                    "selected_candidate_status": "reference_candidate_current_window_empty",
+                    "selected_current_window_rows": 0,
+                    "selected_all_history_rows": 93,
+                    "current_exact_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                    "primary_failed_gate": "current_live_support_gate",
+                    "live_exposure_allowed": False,
+                    "order_submission_enabled": False,
+                },
+                "recent_drift_context": {
+                    "window": "recent_50",
+                    "win_rate": 0.42,
+                    "dominant_regime": "bear",
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "q15_map_signal_redesign_proof.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-20T06:14:57+00:00",
+                "artifact": "q15_map_signal_redesign_proof",
+                "verdict": {
+                    "status": "map_signal_redesign_reference_only_current_window_rejected",
+                    "decision": "keep_fail_closed_replay_required",
+                    "selected_candidate_id": "dominant_neighbor_exact_lane",
+                    "selected_candidate_status": "current_window_metric_gate_failed",
+                    "selected_target_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                    "selected_current_window_rows": 14,
+                    "selected_all_history_rows": 87,
+                    "best_reference_candidate_id": "dominant_neighbor_exact_lane",
+                    "best_reference_all_history_rows": 87,
+                    "current_exact_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                    "primary_failed_gate": "current_window_metric_gate",
+                    "live_exposure_allowed": False,
+                    "order_submission_enabled": False,
+                },
+                "root_cause_context": {
+                    "verdict": "candidate_patch_available_reference_only",
+                    "candidate_patch_type": "structure_component_scoring",
+                    "candidate_patch_feature": "feat_4h_bb_pct_b",
+                    "exact_live_lane": {
+                        "dominant_neighbor_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                        "dominant_neighbor_rows": 174,
+                    },
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
 
     result = hb_parallel_runner.overwrite_current_state_docs(
         "20260520_support_fill",
@@ -2906,9 +3438,44 @@ def test_overwrite_current_state_docs_surfaces_support_fill_feasibility_pm_press
     assert "missing_capability=Map/Signal" in combined_docs
     assert "alternative_solution_required=True" in combined_docs
     assert "reference windows / governance rows 不可包裝成 deployable support" in combined_docs
-    assert "exact bucket rows / identity rows / missing capability / alternative solution" in combined_docs
+    assert "Exact bucket row-harvest proof 已納入 current-state docs" in issues_md
+    assert "exact bucket row-harvest proof 已補上 support movement 證據" in roadmap_md
+    assert "exact bucket row-harvest proof" in orid_md
+    assert "artifact=data/q15_exact_bucket_row_harvest_proof.json" in combined_docs
+    assert "status=exact_bucket_row_harvest_no_current_rows" in combined_docs
+    assert "previous_rows=0" in combined_docs
+    assert "delta=0" in combined_docs
+    assert "primary_failed_gate=current_live_support_gate" in combined_docs
+    assert "row harvest proof 只證明 exact support movement" in combined_docs
+    assert "drift-aware rebaseline proof 已納入 forced-execution current-state docs" in issues_md
+    assert "drift-aware rebaseline backtest 已補上反平衡 forced branch 證據" in roadmap_md
+    assert "drift-aware rebaseline forced branch" in orid_md
+    assert "status=reference_candidate_found_but_current_window_unproven" in combined_docs
+    assert "candidate=semantic_entry_quality_family" in combined_docs
+    assert "current_window_rows=0/50" in combined_docs
+    assert "all_history_rows=93" in combined_docs
+    assert "live_exposure_allowed=false" in combined_docs
+    assert "不可當成 current-live deployment clearance" in combined_docs
+    assert "Map/Signal redesign proof 已納入 forced-execution current-state docs" in issues_md
+    assert "Map/Signal redesign proof 已補上反平衡 forced branch 證據" in roadmap_md
+    assert "Map/Signal redesign forced branch" in orid_md
+    assert "status=map_signal_redesign_reference_only_current_window_rejected" in combined_docs
+    assert "candidate=dominant_neighbor_exact_lane" in combined_docs
+    assert "target_bucket=BLOCK|bear_bias200_hard_block|q00" in combined_docs
+    assert "current_window_rows=14/50" in combined_docs
+    assert "all_history_rows=87" in combined_docs
+    assert "best_reference=dominant_neighbor_exact_lane:87" in combined_docs
+    assert "root_cause=candidate_patch_available_reference_only:structure_component_scoring:feat_4h_bb_pct_b" in combined_docs
+    assert "dominant_neighbor=BLOCK|bear_bias200_hard_block|q00:174" in combined_docs
+    assert "primary_failed_gate=current_window_metric_gate" in combined_docs
+    assert "live_exposure_allowed=false" in combined_docs
+    assert "Map/Signal redesign rows are replay inputs only" in combined_docs
+    assert "exact bucket rows / identity rows / delta / missing capability / alternative solution" in combined_docs
     assert "identity/proxy/reference rows 被包裝成 deployable" in combined_docs
     assert "data/q15_support_fill_feasibility.json" in combined_docs
+    assert "data/q15_exact_bucket_row_harvest_proof.json" in combined_docs
+    assert "data/q15_drift_rebaseline_backtest.json" in combined_docs
+    assert "data/q15_map_signal_redesign_proof.json" in combined_docs
     assert "- - **support-fill feasibility" not in roadmap_md
 
 
@@ -2961,6 +3528,15 @@ def test_overwrite_current_state_docs_marks_no_collect_verification_runs(tmp_pat
         {},
         run_mode="full",
         collect_attempted=False,
+        strategy_data_sync_maintenance={
+            "attempted": True,
+            "success": True,
+            "reason": "sync_completed",
+            "decision": {
+                "headroom_minutes": 10.0,
+                "lanes": [{"lane": "raw", "reason": "near_stale"}],
+            },
+        },
     )
 
     assert result["success"] is True
@@ -2971,6 +3547,9 @@ def test_overwrite_current_state_docs_marks_no_collect_verification_runs(tmp_pat
     assert "最新 full heartbeat #20260425_verify 已完成 diagnostics refresh（collect skipped）" in issues_md
     assert "full heartbeat #20260425_verify 已完成 diagnostics refresh（collect skipped）" in roadmap_md
     assert "diagnostics refresh 完成（collect skipped）" in orid_md
+    assert "strategy_data_sync_maintenance.attempted=true" in issues_md
+    assert "reason=sync_completed" in roadmap_md
+    assert "lanes=raw" in orid_md
     assert "#20260425_verify 已完成 collect + diagnostics refresh" not in issues_md
     assert "support 已閉環後，改以 decision-quality floor / execution release gate 作為下一輪主 gate" in roadmap_md
     assert "entry_quality=0.5116" in roadmap_md
@@ -4437,6 +5016,153 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "paper_shadow_outcome_reconciliation.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-06-04T05:00:00Z",
+                "status": "recording_pending_outcomes",
+                "summary": {
+                    "worker_poll_events": 1,
+                    "pending_outcomes": 1,
+                    "resolved_outcomes": 0,
+                    "awaiting_label_replay": 0,
+                    "live_order_submitted": False,
+                },
+                "rehearsal_proof": {
+                    "status": "pending_observation_window",
+                    "can_poll_workers": False,
+                    "poll_blocked_by_pending_outcome": True,
+                    "next_reconcile_at": "2999-01-01T00:00:00Z",
+                    "pending_hours_remaining_min": 12.5,
+                    "order_submission_enabled": False,
+                    "risk_on_order_enabled": False,
+                    "live_order_submitted": False,
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "customer_safe_alternative_proof.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-06-04T05:10:00Z",
+                "artifact": "customer_safe_alternative_proof",
+                "summary": {
+                    "live_exposure_allowed": False,
+                    "order_submission_enabled": False,
+                    "risk_on_order_enabled": False,
+                    "primary_blocking_gate": "circuit_breaker_gate",
+                    "support_rows": 0,
+                    "minimum_support_rows": 50,
+                    "support_gap": 50,
+                    "topk_deployable_rows": 0,
+                    "topk_support_context_status": "stale_live_probe_shadow_only",
+                    "topk_support_context_freshness_status": "stale",
+                    "topk_support_context_deployment_blocking": True,
+                    "topk_live_truth_overlay_blocker": "artifact_older_than_policy",
+                    "venue_status": "blocked_missing_runtime_backed_proof",
+                    "venue_runtime_ready": False,
+                    "blocked_live_lane_count": 3,
+                    "alternative_solution_required": True,
+                    "alternative_solution_option_count": 3,
+                    "selected_alternative_solution": "paper_shadow_decision_support_sleeve",
+                    "selected_next_customer_artifact": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+                    "next_customer_action_count": 4,
+                },
+                "live_exposure_allowed": False,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+                "primary_blocking_gate": "circuit_breaker_gate",
+                "support_rows": 0,
+                "minimum_support_rows": 50,
+                "support_gap": 50,
+                "topk_deployable_rows": 0,
+                "topk_support_context_status": "stale_live_probe_shadow_only",
+                "topk_support_context_freshness_status": "stale",
+                "topk_support_context_deployment_blocking": True,
+                "topk_live_truth_overlay_blocker": "artifact_older_than_policy",
+                "venue_status": "blocked_missing_runtime_backed_proof",
+                "venue_runtime_ready": False,
+                "blocked_live_lane_count": 3,
+                "alternative_solution_required": True,
+                "alternative_solution_option_count": 3,
+                "selected_alternative_solution": "paper_shadow_decision_support_sleeve",
+                "selected_next_customer_artifact": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+                "next_customer_action_count": 4,
+                "alternative_solutions": [
+                    {"id": "paper_shadow_decision_support_sleeve"},
+                    {"id": "semantic_rebaseline_review"},
+                    {"id": "venue_dry_run_readiness_proof"},
+                ],
+                "blocked_live_lanes": [
+                    {"id": "live_buy_add_exposure"},
+                    {"id": "risk_on_automation_enable"},
+                    {"id": "unbounded_live_canary"},
+                ],
+                "next_customer_actions": [
+                    {"id": "open_execution_paper_shadow"},
+                    {"id": "review_strategy_lab_topk_shadow_candidates"},
+                    {"id": "verify_venue_dry_run_lifecycle"},
+                    {"id": "track_breaker_and_exact_support"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (data_dir / "live_canary_structural_pivot.json").write_text(
+        json.dumps(
+            {
+                "artifact": "live_canary_structural_pivot",
+                "quick_read": {
+                    "deployment_blocker": "unsupported_exact_live_structure_bucket",
+                    "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q35",
+                    "current_lane_actionability": "no_trade_block_lane",
+                    "support_evidence_role": "support_progress_only_not_deployment_clearance",
+                    "support_rows": 0,
+                    "minimum_support_rows": 50,
+                    "support_gap": 50,
+                    "support_route_verdict": "exact_bucket_unsupported_block",
+                    "release_ready": False,
+                    "recent_window_wins": 9,
+                    "required_recent_window_wins": 25,
+                    "additional_recent_window_wins_needed": 16,
+                    "deployable_rows": 0,
+                    "paper_shadow_available": True,
+                    "venue_runtime_ready": False,
+                    "live_canary_policy_ready": False,
+                    "micro_canary_ready": False,
+                    "live_exposure_allowed": False,
+                    "risk_on_order_enabled": False,
+                    "order_submission_enabled": False,
+                    "single_failed_gate_for_72h_decision": "model_shadow_outcome_gate",
+                    "next_validation_artifact": "data/high_conviction_topk_oos_matrix.json + Shadow Trade Ledger 24h pyramid outcome rows",
+                },
+                "current_truth": {
+                    "current_lane_actionability": "no_trade_block_lane",
+                    "support_evidence_role": "support_progress_only_not_deployment_clearance",
+                    "operator_interpretation": "exact support is visible but current lane remains hold-only.",
+                    "support_rows": 0,
+                    "minimum_support_rows": 50,
+                    "support_gap": 50,
+                },
+                "micro_canary_gate": {
+                    "micro_canary_ready": False,
+                    "order_submission_enabled": False,
+                    "single_failed_gate_for_72h_decision": "model_shadow_outcome_gate",
+                },
+                "structural_decision": {
+                    "single_failed_gate_for_72h_decision": "model_shadow_outcome_gate",
+                    "next_validation_artifact": "data/high_conviction_topk_oos_matrix.json + Shadow Trade Ledger 24h pyramid outcome rows",
+                    "map_signal_forced_lane": "dominant_neighbor_exact_lane",
+                    "map_signal_next_validation_artifact": "data/q15_map_signal_redesign_proof.json",
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
     (data_dir / "high_conviction_topk_oos_matrix.json").write_text(
         json.dumps(
             {
@@ -4661,6 +5387,34 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert "paper_shadow=true" in issues_md
     assert "risk_on_order_enabled=false" in issues_md
     assert "不送單、不加倉" in issues_md
+    assert "Paper/shadow worker outcome reconciliation 已納入 current-state truth" in issues_md
+    assert "artifact=data/paper_shadow_outcome_reconciliation.json" in issues_md
+    assert "rehearsal_status=pending_observation_window" in issues_md
+    assert "worker_poll_events=1" in issues_md
+    assert "pending_outcomes=1" in issues_md
+    assert "poll_blocked_by_pending_outcome=true" in issues_md
+    assert "order_submission_enabled=false" in issues_md
+    assert "current_pending_hours_remaining_hours=" in issues_md
+    assert "artifact_pending_hours_remaining_hours=12.5" in issues_md
+    assert "Customer-safe alternative quick-read proof 已納入 current-state truth" in issues_md
+    assert "artifact=data/customer_safe_alternative_proof.json" in issues_md
+    assert "blocked_live_lanes=3" in issues_md
+    assert "alternative_solution_required=true" in issues_md
+    assert "alternative_solution_options=3" in issues_md
+    assert "topk_support_context_status=stale_live_probe_shadow_only" in issues_md
+    assert "topk_support_context_freshness=stale" in issues_md
+    assert "topk_support_context_deployment_blocking=true" in issues_md
+    assert "topk_live_truth_overlay_blocker=artifact_older_than_policy" in issues_md
+    assert "selected_alternative=paper_shadow_decision_support_sleeve" in issues_md
+    assert "next_customer_actions=4" in issues_md
+    assert "paper_shadow_decision_support_sleeve, semantic_rebaseline_review, venue_dry_run_readiness_proof" in issues_md
+    assert "live_buy_add_exposure, risk_on_automation_enable, unbounded_live_canary" in issues_md
+    assert "live-canary structural pivot quick-read" in issues_md
+    assert "artifact=data/live_canary_structural_pivot.json" in issues_md
+    assert "quick_read.deployment_blocker=unsupported_exact_live_structure_bucket" in issues_md
+    assert "single_failed_gate_for_72h_decision=model_shadow_outcome_gate" in issues_md
+    assert "micro_canary_ready=false" in issues_md
+    assert "order_submission_enabled=false" in issues_md
     assert "CAUTION|structure_quality_caution|q35" not in issues_md
     roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
     assert "freshness=stale" in roadmap_md
@@ -4675,6 +5429,15 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert "Execution Console 高信心 Top-K 影子觀察入口已產品化" in roadmap_md
     assert "paper_shadow=true" in roadmap_md
     assert "risk_on_order_enabled=false" in roadmap_md
+    assert "Paper/shadow worker outcome reconciliation 已納入 current plan" in roadmap_md
+    assert "data/paper_shadow_outcome_reconciliation.json" in roadmap_md
+    assert "current_pending_hours_remaining_hours=" in roadmap_md
+    assert "Customer-safe alternative quick-read proof 已納入 current plan" in roadmap_md
+    assert "data/customer_safe_alternative_proof.json" in roadmap_md
+    assert "topk_support_context_freshness=stale" in roadmap_md
+    assert "next_customer_actions=4" in roadmap_md
+    assert "live-canary structural pivot quick-read" in roadmap_md
+    assert "operator 可直接讀 quick_read" in roadmap_md
     orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
     assert "freshness=stale" in orid_md
     assert "release_ready=False" in orid_md
@@ -4684,6 +5447,16 @@ def test_overwrite_current_state_docs_refreshes_high_conviction_topk_latest_matr
     assert "high-conviction paper shadow" in orid_md
     assert "risk_on_order_enabled=false" in orid_md
     assert "runtime mirror / event log / reconciliation context" in orid_md
+    assert "paper/shadow outcome reconciliation" in orid_md
+    assert "artifact=data/paper_shadow_outcome_reconciliation.json" in orid_md
+    assert "live_order_submitted=false" in orid_md
+    assert "customer-safe alternative proof" in orid_md
+    assert "artifact=data/customer_safe_alternative_proof.json" in orid_md
+    assert "blocked_live_lanes=3" in orid_md
+    assert "topk_support_context_deployment_blocking=true" in orid_md
+    assert "live-canary structural pivot quick-read" in orid_md
+    assert "live_canary_structural_pivot" in orid_md
+    assert "72h hard-gate truth 已可 machine-read" in orid_md
     assert "矩陣過期或即時分桶" in orid_md
 
 
@@ -5772,6 +6545,178 @@ def test_collect_q15_support_fill_feasibility_diagnostics_reads_pm_pressure(tmp_
     assert diag["selected_next_alternative_artifact"].startswith("Execution Console")
 
 
+def test_collect_q15_drift_rebaseline_diagnostics_reads_fail_closed_candidate(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "q15_drift_rebaseline_backtest.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-20T06:13:57+00:00",
+                "artifact": "q15_drift_rebaseline_backtest",
+                "verdict": {
+                    "status": "reference_candidate_found_but_current_window_unproven",
+                    "decision": "keep_fail_closed_replay_required",
+                    "selected_candidate_id": "semantic_entry_quality_family",
+                    "selected_candidate_status": "reference_candidate_current_window_empty",
+                    "selected_current_window_rows": 0,
+                    "selected_all_history_rows": 93,
+                    "current_exact_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                    "primary_failed_gate": "current_live_support_gate",
+                    "live_exposure_allowed": False,
+                    "order_submission_enabled": False,
+                },
+                "recent_drift_context": {
+                    "window": "recent_50",
+                    "win_rate": 0.42,
+                    "dominant_regime": "bear",
+                    "dominant_regime_share": 0.6,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    diag = hb_parallel_runner.collect_q15_drift_rebaseline_diagnostics()
+
+    assert diag["status"] == "reference_candidate_found_but_current_window_unproven"
+    assert diag["selected_candidate_id"] == "semantic_entry_quality_family"
+    assert diag["selected_current_window_rows"] == 0
+    assert diag["selected_all_history_rows"] == 93
+    assert diag["live_exposure_allowed"] is False
+    assert diag["order_submission_enabled"] is False
+    assert diag["primary_failed_gate"] == "current_live_support_gate"
+    assert diag["recent_drift_window"] == "recent_50"
+    assert diag["recent_drift_win_rate"] == 0.42
+
+
+def test_collect_q15_exact_bucket_row_harvest_diagnostics_reads_fail_closed_movement(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "q15_exact_bucket_row_harvest_proof.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-06-05T03:00:00Z",
+                "artifact": "q15_exact_bucket_row_harvest_proof",
+                "support_identity": {
+                    "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+                },
+                "harvest_window": {
+                    "exact_identity_rows": 33,
+                    "exact_bucket_rows": 19,
+                    "non_bucket_identity_rows": 14,
+                },
+                "support_progress": {
+                    "status": "semantic_rebaseline_under_minimum",
+                    "regression_basis": "legacy_or_different_semantic_signature",
+                },
+                "verdict": {
+                    "status": "exact_bucket_row_harvest_positive_delta_under_minimum",
+                    "current_exact_bucket_rows": 19,
+                    "previous_rows": 0,
+                    "delta_vs_previous": 19,
+                    "semantic_signature_delta_vs_previous": 18,
+                    "stagnant_run_count": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 31,
+                    "rows_needed_to_minimum": 31,
+                    "support_gate_ready": False,
+                    "time_to_evidence_bucket": "within_week_if_exact_identity_keeps_accumulating",
+                    "missing_capability_class": "Signal/Support",
+                    "alternative_solution_required": True,
+                    "primary_failed_gate": "current_live_support_gate",
+                    "live_exposure_allowed": False,
+                    "order_submission_enabled": False,
+                    "risk_on_order_enabled": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    diag = hb_parallel_runner.collect_q15_exact_bucket_row_harvest_diagnostics()
+
+    assert diag["status"] == "exact_bucket_row_harvest_positive_delta_under_minimum"
+    assert diag["current_exact_bucket_rows"] == 19
+    assert diag["previous_rows"] == 0
+    assert diag["delta_vs_previous"] == 19
+    assert diag["gap_to_minimum"] == 31
+    assert diag["rows_needed_to_minimum"] == 31
+    assert diag["support_gate_ready"] is False
+    assert diag["time_to_evidence_bucket"] == "within_week_if_exact_identity_keeps_accumulating"
+    assert diag["exact_identity_rows"] == 33
+    assert diag["non_bucket_identity_rows"] == 14
+    assert diag["live_exposure_allowed"] is False
+    assert diag["order_submission_enabled"] is False
+
+
+def test_collect_q15_map_signal_redesign_diagnostics_reads_fail_closed_candidate(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "q15_map_signal_redesign_proof.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-20T06:14:57+00:00",
+                "artifact": "q15_map_signal_redesign_proof",
+                "verdict": {
+                    "status": "map_signal_redesign_reference_only_current_window_rejected",
+                    "decision": "keep_fail_closed_replay_required",
+                    "selected_candidate_id": "dominant_neighbor_exact_lane",
+                    "selected_candidate_status": "current_window_metric_gate_failed",
+                    "selected_redesign_type": "structure_component_scoring",
+                    "selected_target_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                    "selected_current_window_rows": 14,
+                    "selected_all_history_rows": 87,
+                    "best_reference_candidate_id": "dominant_neighbor_exact_lane",
+                    "best_reference_target_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                    "best_reference_current_window_rows": 14,
+                    "best_reference_all_history_rows": 87,
+                    "current_exact_bucket_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                    "primary_failed_gate": "current_window_metric_gate",
+                    "live_exposure_allowed": False,
+                    "order_submission_enabled": False,
+                },
+                "root_cause_context": {
+                    "verdict": "candidate_patch_available_reference_only",
+                    "candidate_patch_type": "structure_component_scoring",
+                    "candidate_patch_feature": "feat_4h_bb_pct_b",
+                    "exact_live_lane": {
+                        "dominant_neighbor_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                        "dominant_neighbor_rows": 174,
+                        "near_boundary_rows": 9,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    diag = hb_parallel_runner.collect_q15_map_signal_redesign_diagnostics()
+
+    assert diag["status"] == "map_signal_redesign_reference_only_current_window_rejected"
+    assert diag["selected_candidate_id"] == "dominant_neighbor_exact_lane"
+    assert diag["selected_candidate_status"] == "current_window_metric_gate_failed"
+    assert diag["selected_target_bucket"] == "BLOCK|bear_bias200_hard_block|q00"
+    assert diag["selected_current_window_rows"] == 14
+    assert diag["selected_all_history_rows"] == 87
+    assert diag["best_reference_candidate_id"] == "dominant_neighbor_exact_lane"
+    assert diag["best_reference_all_history_rows"] == 87
+    assert diag["live_exposure_allowed"] is False
+    assert diag["order_submission_enabled"] is False
+    assert diag["primary_failed_gate"] == "current_window_metric_gate"
+    assert diag["root_cause_verdict"] == "candidate_patch_available_reference_only"
+    assert diag["root_cause_candidate_patch_type"] == "structure_component_scoring"
+    assert diag["root_cause_candidate_patch_feature"] == "feat_4h_bb_pct_b"
+    assert diag["root_cause_dominant_neighbor_bucket"] == "BLOCK|bear_bias200_hard_block|q00"
+    assert diag["root_cause_dominant_neighbor_rows"] == 174
+
+
 def test_collect_q15_bucket_root_cause_diagnostics_reads_verdict_and_candidate_patch(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     data_dir = tmp_path / "data"
@@ -5882,6 +6827,7 @@ def test_main_fast_mode_repairs_missing_leaderboard_payload_without_heavy_candid
     monkeypatch.setattr(hb_parallel_runner, "parse_args", lambda argv=None: Args())
     monkeypatch.setattr(hb_parallel_runner, "resolve_run_label", lambda args: "test")
     monkeypatch.setattr(hb_parallel_runner, "run_collect_step", lambda skip=False: {"attempted": False, "success": True, "returncode": 0, "stdout": "", "stderr": ""})
+    monkeypatch.setattr(hb_parallel_runner, "run_strategy_data_sync_maintenance", _noop_strategy_data_sync_maintenance)
     monkeypatch.setattr(
         hb_parallel_runner,
         "quick_counts",
@@ -5969,6 +6915,7 @@ def test_main_fast_mode_refreshes_leaderboard_alignment_snapshot_when_artifact_e
     monkeypatch.setattr(hb_parallel_runner, "parse_args", lambda argv=None: Args())
     monkeypatch.setattr(hb_parallel_runner, "resolve_run_label", lambda args: "test")
     monkeypatch.setattr(hb_parallel_runner, "run_collect_step", lambda skip=False: {"attempted": False, "success": True, "returncode": 0, "stdout": "", "stderr": ""})
+    monkeypatch.setattr(hb_parallel_runner, "run_strategy_data_sync_maintenance", _noop_strategy_data_sync_maintenance)
     monkeypatch.setattr(
         hb_parallel_runner,
         "quick_counts",
@@ -6097,6 +7044,7 @@ def test_main_fast_mode_recollects_leaderboard_diagnostics_after_q15_audit(tmp_p
     monkeypatch.setattr(hb_parallel_runner, "parse_args", lambda argv=None: Args())
     monkeypatch.setattr(hb_parallel_runner, "resolve_run_label", lambda args: "test")
     monkeypatch.setattr(hb_parallel_runner, "run_collect_step", lambda skip=False: {"attempted": False, "success": True, "returncode": 0, "stdout": "", "stderr": ""})
+    monkeypatch.setattr(hb_parallel_runner, "run_strategy_data_sync_maintenance", _noop_strategy_data_sync_maintenance)
     monkeypatch.setattr(
         hb_parallel_runner,
         "quick_counts",
@@ -6181,6 +7129,7 @@ def test_main_fast_mode_opt_in_refreshes_candidate_lanes(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "parse_args", lambda argv=None: Args())
     monkeypatch.setattr(hb_parallel_runner, "resolve_run_label", lambda args: "test")
     monkeypatch.setattr(hb_parallel_runner, "run_collect_step", lambda skip=False: {"attempted": False, "success": True, "returncode": 0, "stdout": "", "stderr": ""})
+    monkeypatch.setattr(hb_parallel_runner, "run_strategy_data_sync_maintenance", _noop_strategy_data_sync_maintenance)
     monkeypatch.setattr(
         hb_parallel_runner,
         "quick_counts",
@@ -6391,9 +7340,34 @@ def test_full_serial_timeout_caps_expensive_candidate_lanes(monkeypatch):
     assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["topk_walkforward_precision"] == 120
     assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["topk_walkforward_precision"] < 600
     assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/high_conviction_topk_api_consistency_probe.py"],
+        None,
+    ) == hb_parallel_runner.FULL_SERIAL_TIMEOUTS["high_conviction_topk_api_consistency_probe"]
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["high_conviction_topk_api_consistency_probe"] == 20
+    assert hb_parallel_runner._resolve_serial_timeout(
         ["python", "scripts/hb_predict_probe.py"],
         None,
     ) == 600
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/venue_dry_run_proof.py"],
+        None,
+    ) == hb_parallel_runner.FULL_SERIAL_TIMEOUTS["venue_dry_run_proof"]
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["venue_dry_run_proof"] == 20
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/paper_shadow_outcome_reconciliation.py"],
+        None,
+    ) == hb_parallel_runner.FULL_SERIAL_TIMEOUTS["paper_shadow_outcome_reconciliation"]
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["paper_shadow_outcome_reconciliation"] == 20
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/paper_shadow_outcome_api_consistency_probe.py"],
+        None,
+    ) == hb_parallel_runner.FULL_SERIAL_TIMEOUTS["paper_shadow_outcome_api_consistency_probe"]
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["paper_shadow_outcome_api_consistency_probe"] == 20
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/customer_safe_alternative_api_consistency_probe.py"],
+        None,
+    ) == hb_parallel_runner.FULL_SERIAL_TIMEOUTS["customer_safe_alternative_api_consistency_probe"]
+    assert hb_parallel_runner.FULL_SERIAL_TIMEOUTS["customer_safe_alternative_api_consistency_probe"] == 20
 
     monkeypatch.setattr(hb_parallel_runner, "_CURRENT_HEARTBEAT_FAST_MODE", True)
     assert hb_parallel_runner._resolve_serial_timeout(
@@ -6419,10 +7393,50 @@ def test_full_serial_timeout_caps_expensive_candidate_lanes(monkeypatch):
         < hb_parallel_runner.FAST_HEARTBEAT_CRON_BUDGET_SECONDS / 2
     )
     assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/high_conviction_topk_api_consistency_probe.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["high_conviction_topk_api_consistency_probe"]
+    assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["high_conviction_topk_api_consistency_probe"] == 20
+    assert hb_parallel_runner._resolve_serial_timeout(
         ["python", "scripts/q15_support_fill_feasibility_scan.py"],
         None,
     ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["q15_support_fill_feasibility_scan"]
     assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["q15_support_fill_feasibility_scan"] == 20
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/q15_exact_bucket_row_harvest_proof.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["q15_exact_bucket_row_harvest_proof"]
+    assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["q15_exact_bucket_row_harvest_proof"] == 20
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/q15_drift_rebaseline_backtest.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["q15_drift_rebaseline_backtest"]
+    assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["q15_drift_rebaseline_backtest"] == 20
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/q15_map_signal_redesign_proof.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["q15_map_signal_redesign_proof"]
+    assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["q15_map_signal_redesign_proof"] == 20
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/venue_dry_run_proof.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["venue_dry_run_proof"]
+    assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["venue_dry_run_proof"] == 20
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/paper_shadow_outcome_reconciliation.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["paper_shadow_outcome_reconciliation"]
+    assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["paper_shadow_outcome_reconciliation"] == 20
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/paper_shadow_outcome_api_consistency_probe.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["paper_shadow_outcome_api_consistency_probe"]
+    assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["paper_shadow_outcome_api_consistency_probe"] == 20
+    assert hb_parallel_runner._resolve_serial_timeout(
+        ["python", "scripts/customer_safe_alternative_api_consistency_probe.py"],
+        None,
+    ) == hb_parallel_runner.FAST_SERIAL_TIMEOUTS["customer_safe_alternative_api_consistency_probe"]
+    assert hb_parallel_runner.FAST_SERIAL_TIMEOUTS["customer_safe_alternative_api_consistency_probe"] == 20
 
 
 def test_parallel_task_timeouts_are_bounded_for_full_cron_budget():
@@ -6560,6 +7574,58 @@ def test_build_serial_result_summary_marks_cached_artifact(tmp_path):
     assert summary["cache_details"]["current_feature_timestamp"] == "2026-04-17 10:30:00"
     assert summary["artifact_path"] == str(artifact_path)
     assert summary["fallback_artifact_used"] is False
+
+
+def test_build_serial_result_summary_reads_generated_at_from_artifact_without_diagnostics(tmp_path):
+    artifact_path = tmp_path / "data" / "paper_shadow_outcome_reconciliation.json"
+    artifact_path.parent.mkdir()
+    artifact_path.write_text(
+        json.dumps({"generated_at": "2026-06-04T07:42:39.209093Z"}),
+        encoding="utf-8",
+    )
+
+    summary = hb_parallel_runner._build_serial_result_summary(
+        "paper_shadow_outcome_reconciliation",
+        {
+            "attempted": True,
+            "success": True,
+            "returncode": 0,
+            "stdout": "{}",
+            "stderr": "",
+        },
+        artifact_path=artifact_path,
+        now=hb_parallel_runner._safe_parse_datetime("2026-06-04T07:43:39.209093Z"),
+    )
+
+    assert summary["artifact_exists"] is True
+    assert summary["artifact_generated_at"] == "2026-06-04T07:42:39.209093Z"
+    assert summary["artifact_age_seconds"] == 60.0
+    assert summary["diagnostics_available"] is False
+
+
+def test_active_backend_health_docs_context_formats_blocker_list():
+    context = hb_parallel_runner._active_backend_health_docs_context(
+        {
+            "active_backend_health_probe": {
+                "attempted": True,
+                "success": False,
+                "returncode": 1,
+                "stdout": json.dumps(
+                    {
+                        "strict_ok": False,
+                        "head_sync_status": "stale_head_commit",
+                        "restart_required": True,
+                        "blockers": ["active_backend_stale_head_commit"],
+                    }
+                ),
+                "stderr": "",
+            }
+        }
+    )
+
+    assert "`active_backend_health_probe=failed`" in context["docs_line"]
+    assert "`head_sync_status=stale_head_commit`" in context["docs_line"]
+    assert "`blockers=active_backend_stale_head_commit`" in context["docs_line"]
 
 
 def test_feature_group_ablation_cache_hit_uses_semantic_label_signature_when_available(tmp_path, monkeypatch):
@@ -7471,6 +8537,7 @@ def test_main_writes_final_progress_artifact(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "parse_args", lambda argv=None: Args())
     monkeypatch.setattr(hb_parallel_runner, "resolve_run_label", lambda args: "progress")
     monkeypatch.setattr(hb_parallel_runner, "run_collect_step", lambda skip=False: {"attempted": False, "success": True, "returncode": 0, "stdout": "", "stderr": ""})
+    monkeypatch.setattr(hb_parallel_runner, "run_strategy_data_sync_maintenance", _noop_strategy_data_sync_maintenance)
     monkeypatch.setattr(
         hb_parallel_runner,
         "quick_counts",
@@ -7508,11 +8575,24 @@ def test_main_writes_final_progress_artifact(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_bucket_root_cause_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_q15_support_fill_feasibility", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_support_fill_feasibility_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_exact_bucket_row_harvest_proof", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_exact_bucket_row_harvest_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_drift_rebaseline_backtest", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_drift_rebaseline_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_q15_map_signal_redesign_proof", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "collect_q15_map_signal_redesign_diagnostics", lambda: {})
     monkeypatch.setattr(hb_parallel_runner, "run_q15_boundary_replay", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "collect_q15_boundary_replay_diagnostics", lambda: {})
+    monkeypatch.setattr(hb_parallel_runner, "run_active_backend_health_probe", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_high_conviction_topk_api_consistency_probe", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "run_execution_metadata_smoke", lambda: _ok('{"runtime_ready": false}'))
+    monkeypatch.setattr(hb_parallel_runner, "run_venue_dry_run_proof", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_paper_shadow_outcome_reconciliation", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_paper_shadow_outcome_api_consistency_probe", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "run_customer_safe_alternative_proof", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_customer_safe_alternative_api_consistency_probe", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "run_live_canary_structural_pivot", lambda: _ok())
+    monkeypatch.setattr(hb_parallel_runner, "run_no_trade_lane_replay", lambda: _ok())
     monkeypatch.setattr(hb_parallel_runner, "run_auto_propose", lambda run_label=None: _ok())
 
     hb_parallel_runner.main(["--fast", "--hb", "progress"])
@@ -7588,6 +8668,7 @@ def test_main_parallel_watchdog_writes_pending_tasks_to_progress(tmp_path, monke
     monkeypatch.setattr(hb_parallel_runner, "parse_args", lambda argv=None: Args())
     monkeypatch.setattr(hb_parallel_runner, "resolve_run_label", lambda args: "watchdog")
     monkeypatch.setattr(hb_parallel_runner, "run_collect_step", lambda skip=False: {"attempted": False, "success": True, "returncode": 0, "stdout": "", "stderr": ""})
+    monkeypatch.setattr(hb_parallel_runner, "run_strategy_data_sync_maintenance", _noop_strategy_data_sync_maintenance)
     monkeypatch.setattr(
         hb_parallel_runner,
         "quick_counts",

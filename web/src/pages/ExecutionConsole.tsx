@@ -127,6 +127,22 @@ type AlternativeSolutionReview = {
   operator_message?: string | null;
 };
 
+type MilestoneProgression = {
+  status?: string | null;
+  current_milestone?: string | null;
+  active_lane?: string | null;
+  active_lane_label?: string | null;
+  blocked_live_gate_key?: string | null;
+  blocked_live_gate_label?: string | null;
+  auto_adjustment_applied?: boolean | null;
+  auto_adjustment_reason?: string | null;
+  operator_message?: string | null;
+  preferred_entrypoint?: Record<string, unknown> | null;
+  fallback_entrypoint?: Record<string, unknown> | null;
+  safe_entry_lanes?: Array<Record<string, unknown>> | null;
+  milestones?: Array<Record<string, unknown>> | null;
+};
+
 type ExecutionReadiness = {
   status?: string | null;
   stage_label?: string | null;
@@ -142,6 +158,7 @@ type ExecutionReadiness = {
   what_cannot_do_now?: string[] | null;
   time_to_evidence?: TimeToEvidence | null;
   alternative_solution_review?: AlternativeSolutionReview | null;
+  milestone_progression?: MilestoneProgression | null;
   next_release_condition?: string | null;
 };
 
@@ -179,10 +196,16 @@ type ShadowTradeLedger = {
 };
 
 type VenueDryRunProof = {
+  artifact?: string | null;
+  artifact_path?: string | null;
+  generated_at?: string | null;
   status?: string | null;
   venue?: string | null;
   credential_present?: boolean | null;
   secrets_redacted?: boolean | null;
+  runtime_ready?: boolean | null;
+  runtime_ready_count?: number | null;
+  venues_checked?: number | null;
   proof_state?: string | null;
   blockers?: string[] | null;
   operator_next_action?: string | null;
@@ -190,6 +213,7 @@ type VenueDryRunProof = {
   order_preview?: Record<string, unknown> | null;
   ack_simulation?: Record<string, unknown> | null;
   cancel_simulation?: Record<string, unknown> | null;
+  fill_simulation?: Record<string, unknown> | null;
   reconciliation_check?: Record<string, unknown> | null;
 };
 
@@ -202,6 +226,7 @@ type CanaryGapAnswers = {
   blocked_gate_summary?: string | null;
   time_to_evidence?: TimeToEvidence | null;
   alternative_solution_review?: AlternativeSolutionReview | null;
+  milestone_progression?: MilestoneProgression | null;
   first_canary_plan_if_all_gates_pass?: {
     exposure_pct_max?: number | null;
     pyramid_layer?: string | null;
@@ -412,6 +437,39 @@ type ExecutionConsoleRuntimeStatusResponse = {
   } | null;
 };
 
+type ExecutionStrategyBundleSummary = {
+  bundle_id?: string | null;
+  bundle_hash?: string | null;
+  freeze_status?: string | null;
+  deployability_status?: string | null;
+  feature_schema_hash?: string | null;
+  model_artifact_status?: string | null;
+  live_buy_add_status?: string | null;
+  order_submission_enabled?: boolean | null;
+  parity_blockers?: string[] | null;
+  operator_action?: string | null;
+};
+
+type ExecutionWorkerControl = {
+  status?: string | null;
+  state?: string | null;
+  backend_worker_bound?: boolean | null;
+  worker_kind?: string | null;
+  order_submission_enabled?: boolean | null;
+  risk_on_order_enabled?: boolean | null;
+  bundle_hash_match?: boolean | null;
+  last_poll_at?: string | null;
+  poll_count?: number | null;
+  latest_order_proposal?: Record<string, unknown> | null;
+  last_blocker?: string | null;
+  last_error?: string | null;
+  cancel_open_orders_status?: string | null;
+  latest_command?: string | null;
+  latest_command_at?: string | null;
+  next_min_gap?: string | null;
+  operator_action?: string | null;
+};
+
 type ExecutionStrategyBinding = {
   status?: string | null;
   strategy_name?: string | null;
@@ -437,6 +495,28 @@ type ExecutionStrategyBinding = {
   total_trades?: number | null;
   summary?: string | null;
   operator_action?: string | null;
+  strategy_bundle?: ExecutionStrategyBundleSummary | null;
+  strategy_bundle_status?: string | null;
+  strategy_bundle_hash?: string | null;
+  strategy_bundle_path?: string | null;
+};
+
+type HighConvictionTopKSupportContext = {
+  current_live_structure_bucket_rows?: number | null;
+  current_rows?: number | null;
+  minimum_support_rows?: number | null;
+  current_live_structure_bucket_gap_to_minimum?: number | null;
+  gap_to_minimum?: number | null;
+  gap?: number | null;
+};
+
+type HighConvictionTopKRuntimeContract = {
+  support_summary?: string | null;
+  risk_qualified_count?: number | null;
+  runtime_blocked_candidate_count?: number | null;
+  deployable_count?: number | null;
+  operator_message?: string | null;
+  support_context?: HighConvictionTopKSupportContext | null;
 };
 
 type ExecutionOverviewProfileCard = {
@@ -470,14 +550,7 @@ type ExecutionOverviewProfileCard = {
     buy_add_requires_current_live_gate?: boolean | null;
     shadow_mode?: string | null;
     range_chop_playbook?: RangeChopPlaybook | null;
-    high_conviction_topk?: {
-      support_summary?: string | null;
-      risk_qualified_count?: number | null;
-      runtime_blocked_candidate_count?: number | null;
-      deployable_count?: number | null;
-      operator_message?: string | null;
-      support_context?: Record<string, unknown> | null;
-    } | null;
+    high_conviction_topk?: HighConvictionTopKRuntimeContract | null;
     upgrade_prerequisite?: string;
   } | null;
 };
@@ -530,6 +603,7 @@ type ExecutionRunEvent = {
   event_type?: string;
   level?: string;
   message?: string;
+  payload?: Record<string, unknown> | null;
   created_at?: string;
 };
 
@@ -538,6 +612,8 @@ type ExecutionRunBindingContract = {
   scope?: string | null;
   summary?: string | null;
   operator_action?: string | null;
+  shadow_only?: boolean | null;
+  high_conviction_topk?: HighConvictionTopKRuntimeContract | null;
   ownership_boundary?: {
     ledger_scope?: string | null;
     capital_attribution?: string | null;
@@ -640,10 +716,18 @@ type ExecutionRunRecord = {
   strategy_binding?: ExecutionStrategyBinding | null;
   runtime_binding_contract?: ExecutionRunBindingContract | null;
   runtime_binding_snapshot?: ExecutionRunBindingSnapshot | null;
+  strategy_bundle_hash?: string | null;
+  strategy_bundle_path?: string | null;
+  strategy_bundle_status?: string | null;
+  worker_status?: string | null;
+  worker_control?: ExecutionWorkerControl | null;
   action_contract?: {
     can_pause?: boolean;
     can_resume?: boolean;
     can_stop?: boolean;
+    order_submission_enabled?: boolean | null;
+    risk_on_order_enabled?: boolean | null;
+    worker_control?: ExecutionWorkerControl | null;
     upgrade_prerequisite?: string;
   } | null;
 };
@@ -663,6 +747,79 @@ type ExecutionRunsResponse = {
     total_runs?: number;
   } | null;
   runs?: ExecutionRunRecord[] | null;
+};
+
+type PaperShadowRehearsalProof = {
+  status?: string | null;
+  artifact_status?: string | null;
+  can_poll_workers?: boolean | null;
+  can_reconcile_outcomes?: boolean | null;
+  poll_blocked_by_pending_outcome?: boolean | null;
+  next_reconcile_at?: string | null;
+  pending_hours_remaining_min?: number | null;
+  resolution_due_count?: number | null;
+  order_submission_enabled?: boolean | null;
+  risk_on_order_enabled?: boolean | null;
+  live_order_submitted?: boolean | null;
+  next_operator_action?: string | null;
+  operator_message?: string | null;
+  run_counts?: {
+    running?: number | null;
+    paused?: number | null;
+    stopped?: number | null;
+    total?: number | null;
+  } | null;
+  latest_run?: {
+    run_id?: string | null;
+    profile_id?: string | null;
+    state?: string | null;
+    worker_status?: string | null;
+    last_event_type?: string | null;
+    last_event_at?: string | null;
+    strategy_bundle_hash?: string | null;
+  } | null;
+  chain?: Array<{
+    key?: string | null;
+    label?: string | null;
+    status?: string | null;
+    count?: number | null;
+  }> | null;
+  blocked_live_actions?: string[] | null;
+};
+
+type PaperShadowOutcomeReconciliationResponse = {
+  artifact_path?: string | null;
+  persisted?: boolean | null;
+  artifact?: {
+    status?: string | null;
+    generated_at?: string | null;
+    mode?: string | null;
+    order_submission_enabled?: boolean | null;
+    risk_on_order_enabled?: boolean | null;
+    operator_message?: string | null;
+    rehearsal_proof?: PaperShadowRehearsalProof | null;
+    summary?: {
+      worker_poll_events?: number | null;
+      resolved_outcomes?: number | null;
+      pending_outcomes?: number | null;
+      awaiting_label_replay?: number | null;
+      parity_blocked_events?: number | null;
+      entries?: number | null;
+      live_order_submitted?: boolean | null;
+    } | null;
+  } | null;
+};
+
+type ExecutionWorkerPollResponse = {
+  status?: string | null;
+  operator_message?: string | null;
+  pending_outcome_gates?: Array<{
+    status?: string | null;
+    window_end?: string | null;
+    hours_remaining?: number | null;
+    operator_action?: string | null;
+  }> | null;
+  outcome_reconciliation?: PaperShadowOutcomeReconciliationResponse | null;
 };
 
 function formatNumber(value: number | null | undefined, digits = 2): string {
@@ -796,11 +953,42 @@ function getValueTone(value: number | null | undefined): string {
   return value > 0 ? "text-emerald-300" : "text-rose-300";
 }
 
+function buildWorkerPollGuardMessage(resp: ExecutionWorkerPollResponse): string | null {
+  if (resp?.status !== "pending_outcome_blocked") return null;
+  const gate = Array.isArray(resp.pending_outcome_gates) ? resp.pending_outcome_gates[0] : null;
+  const proof = resp.outcome_reconciliation?.artifact?.rehearsal_proof ?? null;
+  const windowEnd = gate?.window_end || proof?.next_reconcile_at || null;
+  const hoursRemaining = typeof gate?.hours_remaining === "number"
+    ? gate.hours_remaining
+    : proof?.pending_hours_remaining_min != null
+      ? proof.pending_hours_remaining_min / 60
+      : null;
+  const eta = windowEnd
+    ? `ETA ${windowEnd}${hoursRemaining != null ? `，約 ${formatNumber(hoursRemaining, 2)}h` : ""}`
+    : "ETA 尚未建立";
+  return `${resp.operator_message || "24h paper/shadow outcome 還在觀察窗，本次沒有重複寫入 worker poll event。"} ${eta}`;
+}
+
+function currentSupportSummaryFromRuntimeContract(contract?: HighConvictionTopKRuntimeContract | null): string | null {
+  if (!contract) return null;
+  if (contract.support_summary) return humanizeRuntimeDetailText(contract.support_summary);
+  const support = contract.support_context ?? null;
+  const rows = support?.current_live_structure_bucket_rows ?? support?.current_rows ?? null;
+  const minimum = support?.minimum_support_rows ?? null;
+  const gap = support?.current_live_structure_bucket_gap_to_minimum ?? support?.gap_to_minimum ?? support?.gap ?? null;
+  if (typeof rows === "number" && typeof minimum === "number") {
+    const gapLabel = typeof gap === "number" ? `，缺 ${formatNumber(gap, 0)}` : "";
+    return `即時精準支持 ${formatNumber(rows, 0)}/${formatNumber(minimum, 0)}${gapLabel}；影子觀察只記錄決策，不送單、不加倉。`;
+  }
+  return contract.operator_message ? humanizeRuntimeDetailText(contract.operator_message) : null;
+}
+
 export default function ExecutionConsole() {
   const { data: runtimeStatus, loading, error, refresh: refreshRuntimeStatus } = useApi<ExecutionConsoleRuntimeStatusResponse>("/api/status", 60000);
   const { data: executionOverview, loading: overviewLoading, error: overviewError, refresh: refreshExecutionOverview } = useApi<ExecutionOverviewResponse>("/api/execution/overview", 60000);
   const { data: executionRuns, loading: runsLoading, error: runsError, refresh: refreshExecutionRuns } = useApi<ExecutionRunsResponse>("/api/execution/runs", 60000);
-  const [runActionState, setRunActionState] = useState<{ tone: "idle" | "pending" | "success" | "error"; message: string }>({
+  const { data: workerOutcomes, loading: workerOutcomesLoading, error: workerOutcomesError, refresh: refreshWorkerOutcomes } = useApi<PaperShadowOutcomeReconciliationResponse>("/api/execution/workers/outcomes", 60000);
+  const [runActionState, setRunActionState] = useState<{ tone: "idle" | "pending" | "success" | "warning" | "error"; message: string }>({
     tone: "idle",
     message: "",
   });
@@ -811,15 +999,19 @@ export default function ExecutionConsole() {
   const [naturalCommand, setNaturalCommand] = useState("");
 
   const refreshExecutionWorkspace = async () => {
-    await Promise.all([refreshRuntimeStatus(), refreshExecutionOverview(), refreshExecutionRuns()]);
+    await Promise.all([refreshRuntimeStatus(), refreshExecutionOverview(), refreshExecutionRuns(), refreshWorkerOutcomes()]);
   };
 
   const handleRunAction = async (endpoint: string, pendingLabel: string, successLabel: string) => {
     setRunActionState({ tone: "pending", message: pendingLabel });
     try {
-      const resp = await fetchApi<{ operator_message?: string }>(endpoint, { method: "POST" });
+      const resp = await fetchApi<ExecutionWorkerPollResponse>(endpoint, { method: "POST" });
       await refreshExecutionWorkspace();
-      setRunActionState({ tone: "success", message: resp.operator_message || successLabel });
+      const guardedMessage = buildWorkerPollGuardMessage(resp);
+      setRunActionState({
+        tone: guardedMessage ? "warning" : "success",
+        message: guardedMessage || resp.operator_message || successLabel,
+      });
     } catch (err: any) {
       setRunActionState({ tone: "error", message: err?.message || "運行操作失敗" });
     }
@@ -966,6 +1158,17 @@ export default function ExecutionConsole() {
   const alternativeSolutionReview = executionReadiness?.alternative_solution_review || canaryGapAnswers?.alternative_solution_review || null;
   const alternativeSolutionAllowed = Array.isArray(alternativeSolutionReview?.allowed_today) ? alternativeSolutionReview.allowed_today : [];
   const alternativeSolutionNotAllowed = Array.isArray(alternativeSolutionReview?.not_allowed) ? alternativeSolutionReview.not_allowed : [];
+  const milestoneProgression = executionReadiness?.milestone_progression || canaryGapAnswers?.milestone_progression || null;
+  const milestonePreferredEntry = milestoneProgression?.preferred_entrypoint || null;
+  const milestonePreferredPayload = milestonePreferredEntry?.payload && typeof milestonePreferredEntry.payload === "object" && !Array.isArray(milestonePreferredEntry.payload)
+    ? milestonePreferredEntry.payload as Record<string, unknown>
+    : null;
+  const milestonePreferredEndpoint = typeof milestonePreferredEntry?.endpoint === "string" ? milestonePreferredEntry.endpoint : null;
+  const milestonePreferredCommand = typeof milestonePreferredEntry?.command === "string" ? milestonePreferredEntry.command : null;
+  const milestonePreferredSide = typeof milestonePreferredPayload?.side === "string" ? milestonePreferredPayload.side : null;
+  const milestonePreferredQty = typeof milestonePreferredPayload?.qty === "number" ? milestonePreferredPayload.qty : null;
+  const milestoneSafeLanes = Array.isArray(milestoneProgression?.safe_entry_lanes) ? milestoneProgression.safe_entry_lanes : [];
+  const milestoneVisibleLanes = milestoneSafeLanes.slice(0, 3);
   const timeToEvidenceEtaLabel = typeof timeToEvidence?.estimated_heartbeats_to_support === "number"
     ? `${timeToEvidence.estimated_heartbeats_to_support} 輪 / 約 ${formatNumber(timeToEvidence.estimated_days_at_hourly_heartbeat, 2)} 天`
     : "無可靠完成時間";
@@ -974,11 +1177,36 @@ export default function ExecutionConsole() {
     { label: "order preview", value: String(venueDryRunProof?.order_preview?.status || "待演練") },
     { label: "ack simulation", value: String(venueDryRunProof?.ack_simulation?.status || "待演練") },
     { label: "cancel simulation", value: String(venueDryRunProof?.cancel_simulation?.status || "待演練") },
+    { label: "fill simulation", value: String(venueDryRunProof?.fill_simulation?.status || "待演練") },
     { label: "reconciliation check", value: String(venueDryRunProof?.reconciliation_check?.status || "待演練") },
   ];
   const readinessStatusTone = executionReadiness?.canary_ready ? "ok" : (executionReadiness?.status === "shadow_reduce_only" ? "warning" : "blocked");
   const executionRunsSummary = executionRuns?.summary ?? null;
   const executionRunRecords = Array.isArray(executionRuns?.runs) ? executionRuns.runs : [];
+  const workerOutcomeArtifact = workerOutcomes?.artifact ?? null;
+  const workerOutcomeSummary = workerOutcomeArtifact?.summary ?? null;
+  const workerRehearsalProof = workerOutcomeArtifact?.rehearsal_proof ?? null;
+  const workerOutcomeStatusLabel = workerOutcomesLoading && !workerOutcomes && !workerOutcomesError
+    ? "同步中"
+    : humanizeRuntimeDetailText(workerOutcomeArtifact?.status || "尚無 worker outcome");
+  const workerRehearsalStatusLabel = workerOutcomesLoading && !workerOutcomes && !workerOutcomesError
+    ? "同步中"
+    : humanizeRuntimeDetailText(workerRehearsalProof?.status || "尚未建立 rehearsal proof");
+  const workerOutcomeSummaryLabel = workerOutcomesLoading && !workerOutcomes && !workerOutcomesError
+    ? "正在取得 paper/shadow outcome reconciliation。"
+    : workerOutcomesError
+      ? `Outcome 載入失敗：${workerOutcomesError}`
+      : `resolved ${workerOutcomeSummary?.resolved_outcomes ?? 0} · pending ${workerOutcomeSummary?.pending_outcomes ?? 0} · label replay ${workerOutcomeSummary?.awaiting_label_replay ?? 0}`;
+  const workerOutcomeNextActionLabel = workerOutcomesLoading && !workerOutcomes && !workerOutcomesError
+    ? "正在同步 rehearsal proof。"
+    : workerOutcomesError
+      ? "先確認 /api/execution/workers/outcomes 是否可用。"
+      : humanizeRuntimeDetailText(workerRehearsalProof?.next_operator_action || workerOutcomeArtifact?.operator_message || "先啟動 paper/shadow run，再同步 worker。");
+  const workerOutcomeEtaLabel = workerRehearsalProof?.poll_blocked_by_pending_outcome
+    ? `next reconcile ${workerRehearsalProof.next_reconcile_at || "待定"} · 約 ${formatNumber(workerRehearsalProof.pending_hours_remaining_min, 2)}h`
+    : workerRehearsalProof?.next_reconcile_at
+      ? `next reconcile ${workerRehearsalProof.next_reconcile_at}`
+      : "reconcile ETA 尚未建立";
   const runsByProfileId = new Map(executionRunRecords.map((run) => [run.profile_id || "", run]));
   const runLedgerPreviews = executionRunRecords
     .map((run) => run.runtime_binding_snapshot?.shared_symbol_ledger_preview ?? null)
@@ -1118,6 +1346,19 @@ export default function ExecutionConsole() {
     .map((value) => sleeveLabelById.get(value) || humanizeRuntimeDetailText(value) || value)
     .filter((value): value is string => Boolean(value));
   const runningRunsLabel = runsPending ? "同步中" : String(executionRunsSummary?.running_runs ?? 0);
+  const workerOutcomeProofLoading = workerOutcomesLoading && !workerOutcomes && !workerOutcomesError;
+  const workerPollPendingGuardActive = Boolean(workerRehearsalProof?.poll_blocked_by_pending_outcome);
+  const workerPollAvailable = Boolean(
+    workerRehearsalProof?.can_poll_workers
+    ?? (!workerOutcomeProofLoading && !workerPollPendingGuardActive && ((executionRunsSummary?.running_runs ?? 0) > 0))
+  );
+  const workerPollDisabledReason = workerOutcomeProofLoading
+    ? "正在同步 paper/shadow outcome proof；同步完成前先不重複 poll。"
+    : workerPollPendingGuardActive
+      ? `24h outcome 觀察窗尚未到期；${workerOutcomeEtaLabel}`
+      : workerRehearsalProof?.can_poll_workers === false
+        ? workerOutcomeNextActionLabel
+        : ((executionRunsSummary?.running_runs ?? 0) <= 0 ? "目前沒有 running run 可供 worker poll。" : "");
   const runningRunsSummaryLabel = runsPending
     ? "正在向 /api/execution/runs 取得運行控制 / 事件。"
     : `運行中 ${executionRunsSummary?.running_runs ?? 0} · 獲利中 ${profitableRuns} · 總計 ${executionRunsSummary?.total_runs ?? executionRunRecords.length} · 已配置倉位腿 ${configuredSleeveCount}`;
@@ -1141,6 +1382,8 @@ export default function ExecutionConsole() {
     );
   const runActionTone = runActionState.tone === "success"
     ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
+    : runActionState.tone === "warning"
+      ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
     : runActionState.tone === "error"
       ? "border-rose-500/20 bg-rose-500/10 text-rose-100"
       : "border-cyan-500/20 bg-cyan-500/10 text-cyan-100";
@@ -1461,6 +1704,7 @@ export default function ExecutionConsole() {
                 readinessGateByKey.get("current_live_support_gate") || { label: "即時支持 gate", summary: "同步中" },
                 readinessGateByKey.get("circuit_breaker_gate") || { label: "熔斷 gate", summary: "同步中" },
                 readinessGateByKey.get("venue_gate") || { label: "場館 gate", summary: "同步中" },
+                readinessGateByKey.get("live_canary_policy_gate") || { label: "Live-canary policy gate", summary: "同步中" },
                 readinessGateByKey.get("shadow_observation_gate") || { label: "影子觀察 gate", summary: "同步中" },
               ].map((gate) => (
                 <div key={gate.label || gate.key} className="rounded-xl border border-white/8 bg-[#0d1324] p-3">
@@ -1477,6 +1721,40 @@ export default function ExecutionConsole() {
                 </div>
               ))}
             </div>
+            {milestoneProgression && (
+              <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/8 p-3 text-xs text-cyan-100">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="font-semibold">MILESTONE progression / 不卡死路由</div>
+                    <div className="mt-1 text-cyan-100/75">{humanizeRuntimeDetailText(milestoneProgression.operator_message || milestoneProgression.auto_adjustment_reason || "live gate 未全過時自動轉入安全實戰 lane。")}</div>
+                  </div>
+                  <span className="rounded-full border border-cyan-300/30 bg-black/20 px-2 py-0.5 text-[10px] text-cyan-50">
+                    {milestoneProgression.active_lane_label || milestoneProgression.active_lane || "safe lane"}
+                  </span>
+                </div>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <div className="rounded-lg border border-cyan-300/15 bg-black/20 p-2">
+                    <div className="font-semibold text-cyan-50">程式現在要進入哪裡</div>
+                    <div className="mt-1 text-cyan-100/80">
+                      {milestonePreferredEndpoint || milestonePreferredCommand || "等待 preferred entrypoint"}
+                      {milestonePreferredSide ? ` · side=${milestonePreferredSide}` : ""}
+                      {typeof milestonePreferredQty === "number" ? ` · qty=${milestonePreferredQty}` : ""}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-cyan-300/15 bg-black/20 p-2">
+                    <div className="font-semibold text-cyan-50">可切換的安全 lane</div>
+                    <ul className="mt-1 list-disc space-y-1 pl-4 text-cyan-100/80">
+                      {milestoneVisibleLanes.map((lane) => {
+                        const laneKey = typeof lane.key === "string" ? lane.key : String(lane.label || "lane");
+                        const laneLabel = typeof lane.label === "string" ? lane.label : laneKey;
+                        const canEnter = lane.can_enter === true ? "可進入" : "等待 gate";
+                        return <li key={laneKey}>{laneLabel}：{canEnter}</li>;
+                      })}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="grid gap-2 md:grid-cols-2">
               <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/8 p-3 text-xs text-emerald-100">
                 <div className="font-semibold">現在可以做什麼</div>
@@ -1518,7 +1796,7 @@ export default function ExecutionConsole() {
           <div className="space-y-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
             <div>
               <div className="text-sm font-semibold text-white">Venue dry-run proof</div>
-              <div className="mt-1 text-xs text-slate-400">credential present 只顯示布林 / 狀態；order preview、ack simulation、cancel simulation、reconciliation check 都不得輸出 secret。</div>
+              <div className="mt-1 text-xs text-slate-400">credential present 只顯示布林 / 狀態；order preview、ack simulation、cancel simulation、fill simulation、reconciliation check 都不得輸出 secret。</div>
             </div>
             <div className="space-y-2">
               {venueProofChecks.map((check) => (
@@ -1561,7 +1839,7 @@ export default function ExecutionConsole() {
             <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/8 p-3 text-xs text-cyan-100">
               <div className="font-semibold">今天可以演練什麼</div>
               <ul className="mt-2 list-disc space-y-1 pl-4">
-                {(canaryDrills.length ? canaryDrills : ["order preview / ack simulation / cancel simulation / reconciliation check"]).map((item) => <li key={item}>{humanizeRuntimeDetailText(item)}</li>)}
+                {(canaryDrills.length ? canaryDrills : ["order preview / ack simulation / cancel simulation / fill simulation / reconciliation check"]).map((item) => <li key={item}>{humanizeRuntimeDetailText(item)}</li>)}
               </ul>
             </div>
             <div className="text-xs text-slate-400">
@@ -1671,8 +1949,7 @@ export default function ExecutionConsole() {
                 const profileStartReasonLabel = humanizeRuntimeDetailText(card.control_contract?.start_reason || null);
                 const profileShadowContract = card.control_contract?.shadow_only ? card.control_contract.high_conviction_topk ?? null : null;
                 const profileShadowSummaryLabel = humanizeRuntimeDetailText(
-                  profileShadowContract?.support_summary
-                    || profileShadowContract?.operator_message
+                  currentSupportSummaryFromRuntimeContract(profileShadowContract)
                     || (card.control_contract?.shadow_only ? "影子觀察已可啟動；只記錄決策，不送單、不加倉。" : null),
                 );
                 const profileLatestEventMessageLabel = humanizeRuntimeDetailText(
@@ -1689,6 +1966,15 @@ export default function ExecutionConsole() {
                 const strategyBindingTitle = String(
                   profileStrategyBinding?.title || card.strategy_binding?.title || profileStrategyBinding?.strategy_name || "",
                 ).trim();
+                const strategyBundle = profileStrategyBinding?.strategy_bundle || linkedRun?.strategy_binding?.strategy_bundle || null;
+                const strategyBundleStatus = String(
+                  profileStrategyBinding?.strategy_bundle_status || linkedRun?.strategy_bundle_status || strategyBundle?.deployability_status || "",
+                ).trim();
+                const strategyBundleHash = String(
+                  profileStrategyBinding?.strategy_bundle_hash || linkedRun?.strategy_bundle_hash || strategyBundle?.bundle_hash || "",
+                ).trim();
+                const workerControl = linkedRun?.worker_control || linkedRun?.action_contract?.worker_control || null;
+                const workerStatusLabel = humanizeRuntimeDetailText(workerControl?.status || linkedRun?.worker_status || "未綁定 worker");
                 const strategyBindingBadgeLabel = strategyBindingStatus === "missing_saved_strategy"
                   ? "待儲存策略快照"
                   : (strategyBindingTitle ? `策略：${strategyBindingTitle}` : "已綁定策略快照");
@@ -1718,6 +2004,16 @@ export default function ExecutionConsole() {
                           {strategyBindingStatus && (
                             <span className={`rounded-full border px-2.5 py-1 ${strategyBindingBadgeTone}`}>
                               {strategyBindingBadgeLabel}
+                            </span>
+                          )}
+                          {strategyBundleStatus && (
+                            <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-cyan-100">
+                              Freeze {strategyBundleHash ? strategyBundleHash.slice(0, 12) : strategyBundleStatus}
+                            </span>
+                          )}
+                          {workerControl && (
+                            <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-amber-100">
+                              Worker {workerStatusLabel}
                             </span>
                           )}
                           <span className={`rounded-full border px-2.5 py-1 ${getStatusTone(linkedRun?.state || card.lifecycle_status || card.activation_status)}`}>
@@ -1785,6 +2081,9 @@ export default function ExecutionConsole() {
                       <span>啟動條件 {profileStartReasonLabel || "—"}</span>
                       {profileShadowSummaryLabel && <span>實戰影子 {profileShadowSummaryLabel}</span>}
                       <span>預覽 {profilePreviewStatusLabel}</span>
+                      <span>Freeze {strategyBundleStatus ? `${strategyBundleStatus}${strategyBundleHash ? ` · ${strategyBundleHash.slice(0, 12)}` : ""}` : "尚未建立"}</span>
+                      <span>Worker {workerStatusLabel}</span>
+                      <span>送單 {workerControl?.order_submission_enabled ? "允許" : "Fail-closed"}</span>
                       <span>最新事件 {profileLatestEventMessageLabel || "尚未建立 Bot 事件"}</span>
                     </div>
 
@@ -1833,8 +2132,28 @@ export default function ExecutionConsole() {
                     ? "正在向 /api/execution/runs 取得運行控制 / 事件。"
                     : `進行中 ${executionRunsSummary?.running_runs ?? 0} · 暫停 ${executionRunsSummary?.paused_runs ?? 0} · 已停止 ${executionRunsSummary?.stopped_runs ?? 0} · 總計 ${executionRunsSummary?.total_runs ?? executionRunRecords.length}`}
                 </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  Outcome {workerOutcomeStatusLabel} · {workerOutcomeSummaryLabel}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  Proof {workerRehearsalStatusLabel} · {workerOutcomeNextActionLabel}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  ETA {workerOutcomeEtaLabel}
+                </div>
               </div>
-              <div className="text-xs text-slate-400">運行控制（測試版）</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!workerPollAvailable || runActionState.tone === "pending"}
+                  title={workerPollDisabledReason || undefined}
+                  onClick={() => handleRunAction("/api/execution/workers/poll", "同步 paper/shadow worker 中…", "已同步 paper/shadow worker。")}
+                  className="rounded-xl border border-cyan-500/30 bg-cyan-500/12 px-3 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  同步 worker
+                </button>
+                <div className="max-w-[22rem] text-xs text-slate-400">{workerPollDisabledReason || "運行控制（測試版）"}</div>
+              </div>
             </div>
             {(runsLoading || runsError) && (
               <div className="mt-3 rounded-2xl border border-white/8 bg-[#0d1324] px-4 py-3 text-sm text-slate-300">
@@ -1844,7 +2163,20 @@ export default function ExecutionConsole() {
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {executionRunRecords.length > 0 ? executionRunRecords.slice(0, 6).map((run) => {
                 const runStrategyBinding = run.strategy_binding ?? null;
+                const runStrategyBundle = runStrategyBinding?.strategy_bundle || null;
+                const runStrategyBundleStatus = String(run.strategy_bundle_status || runStrategyBinding?.strategy_bundle_status || runStrategyBundle?.deployability_status || "").trim();
+                const runStrategyBundleHash = String(run.strategy_bundle_hash || runStrategyBinding?.strategy_bundle_hash || runStrategyBundle?.bundle_hash || "").trim();
+                const runWorkerControl = run.worker_control || run.action_contract?.worker_control || null;
+                const runWorkerStatusLabel = humanizeRuntimeDetailText(runWorkerControl?.status || run.worker_status || "未綁定 worker");
                 const latestMessage = humanizeRuntimeDetailText(run.latest_event?.message || run.last_event_message || "尚未取得運行事件");
+                const runRuntimeTopKContract = run.runtime_binding_contract?.shadow_only ? run.runtime_binding_contract.high_conviction_topk ?? null : null;
+                const runRuntimeSupportSummaryLabel = humanizeRuntimeDetailText(
+                  currentSupportSummaryFromRuntimeContract(runRuntimeTopKContract)
+                    || run.runtime_binding_contract?.summary
+                    || latestMessage
+                    || "尚未取得運行事件",
+                );
+                const runStrategySnapshotSummaryLabel = humanizeRuntimeDetailText(runStrategyBinding?.summary || null);
                 const runProfileLabel = humanizeRuntimeDetailText(run.profile_id || null) || "—";
                 const runModeLabel = humanizeExecutionModeLabel(run.mode || "paper");
                 const runStateLabel = humanizeExecutionOperatorLabel(run.state_label || run.state, "status");
@@ -1868,6 +2200,21 @@ export default function ExecutionConsole() {
                       <div>
                         <div className="text-base font-semibold text-white">{run.label || run.profile_id || "未命名運行"}</div>
                         <div className="mt-1 text-[12px] text-slate-400">設定檔 {runProfileLabel} · {runModeLabel}</div>
+                        <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                          {runStrategyBundleStatus && (
+                            <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-cyan-100">
+                              Freeze {runStrategyBundleHash ? runStrategyBundleHash.slice(0, 12) : runStrategyBundleStatus}
+                            </span>
+                          )}
+                          {runWorkerControl && (
+                            <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-amber-100">
+                              Worker {runWorkerStatusLabel}
+                            </span>
+                          )}
+                          <span className="rounded-full border border-rose-500/25 bg-rose-500/10 px-2.5 py-1 text-rose-100">
+                            送單 {runWorkerControl?.order_submission_enabled ? "允許" : "Fail-closed"}
+                          </span>
+                        </div>
                       </div>
                       <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(run.state || "unknown")}`}>
                         {runStateLabel}
@@ -1895,8 +2242,14 @@ export default function ExecutionConsole() {
                         <div className="text-slate-400">{formatTime(run.last_event_at)}</div>
                       </div>
                     </div>
-                    <div className="mt-3 text-sm text-slate-300">{humanizeRuntimeDetailText(runStrategyBinding?.summary || latestMessage)}</div>
+                    <div className="mt-3 text-sm text-slate-300">{runRuntimeSupportSummaryLabel}</div>
+                    {runStrategySnapshotSummaryLabel && (
+                      <div className="mt-1 text-[12px] text-slate-500">策略 snapshot {runStrategySnapshotSummaryLabel}</div>
+                    )}
                     <div className="mt-2 text-[12px] text-slate-400">共享預覽 {humanizeRuntimeDetailText(ledgerPreview?.budget_alignment_summary || ledgerPreview?.summary || "尚未提供共享帳戶預覽。")}</div>
+                    <div className="mt-1 text-[12px] text-slate-400">
+                      Freeze {runStrategyBundleStatus || "尚未建立"}{runStrategyBundleHash ? ` · ${runStrategyBundleHash.slice(0, 12)}` : ""} · Worker {runWorkerStatusLabel} · 送單 {runWorkerControl?.order_submission_enabled ? "允許" : "Fail-closed"}
+                    </div>
                     <div className="mt-3 flex flex-wrap gap-2 text-sm">
                       <button
                         type="button"

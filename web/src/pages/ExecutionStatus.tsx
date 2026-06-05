@@ -135,6 +135,13 @@ type LiveRuntimeTruth = {
   sleeve_routing?: SleeveRoutingState | null;
 };
 
+type LiveCanaryPolicyGate = {
+  status?: string | null;
+  passed?: boolean | null;
+  summary?: string | null;
+  blockers?: string[] | null;
+};
+
 type ExecutionStatusResponse = {
   symbol?: string;
   timestamp?: string;
@@ -157,6 +164,7 @@ type ExecutionStatusResponse = {
     live_ready_blockers?: string[];
     operator_message?: string;
     recent_canonical_drift?: RecentCanonicalDriftSummary | null;
+    live_canary_policy_gate?: LiveCanaryPolicyGate | null;
     live_runtime_truth?: LiveRuntimeTruth | null;
   } | null;
   execution?: {
@@ -698,6 +706,20 @@ export default function ExecutionStatus() {
   const venueBlockersLabel = runtimeStatusPending
     ? "同步中"
     : (liveReadyBlockers.length > 0 ? liveReadyBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "目前沒有額外場館阻塞");
+  const liveCanaryPolicyGate = executionSurfaceContract?.live_canary_policy_gate ?? null;
+  const liveCanaryPolicyBlockers = Array.isArray(liveCanaryPolicyGate?.blockers)
+    ? liveCanaryPolicyGate.blockers
+    : [];
+  const liveCanaryPolicyGateLabel = runtimeStatusPending
+    ? "同步中"
+    : (liveCanaryPolicyGate?.passed ? "已通過" : "未通過");
+  const liveCanaryPolicyDetailLabel = runtimeStatusPending
+    ? "正在同步 bounded live-canary policy。"
+    : liveCanaryPolicyGate?.passed
+      ? "mode / live flag / allowlist / symbol cap / kill switch 已符合；仍需 runtime gates 全過。"
+      : (liveCanaryPolicyBlockers.length > 0
+        ? liveCanaryPolicyBlockers.map((item) => humanizeExecutionReason(item)).join(" · ")
+        : "缺少 bounded live-canary policy gate；不可升級 canary。");
   const executionStatusSymbolLabel = runtimeStatusPending ? "同步中" : (runtimeStatus?.symbol || "BTCUSDT");
   const inferredExecutionStatusMode = runtimeStatus?.dry_run ? "dry_run" : "unknown";
   const executionStatusModeLabel = runtimeStatusPending
@@ -801,7 +823,7 @@ export default function ExecutionStatus() {
           <ExecutionMetricCard
             title="可部署"
             value={liveReadinessMetricValue}
-            detail={`阻塞點 ${currentLiveBlockerLabel} · ${primaryRuntimeMessage} · 治理範圍 ${readinessScopeLabel}`}
+            detail={`阻塞點 ${currentLiveBlockerLabel} · ${primaryRuntimeMessage} · 治理範圍 ${readinessScopeLabel} · Canary policy ${liveCanaryPolicyGateLabel} · ${liveCanaryPolicyDetailLabel}`}
             toneClass={readinessTone.includes("amber") ? "text-amber-100" : readinessTone.includes("emerald") || readinessTone.includes("cyan") ? "text-emerald-200" : "text-white"}
           />
           <ExecutionMetricCard
@@ -851,6 +873,7 @@ export default function ExecutionStatus() {
                 <div className="mt-2 text-slate-400">部署阻塞點 {currentLiveBlockerLabel}</div>
                 <div className="text-slate-400">執行保護欄 {executionGuardrailLabel}</div>
                 <div className="text-slate-400">場館阻塞 {venueBlockersLabel}</div>
+                <div className="text-slate-400">Canary policy {liveCanaryPolicyGateLabel} · {liveCanaryPolicyDetailLabel}</div>
               </div>
               {circuitBreakerActive && (
                 <div className="rounded-[20px] border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-100">

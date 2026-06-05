@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-28T08:15:06.160967Z",
-  "checked_at": "2026-05-28T08:15:06.160756Z",
+  "generated_at": "2026-06-03T08:56:17.926292Z",
+  "checked_at": "2026-06-03T08:56:17.926023Z",
   "source": "external_process",
   "status": "healthy",
   "reason": "external_cron_monitor",
@@ -14,7 +14,7 @@
     "status": "fresh",
     "label": "fresh",
     "reason": "artifact_within_policy",
-    "age_minutes": 3.1344731833333332,
+    "age_minutes": 0.2354388,
     "stale_after_minutes": 30.0
   },
   "install_contract": {
@@ -28,26 +28,26 @@
     "manual_run_command": "cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300",
     "verify_artifact_command": "test -f /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.json && tail -n 40 /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.json",
     "install_status": {
-      "status": "installed",
-      "installed": true,
-      "active_lane": "user_crontab",
-      "checked_at": "2026-05-28T08:15:06.166140Z",
+      "status": "install_ready",
+      "installed": false,
+      "active_lane": null,
+      "checked_at": "2026-06-03T08:56:17.950958Z",
       "preferred_host_lane": "user_crontab",
       "lanes": {
         "user_crontab": {
-          "installed": true,
-          "returncode": 0,
-          "stdout": "*/5 * * * * cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/venv/bin/python scripts/execution_metadata_external_monitor.py --symbol BTCUSDT --interval-seconds 300 >> /home/kazuha/Poly-Trader/data/execution_metadata_external_monitor.log 2>&1 # poly-trader-execution-metadata-external-monitor",
+          "installed": false,
+          "returncode": 1,
+          "stdout": "",
           "stderr": "",
-          "checked_at": "2026-05-28T08:15:06.163440Z",
+          "checked_at": "2026-06-03T08:56:17.938061Z",
           "verify_command": "crontab -l | grep 'poly-trader-execution-metadata-external-monitor'"
         },
         "systemd_user": {
           "installed": false,
-          "returncode": 1,
+          "returncode": 4,
           "stdout": "",
-          "stderr": "Failed to connect to bus: No medium found",
-          "checked_at": "2026-05-28T08:15:06.166130Z",
+          "stderr": "Unit poly-trader-execution-metadata-external-monitor.timer could not be found.",
+          "checked_at": "2026-06-03T08:56:17.950940Z",
           "verify_command": "systemctl --user status poly-trader-execution-metadata-external-monitor.timer --no-pager"
         }
       }

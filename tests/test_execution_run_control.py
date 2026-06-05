@@ -1,10 +1,14 @@
 import asyncio
+import json
 from copy import deepcopy
 from types import SimpleNamespace
 
 from backtesting import strategy_lab
 from database.models import init_db
+from execution import control_plane as control_plane_module
+from execution import strategy_bundle as strategy_bundle_module
 from server.routes import api as api_module
+from sqlalchemy import text
 
 
 def _local_request():
@@ -194,10 +198,20 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
         return _status_payload()
 
     _seed_execution_strategy_catalog(tmp_path, monkeypatch)
+    monkeypatch.setattr(strategy_bundle_module, "STRATEGY_BUNDLE_ROOT", tmp_path / "strategy_bundles")
+    monkeypatch.setattr(control_plane_module, "PAPER_SHADOW_OUTCOME_ARTIFACT_PATH", tmp_path / "paper_shadow_outcomes.json")
     session = init_db(f"sqlite:///{tmp_path / 'execution_runs.db'}")
     monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"max_position_ratio": 0.10}})
     monkeypatch.setattr(api_module, "get_db", lambda: session)
     monkeypatch.setattr(api_module, "api_status", _fake_status)
+
+    empty_outcomes = asyncio.run(api_module.api_execution_worker_outcomes())
+    empty_proof = empty_outcomes["artifact"]["rehearsal_proof"]
+    assert empty_outcomes["artifact"]["status"] == "no_worker_events"
+    assert empty_proof["status"] == "needs_paper_shadow_run"
+    assert empty_proof["run_counts"]["total"] == 0
+    assert empty_proof["order_submission_enabled"] is False
+    assert empty_proof["risk_on_order_enabled"] is False
 
     start_payload = asyncio.run(api_module.api_execution_start_run("trend", request=_local_request()))
     run_id = start_payload["run"]["run_id"]
@@ -215,31 +229,143 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert start_payload["run"]["strategy_binding"]["strategy_name"] == "Trend QA Strategy"
     assert start_payload["run"]["strategy_binding"]["strategy_source"] == "strategy_lab_saved"
     assert start_payload["run"]["strategy_binding"]["strategy_hash"]
+    assert start_payload["run"]["strategy_bundle_hash"]
+    assert start_payload["run"]["strategy_bundle_status"] == "persisted"
+    assert start_payload["run"]["strategy_binding"]["strategy_bundle"]["bundle_hash"] == start_payload["run"]["strategy_bundle_hash"]
+    assert start_payload["run"]["strategy_binding"]["strategy_bundle"]["live_buy_add_status"] == "fail_closed_live_buy_add"
+    assert start_payload["run"]["worker_status"] == "backend_worker_pending"
+    assert start_payload["run"]["worker_control"]["order_submission_enabled"] is False
+    assert start_payload["run"]["worker_control"]["backend_worker_bound"] is False
+    assert (tmp_path / "strategy_bundles").exists()
     assert start_payload["run"]["runtime_binding_snapshot"]["reconciliation"]["status"] == "attention"
     assert start_payload["run"]["runtime_binding_snapshot"]["guardrails"]["last_order"]["order_id"] == "ord-123"
     assert start_payload["snapshot"]["summary"]["running_runs"] == 1
+
+    pre_poll_outcomes = asyncio.run(api_module.api_execution_worker_outcomes())
+    pre_poll_proof = pre_poll_outcomes["artifact"]["rehearsal_proof"]
+    assert pre_poll_outcomes["artifact"]["status"] == "no_worker_events"
+    assert pre_poll_proof["status"] == "needs_worker_poll"
+    assert pre_poll_proof["can_poll_workers"] is True
+    assert pre_poll_proof["run_counts"]["running"] == 1
+    assert pre_poll_proof["chain"][1]["key"] == "worker_poll"
+    assert pre_poll_proof["chain"][1]["status"] == "ready"
+
+    poll_payload = asyncio.run(api_module.api_execution_worker_poll(request=_local_request()))
+    polled_run = poll_payload["runs"][0]
+    assert poll_payload["action"] == "worker_poll"
+    assert poll_payload["summary"]["processed_runs"] == 1
+    assert poll_payload["summary"]["poll_events_recorded"] == 1
+    assert poll_payload["summary"]["order_submission_enabled"] is False
+    assert polled_run["run_id"] == run_id
+    assert polled_run["worker_status"] == "paper_shadow_worker_polled"
+    assert polled_run["worker_control"]["backend_worker_bound"] is True
+    assert polled_run["worker_control"]["bundle_hash_match"] is True
+    assert polled_run["worker_control"]["latest_order_proposal"]["live_order_submitted"] is False
+    assert polled_run["latest_event"]["event_type"] == "paper_shadow_worker_poll"
+    assert polled_run["latest_event"]["payload"]["order_submission_enabled"] is False
+    assert poll_payload["outcome_reconciliation"]["artifact"]["status"] == "recording_pending_outcomes"
+    assert poll_payload["outcome_reconciliation"]["artifact"]["artifact_schema_version"] == 2
+    assert poll_payload["outcome_reconciliation"]["artifact"]["pending_outcomes"] == 1
+    assert poll_payload["outcome_reconciliation"]["artifact"]["rehearsal_status"] == "pending_observation_window"
+    assert poll_payload["outcome_reconciliation"]["artifact"]["quick_read"]["pending_outcomes"] == 1
+    assert (
+        poll_payload["outcome_reconciliation"]["artifact"]["quick_read"]["poll_blocked_by_pending_outcome"]
+        is True
+    )
+    assert poll_payload["outcome_reconciliation"]["artifact"]["summary"]["pending_outcomes"] == 1
+    assert poll_payload["outcome_reconciliation"]["artifact"]["rehearsal_proof"]["status"] == "pending_observation_window"
+    assert poll_payload["outcome_reconciliation"]["artifact"]["rehearsal_proof"]["chain"][2]["status"] == "complete"
+    assert poll_payload["outcome_reconciliation"]["artifact"]["rehearsal_proof"]["live_order_submitted"] is False
+    assert (tmp_path / "paper_shadow_outcomes.json").exists()
+
+    worker_event = session.execute(
+        text("SELECT id, payload_json FROM execution_run_events WHERE event_type = 'paper_shadow_worker_poll' LIMIT 1")
+    ).mappings().first()
+    event_payload = json.loads(worker_event["payload_json"])
+    event_payload["order_proposal"]["generated_at"] = "2026-04-17T12:00:00Z"
+    event_payload["order_proposal"]["symbol"] = "BTCUSDT"
+    session.execute(
+        text("UPDATE execution_run_events SET payload_json = :payload_json, created_at = :created_at WHERE id = :event_id"),
+        {
+            "payload_json": json.dumps(event_payload, ensure_ascii=False),
+            "created_at": "2026-04-17T12:00:01Z",
+            "event_id": worker_event["id"],
+        },
+    )
+    session.execute(
+        text(
+            """
+            INSERT INTO labels (
+                timestamp, symbol, horizon_minutes,
+                simulated_pyramid_win, simulated_pyramid_pnl, simulated_pyramid_quality
+            ) VALUES (
+                :timestamp, :symbol, 1440,
+                1, 0.0125, 0.42
+            )
+            """
+        ),
+        {"timestamp": "2026-04-17T12:00:00Z", "symbol": "BTCUSDT"},
+    )
+    session.commit()
+
+    outcome_payload = asyncio.run(api_module.api_execution_worker_reconcile(request=_local_request()))
+    outcome_artifact = outcome_payload["artifact"]
+    assert outcome_payload["action"] == "worker_reconcile"
+    assert outcome_artifact["status"] == "recording_with_resolved_outcomes"
+    assert outcome_artifact["rehearsal_status"] == "resolved_evidence_ready"
+    assert outcome_artifact["quick_read"]["resolved_outcomes"] == 1
+    assert outcome_artifact["quick_read"]["rehearsal_status"] == "resolved_evidence_ready"
+    assert outcome_artifact["summary"]["resolved_outcomes"] == 1
+    assert outcome_artifact["rehearsal_proof"]["status"] == "resolved_evidence_ready"
+    assert outcome_artifact["rehearsal_proof"]["chain"][3]["status"] == "complete"
+    assert outcome_artifact["entries"][0]["outcome_24h"]["status"] == "resolved_from_1440m_label"
+    assert outcome_artifact["entries"][0]["outcome_24h"]["pyramid_win"] is True
+    assert outcome_artifact["entries"][0]["order_submission_enabled"] is False
 
     overview_payload = asyncio.run(api_module.api_execution_overview())
     trend_card = next(card for card in overview_payload["profile_cards"] if card["key"] == "trend")
     assert trend_card["current_run_state"] == "running"
     assert trend_card["control_contract"]["start_status"] == "already_running"
     assert trend_card["current_run"]["runtime_binding_contract"]["status"] == "symbol_scope_runtime_mirror"
+    overview_outcome = overview_payload["paper_shadow_outcome_reconciliation"]
+    assert overview_outcome["status"] == "recording_with_resolved_outcomes"
+    assert overview_outcome["quick_read"]["resolved_outcomes"] == 1
+    assert overview_outcome["quick_read"]["order_submission_enabled"] is False
+    assert overview_outcome["summary"]["resolved_outcomes"] == 1
+    assert overview_outcome["summary"]["pending_outcomes"] == 0
+    assert overview_outcome["summary"]["live_order_submitted"] is False
+    assert overview_outcome["rehearsal_proof"]["status"] == "resolved_evidence_ready"
+    assert overview_outcome["rehearsal_proof"]["order_submission_enabled"] is False
+    assert overview_outcome["rehearsal_proof"]["risk_on_order_enabled"] is False
+    assert overview_outcome["rehearsal_proof"]["live_order_submitted"] is False
+    assert "entries" not in overview_outcome
 
     pause_payload = asyncio.run(api_module.api_execution_pause_run(run_id, request=_local_request()))
     assert pause_payload["action"] == "pause"
     assert pause_payload["action_result"] == "paused"
     assert pause_payload["run"]["state"] == "paused"
     assert pause_payload["run"]["action_contract"]["can_resume"] is True
+    assert pause_payload["run"]["worker_status"] == "pause_requested_no_backend_worker"
+    assert pause_payload["run"]["worker_control"]["order_submission_enabled"] is False
+
+    paused_poll_payload = asyncio.run(api_module.api_execution_worker_poll(request=_local_request()))
+    assert paused_poll_payload["status"] == "no_running_runs"
+    assert paused_poll_payload["summary"]["processed_runs"] == 0
 
     resume_payload = asyncio.run(api_module.api_execution_start_run("trend", request=_local_request()))
     assert resume_payload["action_result"] == "resumed"
     assert resume_payload["run"]["state"] == "running"
+    assert resume_payload["run"]["worker_status"] == "resume_requested_no_backend_worker"
+    assert resume_payload["run"]["worker_control"]["order_submission_enabled"] is False
 
     stop_payload = asyncio.run(api_module.api_execution_stop_run(run_id, request=_local_request()))
     assert stop_payload["action"] == "stop"
     assert stop_payload["action_result"] == "stopped"
     assert stop_payload["run"]["state"] == "stopped"
     assert stop_payload["run"]["stop_reason"] == "operator_stop"
+    assert stop_payload["run"]["worker_status"] == "stop_requested_no_backend_worker"
+    assert stop_payload["run"]["worker_control"]["order_submission_enabled"] is False
+    assert stop_payload["run"]["worker_control"]["cancel_open_orders_status"] == "not_bound_to_exchange_adapter"
 
     detail_payload = asyncio.run(api_module.api_execution_run_detail(run_id))
     event_types = [event["event_type"] for event in detail_payload["recent_events"]]
@@ -249,6 +375,9 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert detail_payload["runtime_binding_contract"]["ownership_boundary"]["pnl_attribution"] == "symbol_scoped_preview_only"
     assert detail_payload["strategy_binding"]["strategy_name"] == "Trend QA Strategy"
     assert detail_payload["strategy_binding"]["strategy_hash"] == start_payload["run"]["strategy_binding"]["strategy_hash"]
+    assert detail_payload["strategy_bundle_hash"] == start_payload["run"]["strategy_bundle_hash"]
+    assert detail_payload["worker_status"] == "stop_requested_no_backend_worker"
+    assert detail_payload["worker_control"]["order_submission_enabled"] is False
     assert detail_payload["runtime_binding_snapshot"]["account_snapshot"]["position_count"] == 1
     assert detail_payload["runtime_binding_snapshot"]["capital_preview"]["allocation_scope"] == "run_budget_vs_shared_balance_preview"
     assert detail_payload["runtime_binding_snapshot"]["capital_preview"]["balance_total"] == 1000.0
@@ -262,6 +391,7 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert detail_payload["runtime_binding_snapshot"]["shared_symbol_ledger_preview"]["open_order_priced_count"] == 1
     assert detail_payload["runtime_binding_snapshot"]["shared_symbol_ledger_preview"]["unrealized_pnl"] == 125.0
     assert "started" in event_types
+    assert "paper_shadow_worker_poll" in event_types
     assert "paused" in event_types
     assert "resumed" in event_types
     assert "stopped" in event_types
@@ -279,6 +409,8 @@ def test_selective_high_conviction_shadow_run_can_start_under_current_live_block
         return _blocked_high_conviction_status_payload()
 
     session = init_db(f"sqlite:///{tmp_path / 'execution_runs_shadow.db'}")
+    monkeypatch.setattr(strategy_bundle_module, "STRATEGY_BUNDLE_ROOT", tmp_path / "strategy_bundles")
+    monkeypatch.setattr(control_plane_module, "PAPER_SHADOW_OUTCOME_ARTIFACT_PATH", tmp_path / "paper_shadow_outcomes.json")
     monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"max_position_ratio": 0.10}})
     monkeypatch.setattr(api_module, "get_db", lambda: session)
     monkeypatch.setattr(api_module, "api_status", _fake_status)
@@ -307,15 +439,54 @@ def test_selective_high_conviction_shadow_run_can_start_under_current_live_block
     assert run["runtime_binding_contract"]["shadow_only"] is True
     assert run["runtime_binding_contract"]["high_conviction_topk"]["support_context"]["current_live_structure_bucket_rows"] == 2
     assert run["runtime_binding_snapshot"]["mode"] == "paper_shadow"
+    assert run["strategy_binding"]["status"] == "synthetic_paper_shadow_bound"
+    assert run["strategy_binding"]["strategy_source"] == "high_conviction_topk_shadow"
+    assert run["strategy_bundle_status"] == "persisted"
+    assert run["strategy_bundle_hash"]
+    assert run["strategy_binding"]["strategy_bundle"]["freeze_status"] == "paper_shadow_topk_bundle_frozen"
+    assert run["strategy_binding"]["strategy_bundle"]["live_buy_add_status"] == "fail_closed_live_buy_add"
     assert "不送單" in run["last_event_message"]
     assert run["last_event_type"] == "shadow_started"
     assert run["latest_event"]["event_type"] == "shadow_started"
     assert run["latest_event"]["payload"]["risk_on_order_enabled"] is False
+    assert run["latest_event"]["payload"]["strategy_bundle_status"] == "persisted"
+
+    pre_poll_outcomes = asyncio.run(api_module.api_execution_worker_outcomes())
+    assert pre_poll_outcomes["artifact"]["rehearsal_proof"]["status"] == "needs_worker_poll"
+    assert pre_poll_outcomes["artifact"]["rehearsal_proof"]["can_poll_workers"] is True
+
+    poll_payload = asyncio.run(api_module.api_execution_worker_poll(request=_local_request()))
+    assert poll_payload["summary"]["processed_runs"] == 1
+    assert poll_payload["summary"]["poll_events_recorded"] == 1
+    assert poll_payload["summary"]["parity_blocked_runs"] == 0
+    assert poll_payload["runs"][0]["worker_status"] == "paper_shadow_worker_polled"
+    assert poll_payload["runs"][0]["worker_control"]["bundle_hash_match"] is True
+    assert poll_payload["runs"][0]["worker_control"]["latest_order_proposal"]["live_order_submitted"] is False
+    assert poll_payload["outcome_reconciliation"]["artifact"]["status"] == "recording_pending_outcomes"
+    assert poll_payload["outcome_reconciliation"]["artifact"]["rehearsal_proof"]["status"] == "pending_observation_window"
+    assert poll_payload["outcome_reconciliation"]["artifact"]["rehearsal_proof"]["can_poll_workers"] is False
+    assert poll_payload["outcome_reconciliation"]["artifact"]["rehearsal_proof"]["poll_blocked_by_pending_outcome"] is True
+    assert poll_payload["outcome_reconciliation"]["artifact"]["rehearsal_proof"]["next_reconcile_at"]
+    assert poll_payload["outcome_reconciliation"]["artifact"]["rehearsal_proof"]["pending_hours_remaining_min"] > 0
+    assert poll_payload["outcome_reconciliation"]["artifact"]["summary"]["pending_outcomes"] == 1
+
+    duplicate_poll_payload = asyncio.run(api_module.api_execution_worker_poll(request=_local_request()))
+    assert duplicate_poll_payload["status"] == "pending_outcome_blocked"
+    assert duplicate_poll_payload["summary"]["processed_runs"] == 0
+    assert duplicate_poll_payload["summary"]["poll_events_recorded"] == 0
+    assert duplicate_poll_payload["summary"]["pending_outcome_blocked_runs"] == 1
+    assert duplicate_poll_payload["pending_outcome_gates"][0]["status"] == "pending_observation_window"
+    assert duplicate_poll_payload["outcome_reconciliation"]["artifact"]["summary"]["pending_outcomes"] == 1
+    worker_poll_event_count = session.execute(
+        text("SELECT COUNT(*) FROM execution_run_events WHERE event_type = 'paper_shadow_worker_poll'")
+    ).scalar_one()
+    assert worker_poll_event_count == 1
 
     runs_payload = asyncio.run(api_module.api_execution_runs())
     selective_run = next(record for record in runs_payload["runs"] if record["profile_id"] == "selective")
     assert selective_run["mode"] == "paper_shadow"
     assert selective_run["runtime_binding_status"] == "paper_shadow_runtime_blocked"
+    assert selective_run["worker_status"] == "paper_shadow_worker_polled"
 
 
 

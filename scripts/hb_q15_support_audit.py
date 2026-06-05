@@ -39,6 +39,9 @@ LEADERBOARD_PROBE_PATH = PROJECT_ROOT / "data" / "leaderboard_feature_profile_pr
 OUT_JSON = PROJECT_ROOT / "data" / "q15_support_audit.json"
 OUT_MD = PROJECT_ROOT / "docs" / "analysis" / "q15_support_audit.md"
 OUT_DEADLOCK_ACTION_JSON = PROJECT_ROOT / "data" / "equilibrium_deadlock_research_action.json"
+EXACT_ROW_HARVEST_PROOF_PATH = PROJECT_ROOT / "data" / "q15_exact_bucket_row_harvest_proof.json"
+MAP_SIGNAL_REDESIGN_PROOF_PATH = PROJECT_ROOT / "data" / "q15_map_signal_redesign_proof.json"
+DRIFT_REBASELINE_BACKTEST_PATH = PROJECT_ROOT / "data" / "q15_drift_rebaseline_backtest.json"
 BUCKET_SEMANTIC_SIGNATURE = "live_structure_bucket:q15_support_identity:v2"
 
 
@@ -63,9 +66,17 @@ def _parse_isoish_timestamp(value: Any) -> datetime | None:
     return parsed
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _drilldown_feature_timestamp(drilldown: dict[str, Any]) -> Any:
+    return drilldown.get("feature_timestamp") or drilldown.get("generated_at")
+
+
 def _probe_and_drilldown_in_sync(probe: dict[str, Any], drilldown: dict[str, Any]) -> bool:
     probe_ts = _parse_isoish_timestamp(probe.get("feature_timestamp"))
-    drilldown_ts = _parse_isoish_timestamp(drilldown.get("generated_at"))
+    drilldown_ts = _parse_isoish_timestamp(_drilldown_feature_timestamp(drilldown))
     if probe_ts is None or drilldown_ts is None:
         return False
     return abs((probe_ts - drilldown_ts).total_seconds()) < 1
@@ -415,6 +426,201 @@ def _equilibrium_deadlock_assessment(
     }
 
 
+def _forced_branch_decision(
+    *,
+    current_live: dict[str, Any],
+    support_route: dict[str, Any],
+    support_progress: dict[str, Any],
+    equilibrium_deadlock: dict[str, Any],
+    forced_deadlock_artifact: dict[str, Any],
+    exact_row_harvest_artifact: dict[str, Any] | None = None,
+    map_signal_redesign_artifact: dict[str, Any] | None = None,
+    drift_rebaseline_artifact: dict[str, Any] | None = None,
+    gap_to_minimum: int,
+    current_rows: int,
+    minimum_rows: int,
+    semantic_signature_delta: Any,
+    semantic_signature_stagnant: int,
+) -> dict[str, Any]:
+    """Make the forced-execution branch auditable without relaxing live gates."""
+
+    required = bool(forced_deadlock_artifact.get("required"))
+    confirmed = bool(equilibrium_deadlock.get("confirmed"))
+    current_signal = str(current_live.get("signal") or "").strip().upper()
+    guardrail_reason = str(current_live.get("execution_guardrail_reason") or "")
+    breaker_active = current_signal == "CIRCUIT_BREAKER" or "circuit_breaker" in guardrail_reason
+    delta_vs_previous = support_progress.get("delta_vs_previous")
+    support_ready = bool(support_route.get("deployable")) and current_rows >= minimum_rows
+    no_positive_delta = delta_vs_previous == 0 or semantic_signature_delta == 0
+    exact_row_harvest_artifact = exact_row_harvest_artifact if isinstance(exact_row_harvest_artifact, dict) else {}
+    exact_verdict = (
+        exact_row_harvest_artifact.get("verdict")
+        if isinstance(exact_row_harvest_artifact.get("verdict"), dict)
+        else {}
+    )
+    exact_delivered = (
+        exact_row_harvest_artifact.get("artifact") == "q15_exact_bucket_row_harvest_proof" and bool(exact_verdict)
+    )
+    if exact_delivered and exact_verdict.get("status") == "exact_bucket_row_harvest_support_ready_remaining_gates":
+        exact_branch_status = "delivered_support_ready_remaining_gates"
+    elif exact_delivered and exact_verdict.get("status") == "exact_bucket_row_harvest_positive_delta_under_minimum":
+        exact_branch_status = "delivered_positive_delta_under_minimum"
+    elif exact_delivered and exact_verdict.get("status") == "exact_bucket_row_harvest_stalled_under_minimum":
+        exact_branch_status = "blocked_no_positive_delta"
+    elif exact_delivered:
+        exact_branch_status = "delivered_under_minimum_progress_unproven"
+    else:
+        exact_branch_status = (
+            "completed_support_ready"
+            if support_ready
+            else "blocked_no_positive_delta"
+            if no_positive_delta and gap_to_minimum > 0
+            else "blocked_under_minimum"
+            if gap_to_minimum > 0
+            else "standby"
+        )
+    map_signal_redesign_artifact = map_signal_redesign_artifact if isinstance(map_signal_redesign_artifact, dict) else {}
+    map_verdict = (
+        map_signal_redesign_artifact.get("verdict")
+        if isinstance(map_signal_redesign_artifact.get("verdict"), dict)
+        else {}
+    )
+    map_delivered = map_signal_redesign_artifact.get("artifact") == "q15_map_signal_redesign_proof" and bool(map_verdict)
+    map_branch_status = (
+        "delivered_replay_required"
+        if map_delivered and map_verdict.get("status") == "map_signal_candidate_requires_oos_replay_not_deployable"
+        else "delivered_no_current_window_deployable"
+        if map_delivered
+        else "required_missing_artifact"
+        if required
+        else "standby"
+    )
+    drift_rebaseline_artifact = drift_rebaseline_artifact if isinstance(drift_rebaseline_artifact, dict) else {}
+    drift_verdict = (
+        drift_rebaseline_artifact.get("verdict")
+        if isinstance(drift_rebaseline_artifact.get("verdict"), dict)
+        else {}
+    )
+    drift_delivered = drift_rebaseline_artifact.get("artifact") == "q15_drift_rebaseline_backtest" and bool(drift_verdict)
+    drift_branch_status = (
+        "delivered_replay_required"
+        if drift_delivered and drift_verdict.get("status") == "candidate_requires_oos_replay_not_deployable"
+        else "delivered_reference_only"
+        if drift_delivered
+        else "required_missing_artifact"
+        if required
+        else "standby"
+    )
+
+    branch_matrix = [
+        {
+            "id": "map_signal_redesign_proof",
+            "status": map_branch_status,
+            "success_condition": "提出新版 support identity / semantic bucket map，重跑 replay/backtest，且不把 proxy/reference rows 包裝成 deployable exact support。",
+            "next_artifact": "data/q15_map_signal_redesign_proof.json",
+            "artifact_generated_at": map_signal_redesign_artifact.get("generated_at") if map_delivered else None,
+            "artifact_verdict": map_verdict.get("status") if map_delivered else None,
+            "selected_candidate_id": map_verdict.get("selected_candidate_id") if map_delivered else None,
+            "selected_target_bucket": map_verdict.get("selected_target_bucket") if map_delivered else None,
+            "selected_current_window_rows": map_verdict.get("selected_current_window_rows") if map_delivered else None,
+            "selected_all_history_rows": map_verdict.get("selected_all_history_rows") if map_delivered else None,
+            "best_reference_candidate_id": map_verdict.get("best_reference_candidate_id") if map_delivered else None,
+            "primary_failed_gate": map_verdict.get("primary_failed_gate") if map_delivered else None,
+            "deployable": bool(map_verdict.get("deployable")) if map_delivered else False,
+            "live_exposure_allowed": False,
+        },
+        {
+            "id": "exact_bucket_row_harvest_proof",
+            "status": exact_branch_status,
+            "success_condition": "交付 current support_identity 完全一致的新 exact rows，證明 support_rows 有正 delta；若仍無位移，記錄 hard no-go。",
+            "next_artifact": "data/q15_exact_bucket_row_harvest_proof.json",
+            "artifact_generated_at": exact_row_harvest_artifact.get("generated_at") if exact_delivered else None,
+            "artifact_verdict": exact_verdict.get("status") if exact_delivered else None,
+            "current_rows": exact_verdict.get("current_exact_bucket_rows") if exact_delivered else current_rows,
+            "previous_rows": exact_verdict.get("previous_rows") if exact_delivered else support_progress.get("previous_rows"),
+            "minimum_support_rows": exact_verdict.get("minimum_support_rows") if exact_delivered else minimum_rows,
+            "rows_needed": exact_verdict.get("rows_needed_to_minimum") if exact_delivered else gap_to_minimum,
+            "delta_vs_previous": exact_verdict.get("delta_vs_previous") if exact_delivered else delta_vs_previous,
+            "semantic_signature_delta_vs_previous": (
+                exact_verdict.get("semantic_signature_delta_vs_previous") if exact_delivered else semantic_signature_delta
+            ),
+            "semantic_signature_stagnant_run_count": (
+                exact_verdict.get("semantic_signature_stagnant_run_count") if exact_delivered else semantic_signature_stagnant
+            ),
+            "support_gate_ready": bool(exact_verdict.get("support_gate_ready")) if exact_delivered else support_ready,
+            "primary_failed_gate": exact_verdict.get("primary_failed_gate") if exact_delivered else "support_gate",
+            "live_exposure_allowed": False,
+        },
+        {
+            "id": "drift_rebaseline_backtest",
+            "status": drift_branch_status,
+            "success_condition": "用 fresh window / walk-forward / drift-aware rebaseline 檢查 current bucket 是否已失效，並輸出 go/no-go。",
+            "next_artifact": "data/q15_drift_rebaseline_backtest.json",
+            "artifact_generated_at": drift_rebaseline_artifact.get("generated_at") if drift_delivered else None,
+            "artifact_verdict": drift_verdict.get("status") if drift_delivered else None,
+            "selected_candidate_id": drift_verdict.get("selected_candidate_id") if drift_delivered else None,
+            "selected_current_window_rows": drift_verdict.get("selected_current_window_rows") if drift_delivered else None,
+            "selected_all_history_rows": drift_verdict.get("selected_all_history_rows") if drift_delivered else None,
+            "deployable": bool(drift_verdict.get("deployable")) if drift_delivered else False,
+            "live_exposure_allowed": False,
+        },
+        {
+            "id": "hard_no_go_single_failed_gate",
+            "status": "selected" if required and breaker_active else "available" if required else "standby",
+            "success_condition": "若仍不能 micro-canary，寫明唯一 hard gate 與下一個驗證 artifact；不得用繼續觀察取代。",
+            "single_failed_gate": "circuit_breaker_gate" if breaker_active else "support_gate",
+            "next_artifact": (
+                "data/circuit_breaker_audit.json"
+                if breaker_active
+                else "data/q15_support_audit.json"
+            ),
+            "live_exposure_allowed": False,
+        },
+    ]
+
+    if not required:
+        selected_branch = None
+        status = "not_required"
+        decision = "support deadlock forced branch 尚未觸發；維持一般 support / venue / model gate 驗證。"
+    elif breaker_active:
+        selected_branch = "hard_no_go_single_failed_gate"
+        status = "hard_no_go_recorded"
+        decision = "熔斷仍是唯一 immediate live gate；本輪以 single failed gate 記錄 no-go，同時要求後續交付 Map/Signal、exact-row harvest 或 drift rebaseline artifact。"
+    elif support_ready:
+        selected_branch = "exact_bucket_row_harvest_proof"
+        status = "support_ready_verify_remaining_gates"
+        decision = "exact support 已達 minimum；forced branch 轉為驗證 floor / venue / policy，不得直接 live buy/add。"
+    else:
+        selected_branch = "exact_bucket_row_harvest_proof"
+        status = "forced_action_required"
+        decision = "support deadlock 已觸發；下一步必須交付正 delta exact-row harvest，或改走 Map/Signal redesign / drift rebaseline proof。"
+
+    return {
+        "status": status,
+        "selected_branch": selected_branch,
+        "decision": decision,
+        "decision_clock": "72h_micro_canary_or_single_failed_gate",
+        "single_failed_gate": "circuit_breaker_gate" if breaker_active else "support_gate",
+        "next_validation_artifact": (
+            "data/circuit_breaker_audit.json"
+            if breaker_active
+            else "data/q15_support_audit.json"
+        ),
+        "equilibrium_deadlock_confirmed": confirmed,
+        "forced_research_action_required": required,
+        "live_exposure_allowed": False,
+        "shadow_or_paper_allowed": True,
+        "branch_matrix": branch_matrix,
+        "completion_criteria": [
+            "至少一個 forced branch 產出可重跑 artifact，且 artifact 明確標示 deployable=false 或 remaining gate。",
+            "不得降低 minimum_support_rows。",
+            "不得把 proxy / neighbor / legacy reference rows 計為 deployable exact support。",
+            "不得在 support、breaker、venue lifecycle 與 bounded live-canary policy 未全過前啟用 live buy/add。",
+        ],
+        "forbidden_shortcuts": forced_deadlock_artifact.get("forbidden_shortcuts") or [],
+    }
+
+
 def _semantic_identity_evidence(
     *,
     payload: dict[str, Any],
@@ -542,15 +748,17 @@ def _artifact_context_freshness(
             mismatches.append(key)
 
     probe_ts = probe.get("feature_timestamp")
-    drilldown_ts = drilldown.get("generated_at")
-    if probe_ts and drilldown_ts and not _probe_and_drilldown_in_sync(probe, drilldown):
+    drilldown_generated_at = drilldown.get("generated_at")
+    drilldown_feature_ts = _drilldown_feature_timestamp(drilldown)
+    if probe_ts and drilldown_feature_ts and not _probe_and_drilldown_in_sync(probe, drilldown):
         mismatches.append("feature_timestamp")
 
     return {
         "verdict": "current_context" if not mismatches else "stale_or_non_current_context",
         "mismatched_fields": sorted(set(mismatches)),
         "latest_live_probe_feature_timestamp": probe_ts,
-        "drilldown_generated_at": drilldown_ts,
+        "drilldown_generated_at": drilldown_generated_at,
+        "drilldown_feature_timestamp": drilldown_feature_ts,
         "artifact_feature_timestamp": live_context.get("feature_timestamp") or probe_ts,
         "probe_current_live_structure_bucket": probe_bucket,
         "artifact_current_live_structure_bucket": audit_bucket,
@@ -1022,6 +1230,9 @@ def _active_repair_plan(
     floor_legality: dict[str, Any],
     component_experiment: dict[str, Any],
     scope_applicability: dict[str, Any],
+    exact_row_harvest_artifact: dict[str, Any] | None = None,
+    map_signal_redesign_artifact: dict[str, Any] | None = None,
+    drift_rebaseline_artifact: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Turn blocker state into an executable, fail-closed live-readiness repair plan.
 
@@ -1054,17 +1265,26 @@ def _active_repair_plan(
     support_ready = bool(support_route.get("deployable")) and current_rows >= minimum_rows
     current_bucket = current_live.get("current_live_structure_bucket")
     active_for_current_live_row = bool(scope_applicability.get("active_for_current_live_row"))
-    equilibrium_deadlock = (
+    support_progress_equilibrium_deadlock = (
         support_progress.get("equilibrium_deadlock")
         if isinstance(support_progress.get("equilibrium_deadlock"), dict)
-        else _equilibrium_deadlock_assessment(
-            current_bucket=current_bucket,
-            support_progress=support_progress,
-            support_route_verdict=support_route.get("verdict"),
-            support_governance_route=support_route.get("support_governance_route"),
+        else None
+    )
+    equilibrium_deadlock = support_progress_equilibrium_deadlock or _equilibrium_deadlock_assessment(
+        current_bucket=current_bucket,
+        support_progress=support_progress,
+        support_route_verdict=support_route.get("verdict"),
+        support_governance_route=support_route.get("support_governance_route"),
+    )
+    forced_deadlock_artifact = equilibrium_deadlock.get("forced_research_action_artifact") or {}
+    current_live_deadlock_or_watch = bool(
+        support_progress_equilibrium_deadlock
+        and (
+            equilibrium_deadlock.get("confirmed")
+            or forced_deadlock_artifact.get("required")
         )
     )
-    if not active_for_current_live_row:
+    if not active_for_current_live_row and not current_live_deadlock_or_watch:
         equilibrium_deadlock = {
             **equilibrium_deadlock,
             "verdict": "not_applicable_current_live_not_target_lane",
@@ -1078,8 +1298,8 @@ def _active_repair_plan(
                 "required_by_next_heartbeat": False,
             },
         }
+        forced_deadlock_artifact = equilibrium_deadlock.get("forced_research_action_artifact") or {}
     equilibrium_confirmed = bool(equilibrium_deadlock.get("confirmed"))
-    forced_deadlock_artifact = equilibrium_deadlock.get("forced_research_action_artifact") or {}
 
     experiment_answer = component_experiment.get("machine_read_answer") or {}
     current_allowed_layers = _as_int(current_live.get("allowed_layers"), 0)
@@ -1219,6 +1439,22 @@ def _active_repair_plan(
             }
         )
 
+    forced_branch_decision = _forced_branch_decision(
+        current_live=current_live,
+        support_route=support_route,
+        support_progress=support_progress,
+        equilibrium_deadlock=equilibrium_deadlock,
+        forced_deadlock_artifact=forced_deadlock_artifact,
+        exact_row_harvest_artifact=exact_row_harvest_artifact,
+        map_signal_redesign_artifact=map_signal_redesign_artifact,
+        drift_rebaseline_artifact=drift_rebaseline_artifact,
+        gap_to_minimum=gap_to_minimum,
+        current_rows=current_rows,
+        minimum_rows=minimum_rows,
+        semantic_signature_delta=semantic_signature_delta,
+        semantic_signature_stagnant=semantic_signature_stagnant,
+    )
+
     return {
         "phase": phase,
         "primary_objective": primary_objective,
@@ -1250,6 +1486,7 @@ def _active_repair_plan(
             "建立系統與規則：support_identity 完全一致且 rows>=minimum 才能進入 deployment verify。",
             "主動代謝與清理：proxy、neighbor、legacy reference 未補齊語義證據前全部標記 reference-only。",
         ],
+        "forced_branch_decision": forced_branch_decision,
         "actions": actions,
     }
 
@@ -1726,6 +1963,9 @@ def build_report(
     drilldown: dict[str, Any],
     bull_pocket: dict[str, Any],
     leaderboard_probe: dict[str, Any],
+    exact_row_harvest_artifact: dict[str, Any] | None = None,
+    map_signal_redesign_artifact: dict[str, Any] | None = None,
+    drift_rebaseline_artifact: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     live_context = _resolve_current_live_context(probe, drilldown, bull_pocket)
     target_col = probe.get("target_col") or bull_pocket.get("target_col")
@@ -1786,7 +2026,7 @@ def build_report(
         drilldown=drilldown,
         live_context={
             **live_context,
-            "feature_timestamp": probe.get("feature_timestamp") or drilldown.get("generated_at"),
+            "feature_timestamp": probe.get("feature_timestamp") or _drilldown_feature_timestamp(drilldown),
             "regime_label": probe.get("regime_label") or live_context.get("regime_label"),
             "regime_gate": probe.get("regime_gate") or live_context.get("regime_gate"),
             "entry_quality_label": probe.get("entry_quality_label") or live_context.get("entry_quality_label"),
@@ -1823,7 +2063,7 @@ def build_report(
     )
 
     current_live_report = {
-        "feature_timestamp": probe.get("feature_timestamp") or drilldown.get("generated_at"),
+        "feature_timestamp": probe.get("feature_timestamp") or _drilldown_feature_timestamp(drilldown),
         "signal": probe.get("signal"),
         "regime_label": probe.get("regime_label") or live_context.get("regime_label"),
         "regime_gate": probe.get("regime_gate") or live_context.get("regime_gate"),
@@ -1855,8 +2095,12 @@ def build_report(
         floor_legality=floor_legality,
         component_experiment=component_experiment,
         scope_applicability=scope_applicability,
+        exact_row_harvest_artifact=exact_row_harvest_artifact,
+        map_signal_redesign_artifact=map_signal_redesign_artifact,
+        drift_rebaseline_artifact=drift_rebaseline_artifact,
     )
     equilibrium_deadlock = active_repair_plan.get("equilibrium_deadlock") or support_progress.get("equilibrium_deadlock") or {}
+    forced_branch_decision = active_repair_plan.get("forced_branch_decision") or {}
 
     remaining_gap = _as_float(component_gap.get("remaining_gap_to_floor"))
     required_delta = (best_single or {}).get("required_score_delta_to_cross_floor")
@@ -1882,7 +2126,7 @@ def build_report(
                 "exact support 已達標；下一輪可針對最佳 component 做保守 counterfactual 驗證，"
                 "並以 pytest + fast heartbeat 驗證 runtime guardrail 不回歸。"
             )
-    if not scope_applicability.get("active_for_current_live_row"):
+    if not scope_applicability.get("active_for_current_live_row") and not equilibrium_deadlock.get("confirmed"):
         current_bucket = live_context.get("current_live_structure_bucket")
         target_bucket = scope_applicability.get("target_structure_bucket")
         next_action = (
@@ -1890,7 +2134,7 @@ def build_report(
             "q15 audit 只保留 standby/reference route readiness。下一輪主焦點應回到 current-live exact-support blocker / deployment verify，"
             "除非 live row 再次回到 q15 bucket。"
         )
-    if scope_applicability.get("active_for_current_live_row") and equilibrium_deadlock.get("confirmed"):
+    if equilibrium_deadlock.get("confirmed"):
         next_action = (
             "直接判定 current-live exact-support gate 進入平衡死循環；下一輪必須交付 "
             "data/equilibrium_deadlock_research_action.json 所列的 Map/Signal redesign proof、"
@@ -1899,13 +2143,18 @@ def build_report(
         )
 
     return {
-        "generated_at": probe.get("feature_timestamp") or drilldown.get("generated_at"),
+        "generated_at": _utc_now_iso(),
+        "feature_timestamp": probe.get("feature_timestamp") or _drilldown_feature_timestamp(drilldown),
         "target_col": target_col,
         "support_identity": support_identity,
         "artifact_context_freshness": artifact_context_freshness,
         "current_live": current_live_report,
         "scope_applicability": scope_applicability,
         "equilibrium_deadlock": equilibrium_deadlock,
+        "forced_branch_decision": forced_branch_decision,
+        "exact_bucket_row_harvest_proof": exact_row_harvest_artifact if isinstance(exact_row_harvest_artifact, dict) else {},
+        "map_signal_redesign_proof": map_signal_redesign_artifact if isinstance(map_signal_redesign_artifact, dict) else {},
+        "drift_rebaseline_backtest": drift_rebaseline_artifact if isinstance(drift_rebaseline_artifact, dict) else {},
         "support_route": {
             "support_identity": support_identity,
             "support_governance_route": effective_support_governance_route,
@@ -2004,6 +2253,18 @@ def _markdown(report: dict[str, Any]) -> str:
     repair = report.get("active_repair_plan") or {}
     equilibrium = report.get("equilibrium_deadlock") or support_progress.get("equilibrium_deadlock") or repair.get("equilibrium_deadlock") or {}
     forced_artifact = equilibrium.get("forced_research_action_artifact") or {}
+    forced_branch = report.get("forced_branch_decision") or repair.get("forced_branch_decision") or {}
+    branch_matrix = forced_branch.get("branch_matrix") or []
+    exact_row_harvest = (
+        report.get("exact_bucket_row_harvest_proof")
+        if isinstance(report.get("exact_bucket_row_harvest_proof"), dict)
+        else {}
+    )
+    exact_verdict = exact_row_harvest.get("verdict") if isinstance(exact_row_harvest.get("verdict"), dict) else {}
+    map_signal_redesign = report.get("map_signal_redesign_proof") if isinstance(report.get("map_signal_redesign_proof"), dict) else {}
+    map_verdict = map_signal_redesign.get("verdict") if isinstance(map_signal_redesign.get("verdict"), dict) else {}
+    drift_rebaseline = report.get("drift_rebaseline_backtest") if isinstance(report.get("drift_rebaseline_backtest"), dict) else {}
+    drift_verdict = drift_rebaseline.get("verdict") if isinstance(drift_rebaseline.get("verdict"), dict) else {}
     repair_actions = repair.get("actions") or []
     legacy_semantic_evidence = repair.get("legacy_semantic_evidence") or {}
     support_identity_lines = _support_identity_markdown_lines(support_identity)
@@ -2013,6 +2274,7 @@ def _markdown(report: dict[str, Any]) -> str:
             "# q15 Support Audit",
             "",
             f"- generated_at: **{report.get('generated_at')}**",
+            f"- feature_timestamp: **{report.get('feature_timestamp')}**",
             f"- target_col: **{report.get('target_col')}**",
             f"- artifact_context_freshness: **{freshness.get('verdict')}** (`{freshness.get('mismatched_fields')}`)",
             "",
@@ -2064,6 +2326,46 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- decision: {equilibrium.get('decision')}",
             f"- forced artifact required/output: **{forced_artifact.get('required')} / {forced_artifact.get('output_path')}**",
             f"- forbidden_shortcuts: `{forced_artifact.get('forbidden_shortcuts') or []}`",
+            "",
+            "## Forced branch decision",
+            f"- status: **{forced_branch.get('status')}**",
+            f"- selected_branch: **{forced_branch.get('selected_branch')}**",
+            f"- decision_clock: **{forced_branch.get('decision_clock')}**",
+            f"- single_failed_gate: **{forced_branch.get('single_failed_gate')}**",
+            f"- next_validation_artifact: **{forced_branch.get('next_validation_artifact')}**",
+            f"- live_exposure_allowed: **{forced_branch.get('live_exposure_allowed')}**",
+            f"- decision: {forced_branch.get('decision')}",
+            f"- branch_matrix: `{[(item.get('id'), item.get('status'), item.get('next_artifact')) for item in branch_matrix if isinstance(item, dict)]}`",
+            "",
+            "## Exact bucket row harvest proof",
+            f"- artifact: **{exact_row_harvest.get('artifact') or 'missing'}**",
+            f"- generated_at: **{exact_row_harvest.get('generated_at')}**",
+            f"- verdict: **{exact_verdict.get('status')}**",
+            f"- current_exact_bucket_rows / minimum: **{exact_verdict.get('current_exact_bucket_rows')} / {exact_verdict.get('minimum_support_rows')}**",
+            f"- previous_rows: **{exact_verdict.get('previous_rows')}**",
+            f"- delta_vs_previous: **{exact_verdict.get('delta_vs_previous')}**",
+            f"- rows_needed_to_minimum: **{exact_verdict.get('rows_needed_to_minimum')}**",
+            f"- primary_failed_gate: **{exact_verdict.get('primary_failed_gate')}**",
+            f"- live_exposure_allowed: **{exact_verdict.get('live_exposure_allowed')}**",
+            "",
+            "## Map/Signal redesign proof",
+            f"- artifact: **{map_signal_redesign.get('artifact') or 'missing'}**",
+            f"- generated_at: **{map_signal_redesign.get('generated_at')}**",
+            f"- verdict: **{map_verdict.get('status')}**",
+            f"- selected_candidate_id: **{map_verdict.get('selected_candidate_id')}**",
+            f"- selected_target_bucket: **{map_verdict.get('selected_target_bucket')}**",
+            f"- selected_current_window_rows / all_history_rows: **{map_verdict.get('selected_current_window_rows')} / {map_verdict.get('selected_all_history_rows')}**",
+            f"- best_reference_candidate_id: **{map_verdict.get('best_reference_candidate_id')}**",
+            f"- primary_failed_gate: **{map_verdict.get('primary_failed_gate')}**",
+            f"- live_exposure_allowed: **{map_verdict.get('live_exposure_allowed')}**",
+            "",
+            "## Drift rebaseline backtest",
+            f"- artifact: **{drift_rebaseline.get('artifact') or 'missing'}**",
+            f"- generated_at: **{drift_rebaseline.get('generated_at')}**",
+            f"- verdict: **{drift_verdict.get('status')}**",
+            f"- selected_candidate_id: **{drift_verdict.get('selected_candidate_id')}**",
+            f"- selected_current_window_rows / all_history_rows: **{drift_verdict.get('selected_current_window_rows')} / {drift_verdict.get('selected_all_history_rows')}**",
+            f"- live_exposure_allowed: **{drift_verdict.get('live_exposure_allowed')}**",
             "",
             "## Floor-cross legality",
             f"- verdict: **{floor.get('verdict')}**",
@@ -2122,8 +2424,19 @@ def main() -> None:
     drilldown = _refresh_live_drilldown_if_needed(probe, drilldown)
     bull_pocket = _load_json(BULL_POCKET_PATH)
     leaderboard_probe = _load_json(LEADERBOARD_PROBE_PATH)
+    exact_row_harvest_artifact = _load_json(EXACT_ROW_HARVEST_PROOF_PATH)
+    map_signal_redesign_artifact = _load_json(MAP_SIGNAL_REDESIGN_PROOF_PATH)
+    drift_rebaseline_artifact = _load_json(DRIFT_REBASELINE_BACKTEST_PATH)
 
-    report = build_report(probe, drilldown, bull_pocket, leaderboard_probe)
+    report = build_report(
+        probe,
+        drilldown,
+        bull_pocket,
+        leaderboard_probe,
+        exact_row_harvest_artifact=exact_row_harvest_artifact,
+        map_signal_redesign_artifact=map_signal_redesign_artifact,
+        drift_rebaseline_artifact=drift_rebaseline_artifact,
+    )
     markdown = _markdown(report)
 
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
@@ -2133,10 +2446,12 @@ def main() -> None:
     OUT_MD.write_text(markdown + "\n", encoding="utf-8")
     deadlock_payload = {
         "generated_at": report.get("generated_at"),
+        "feature_timestamp": report.get("feature_timestamp"),
         "artifact": "equilibrium_deadlock_research_action",
         "source_artifact": str(OUT_JSON.relative_to(PROJECT_ROOT)),
         "equilibrium_deadlock": report.get("equilibrium_deadlock"),
         "forced_research_action_artifact": (report.get("equilibrium_deadlock") or {}).get("forced_research_action_artifact"),
+        "forced_branch_decision": report.get("forced_branch_decision"),
         "active_repair_plan_phase": (report.get("active_repair_plan") or {}).get("phase"),
         "live_exposure_allowed": (report.get("active_repair_plan") or {}).get("live_exposure_allowed"),
         "shadow_or_paper_allowed": (report.get("active_repair_plan") or {}).get("shadow_or_paper_allowed"),

@@ -62,6 +62,10 @@
 - `data/live_predict_probe.json`
 - `data/high_conviction_topk_oos_matrix.json`
 - `data/execution_metadata_smoke.json`
+- `data/venue_dry_run_proof.json`
+- `data/customer_safe_alternative_proof.json`
+- `data/paper_shadow_outcome_reconciliation.json`
+- `scripts/paper_shadow_outcome_reconciliation.py --persist --strict`
 - `data/recent_drift_report.json`
 - `issues.json`
 
@@ -121,11 +125,13 @@ Start from customer value and choose the highest safe ladder rung, not the lowes
 1. Diagnostics/visibility only.
 2. Research/Strategy Lab usage.
 3. Paper or shadow observation.
-4. Venue dry-run proof.
+4. Venue dry-run proof (`data/venue_dry_run_proof.json`).
 5. Live canary rehearsal checklist.
 6. Tiny live canary only if all gates pass.
 
-**Evidence:** deployment blocker, support rows/minimum/gap, venue proof, OOS gate, UI/API readiness.
+**Evidence:** deployment blocker, support rows/minimum/gap, venue proof, OOS gate, UI/API readiness. For Top-K API readiness, save `/api/models/leaderboard` and run `python scripts/high_conviction_topk_api_consistency_probe.py --leaderboard-file <leaderboard.json> --artifact-file data/high_conviction_topk_oos_matrix.json --strict` so PM can reject API/artifact drift, deployable leakage under blockers, missing release math, or secret-like fields. For venue API readiness, save `/api/status` and `/api/execution/overview` payloads, then run `python scripts/venue_dry_run_api_consistency_probe.py --status-file <status.json> --overview-file <overview.json> --artifact-file data/venue_dry_run_proof.json --strict`.
+For paper/shadow worker outcome readiness, run `python scripts/paper_shadow_outcome_reconciliation.py --persist --strict`, then run `python scripts/paper_shadow_outcome_api_consistency_probe.py --overview-file <overview.json> --artifact-file data/paper_shadow_outcome_reconciliation.json --strict` and inspect schema-v2 top-level / `quick_read` pending/resolved/label-replay status, pending ETA, duplicate-poll guard, API/artifact consistency, and fail-closed booleans.
+For customer-safe alternative readiness, run `python scripts/customer_safe_alternative_api_consistency_probe.py --overview-file <overview.json> --artifact-file data/customer_safe_alternative_proof.json --strict` so PM can reject API/artifact drift, alias/count drift, selected next artifact drift, fail-closed leakage, or secret-like fields before telling the customer which safe lane is usable.
 
 **If fail:** Ask engineering for the smallest safe rung, not a broad “continue research”.
 

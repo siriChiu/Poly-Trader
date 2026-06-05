@@ -1,0 +1,367 @@
+{
+  "generated_at": "2026-06-05T10:52:39.406369Z",
+  "artifact": "venue_dry_run_proof",
+  "status": "blocked_missing_runtime_backed_proof",
+  "symbol": "BTC/USDT",
+  "source_artifacts": {
+    "execution_metadata_smoke": {
+      "path": "data/execution_metadata_smoke.json",
+      "exists": true,
+      "generated_at": "2026-06-05T10:24:37.620616Z"
+    }
+  },
+  "live_exposure_allowed": false,
+  "order_submission_enabled": false,
+  "risk_on_order_enabled": false,
+  "dry_run_only": true,
+  "secrets_redacted": true,
+  "credential_present": false,
+  "credentials_configured_any": false,
+  "runtime_ready": false,
+  "runtime_ready_count": 0,
+  "venues_checked": 2,
+  "runtime_ready_blockers": [
+    "live exchange credential 尚未驗證",
+    "order ack lifecycle 尚未驗證",
+    "fill lifecycle 尚未驗證",
+    "order preview is dry-run only",
+    "runtime-backed order ack proof missing",
+    "runtime-backed cancel proof missing",
+    "runtime-backed fill proof missing",
+    "runtime-backed reconciliation proof missing",
+    "場館 adapter 尚未接入",
+    "元資料契約尚未通過",
+    "場館設定停用"
+  ],
+  "venues": [
+    {
+      "venue": "okx",
+      "adapter_supported": true,
+      "metadata_ok": true,
+      "enabled_in_config": true,
+      "credentials_configured": false,
+      "credential_present": false,
+      "proof_state": "public_metadata_only",
+      "runtime_ready": false,
+      "readiness_state": "blocked_missing_runtime_backed_proof",
+      "blockers": [
+        "live exchange credential 尚未驗證",
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+        "order preview is dry-run only",
+        "runtime-backed order ack proof missing",
+        "runtime-backed cancel proof missing",
+        "runtime-backed fill proof missing",
+        "runtime-backed reconciliation proof missing"
+      ],
+      "order_preview": {
+        "status": "blocked_missing_credentials",
+        "preview_available": true,
+        "dry_run_only": true,
+        "would_submit": false,
+        "order_submission_enabled": false,
+        "risk_on_order_enabled": false,
+        "live_order_submitted": false,
+        "constraints": {
+          "symbol": "BTC/USDT",
+          "side": "buy",
+          "order_type": "limit_preview",
+          "preview_qty": 1e-05,
+          "min_qty": 1e-05,
+          "min_cost": null,
+          "step_size": "0.00000001",
+          "tick_size": "0.1",
+          "amount_precision": 1e-08,
+          "price_precision": 0.1
+        },
+        "blockers": [
+          "live exchange credential 尚未驗證",
+          "order ack lifecycle 尚未驗證",
+          "fill lifecycle 尚未驗證",
+          "order preview is dry-run only",
+          "runtime-backed order ack proof missing",
+          "runtime-backed cancel proof missing",
+          "runtime-backed fill proof missing",
+          "runtime-backed reconciliation proof missing"
+        ]
+      },
+      "ack_simulation": {
+        "stage": "ack",
+        "status": "blocked_missing_credentials",
+        "runtime_backed": false,
+        "dry_run_only": true,
+        "order_submission_enabled": false,
+        "risk_on_order_enabled": false,
+        "live_order_submitted": false,
+        "required_evidence": [
+          "venue order id",
+          "client order id",
+          "exchange ack timestamp"
+        ]
+      },
+      "cancel_simulation": {
+        "stage": "cancel",
+        "status": "blocked_missing_credentials",
+        "runtime_backed": false,
+        "dry_run_only": true,
+        "order_submission_enabled": false,
+        "risk_on_order_enabled": false,
+        "live_order_submitted": false,
+        "required_evidence": [
+          "cancel request id",
+          "exchange cancel ack",
+          "terminal canceled state"
+        ]
+      },
+      "fill_simulation": {
+        "stage": "fill",
+        "status": "blocked_missing_credentials",
+        "runtime_backed": false,
+        "dry_run_only": true,
+        "order_submission_enabled": false,
+        "risk_on_order_enabled": false,
+        "live_order_submitted": false,
+        "required_evidence": [
+          "trade id",
+          "filled qty",
+          "filled price",
+          "exchange fill timestamp"
+        ]
+      },
+      "reconciliation_check": {
+        "stage": "reconciliation",
+        "status": "blocked_missing_credentials",
+        "runtime_backed": false,
+        "dry_run_only": true,
+        "order_submission_enabled": false,
+        "risk_on_order_enabled": false,
+        "live_order_submitted": false,
+        "required_evidence": [
+          "open order poll",
+          "trade history poll",
+          "local ledger match"
+        ]
+      },
+      "operator_next_action": "先配置 okx 交易憑證，再用沙盒或極小額委託捕捉委託確認 / 成交 / 取消生命週期。",
+      "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
+    },
+    {
+      "venue": "binance",
+      "adapter_supported": false,
+      "metadata_ok": false,
+      "enabled_in_config": false,
+      "credentials_configured": false,
+      "credential_present": false,
+      "proof_state": "adapter_unsupported",
+      "runtime_ready": false,
+      "readiness_state": "blocked_missing_runtime_backed_proof",
+      "blockers": [
+        "場館 adapter 尚未接入",
+        "元資料契約尚未通過",
+        "場館設定停用",
+        "live exchange credential 尚未驗證",
+        "order ack lifecycle 尚未驗證",
+        "fill lifecycle 尚未驗證",
+        "order preview is dry-run only",
+        "runtime-backed order ack proof missing",
+        "runtime-backed cancel proof missing",
+        "runtime-backed fill proof missing",
+        "runtime-backed reconciliation proof missing"
+      ],
+      "order_preview": {
+        "status": "blocked_adapter_unsupported",
+        "preview_available": false,
+        "dry_run_only": true,
+        "would_submit": false,
+        "order_submission_enabled": false,
+        "risk_on_order_enabled": false,
+        "live_order_submitted": false,
+        "constraints": {
+          "symbol": "BTC/USDT",
+          "side": "buy",
+          "order_type": "limit_preview",
+          "preview_qty": null,
+          "min_qty": null,
+          "min_cost": null,
+          "step_size": null,
+          "tick_size": null,
+          "amount_precision": null,
+          "price_precision": null
+        },
+        "blockers": [
+          "場館 adapter 尚未接入",
+          "元資料契約尚未通過",
+          "場館設定停用",
+          "live exchange credential 尚未驗證",
+          "order ack lifecycle 尚未驗證",
+          "fill lifecycle 尚未驗證",
+          "order preview is dry-run only",
+          "runtime-backed order ack proof missing",
+          "runtime-backed cancel proof missing",
+          "runtime-backed fill proof missing",
+          "runtime-backed reconciliation proof missing"
+        ]
+      },
+      "ack_simulation": {
+        "stage": "ack",
+        "status": "blocked_adapter_unsupported",
+        "runtime_backed": false,
+        "dry_run_only": true,
+        "order_submission_enabled": false,
+        "risk_on_order_enabled": false,
+        "live_order_submitted": false,
+        "required_evidence": [
+          "venue order id",
+          "client order id",
+          "exchange ack timestamp"
+        ]
+      },
+      "cancel_simulation": {
+        "stage": "cancel",
+        "status": "blocked_adapter_unsupported",
+        "runtime_backed": false,
+        "dry_run_only": true,
+        "order_submission_enabled": false,
+        "risk_on_order_enabled": false,
+        "live_order_submitted": false,
+        "required_evidence": [
+          "cancel request id",
+          "exchange cancel ack",
+          "terminal canceled state"
+        ]
+      },
+      "fill_simulation": {
+        "stage": "fill",
+        "status": "blocked_adapter_unsupported",
+        "runtime_backed": false,
+        "dry_run_only": true,
+        "order_submission_enabled": false,
+        "risk_on_order_enabled": false,
+        "live_order_submitted": false,
+        "required_evidence": [
+          "trade id",
+          "filled qty",
+          "filled price",
+          "exchange fill timestamp"
+        ]
+      },
+      "reconciliation_check": {
+        "stage": "reconciliation",
+        "status": "blocked_adapter_unsupported",
+        "runtime_backed": false,
+        "dry_run_only": true,
+        "order_submission_enabled": false,
+        "risk_on_order_enabled": false,
+        "live_order_submitted": false,
+        "required_evidence": [
+          "open order poll",
+          "trade history poll",
+          "local ledger match"
+        ]
+      },
+      "operator_next_action": "先接入 binance 交易所 adapter，並確認場館設定與憑證，再補委託確認 / 成交 / 取消生命週期。",
+      "verify_next": "接入 adapter 後重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
+    }
+  ],
+  "order_preview": {
+    "status": "blocked_missing_credentials",
+    "preview_available": true,
+    "dry_run_only": true,
+    "would_submit": false,
+    "order_submission_enabled": false,
+    "risk_on_order_enabled": false,
+    "live_order_submitted": false,
+    "constraints": {
+      "symbol": "BTC/USDT",
+      "side": "buy",
+      "order_type": "limit_preview",
+      "preview_qty": 1e-05,
+      "min_qty": 1e-05,
+      "min_cost": null,
+      "step_size": "0.00000001",
+      "tick_size": "0.1",
+      "amount_precision": 1e-08,
+      "price_precision": 0.1
+    },
+    "blockers": [
+      "live exchange credential 尚未驗證",
+      "order ack lifecycle 尚未驗證",
+      "fill lifecycle 尚未驗證",
+      "order preview is dry-run only",
+      "runtime-backed order ack proof missing",
+      "runtime-backed cancel proof missing",
+      "runtime-backed fill proof missing",
+      "runtime-backed reconciliation proof missing"
+    ]
+  },
+  "ack_simulation": {
+    "stage": "ack",
+    "status": "blocked_missing_credentials",
+    "runtime_backed": false,
+    "dry_run_only": true,
+    "order_submission_enabled": false,
+    "risk_on_order_enabled": false,
+    "live_order_submitted": false,
+    "required_evidence": [
+      "venue order id",
+      "client order id",
+      "exchange ack timestamp"
+    ]
+  },
+  "cancel_simulation": {
+    "stage": "cancel",
+    "status": "blocked_missing_credentials",
+    "runtime_backed": false,
+    "dry_run_only": true,
+    "order_submission_enabled": false,
+    "risk_on_order_enabled": false,
+    "live_order_submitted": false,
+    "required_evidence": [
+      "cancel request id",
+      "exchange cancel ack",
+      "terminal canceled state"
+    ]
+  },
+  "fill_simulation": {
+    "stage": "fill",
+    "status": "blocked_missing_credentials",
+    "runtime_backed": false,
+    "dry_run_only": true,
+    "order_submission_enabled": false,
+    "risk_on_order_enabled": false,
+    "live_order_submitted": false,
+    "required_evidence": [
+      "trade id",
+      "filled qty",
+      "filled price",
+      "exchange fill timestamp"
+    ]
+  },
+  "reconciliation_check": {
+    "stage": "reconciliation",
+    "status": "blocked_missing_credentials",
+    "runtime_backed": false,
+    "dry_run_only": true,
+    "order_submission_enabled": false,
+    "risk_on_order_enabled": false,
+    "live_order_submitted": false,
+    "required_evidence": [
+      "open order poll",
+      "trade history poll",
+      "local ledger match"
+    ]
+  },
+  "customer_usable_now": [
+    "venue readiness checklist",
+    "dry-run order preview with would_submit=false",
+    "missing lifecycle proof checklist"
+  ],
+  "not_allowed": [
+    "live buy/add exposure",
+    "automatic live order submission",
+    "canary order without runtime-backed venue lifecycle proof"
+  ],
+  "operator_next_action": "先配置 okx 交易憑證，再用沙盒或極小額委託捕捉委託確認 / 成交 / 取消生命週期。",
+  "verify_next": "python scripts/venue_dry_run_proof.py",
+  "next_validation_artifact": "data/venue_dry_run_proof.json"
+}

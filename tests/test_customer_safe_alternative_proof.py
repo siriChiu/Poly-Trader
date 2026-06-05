@@ -102,6 +102,27 @@ def test_customer_safe_proof_preserves_fail_closed_live_gate_with_shadow_candida
     assert gate["order_submission_enabled"] is False
     assert gate["risk_on_order_enabled"] is False
     assert gate["blocking_gate"] == "current_live_support_gate"
+    assert payload["summary"]["live_exposure_allowed"] is False
+    assert payload["summary"]["order_submission_enabled"] is False
+    assert payload["summary"]["support_rows"] == 0
+    assert payload["summary"]["minimum_support_rows"] == 50
+    assert payload["summary"]["support_gap"] == 50
+    assert payload["summary"]["blocking_gate"] == "current_live_support_gate"
+    assert payload["summary"]["topk_risk_qualified_rows"] == 6
+    assert payload["summary"]["topk_runtime_blocked_candidate_rows"] == 6
+    assert payload["summary"]["topk_deployable_rows"] == 0
+    assert payload["summary"]["topk_support_context_status"] == "stale_live_probe_shadow_only"
+    assert payload["summary"]["topk_support_context_freshness_status"] == "unavailable"
+    assert payload["summary"]["topk_support_context_deployment_blocking"] is True
+    assert payload["summary"]["topk_live_truth_overlay_blocker"] == "missing_generated_at"
+    assert payload["summary"]["venue_status"] == "blocked_missing_runtime_backed_proof"
+    assert payload["live_exposure_allowed"] is False
+    assert payload["order_submission_enabled"] is False
+    assert payload["risk_on_order_enabled"] is False
+    assert payload["support_rows"] == 0
+    assert payload["minimum_support_rows"] == 50
+    assert payload["support_gap"] == 50
+    assert payload["blocking_gate"] == "current_live_support_gate"
 
     support = payload["current_live_support"]
     assert support["current_rows"] == 0
@@ -121,6 +142,10 @@ def test_customer_safe_proof_preserves_fail_closed_live_gate_with_shadow_candida
     assert nearest["gate_failures"] == ["support_route_not_deployable", "deployment_blocker_active"]
     assert nearest["support_route_deployable"] is False
     assert nearest["release_ready"] is False
+    topk_context = payload["topk_shadow_candidate_context"]
+    assert topk_context["support_context_status"] == "stale_live_probe_shadow_only"
+    assert topk_context["support_context_freshness_status"] == "unavailable"
+    assert topk_context["support_context_deployment_blocking"] is True
 
     lanes = {lane["id"]: lane for lane in payload["customer_safe_lanes"]}
     assert lanes["paper_shadow_decision_support_sleeve"]["status"] == "available"
@@ -135,11 +160,59 @@ def test_customer_safe_proof_preserves_fail_closed_live_gate_with_shadow_candida
     assert portfolio["option_count"] >= 3
     assert portfolio["time_to_evidence_bucket"] == "semantic_rebaseline_review_required_before_reference_rows_count"
     assert portfolio["missing_capability_class"] == "Constraint/Review"
+    assert payload["alternative_solution_required"] is True
+    assert payload["alternative_solution_option_count"] == portfolio["option_count"]
+    assert payload["alternative_solution_options"] == portfolio["option_count"]
+    assert payload["summary"]["alternative_solution_option_count"] == portfolio["option_count"]
+    assert payload["summary"]["alternative_solution_options"] == portfolio["option_count"]
+    assert payload["selected_alternative_solution"] == portfolio["selected_option"]
+    assert payload["selected_alternative"] == portfolio["selected_option"]
+    assert payload["summary"]["selected_alternative"] == portfolio["selected_option"]
+    assert payload["selected_next_customer_artifact"] == portfolio["selected_next_artifact"]
+    assert payload["selected_next_artifact"] == portfolio["selected_next_artifact"]
+    assert payload["summary"]["selected_next_artifact"] == portfolio["selected_next_artifact"]
+    assert len(payload["alternative_solutions"]) == portfolio["option_count"]
     for option in portfolio["options"]:
         assert option["deployable"] is False
         assert option["live_exposure_allowed"] is False
         assert option["order_submission_enabled"] is False
         assert option["risk_on_order_enabled"] is False
+    for option in payload["alternative_solutions"]:
+        assert option["deployable"] is False
+        assert option["live_exposure_allowed"] is False
+        assert option["order_submission_enabled"] is False
+        assert option["risk_on_order_enabled"] is False
+
+    assert payload["blocked_live_lane_count"] == len(payload["blocked_live_lanes"])
+    assert payload["summary"]["blocked_live_lane_count"] == len(payload["blocked_live_lanes"])
+    assert {lane["id"] for lane in payload["blocked_live_lanes"]} == {
+        "live_buy_add_exposure",
+        "risk_on_automation_enable",
+        "unbounded_live_canary",
+    }
+    for lane in payload["blocked_live_lanes"]:
+        assert lane["live_exposure_allowed"] is False
+        assert lane["order_submission_enabled"] is False
+        assert lane["risk_on_order_enabled"] is False
+        assert lane["release_condition"]["support_rows"] == 0
+        assert lane["release_condition"]["minimum_support_rows"] == 50
+        assert lane["release_condition"]["support_gap"] == 50
+
+    assert payload["next_customer_action_count"] == len(payload["next_customer_actions"])
+    assert payload["summary"]["next_customer_action_count"] == len(payload["next_customer_actions"])
+    assert {action["id"] for action in payload["next_customer_actions"]} >= {
+        "open_execution_paper_shadow",
+        "review_strategy_lab_topk_shadow_candidates",
+        "verify_venue_dry_run_lifecycle",
+        "track_breaker_and_exact_support",
+    }
+    for action in payload["next_customer_actions"]:
+        assert action["live_exposure_allowed"] is False
+        assert action["order_submission_enabled"] is False
+        assert action["risk_on_order_enabled"] is False
+    lab_action = next(action for action in payload["next_customer_actions"] if action["id"] == "review_strategy_lab_topk_shadow_candidates")
+    assert lab_action["topk_support_context_freshness_status"] == "unavailable"
+    assert lab_action["topk_support_context_deployment_blocking"] is True
 
     assert any("透過 /api/trade shadow_buy / paper_buy 強制 dry-run" in item for item in payload["allowed_today"])
     assert "真實/live 買入 / 加倉" in payload["not_allowed"]
@@ -197,6 +270,61 @@ def test_customer_safe_proof_prioritizes_active_circuit_breaker_before_support_m
     md = proof.markdown(payload)
     assert "primary_blocking_gate: `circuit_breaker_gate`" in md
     assert "circuit_breaker_release_ready: `False`" in md
+
+
+def test_customer_safe_proof_prefers_standalone_venue_dry_run_artifact():
+    payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "deployment_blocker": "circuit_breaker_active",
+            "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+        },
+        q15_support_fill_feasibility={"verdict": {"classification": "no_exact_bucket_history"}},
+        high_conviction_topk_oos_matrix={"risk_qualified_rows": 1, "runtime_blocked_candidate_rows": 1, "deployable_rows": 0},
+        execution_metadata_smoke={"runtime_ready": False},
+        venue_dry_run_proof={
+            "generated_at": "2026-06-04T04:00:00Z",
+            "status": "blocked_missing_runtime_backed_proof",
+            "runtime_ready": False,
+            "runtime_ready_count": 0,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "dry_run_only": True,
+            "venues": [
+                {
+                    "venue": "okx",
+                    "adapter_supported": True,
+                    "enabled_in_config": True,
+                    "credentials_configured": False,
+                    "proof_state": "public_metadata_only",
+                    "runtime_ready": False,
+                    "blockers": ["runtime-backed order ack proof missing"],
+                    "order_preview": {"status": "blocked_missing_credentials"},
+                    "ack_simulation": {"status": "blocked_missing_credentials"},
+                    "cancel_simulation": {"status": "blocked_missing_credentials"},
+                    "fill_simulation": {"status": "blocked_missing_credentials"},
+                    "reconciliation_check": {"status": "blocked_missing_credentials"},
+                }
+            ],
+        },
+        recent_drift_report={},
+        generated_at="2026-06-04T04:01:00Z",
+    )
+
+    venue = payload["venue_runtime_proof"]
+    assert venue["artifact"] == "venue_dry_run_proof"
+    assert venue["artifact_path"] == "data/venue_dry_run_proof.json"
+    assert venue["status"] == "blocked_missing_runtime_backed_proof"
+    assert venue["order_submission_enabled"] is False
+    assert venue["dry_run_only"] is True
+    assert venue["venues"][0]["order_preview_status"] == "blocked_missing_credentials"
+
+    lanes = {lane["id"]: lane for lane in payload["customer_safe_lanes"]}
+    assert lanes["venue_dry_run_readiness_proof"]["artifact_path"] == "data/venue_dry_run_proof.json"
+    assert lanes["venue_dry_run_readiness_proof"]["dry_run_only"] is True
 
 
 def test_customer_safe_proof_falls_back_to_circuit_breaker_audit_release_math():
@@ -475,6 +603,23 @@ def test_customer_safe_proof_requires_all_gates_before_canary():
     assert payload["live_deployment_gate"]["live_exposure_allowed"] is True
     assert payload["live_deployment_gate"]["order_submission_enabled"] is True
     assert payload["live_deployment_gate"]["blocking_gate"] == "none"
+    assert payload["summary"]["canary_ready"] is True
+    assert payload["summary"]["live_exposure_allowed"] is True
+    assert payload["summary"]["order_submission_enabled"] is True
+    assert payload["summary"]["risk_on_order_enabled"] is True
+    assert payload["blocked_live_lanes"] == []
+    assert payload["blocked_live_lane_count"] == 0
+    assert payload["next_customer_actions"][0]["id"] == "bounded_live_canary_review"
+    assert payload["next_customer_actions"][0]["requires_bounded_live_canary_policy"] is True
+    assert payload["summary"]["support_rows"] == 50
+    assert payload["summary"]["support_gap"] == 0
+    assert payload["summary"]["blocking_gate"] == "none"
+    assert payload["live_exposure_allowed"] is True
+    assert payload["order_submission_enabled"] is True
+    assert payload["risk_on_order_enabled"] is True
+    assert payload["support_rows"] == 50
+    assert payload["support_gap"] == 0
+    assert payload["blocking_gate"] == "none"
     assert payload["current_live_support"]["deployment_blocker"] is None
     assert "exact support 達標" in payload["pm_handoff_carried_forward"]["decision"]
     assert "current exact support 已達標" in payload["next_gate"]
@@ -552,6 +697,167 @@ def test_customer_safe_proof_prefers_live_reference_rows_over_stale_topk_context
     assert support["support_route_deployable"] is False
 
 
+def test_customer_safe_proof_overlays_nearest_topk_candidate_with_fresh_runtime_context():
+    payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "generated_at": "2026-06-04T02:45:30Z",
+            "deployment_blocker": "circuit_breaker_active",
+            "runtime_closure_state": "circuit_breaker_active",
+            "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "release_ready": False,
+                    "recent_window": 50,
+                    "current_recent_window_wins": 9,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 6,
+                }
+            },
+        },
+        q15_support_fill_feasibility={"verdict": {"current_exact_bucket_rows": 0, "minimum_support_rows": 50, "gap_to_minimum": 50}},
+        high_conviction_topk_oos_matrix={
+            "deployable_rows": 0,
+            "risk_qualified_rows": 6,
+            "runtime_blocked_candidate_rows": 6,
+            "support_context": {
+                "support_route_verdict": "exact_bucket_unsupported_block",
+                "support_governance_route": "exact_live_lane_proxy_available",
+                "deployment_blocker": "circuit_breaker_active",
+                "runtime_closure_state": "circuit_breaker_active",
+                "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 50,
+                "release_ready": False,
+                "current_recent_window_win_rate": 0.18,
+                "current_recent_window_wins": 9,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 6,
+                "source_live_probe_generated_at": "2026-06-04T02:45:30Z",
+            },
+            "nearest_deployable_rows": [
+                {
+                    "model": "logistic_regression",
+                    "top_k": "top_2pct",
+                    "current_live_structure_bucket": "OLD|stale|q00",
+                    "current_live_structure_bucket_rows": 7,
+                    "minimum_support_rows": 50,
+                    "current_live_structure_bucket_gap_to_minimum": 43,
+                    "release_ready": False,
+                    "current_recent_window_win_rate": 0.12,
+                    "current_recent_window_wins": 6,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 9,
+                    "deployable_verdict": "not_deployable",
+                }
+            ],
+        },
+        execution_metadata_smoke={"runtime_ready": False},
+        recent_drift_report={},
+        generated_at="2026-06-04T02:46:00Z",
+    )
+
+    nearest = payload["topk_shadow_candidate_context"]["nearest_candidate"]
+    assert nearest["current_live_structure_bucket"] == "BLOCK|bias200_below_min|q00"
+    assert nearest["current_live_structure_bucket_rows"] == 0
+    assert nearest["current_live_structure_bucket_gap_to_minimum"] == 50
+    assert nearest["current_recent_window_win_rate"] == 0.18
+    assert nearest["current_recent_window_wins"] == 9
+    assert nearest["additional_recent_window_wins_needed"] == 6
+    assert nearest["source_live_probe_generated_at"] == "2026-06-04T02:45:30Z"
+    assert nearest["runtime_overlay_applied"] is True
+
+
+def test_customer_safe_proof_marks_topk_live_support_overlay_stale_or_fresh():
+    stale_payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "generated_at": "2000-01-01T00:00:00Z",
+            "deployment_blocker": "circuit_breaker_active",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+        },
+        q15_support_fill_feasibility={"verdict": {"current_exact_bucket_rows": 0, "minimum_support_rows": 50, "gap_to_minimum": 50}},
+        high_conviction_topk_oos_matrix={"deployable_rows": 0, "risk_qualified_rows": 6, "runtime_blocked_candidate_rows": 6},
+        execution_metadata_smoke={"runtime_ready": False},
+        recent_drift_report={},
+        generated_at="2026-06-04T03:20:00Z",
+    )
+
+    assert stale_payload["summary"]["topk_support_context_status"] == "stale_live_probe_shadow_only"
+    assert stale_payload["summary"]["topk_support_context_freshness_status"] == "stale"
+    assert stale_payload["summary"]["topk_support_context_freshness_reason"] == "artifact_older_than_policy"
+    assert stale_payload["summary"]["topk_support_context_deployment_blocking"] is True
+    assert stale_payload["summary"]["topk_live_truth_overlay_blocker"] == "artifact_older_than_policy"
+    stale_lane = stale_payload["blocked_live_lanes"][0]["release_condition"]
+    assert stale_lane["topk_support_context_status"] == "stale_live_probe_shadow_only"
+    assert stale_lane["topk_support_context_deployment_blocking"] is True
+
+    fresh_payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "generated_at": "2999-01-01T00:00:00Z",
+            "deployment_blocker": "circuit_breaker_active",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+        },
+        q15_support_fill_feasibility={"verdict": {"current_exact_bucket_rows": 0, "minimum_support_rows": 50, "gap_to_minimum": 50}},
+        high_conviction_topk_oos_matrix={"deployable_rows": 0, "risk_qualified_rows": 6, "runtime_blocked_candidate_rows": 6},
+        execution_metadata_smoke={"runtime_ready": False},
+        recent_drift_report={},
+        generated_at="2026-06-04T03:20:00Z",
+    )
+
+    assert fresh_payload["summary"]["topk_support_context_status"] == "fresh_live_probe_overlay"
+    assert fresh_payload["summary"]["topk_support_context_freshness_status"] == "fresh"
+    assert fresh_payload["summary"]["topk_support_context_deployment_blocking"] is False
+    assert fresh_payload["summary"]["topk_live_truth_overlay_blocker"] == "—"
+
+
+def test_customer_safe_proof_prefers_fresh_live_probe_over_stale_topk_support_context():
+    payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "generated_at": "2999-01-01T00:00:00Z",
+            "deployment_blocker": "circuit_breaker_active",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_unsupported_block",
+        },
+        q15_support_fill_feasibility={
+            "verdict": {
+                "current_exact_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            }
+        },
+        high_conviction_topk_oos_matrix={
+            "deployable_rows": 0,
+            "risk_qualified_rows": 6,
+            "runtime_blocked_candidate_rows": 6,
+            "support_context": {
+                "source_live_probe_generated_at": "2000-01-01T00:00:00Z",
+                "support_context_status": "stale_live_probe_shadow_only",
+            },
+        },
+        execution_metadata_smoke={"runtime_ready": False},
+        recent_drift_report={},
+        generated_at="2026-06-04T03:20:00Z",
+    )
+
+    assert payload["summary"]["topk_support_context_status"] == "fresh_live_probe_overlay"
+    assert payload["summary"]["topk_support_context_freshness_status"] == "fresh"
+    assert payload["summary"]["topk_support_context_deployment_blocking"] is False
+    assert payload["topk_shadow_candidate_context"]["nearest_candidate"]["source_live_probe_generated_at"] == "2999-01-01T00:00:00Z"
+
+
 def test_customer_safe_markdown_names_handoff_and_forbidden_actions():
     payload = proof.build_customer_safe_alternative_proof(
         live_predict_probe={"current_live_structure_bucket_rows": 0, "minimum_support_rows": 50, "current_live_structure_bucket_gap_to_minimum": 50},
@@ -568,6 +874,10 @@ def test_customer_safe_markdown_names_handoff_and_forbidden_actions():
     assert "買入 / 加倉" in md
     assert "paper_shadow_decision_support_sleeve" in md
     assert "Alternative solution option portfolio" in md
+    assert "Next customer actions" in md
+    assert "Blocked live lanes" in md
+    assert "live_buy_add_exposure" in md
+    assert "Top-K support overlay" in md
     assert "selected_next_artifact" in md
     assert "最近研究候選" in md
     assert "最大回撤=—" in md

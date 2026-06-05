@@ -37,6 +37,12 @@ def test_heartbeat_harness_contract_is_machine_readable() -> None:
         "qa_playbook",
         "validator",
         "validator_test",
+        "active_backend_health_probe",
+        "high_conviction_topk_api_consistency_probe",
+        "venue_api_consistency_probe",
+        "paper_shadow_outcome_reconciliation",
+        "paper_shadow_outcome_api_consistency_probe",
+        "customer_safe_alternative_api_consistency_probe",
     ]:
         rel_path = entrypoints[key]
         assert (PROJECT_ROOT / rel_path).exists(), rel_path
@@ -54,12 +60,44 @@ def test_heartbeat_harness_contract_is_machine_readable() -> None:
     assert any("bounded live-canary" in item for item in hq9["required_evidence"])
     signals = {signal["name"] for signal in payload["agent_readable_signals"]}
     assert "anti_equilibrium_execution_truth" in signals
+    assert "active_backend_health_truth" in signals
+    active_backend_signal = next(
+        signal
+        for signal in payload["agent_readable_signals"]
+        if signal["name"] == "active_backend_health_truth"
+    )
+    assert "scripts/active_backend_health_probe.py" in active_backend_signal["paths"]
+    deployment_signal = next(
+        signal
+        for signal in payload["agent_readable_signals"]
+        if signal["name"] == "deployment_candidate_truth"
+    )
+    assert "scripts/high_conviction_topk_api_consistency_probe.py" in deployment_signal["paths"]
+    assert "/api/models/leaderboard.high_conviction_topk" in deployment_signal["paths"]
+    paper_shadow_signal = next(
+        signal
+        for signal in payload["agent_readable_signals"]
+        if signal["name"] == "paper_shadow_outcome_reconciliation_truth"
+    )
+    assert "scripts/paper_shadow_outcome_api_consistency_probe.py" in paper_shadow_signal["paths"]
+    assert "/api/execution/overview.paper_shadow_outcome_reconciliation" in paper_shadow_signal["paths"]
+    customer_safe_signal = next(
+        signal
+        for signal in payload["agent_readable_signals"]
+        if signal["name"] == "customer_safe_alternative_truth"
+    )
+    assert "scripts/customer_safe_alternative_api_consistency_probe.py" in customer_safe_signal["paths"]
+    assert "/api/execution/overview.customer_safe_alternative_proof" in customer_safe_signal["paths"]
+    venue_signal = next(signal for signal in payload["agent_readable_signals"] if signal["name"] == "venue_readiness_truth")
+    assert "status-level and overview-level live-canary policy gate visibility" in venue_signal["purpose"]
     invariant_ids = {item["id"] for item in payload["mechanical_invariants"]}
     assert "anti_equilibrium_execution_guard" in invariant_ids
+    assert "active_backend_current_head_probe" in invariant_ids
 
     qa_text = QA_PATH.read_text(encoding="utf-8")
     for gate_id in REQUIRED_GATE_IDS:
         assert gate_id in qa_text
+    assert "scripts/active_backend_health_probe.py --strict" in qa_text
 
 
 def test_heartbeat_harness_checker_passes() -> None:

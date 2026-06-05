@@ -404,7 +404,10 @@ def test_build_report_does_not_let_stale_reference_bull_context_hide_current_sup
             ],
         },
     }
-    drilldown = {"generated_at": "2026-04-24 10:33:44.629444"}
+    drilldown = {
+        "generated_at": "2026-06-03T12:05:00Z",
+        "feature_timestamp": "2026-04-24 10:33:44.629444",
+    }
     stale_bull_pocket = {
         "target_col": "simulated_pyramid_win",
         "live_context": {
@@ -415,10 +418,17 @@ def test_build_report_does_not_let_stale_reference_bull_context_hide_current_sup
         },
     }
 
+    monkeypatch.setattr(q15_bucket_root_cause, "_utc_now_iso", lambda: "2026-06-03T12:10:00Z")
+
     report = q15_bucket_root_cause.build_report(probe, drilldown, stale_bull_pocket)
 
+    assert report["generated_at"] == "2026-06-03T12:10:00Z"
+    assert report["feature_timestamp"] == "2026-04-24 10:33:44.629444"
+    assert report["current_live"]["feature_timestamp"] == "2026-04-24 10:33:44.629444"
     assert report["artifact_context_freshness"]["verdict"] == "current_context"
     assert report["artifact_context_freshness"]["mismatched_fields"] == []
+    assert report["artifact_context_freshness"]["drilldown_generated_at"] == "2026-06-03T12:05:00Z"
+    assert report["artifact_context_freshness"]["drilldown_feature_timestamp"] == "2026-04-24 10:33:44.629444"
     assert "current_live_structure_bucket" in report["artifact_context_freshness"]["reference_mismatched_fields"]
     assert "regime_gate" in report["artifact_context_freshness"]["reference_mismatched_fields"]
     assert report["verdict"] == "current_exact_support_under_minimum"

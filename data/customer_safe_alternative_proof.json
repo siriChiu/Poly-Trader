@@ -1,41 +1,131 @@
 {
-  "generated_at": "2026-05-28T08:11:59.052029Z",
+  "generated_at": "2026-06-05T14:00:41.175580Z",
   "artifact": "customer_safe_alternative_proof",
+  "summary": {
+    "canary_ready": false,
+    "live_exposure_allowed": false,
+    "order_submission_enabled": false,
+    "risk_on_order_enabled": false,
+    "support_ready": true,
+    "topk_deployable": false,
+    "venue_runtime_ready": false,
+    "circuit_breaker_ready": true,
+    "breaker_release_ready": true,
+    "blocking_gate": "model_gate",
+    "primary_blocking_gate": "model_gate",
+    "blocking_gates": [
+      "model_gate",
+      "venue_gate"
+    ],
+    "support_rows": 131,
+    "minimum_support_rows": 50,
+    "support_gap": 0,
+    "support_route_verdict": "exact_bucket_supported",
+    "support_governance_route": "exact_live_bucket_supported",
+    "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+    "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+    "current_recent_window_wins": 20,
+    "required_recent_window_wins": 15,
+    "additional_recent_window_wins_needed": 0,
+    "topk_risk_qualified_rows": 6,
+    "topk_runtime_blocked_candidate_rows": 6,
+    "topk_deployable_rows": 0,
+    "topk_support_context_status": "stale_live_probe_shadow_only",
+    "topk_support_context_freshness_status": "stale",
+    "topk_support_context_freshness_reason": "artifact_older_than_policy",
+    "topk_support_context_deployment_blocking": true,
+    "topk_live_truth_overlay_blocker": "artifact_older_than_policy",
+    "venue_status": "blocked_missing_runtime_backed_proof",
+    "venue_runtime_ready_count": 0,
+    "allowed_today_count": 5,
+    "not_allowed_count": 4,
+    "blocked_live_lane_count": 3,
+    "alternative_solution_required": false,
+    "alternative_solution_option_count": 3,
+    "alternative_solution_options": 3,
+    "selected_alternative_solution": "paper_shadow_decision_support_sleeve",
+    "selected_alternative": "paper_shadow_decision_support_sleeve",
+    "selected_next_customer_artifact": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+    "selected_next_artifact": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+    "next_customer_action_count": 4,
+    "operator_summary": "目前只允許 customer-safe paper/shadow dry-run 演練與 reduce-only；真實買入 / 加倉 / 自動下單維持 fail-closed。"
+  },
+  "canary_ready": false,
+  "live_exposure_allowed": false,
+  "order_submission_enabled": false,
+  "risk_on_order_enabled": false,
+  "support_rows": 131,
+  "minimum_support_rows": 50,
+  "support_gap": 0,
+  "blocking_gate": "model_gate",
+  "primary_blocking_gate": "model_gate",
+  "blocking_gates": [
+    "model_gate",
+    "venue_gate"
+  ],
+  "breaker_release_ready": true,
+  "current_recent_window_wins": 20,
+  "required_recent_window_wins": 15,
+  "additional_recent_window_wins_needed": 0,
+  "topk_deployable_rows": 0,
+  "topk_risk_qualified_rows": 6,
+  "topk_runtime_blocked_candidate_rows": 6,
+  "topk_support_context_status": "stale_live_probe_shadow_only",
+  "topk_support_context_freshness_status": "stale",
+  "topk_support_context_freshness_reason": "artifact_older_than_policy",
+  "topk_support_context_deployment_blocking": true,
+  "topk_live_truth_overlay_blocker": "artifact_older_than_policy",
+  "venue_runtime_ready": false,
+  "venue_status": "blocked_missing_runtime_backed_proof",
+  "blocked_live_lane_count": 3,
+  "alternative_solution_required": false,
+  "alternative_solution_option_count": 3,
+  "alternative_solution_options": 3,
+  "selected_alternative_solution": "paper_shadow_decision_support_sleeve",
+  "selected_alternative": "paper_shadow_decision_support_sleeve",
+  "selected_next_customer_artifact": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+  "selected_next_artifact": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+  "next_customer_action_count": 4,
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-05-28T08:11:51.420742Z"
+      "generated_at": "2026-06-05T12:40:23.038189Z"
     },
     "circuit_breaker_audit": {
       "path": "data/circuit_breaker_audit.json",
       "exists": true,
-      "generated_at": "2026-05-28T08:11:31.825985Z"
+      "generated_at": "2026-06-05T03:46:13.125173Z"
     },
     "q15_support_fill_feasibility": {
       "path": "data/q15_support_fill_feasibility.json",
       "exists": true,
-      "generated_at": "2026-05-28T08:11:55.501749+00:00"
+      "generated_at": "2026-06-05T03:46:28.397005+00:00"
     },
     "high_conviction_topk_oos_matrix": {
       "path": "data/high_conviction_topk_oos_matrix.json",
       "exists": true,
-      "generated_at": "2026-05-28T08:11:37.709825+00:00"
+      "generated_at": "2026-06-05T12:40:23.342484+00:00"
     },
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-05-28T08:11:58.092478Z"
+      "generated_at": "2026-06-05T13:56:53.199526Z"
+    },
+    "venue_dry_run_proof": {
+      "path": "data/venue_dry_run_proof.json",
+      "exists": true,
+      "generated_at": "2026-06-05T10:52:39.406369Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-05-28T08:11:21.504813+00:00"
+      "generated_at": "2026-06-05T03:46:07.357078+00:00"
     }
   },
   "pm_handoff_carried_forward": {
-    "decision": "維持 current-live exact-support blocker；若 exact rows 仍不足，交付 paper/shadow、dry-run、falsification 與 support-fill proof，不降低 live gate。",
-    "current_live_blocker": "circuit_breaker_active",
+    "decision": "承接 PM handoff：不降低 live gate；fresh runtime 已證明 current exact support 達標，本輪轉往 Top-K/model gate 與 venue runtime proof，同時維持 paper/shadow、dry-run、falsification proof。",
+    "current_live_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
     "selected_customer_safe_lane": "paper_shadow_decision_support_sleeve",
     "forbidden_shortcut": "不可降低 live-trading 門檻、不可把 proxy/reference/OOS/shadow 包裝成 live deployability。"
   },
@@ -44,65 +134,70 @@
     "live_exposure_allowed": false,
     "order_submission_enabled": false,
     "risk_on_order_enabled": false,
-    "support_ready": false,
+    "support_ready": true,
     "topk_deployable": false,
     "venue_runtime_ready": false,
-    "circuit_breaker_ready": false,
-    "breaker_release_ready": false,
-    "blocking_gate": "circuit_breaker_gate",
-    "primary_blocking_gate": "circuit_breaker_gate",
+    "circuit_breaker_ready": true,
+    "breaker_release_ready": true,
+    "blocking_gate": "model_gate",
+    "primary_blocking_gate": "model_gate",
     "blocking_gates": [
-      "circuit_breaker_gate",
-      "current_live_support_gate",
       "model_gate",
       "venue_gate"
     ],
     "operator_summary": "目前只允許 customer-safe paper/shadow dry-run 演練與 reduce-only；真實買入 / 加倉 / 自動下單維持 fail-closed。"
   },
   "circuit_breaker_gate": {
-    "deployment_blocker": "circuit_breaker_active",
-    "runtime_closure_state": "circuit_breaker_active",
-    "release_ready": false,
+    "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+    "runtime_closure_state": "deployment_guardrail_blocks_trade",
+    "release_context_present": true,
+    "release_ready": true,
     "recent_window": 50,
-    "current_recent_window_wins": 0,
+    "current_recent_window_wins": 20,
     "required_recent_window_wins": 15,
-    "additional_recent_window_wins_needed": 15,
-    "operator_summary": "熔斷 gate 尚未解除；最近窗勝場未達門檻前，live buy/add/order submission 必須 fail-closed。"
+    "additional_recent_window_wins_needed": 0,
+    "operator_summary": "熔斷 gate 已解除；仍需 exact support、Top-K 與 venue runtime proof 全部通過。"
   },
   "current_live_support": {
-    "deployment_blocker": "circuit_breaker_active",
-    "structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
-    "support_route_verdict": "exact_bucket_present_but_below_minimum",
-    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-    "current_rows": 14,
+    "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+    "structure_bucket": "BLOCK|bias200_below_min|q00",
+    "support_route_verdict": "exact_bucket_supported",
+    "support_governance_route": "exact_live_bucket_supported",
+    "current_rows": 131,
     "minimum_support_rows": 50,
-    "gap_to_minimum": 36,
-    "support_route_deployable": false,
+    "gap_to_minimum": 0,
+    "support_route_deployable": true,
     "reference_only_rows": 10,
     "support_governance_reference_evidence": {
-      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-      "support_route_verdict": "exact_bucket_present_but_below_minimum",
-      "support_route_deployable": false,
-      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
-      "current_rows": 14,
+      "support_governance_route": "exact_live_bucket_supported",
+      "support_route_verdict": "exact_bucket_supported",
+      "support_route_deployable": true,
+      "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+      "current_rows": 131,
       "minimum_support_rows": 50,
-      "gap_to_minimum": 36,
-      "reference_only": true,
-      "deployment_closure_allowed": false,
+      "gap_to_minimum": 0,
+      "reference_only": false,
+      "deployment_closure_allowed": true,
       "exact_live_lane_proxy_rows": 10,
       "supported_neighbor_rows": 0,
-      "preferred_support_cohort": "bull_exact_live_lane_proxy",
-      "exact_bucket_root_cause": "exact_bucket_present_but_below_minimum",
-      "route_hint": "exact_live_bucket_present_but_below_minimum",
-      "governance_reference_only": true,
-      "reference_only_reason": "proxy_or_under_minimum_support_not_deployment_closure",
-      "operator_summary": "governance lane exact_live_bucket_present_but_below_minimum 提供 exact-live-lane proxy rows=10 作為參考；current exact support=14/50，不可視為部署閉環。"
+      "preferred_support_cohort": "exact_live_bucket",
+      "exact_bucket_root_cause": "exact_bucket_supported",
+      "governance_reference_only": false,
+      "reference_only_reason": "exact_support_closed",
+      "operator_summary": "governance lane exact_live_bucket_supported 提供 exact-live-lane proxy rows=10 作為參考；current exact support=131/50，不可視為部署閉環。"
     },
-    "operator_summary": "目前 current-live 精準支持 14/50，缺口 36；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
+    "operator_summary": "目前 current-live 精準支持 131/50，缺口 0；reference/proxy/OOS evidence 只能作影子觀察或治理參考，不能關閉部署 gate。"
   },
   "topk_shadow_candidate_context": {
     "artifact_freshness_status": "fresh",
     "artifact_deployment_blocking": false,
+    "support_context_status": "stale_live_probe_shadow_only",
+    "support_context_freshness_status": "stale",
+    "support_context_freshness_reason": "artifact_older_than_policy",
+    "support_context_age_minutes": 80.30228815000001,
+    "support_context_stale_after_minutes": 30.0,
+    "support_context_deployment_blocking": true,
+    "live_truth_overlay_blocker": "artifact_older_than_policy",
     "risk_qualified_rows": 6,
     "runtime_blocked_candidate_rows": 6,
     "deployable_rows": 0,
@@ -122,43 +217,55 @@
       "oos_gate_passed": true,
       "blocked_only_by_live_guardrails": true,
       "gate_failures": [
-        "support_route_not_deployable",
-        "deployment_blocker_active",
-        "breaker_release_not_ready"
+        "deployment_blocker_active"
       ],
       "live_gate_failures": [
-        "support_route_not_deployable",
-        "deployment_blocker_active",
-        "breaker_release_not_ready"
+        "deployment_blocker_active"
       ],
-      "support_route": "exact_bucket_present_but_below_minimum",
-      "support_governance_route": "exact_live_bucket_present_but_below_minimum",
-      "support_route_deployable": false,
-      "deployment_blocker": "circuit_breaker_active",
-      "runtime_closure_state": "circuit_breaker_active",
-      "current_live_structure_bucket": "BLOCK|bear_bias200_hard_block|q00",
-      "current_live_structure_bucket_rows": 14,
+      "support_route": "exact_bucket_supported",
+      "support_governance_route": "exact_live_bucket_supported",
+      "support_route_deployable": true,
+      "deployment_blocker": "exact_live_lane_toxic_sub_bucket_current_bucket",
+      "runtime_closure_state": "deployment_guardrail_blocks_trade",
+      "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+      "current_live_structure_bucket_rows": 131,
       "minimum_support_rows": 50,
-      "current_live_structure_bucket_gap_to_minimum": 36,
-      "release_ready": false,
-      "current_recent_window_wins": 0,
+      "current_live_structure_bucket_gap_to_minimum": 0,
+      "release_ready": true,
+      "current_recent_window_win_rate": 0.4,
+      "current_recent_window_wins": 20,
       "required_recent_window_wins": 15,
-      "additional_recent_window_wins_needed": 15,
+      "additional_recent_window_wins_needed": 0,
+      "source_live_probe_generated_at": "2026-06-05T12:40:23.038189Z",
+      "runtime_overlay_applied": true,
+      "runtime_overlay_source": "topk_support_context_or_live_probe",
       "verdict": "not_deployable"
     }
   },
   "venue_runtime_proof": {
+    "artifact": "venue_dry_run_proof",
+    "artifact_path": "data/venue_dry_run_proof.json",
+    "status": "blocked_missing_runtime_backed_proof",
+    "generated_at": "2026-06-05T10:52:39.406369Z",
     "runtime_ready": false,
-    "readiness_state": "blocked_until_runtime_lifecycle_proof",
+    "readiness_state": "blocked_missing_runtime_backed_proof",
     "runtime_ready_count": 0,
     "runtime_ready_blockers": [
-      "fill lifecycle 尚未驗證",
       "live exchange credential 尚未驗證",
       "order ack lifecycle 尚未驗證",
-      "元資料契約尚未通過",
+      "fill lifecycle 尚未驗證",
+      "order preview is dry-run only",
+      "runtime-backed order ack proof missing",
+      "runtime-backed cancel proof missing",
+      "runtime-backed fill proof missing",
+      "runtime-backed reconciliation proof missing",
       "場館 adapter 尚未接入",
+      "元資料契約尚未通過",
       "場館設定停用"
     ],
+    "order_submission_enabled": false,
+    "risk_on_order_enabled": false,
+    "dry_run_only": true,
     "venues": [
       {
         "venue": "okx",
@@ -170,10 +277,20 @@
         "blockers": [
           "live exchange credential 尚未驗證",
           "order ack lifecycle 尚未驗證",
-          "fill lifecycle 尚未驗證"
+          "fill lifecycle 尚未驗證",
+          "order preview is dry-run only",
+          "runtime-backed order ack proof missing",
+          "runtime-backed cancel proof missing",
+          "runtime-backed fill proof missing",
+          "runtime-backed reconciliation proof missing"
         ],
         "operator_next_action": "先配置 okx 交易憑證，再用沙盒或極小額委託捕捉委託確認 / 成交 / 取消生命週期。",
-        "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
+        "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。",
+        "order_preview_status": "blocked_missing_credentials",
+        "ack_status": "blocked_missing_credentials",
+        "cancel_status": "blocked_missing_credentials",
+        "fill_status": "blocked_missing_credentials",
+        "reconciliation_status": "blocked_missing_credentials"
       },
       {
         "venue": "binance",
@@ -188,62 +305,72 @@
           "場館設定停用",
           "live exchange credential 尚未驗證",
           "order ack lifecycle 尚未驗證",
-          "fill lifecycle 尚未驗證"
+          "fill lifecycle 尚未驗證",
+          "order preview is dry-run only",
+          "runtime-backed order ack proof missing",
+          "runtime-backed cancel proof missing",
+          "runtime-backed fill proof missing",
+          "runtime-backed reconciliation proof missing"
         ],
         "operator_next_action": "先接入 binance 交易所 adapter，並確認場館設定與憑證，再補委託確認 / 成交 / 取消生命週期。",
-        "verify_next": "接入 adapter 後重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
+        "verify_next": "接入 adapter 後重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。",
+        "order_preview_status": "blocked_adapter_unsupported",
+        "ack_status": "blocked_adapter_unsupported",
+        "cancel_status": "blocked_adapter_unsupported",
+        "fill_status": "blocked_adapter_unsupported",
+        "reconciliation_status": "blocked_adapter_unsupported"
       }
     ]
   },
   "recent_window_context": {
     "latest_window": "100",
-    "win_rate": 0.0,
+    "win_rate": 0.21,
     "dominant_regime": "bear",
-    "dominant_regime_share": 0.57,
+    "dominant_regime_share": 0.94,
     "alerts": [
-      "constant_target",
+      "regime_concentration",
       "regime_shift"
     ],
     "severity": "high",
-    "interpretation": "distribution_pathology",
-    "avg_quality": -0.3264,
-    "avg_pnl": -0.0141,
-    "avg_drawdown_penalty": 0.3362,
+    "interpretation": "regime_concentration",
+    "avg_quality": -0.1998,
+    "avg_pnl": -0.0106,
+    "avg_drawdown_penalty": 0.4769,
     "tail_streak": {
       "target": 0,
-      "count": 100,
-      "start_timestamp": "2026-05-25 23:02:11.650766",
-      "end_timestamp": "2026-05-27 09:04:35.439401"
+      "count": 2,
+      "start_timestamp": "2026-06-04 03:00:00.000000",
+      "end_timestamp": "2026-06-04 04:00:00.000000"
     },
     "adverse_streak": {
       "target": 0,
-      "count": 100,
-      "start_timestamp": "2026-05-25 23:02:11.650766",
-      "end_timestamp": "2026-05-27 09:04:35.439401"
+      "count": 35,
+      "start_timestamp": "2026-05-31 07:00:00.000000",
+      "end_timestamp": "2026-06-01 11:00:00.000000"
     },
     "top_shift_features": [
-      "feat_local_bottom_score",
-      "feat_local_top_score",
-      "feat_eye",
-      "feat_rsi14",
-      "feat_nq_return_24h"
+      "feat_dist_swing_high",
+      "feat_atr_pct",
+      "feat_nq_return_24h",
+      "feat_turning_point_score",
+      "feat_tunnel_distance"
     ],
     "actionable_summary": "negative distribution pathology requires current-window validation",
     "shadow_falsification_mode": "shadow_only_no_new_risk_falsification",
     "shadow_falsification_deployable": false,
     "shadow_falsification_order_submission_enabled": false,
     "shadow_falsification_summary": "not_deployable_shadow_only_runtime_blocked",
-    "shadow_falsification_best_gate": "observable_4h_shift_shadow_gate",
-    "shadow_falsification_kept_rows": 18,
+    "shadow_falsification_best_gate": "dominant_regime_shadow_gate",
+    "shadow_falsification_kept_rows": 6,
     "shadow_falsification_kept_win_rate": 0.0,
-    "shadow_falsification_loss_capture_share": 0.82
+    "shadow_falsification_loss_capture_share": 0.9241
   },
   "alternative_solution_portfolio": {
     "pm_challenge_answered": true,
     "option_count": 3,
     "selected_option": "paper_shadow_decision_support_sleeve",
-    "time_to_evidence_bucket": "semantic_rebaseline_review_required_before_reference_rows_count",
-    "missing_capability_class": "Constraint/Review",
+    "time_to_evidence_bucket": "ready_for_remaining_live_execution_gates",
+    "missing_capability_class": "Review",
     "selected_next_artifact": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
     "options": [
       {
@@ -265,8 +392,8 @@
         "deployable": false,
         "order_submission_enabled": false,
         "risk_on_order_enabled": false,
-        "reference_window": "600",
-        "reference_rows": 87
+        "reference_window": "all",
+        "reference_rows": 141
       },
       {
         "id": "venue_dry_run_readiness_proof",
@@ -282,15 +409,50 @@
     ],
     "safety_invariant": "All alternatives are customer-safe only: deployable=false, live_exposure_allowed=false, order_submission_enabled=false until exact support, Top-K deployability, and venue runtime proof all pass.",
     "evidence_summary": {
-      "support_rows": 14,
+      "support_rows": 131,
       "minimum_support_rows": 50,
-      "support_gap": 36,
+      "support_gap": 0,
       "topk_risk_qualified_rows": 6,
       "topk_deployable_rows": 0,
       "venue_runtime_ready": false,
       "recent_shadow_mode": "shadow_only_no_new_risk_falsification"
     }
   },
+  "alternative_solutions": [
+    {
+      "id": "paper_shadow_decision_support_sleeve",
+      "role": "customer_usable_now",
+      "next_artifact": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+      "live_exposure_allowed": false,
+      "deployable": false,
+      "order_submission_enabled": false,
+      "risk_on_order_enabled": false,
+      "reference_window": null,
+      "reference_rows": null
+    },
+    {
+      "id": "semantic_rebaseline_review",
+      "role": "support_policy_alternative",
+      "next_artifact": "OOS + Top-K + support audit replay under any proposed new calibration_window identity",
+      "live_exposure_allowed": false,
+      "deployable": false,
+      "order_submission_enabled": false,
+      "risk_on_order_enabled": false,
+      "reference_window": "all",
+      "reference_rows": 141
+    },
+    {
+      "id": "venue_dry_run_readiness_proof",
+      "role": "delivery_risk_reduction",
+      "next_artifact": "OKX/Binance dry-run lifecycle proof checklist with credential state as boolean only",
+      "live_exposure_allowed": false,
+      "deployable": false,
+      "order_submission_enabled": false,
+      "risk_on_order_enabled": false,
+      "reference_window": null,
+      "reference_rows": null
+    }
+  ],
   "customer_safe_lanes": [
     {
       "id": "paper_shadow_decision_support_sleeve",
@@ -304,9 +466,9 @@
         "risk_qualified_rows": 6,
         "runtime_blocked_candidate_rows": 6,
         "deployable_rows": 0,
-        "support_rows": 14,
+        "support_rows": 131,
         "support_minimum": 50,
-        "support_gap": 36
+        "support_gap": 0
       },
       "operator_message": "可用作客戶決策支援 / 影子觀察：記錄訊號、假想 entry、24h outcome；不送單、不加倉。"
     },
@@ -318,6 +480,9 @@
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
       "credential_values_redacted": true,
+      "artifact": "venue_dry_run_proof",
+      "artifact_path": "data/venue_dry_run_proof.json",
+      "dry_run_only": true,
       "venues": [
         {
           "venue": "okx",
@@ -329,10 +494,20 @@
           "blockers": [
             "live exchange credential 尚未驗證",
             "order ack lifecycle 尚未驗證",
-            "fill lifecycle 尚未驗證"
+            "fill lifecycle 尚未驗證",
+            "order preview is dry-run only",
+            "runtime-backed order ack proof missing",
+            "runtime-backed cancel proof missing",
+            "runtime-backed fill proof missing",
+            "runtime-backed reconciliation proof missing"
           ],
           "operator_next_action": "先配置 okx 交易憑證，再用沙盒或極小額委託捕捉委託確認 / 成交 / 取消生命週期。",
-          "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
+          "verify_next": "重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。",
+          "order_preview_status": "blocked_missing_credentials",
+          "ack_status": "blocked_missing_credentials",
+          "cancel_status": "blocked_missing_credentials",
+          "fill_status": "blocked_missing_credentials",
+          "reconciliation_status": "blocked_missing_credentials"
         },
         {
           "venue": "binance",
@@ -347,10 +522,20 @@
             "場館設定停用",
             "live exchange credential 尚未驗證",
             "order ack lifecycle 尚未驗證",
-            "fill lifecycle 尚未驗證"
+            "fill lifecycle 尚未驗證",
+            "order preview is dry-run only",
+            "runtime-backed order ack proof missing",
+            "runtime-backed cancel proof missing",
+            "runtime-backed fill proof missing",
+            "runtime-backed reconciliation proof missing"
           ],
           "operator_next_action": "先接入 binance 交易所 adapter，並確認場館設定與憑證，再補委託確認 / 成交 / 取消生命週期。",
-          "verify_next": "接入 adapter 後重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。"
+          "verify_next": "接入 adapter 後重跑元資料檢查，並在 /api/status 的場館生命週期通道看到交易所回傳的委託確認 / 成交 / 取消證據。",
+          "order_preview_status": "blocked_adapter_unsupported",
+          "ack_status": "blocked_adapter_unsupported",
+          "cancel_status": "blocked_adapter_unsupported",
+          "fill_status": "blocked_adapter_unsupported",
+          "reconciliation_status": "blocked_adapter_unsupported"
         }
       ],
       "operator_message": "場館證據鏈只能顯示 adapter / enabled / credential boolean 與 lifecycle blocker；不可輸出 credential 值。"
@@ -358,15 +543,15 @@
     {
       "id": "support_fill_feasibility",
       "role": "proof_path_or_falsification",
-      "status": "semantic_window_gap_not_raw_backfill_gap",
+      "status": "current_identity_support_ready",
       "deployable": false,
       "live_exposure_allowed": false,
-      "current_rows": 14,
+      "current_rows": 131,
       "minimum_support_rows": 50,
-      "gap_to_minimum": 36,
-      "time_to_evidence_bucket": "semantic_rebaseline_review_required_before_reference_rows_count",
-      "missing_capability_class": "Constraint/Review",
-      "alternative_solution_required": true
+      "gap_to_minimum": 0,
+      "time_to_evidence_bucket": "ready_for_remaining_live_execution_gates",
+      "missing_capability_class": "Review",
+      "alternative_solution_required": false
     },
     {
       "id": "recent_window_no_new_risk_falsification",
@@ -375,51 +560,202 @@
       "deployable": false,
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
-      "best_gate": "observable_4h_shift_shadow_gate",
-      "kept_rows": 18,
+      "best_gate": "dominant_regime_shadow_gate",
+      "kept_rows": 6,
       "kept_win_rate": 0.0,
-      "loss_capture_share": 0.82,
+      "loss_capture_share": 0.9241,
       "latest_window": "100",
-      "win_rate": 0.0,
+      "win_rate": 0.21,
       "dominant_regime": "bear",
-      "dominant_regime_share": 0.57,
+      "dominant_regime_share": 0.94,
       "alerts": [
-        "constant_target",
+        "regime_concentration",
         "regime_shift"
       ],
       "severity": "high",
-      "interpretation": "distribution_pathology",
-      "avg_quality": -0.3264,
-      "avg_pnl": -0.0141,
-      "avg_drawdown_penalty": 0.3362,
+      "interpretation": "regime_concentration",
+      "avg_quality": -0.1998,
+      "avg_pnl": -0.0106,
+      "avg_drawdown_penalty": 0.4769,
       "tail_streak": {
         "target": 0,
-        "count": 100,
-        "start_timestamp": "2026-05-25 23:02:11.650766",
-        "end_timestamp": "2026-05-27 09:04:35.439401"
+        "count": 2,
+        "start_timestamp": "2026-06-04 03:00:00.000000",
+        "end_timestamp": "2026-06-04 04:00:00.000000"
       },
       "adverse_streak": {
         "target": 0,
-        "count": 100,
-        "start_timestamp": "2026-05-25 23:02:11.650766",
-        "end_timestamp": "2026-05-27 09:04:35.439401"
+        "count": 35,
+        "start_timestamp": "2026-05-31 07:00:00.000000",
+        "end_timestamp": "2026-06-01 11:00:00.000000"
       },
       "top_shift_features": [
-        "feat_local_bottom_score",
-        "feat_local_top_score",
-        "feat_eye",
-        "feat_rsi14",
-        "feat_nq_return_24h"
+        "feat_dist_swing_high",
+        "feat_atr_pct",
+        "feat_nq_return_24h",
+        "feat_turning_point_score",
+        "feat_tunnel_distance"
       ],
       "actionable_summary": "negative distribution pathology requires current-window validation",
       "operator_message": "not_deployable_shadow_only_runtime_blocked"
+    }
+  ],
+  "blocked_live_lanes": [
+    {
+      "blocking_gate": "model_gate",
+      "release_condition": {
+        "primary_blocking_gate": "model_gate",
+        "breaker_release_ready": true,
+        "current_recent_window_wins": 20,
+        "required_recent_window_wins": 15,
+        "additional_recent_window_wins_needed": 0,
+        "support_rows": 131,
+        "minimum_support_rows": 50,
+        "support_gap": 0,
+        "support_route_verdict": "exact_bucket_supported",
+        "topk_deployable_rows": 0,
+        "topk_support_context_status": "stale_live_probe_shadow_only",
+        "topk_support_context_freshness_status": "stale",
+        "topk_support_context_deployment_blocking": true,
+        "topk_live_truth_overlay_blocker": "artifact_older_than_policy",
+        "venue_runtime_ready": false,
+        "venue_status": "blocked_missing_runtime_backed_proof"
+      },
+      "live_exposure_allowed": false,
+      "order_submission_enabled": false,
+      "risk_on_order_enabled": false,
+      "allowed_alternative": "paper/shadow dry-run、等待 / 觀望、減碼 / 賣出風險降低",
+      "id": "live_buy_add_exposure",
+      "blocked_actions": [
+        "live_buy",
+        "live_add",
+        "live_canary_buy"
+      ],
+      "operator_message": "真實買入 / 加倉維持 fail-closed；只能用 shadow_buy / paper_buy 演練。"
+    },
+    {
+      "blocking_gate": "model_gate",
+      "release_condition": {
+        "primary_blocking_gate": "model_gate",
+        "breaker_release_ready": true,
+        "current_recent_window_wins": 20,
+        "required_recent_window_wins": 15,
+        "additional_recent_window_wins_needed": 0,
+        "support_rows": 131,
+        "minimum_support_rows": 50,
+        "support_gap": 0,
+        "support_route_verdict": "exact_bucket_supported",
+        "topk_deployable_rows": 0,
+        "topk_support_context_status": "stale_live_probe_shadow_only",
+        "topk_support_context_freshness_status": "stale",
+        "topk_support_context_deployment_blocking": true,
+        "topk_live_truth_overlay_blocker": "artifact_older_than_policy",
+        "venue_runtime_ready": false,
+        "venue_status": "blocked_missing_runtime_backed_proof"
+      },
+      "live_exposure_allowed": false,
+      "order_submission_enabled": false,
+      "risk_on_order_enabled": false,
+      "allowed_alternative": "paper/shadow dry-run、等待 / 觀望、減碼 / 賣出風險降低",
+      "id": "risk_on_automation_enable",
+      "blocked_actions": [
+        "automation_enable",
+        "risk_on_auto_ordering"
+      ],
+      "operator_message": "風險進攻自動化不可啟用；手動等待 / 觀望與減風險路徑保留。"
+    },
+    {
+      "blocking_gate": "model_gate",
+      "release_condition": {
+        "primary_blocking_gate": "model_gate",
+        "breaker_release_ready": true,
+        "current_recent_window_wins": 20,
+        "required_recent_window_wins": 15,
+        "additional_recent_window_wins_needed": 0,
+        "support_rows": 131,
+        "minimum_support_rows": 50,
+        "support_gap": 0,
+        "support_route_verdict": "exact_bucket_supported",
+        "topk_deployable_rows": 0,
+        "topk_support_context_status": "stale_live_probe_shadow_only",
+        "topk_support_context_freshness_status": "stale",
+        "topk_support_context_deployment_blocking": true,
+        "topk_live_truth_overlay_blocker": "artifact_older_than_policy",
+        "venue_runtime_ready": false,
+        "venue_status": "blocked_missing_runtime_backed_proof"
+      },
+      "live_exposure_allowed": false,
+      "order_submission_enabled": false,
+      "risk_on_order_enabled": false,
+      "allowed_alternative": "paper/shadow dry-run、等待 / 觀望、減碼 / 賣出風險降低",
+      "id": "unbounded_live_canary",
+      "blocked_actions": [
+        "unbounded_live_canary",
+        "uncapped_live_order"
+      ],
+      "operator_message": "任何 live canary 都必須先通過 bounded policy、support、breaker、Top-K 與 venue proof。"
+    }
+  ],
+  "next_customer_actions": [
+    {
+      "id": "open_execution_paper_shadow",
+      "surface": "/execution",
+      "mode": "paper_shadow",
+      "action": "啟動或檢視 paper/shadow selective sleeve，使用 shadow_buy / paper_buy 演練。",
+      "expected_evidence": "data/paper_shadow_outcome_reconciliation.json pending/resolved outcome proof；live_order_submitted=false。",
+      "live_exposure_allowed": false,
+      "order_submission_enabled": false,
+      "risk_on_order_enabled": false
+    },
+    {
+      "id": "review_strategy_lab_topk_shadow_candidates",
+      "surface": "/lab",
+      "mode": "research_to_shadow",
+      "action": "檢視 high-conviction Top-K OOS 候選、recent-window release math 與 exact support gap。",
+      "expected_evidence": "data/high_conviction_topk_oos_matrix.json deployable_rows=0 until live gates pass; support_context_freshness_status=stale",
+      "topk_support_context_status": "stale_live_probe_shadow_only",
+      "topk_support_context_freshness_status": "stale",
+      "topk_support_context_deployment_blocking": true,
+      "topk_live_truth_overlay_blocker": "artifact_older_than_policy",
+      "live_exposure_allowed": false,
+      "order_submission_enabled": false,
+      "risk_on_order_enabled": false
+    },
+    {
+      "id": "verify_venue_dry_run_lifecycle",
+      "surface": "/execution/status",
+      "mode": "venue_dry_run",
+      "action": "重跑 venue dry-run proof，確認 adapter / credential boolean / ack / cancel / fill / reconciliation blocker。",
+      "expected_evidence": "data/venue_dry_run_proof.json remains secret-safe and fail-closed until runtime proof passes.",
+      "verify_command": "python scripts/venue_dry_run_proof.py",
+      "live_exposure_allowed": false,
+      "order_submission_enabled": false,
+      "risk_on_order_enabled": false
+    },
+    {
+      "id": "track_breaker_and_exact_support",
+      "surface": "artifacts",
+      "mode": "gate_tracking",
+      "action": "刷新 live probe / circuit breaker audit / support-fill feasibility，確認 exact rows 與 recent wins 是否有 movement。",
+      "expected_evidence": "data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy",
+      "breaker_release_ready": true,
+      "current_recent_window_wins": 20,
+      "required_recent_window_wins": 15,
+      "support_rows": 131,
+      "minimum_support_rows": 50,
+      "support_gap": 0,
+      "topk_deployable_rows": 0,
+      "venue_runtime_ready": false,
+      "live_exposure_allowed": false,
+      "order_submission_enabled": false,
+      "risk_on_order_enabled": false
     }
   ],
   "allowed_today": [
     "啟動 paper-shadow 訊號帳本並追蹤 24h pyramid outcome",
     "透過 /api/trade shadow_buy / paper_buy 強制 dry-run，產出 paper/shadow 委託演練證據且不送 live order",
     "展示 Strategy Lab / Execution Console 的高信心 OOS 候選，但標示 deployable=false",
-    "做 venue dry-run preview / ack simulation / cancel simulation / reconciliation checklist",
+    "做 venue dry-run preview / ack simulation / cancel simulation / fill simulation / reconciliation checklist",
     "保留等待 / 觀望、減碼 / 取消掛單 / 賣出風險降低路徑"
   ],
   "not_allowed": [
@@ -428,10 +764,10 @@
     "把 exact-live-lane proxy、reference windows、OOS pass、paper/shadow 或 dry-run 證據包裝成 live deployment closure",
     "輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]"
   ],
-  "next_gate": "circuit_breaker release_ready=False，current exact support rows 14/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。",
+  "next_gate": "current exact support 已達標；Top-K deployable_rows>0、venue runtime lifecycle proof complete，且 circuit_breaker release_ready=true 後，才可考慮 live exposure。",
   "fail_closed_invariants": {
-    "support_reference_only_until_exact_rows_meet_minimum": true,
-    "circuit_breaker_blocks_live_until_release_condition_met": true,
+    "support_reference_only_until_exact_rows_meet_minimum": false,
+    "circuit_breaker_blocks_live_until_release_condition_met": false,
     "paper_shadow_is_not_live_deployability": true,
     "credential_values_redacted": true,
     "reduce_risk_paths_remain_allowed": true

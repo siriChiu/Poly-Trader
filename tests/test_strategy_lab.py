@@ -8,6 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from backtesting import strategy_lab
+from database.models import FeaturesNormalized, RawMarketData, init_db
 from scripts import backfill_backtest_range as backfill_module
 from server.routes import api as api_module
 from server.routes.api import (
@@ -582,6 +583,22 @@ def test_filter_strategy_rows_by_backtest_range_reports_missing_history():
     assert meta["effective"]["start"].startswith("2025-04-03")
 
 
+def test_filter_strategy_rows_by_backtest_range_includes_date_only_end():
+    rows = [
+        ("2026-05-28 04:00:00", 130.0),
+        ("2026-05-28 08:00:00", 135.0),
+    ]
+
+    filtered, meta = api_module._filter_strategy_rows_by_backtest_range(
+        rows,
+        start="2026-05-28 04:00:00",
+        end="2026-05-28",
+    )
+
+    assert len(filtered) == 2
+    assert meta["backfill_required"] is True
+    assert meta["effective"]["end"].startswith("2026-05-28")
+
 
 def test_resolve_default_strategy_backtest_range_uses_latest_two_year_window_when_missing():
     start, end, policy = api_module._resolve_default_strategy_backtest_range(
@@ -627,6 +644,265 @@ def test_api_strategy_data_range_uses_loaded_strategy_rows(monkeypatch):
     assert payload["start"].startswith("2025-04-03")
     assert payload["end"].startswith("2026-04-16")
     assert payload["span_days"] > 300
+
+
+def test_load_strategy_data_matches_symbol_variants_and_dedupes_raw(tmp_path, monkeypatch):
+    db_path = tmp_path / "strategy_data_symbol_variants.sqlite"
+    session = init_db(f"sqlite:///{db_path}")
+    try:
+        ts = datetime(2026, 6, 3, 14, 0, 0)
+        session.add(
+            FeaturesNormalized(
+                timestamp=ts,
+                symbol="BTC/USDT",
+                feat_4h_bias50=-8.2,
+                feat_4h_bias200=-3.1,
+            )
+        )
+        session.add_all(
+            [
+                RawMarketData(timestamp=ts, symbol="BTCUSDT", close_price=66722.6),
+                RawMarketData(timestamp=ts, symbol="BTCUSDT", close_price=66743.7),
+            ]
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    monkeypatch.setattr(api_module, "DB_PATH", str(db_path))
+    api_module._load_strategy_data_cached.cache_clear()
+
+    rows = api_module._load_strategy_data()
+
+    assert len(rows) == 1
+    assert str(rows[0][0]).startswith("2026-06-03 14:00:00")
+    assert rows[0][1] == 66743.7
+
+
+def test_api_strategy_data_sync_status_returns_current_summary(monkeypatch):
+    expected = {
+        "symbol": "BTCUSDT",
+        "latest_synced_at": "2026-05-28T08:00:00Z",
+        "strategy": {"end": "2026-05-28T08:00:00Z", "count": 20},
+    }
+    monkeypatch.setattr(api_module, "_strategy_data_sync_status", lambda symbol="BTCUSDT": expected)
+
+    payload = asyncio.run(api_module.api_strategy_data_sync_status())
+
+    assert payload == expected
+
+
+def test_strategy_data_sync_status_surfaces_data_freshness_blockers(tmp_path, monkeypatch):
+    db_path = tmp_path / "strategy_sync_freshness.sqlite"
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    raw_ts = now - timedelta(minutes=20)
+    feature_ts = now - timedelta(hours=8)
+    label_ts = raw_ts - timedelta(hours=40)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("CREATE TABLE raw_market_data (timestamp TEXT, symbol TEXT, close_price REAL)")
+        conn.execute("CREATE TABLE features_normalized (timestamp TEXT, symbol TEXT, feat_4h_bias50 REAL)")
+        conn.execute("CREATE TABLE labels (timestamp TEXT, symbol TEXT, horizon_minutes INTEGER)")
+        conn.execute(
+            "INSERT INTO raw_market_data VALUES (?, ?, ?)",
+            (raw_ts.strftime("%Y-%m-%d %H:%M:%S"), "BTCUSDT", 100.0),
+        )
+        conn.execute(
+            "INSERT INTO features_normalized VALUES (?, ?, ?)",
+            (feature_ts.strftime("%Y-%m-%d %H:%M:%S"), "BTCUSDT", -1.2),
+        )
+        conn.execute(
+            "INSERT INTO labels VALUES (?, ?, ?)",
+            (label_ts.strftime("%Y-%m-%d %H:%M:%S"), "BTCUSDT", 1440),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(api_module, "DB_PATH", str(db_path))
+    monkeypatch.setattr(api_module, "_load_strategy_data", lambda: [(feature_ts.strftime("%Y-%m-%d %H:%M:%S"),)])
+
+    payload = api_module._strategy_data_sync_status("BTCUSDT")
+    freshness = payload["freshness"]
+
+    assert freshness["raw"]["status"] == "fresh"
+    assert freshness["features"]["status"] == "stale"
+    assert freshness["labels"]["status"] == "stale"
+    assert freshness["strategy"]["status"] == "stale"
+    assert freshness["overall_status"] == "stale"
+    assert freshness["data_pipeline_ready"] is False
+    assert freshness["blocking_lanes"] == ["features", "labels", "strategy"]
+    assert freshness["labels"]["lag_vs_reference_minutes"] > 24 * 60
+    assert "/api/strategy_data_sync" in freshness["operator_next_action"]
+
+
+def test_api_strategy_data_sync_repairs_raw_features_and_labels(monkeypatch):
+    calls = {
+        "raw": 0,
+        "features": 0,
+        "labels": 0,
+        "save": 0,
+        "commit": 0,
+        "expire": 0,
+        "closed": 0,
+        "feature_limit": None,
+    }
+    events = []
+    summaries = [
+        {"latest_synced_at": "2026-05-28T08:00:00Z", "strategy": {"end": "2026-05-28T08:00:00Z"}},
+        {"latest_synced_at": "2026-05-29T00:00:00Z", "strategy": {"end": "2026-05-29T00:00:00Z"}},
+    ]
+
+    class DummyDB:
+        def commit(self):
+            calls["commit"] += 1
+            events.append("commit")
+
+        def expire_all(self):
+            calls["expire"] += 1
+            events.append("expire_all")
+
+        def close(self):
+            calls["closed"] += 1
+
+    class DummyLabels:
+        empty = False
+        def __len__(self):
+            return 3
+
+    def raw_repair(session, symbol, lookback_days=30, fine_grain_days=None, return_details=False):
+        calls["raw"] += 1
+        events.append("raw")
+        return {"inserted_total": 2}
+
+    def feature_repair(session, symbol, lookback_days=30, max_backfill_rows=None, return_details=False):
+        assert events[:3] == ["raw", "commit", "expire_all"]
+        calls["features"] += 1
+        calls["feature_limit"] = max_backfill_rows
+        events.append("features")
+        return {"inserted_total": 2, "remaining_missing": 0, "repair_deferred": False}
+
+    monkeypatch.setattr(api_module, "_strategy_data_sync_status", lambda symbol="BTCUSDT": summaries[min(calls["raw"], 1)])
+    monkeypatch.setattr(api_module, "get_db", lambda: DummyDB())
+    monkeypatch.setattr(
+        "data_ingestion.collector.repair_recent_raw_continuity",
+        raw_repair,
+    )
+    monkeypatch.setattr(
+        "feature_engine.preprocessor.repair_recent_feature_continuity",
+        feature_repair,
+    )
+    monkeypatch.setattr(
+        "data_ingestion.labeling.generate_future_return_labels",
+        lambda session, symbol="BTCUSDT", horizon_hours=24: calls.__setitem__("labels", calls["labels"] + 1) or DummyLabels(),
+    )
+    monkeypatch.setattr(
+        "data_ingestion.labeling.save_labels_to_db",
+        lambda session, labels_df, symbol="BTCUSDT", horizon_hours=24: calls.__setitem__("save", calls["save"] + 1),
+    )
+
+    payload = asyncio.run(api_module.api_strategy_data_sync({"symbol": "BTCUSDT", "lookback_days": 999}, request=_local_request()))
+
+    assert payload["status"] == "completed"
+    assert payload["lookback_days"] == 90
+    assert payload["feature_backfill_limit"] == api_module._STRATEGY_DATA_SYNC_DEFAULT_FEATURE_BACKFILL_ROWS
+    assert payload["feature_backfill_deferred"] is False
+    assert payload["next_sync_request"] is None
+    assert payload["label_generation_skipped_reason"] is None
+    assert payload["before"]["latest_synced_at"].startswith("2026-05-28")
+    assert payload["after"]["latest_synced_at"].startswith("2026-05-29")
+    assert payload["label_rows_generated"] == 3
+    assert calls == {
+        "raw": 1,
+        "features": 1,
+        "labels": 1,
+        "save": 1,
+        "commit": 1,
+        "expire": 1,
+        "closed": 1,
+        "feature_limit": 25,
+    }
+
+
+def test_api_strategy_data_sync_defers_labels_when_feature_backfill_is_batched(monkeypatch):
+    calls = {
+        "raw": 0,
+        "features": 0,
+        "labels": 0,
+        "save": 0,
+        "commit": 0,
+        "expire": 0,
+        "closed": 0,
+        "feature_limit": None,
+    }
+    summaries = [
+        {"latest_synced_at": "2026-05-28T08:00:00Z", "strategy": {"end": "2026-05-28T08:00:00Z"}},
+        {"latest_synced_at": "2026-05-28T08:00:00Z", "strategy": {"end": "2026-05-28T08:00:00Z"}},
+    ]
+
+    class DummyDB:
+        def commit(self):
+            calls["commit"] += 1
+
+        def expire_all(self):
+            calls["expire"] += 1
+
+        def close(self):
+            calls["closed"] += 1
+
+    monkeypatch.setattr(api_module, "_strategy_data_sync_status", lambda symbol="BTCUSDT": summaries[min(calls["raw"], 1)])
+    monkeypatch.setattr(api_module, "get_db", lambda: DummyDB())
+    monkeypatch.setattr(
+        "data_ingestion.collector.repair_recent_raw_continuity",
+        lambda session, symbol, lookback_days=30, fine_grain_days=None, return_details=False: calls.__setitem__("raw", calls["raw"] + 1) or {"inserted_total": 1},
+    )
+    monkeypatch.setattr(
+        "feature_engine.preprocessor.repair_recent_feature_continuity",
+        lambda session, symbol, lookback_days=30, max_backfill_rows=None, return_details=False: (
+            calls.__setitem__("features", calls["features"] + 1)
+            or calls.__setitem__("feature_limit", max_backfill_rows)
+            or {"inserted_total": max_backfill_rows, "remaining_missing": 7, "repair_deferred": True}
+        ),
+    )
+    monkeypatch.setattr(
+        "data_ingestion.labeling.generate_future_return_labels",
+        lambda session, symbol="BTCUSDT", horizon_hours=24: calls.__setitem__("labels", calls["labels"] + 1),
+    )
+    monkeypatch.setattr(
+        "data_ingestion.labeling.save_labels_to_db",
+        lambda session, labels_df, symbol="BTCUSDT", horizon_hours=24: calls.__setitem__("save", calls["save"] + 1),
+    )
+
+    payload = asyncio.run(
+        api_module.api_strategy_data_sync(
+            {"symbol": "BTCUSDT", "lookback_days": 30, "max_feature_backfill_rows": 999},
+            request=_local_request(),
+        )
+    )
+
+    assert payload["status"] == "completed"
+    assert payload["feature_backfill_limit"] == api_module._STRATEGY_DATA_SYNC_MAX_FEATURE_BACKFILL_ROWS
+    assert payload["feature_backfill_deferred"] is True
+    assert payload["feature_backfill_remaining_missing"] == 7
+    assert payload["next_sync_request"] == {
+        "method": "POST",
+        "path": "/api/strategy_data_sync",
+        "body": {"symbol": "BTCUSDT", "lookback_days": 30, "max_feature_backfill_rows": 100},
+        "reason": "feature_backfill_remaining_missing",
+    }
+    assert payload["label_rows_generated"] == 0
+    assert payload["label_generation_skipped_reason"] == "feature_backfill_remaining_missing"
+    assert calls == {
+        "raw": 1,
+        "features": 1,
+        "labels": 0,
+        "save": 0,
+        "commit": 1,
+        "expire": 1,
+        "closed": 1,
+        "feature_limit": 100,
+    }
 
 
 def test_execute_strategy_run_auto_backfills_when_requested_range_exceeds_local_history(monkeypatch):
@@ -1055,6 +1331,46 @@ def test_api_klines_paginates_when_requested_range_exceeds_1000_bars(monkeypatch
     assert len(payload["candles"]) == 1200
     assert payload["candles"][0]["time"] == int(base_ts / 1000)
     assert payload["candles"][-1]["time"] == int((base_ts + interval_ms * 1199) / 1000)
+
+
+def test_api_klines_paginates_when_exchange_caps_pages_below_requested_limit(monkeypatch):
+    base_ts = 1_760_000_000_000
+    interval_ms = 14_400_000
+    rows = [
+        [base_ts + interval_ms * idx, 100 + idx, 101 + idx, 99 + idx, 100.5 + idx, 10 + idx]
+        for idx in range(620)
+    ]
+
+    class DummyExchange:
+        def __init__(self):
+            self.calls = []
+
+        def fetch_ohlcv(self, symbol, interval, since=None, limit=None):
+            self.calls.append({"symbol": symbol, "interval": interval, "since": since, "limit": limit})
+            start_idx = 0
+            if since is not None:
+                start_idx = max(0, int((since - base_ts) / interval_ms))
+            return rows[start_idx:start_idx + 300]
+
+    exchange = DummyExchange()
+    monkeypatch.setattr(api_module.ccxt, "okx", lambda: exchange)
+    api_module._KLINE_RESPONSE_CACHE.clear()
+
+    payload = asyncio.run(
+        api_klines(
+            symbol="BTCUSDT",
+            interval="4h",
+            limit=1000,
+            since=base_ts,
+            until=base_ts + interval_ms * 619,
+        )
+    )
+
+    assert len(exchange.calls) >= 3
+    assert all(call["limit"] <= 300 for call in exchange.calls)
+    assert len(payload["candles"]) == 620
+    assert payload["candles"][0]["time"] == int(base_ts / 1000)
+    assert payload["candles"][-1]["time"] == int((base_ts + interval_ms * 619) / 1000)
 
 
 def test_decorate_strategy_entry_adds_risk_fields():

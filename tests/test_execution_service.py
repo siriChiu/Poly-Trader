@@ -68,6 +68,18 @@ def test_resolve_trading_config_merges_execution_and_legacy_fields():
     assert cfg["venues"]["okx"]["passphrase"] == "p"
 
 
+def test_resolve_trading_config_reads_okx_credentials_from_env(monkeypatch):
+    monkeypatch.setenv("OKX_API_KEY", "env-key")
+    monkeypatch.setenv("OKX_API_SECRET", "env-secret")
+    monkeypatch.setenv("OKX_PASSPHRASE", "env-pass")
+
+    cfg = resolve_trading_config({"execution": {"venue": "okx", "venues": {"okx": {"enabled": True}}}})
+
+    assert cfg["venues"]["okx"]["api_key"] == "env-key"
+    assert cfg["venues"]["okx"]["api_secret"] == "env-secret"
+    assert cfg["venues"]["okx"]["passphrase"] == "env-pass"
+
+
 def test_execution_service_submit_order_records_trade(monkeypatch):
     session = DummySession()
     service = ExecutionService({"execution": {"mode": "paper", "venue": "okx"}}, db_session=session)

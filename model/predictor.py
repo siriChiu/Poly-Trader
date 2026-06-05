@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pathlib import Path
 import numpy as np
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database.models import FeaturesNormalized, Labels
 from model.q35_bias50_calibration import compute_piecewise_bias50_score
@@ -4038,10 +4039,35 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
     base = _decision_quality_fallback(decision_profile.get("decision_profile_version") or "phase16_baseline_v2")
     guardrail = _load_dynamic_window_guardrail()
     calibration_window = guardrail.get("recommended_best_n") or lookback_rows
+    feature_symbol_key = func.replace(func.coalesce(FeaturesNormalized.symbol, ""), "/", "")
+    label_symbol_key = func.replace(func.coalesce(Labels.symbol, ""), "/", "")
+    feature_latest = (
+        session.query(
+            FeaturesNormalized.timestamp.label("timestamp"),
+            feature_symbol_key.label("symbol_key"),
+            func.max(FeaturesNormalized.id).label("feature_id"),
+        )
+        .group_by(FeaturesNormalized.timestamp, feature_symbol_key)
+        .subquery()
+    )
+    label_latest = (
+        session.query(
+            Labels.timestamp.label("timestamp"),
+            label_symbol_key.label("symbol_key"),
+            func.max(Labels.id).label("label_id"),
+        )
+        .filter(
+            Labels.horizon_minutes == horizon_minutes,
+            Labels.simulated_pyramid_win.isnot(None),
+        )
+        .group_by(Labels.timestamp, label_symbol_key)
+        .subquery()
+    )
     rows = (
         session.query(
             FeaturesNormalized.timestamp,
-            FeaturesNormalized.symbol,
+            FeaturesNormalized.symbol.label("feature_symbol"),
+            Labels.symbol.label("label_symbol"),
             FeaturesNormalized.regime_label,
             FeaturesNormalized.feat_4h_bias200,
             FeaturesNormalized.feat_4h_bias50,
@@ -4057,15 +4083,14 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
             Labels.simulated_pyramid_drawdown_penalty,
             Labels.simulated_pyramid_time_underwater,
         )
+        .select_from(feature_latest)
+        .join(FeaturesNormalized, FeaturesNormalized.id == feature_latest.c.feature_id)
         .join(
-            Labels,
-            (FeaturesNormalized.timestamp == Labels.timestamp)
-            & (FeaturesNormalized.symbol == Labels.symbol),
+            label_latest,
+            (feature_latest.c.timestamp == label_latest.c.timestamp)
+            & (feature_latest.c.symbol_key == label_latest.c.symbol_key),
         )
-        .filter(
-            Labels.horizon_minutes == horizon_minutes,
-            Labels.simulated_pyramid_win.isnot(None),
-        )
+        .join(Labels, Labels.id == label_latest.c.label_id)
         .order_by(FeaturesNormalized.timestamp.desc())
         .limit(calibration_window)
         .all()
@@ -4089,7 +4114,9 @@ def _infer_live_decision_quality_contract(session: Session, decision_profile: Di
         hist_profile = _build_live_decision_profile(hist_features)
         summarized_rows.append({
             "timestamp": row.timestamp,
-            "symbol": row.symbol,
+            "symbol": row.feature_symbol,
+            "label_symbol": row.label_symbol,
+            "symbol_join_mode": "strict_symbol" if row.feature_symbol == row.label_symbol else "canonical_symbol",
             "regime_label": row.regime_label,
             "regime_gate": hist_profile.get("regime_gate"),
             "regime_gate_reason": hist_profile.get("regime_gate_reason"),

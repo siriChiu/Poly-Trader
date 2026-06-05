@@ -74,17 +74,18 @@ def test_dashboard_and_strategy_lab_share_execution_workspace_summary_component(
     assert "export function ExecutionWorkspaceSummary" in shared_source
     assert "export function ExecutionWorkspaceMetric" in shared_source
 
-    for source in [dashboard_source, strategy_lab_source]:
-        assert "ExecutionWorkspaceSummary" in source
-        assert "ExecutionWorkspaceMetric" in source
+    assert "ExecutionWorkspaceSummary" in dashboard_source
+    assert "ExecutionWorkspaceMetric" in dashboard_source
+    assert "ExecutionWorkspaceSummary" not in strategy_lab_source
+    assert "ExecutionWorkspaceMetric" not in strategy_lab_source
 
     for snippet in [
         "Execution 摘要",
-        "即時部署同步",
         "前往 Bot 營運 →",
         "前往執行狀態 →",
     ]:
         assert snippet in (dashboard_source + strategy_lab_source)
+    assert "即時部署同步" not in strategy_lab_source
     assert "Live 部署同步" not in (dashboard_source + strategy_lab_source)
 
 
@@ -98,6 +99,29 @@ def test_execution_console_bot_cards_surface_strategy_binding_state_without_dupl
         'const strategyBindingBadgeLabel = strategyBindingStatus === "missing_saved_strategy"',
         '"待儲存策略快照"',
         '`策略：${strategyBindingTitle}`',
+        '"/api/execution/workers/poll"',
+        '"/api/execution/workers/outcomes"',
+        "同步 worker",
+        "workerRehearsalProof",
+        "workerOutcomeNextActionLabel",
+        "workerOutcomeSummaryLabel",
+        "buildWorkerPollGuardMessage",
+        'resp?.status !== "pending_outcome_blocked"',
+        "24h paper/shadow outcome 還在觀察窗",
+        "本次沒有重複寫入 worker poll event",
+        "workerPollDisabledReason",
+        "workerOutcomeProofLoading",
+        "workerPollPendingGuardActive",
+        "正在同步 paper/shadow outcome proof",
+        "24h outcome 觀察窗尚未到期",
+        "currentSupportSummaryFromRuntimeContract",
+        "即時精準支持",
+        "runRuntimeTopKContract",
+        "runRuntimeSupportSummaryLabel",
+        "runStrategySnapshotSummaryLabel",
+        "策略 snapshot",
+        "Outcome {workerOutcomeStatusLabel}",
+        "Proof {workerRehearsalStatusLabel}",
         '{shouldShowPrimarySleeveBadge && (',
         '{strategyBindingStatus && (',
     ]
@@ -105,3 +129,4 @@ def test_execution_console_bot_cards_surface_strategy_binding_state_without_dupl
         assert snippet in source
 
     assert 'profileStrategyBinding?.primary_sleeve_label || card.strategy_binding?.title || "未分類"' not in source
+    assert "runStrategyBinding?.summary || latestMessage" not in source

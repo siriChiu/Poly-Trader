@@ -1,4 +1,5 @@
 import importlib.util
+import sqlite3
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "q15_support_fill_feasibility_scan.py"
@@ -22,6 +23,72 @@ def _row(idx, *, regime="chop", gate="ALLOW", label="A", bucket="ALLOW|ok|q65", 
         "simulated_pyramid_drawdown_penalty": 0.02,
         "simulated_pyramid_time_underwater": 0.1,
     }
+
+
+def test_fetch_labeled_decision_rows_normalizes_symbol_variants_and_dedupes_latest_ids(tmp_path):
+    db_path = tmp_path / "support_fill_symbol_variants.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        """
+        CREATE TABLE features_normalized (
+            id INTEGER PRIMARY KEY,
+            timestamp TEXT NOT NULL,
+            symbol TEXT,
+            regime_label TEXT,
+            feat_4h_bias200 REAL,
+            feat_4h_bias50 REAL,
+            feat_4h_bb_pct_b REAL,
+            feat_4h_dist_bb_lower REAL,
+            feat_4h_dist_swing_low REAL,
+            feat_nose REAL,
+            feat_pulse REAL,
+            feat_ear REAL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE labels (
+            id INTEGER PRIMARY KEY,
+            timestamp TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            horizon_minutes INTEGER NOT NULL,
+            simulated_pyramid_win INTEGER,
+            simulated_pyramid_pnl REAL,
+            simulated_pyramid_quality REAL,
+            simulated_pyramid_drawdown_penalty REAL,
+            simulated_pyramid_time_underwater REAL
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO features_normalized
+        VALUES (1, '2026-06-04 04:00:00.000000', 'BTCUSDT', 'bear', -12.0, -11.0, 0.20, 0.8, 1.0, 0.3, 0.2, 0.4)
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO features_normalized
+        VALUES (2, '2026-06-04 04:00:00.000000', 'BTC/USDT', 'bear', -12.0, -11.0, 0.20, 0.8, 1.0, 0.3, 0.2, 0.4)
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO labels
+        VALUES (1, '2026-06-04 04:00:00.000000', 'BTCUSDT', 1440, 1, 0.02, 0.4, 0.1, 0.2)
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    rows = scan.fetch_labeled_decision_rows(db_path=db_path, horizon_minutes=1440)
+
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "BTC/USDT"
+    assert rows[0]["label_symbol"] == "BTCUSDT"
+    assert rows[0]["symbol_join_mode"] == "canonical_symbol"
+    assert rows[0]["simulated_pyramid_win"] == 1
 
 
 def test_feasibility_scan_separates_reference_window_rows_from_current_identity():

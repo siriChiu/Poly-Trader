@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-05-23T07:54:00+08:00",
+  "updated_at": "2026-06-05T22:07:01+08:00",
   "definition_reference": {
     "title": "OpenAI Harness Engineering: using Codex in an agent-first world",
     "url": "https://openai.com/zh-Hant/index/harness-engineering/",
@@ -13,7 +13,14 @@
     "harness_readme": "docs/harness/README.md",
     "qa_playbook": "docs/harness/heartbeat-qa.md",
     "validator": "scripts/heartbeat_harness_check.py",
-    "validator_test": "tests/test_heartbeat_harness_contract.py"
+    "validator_test": "tests/test_heartbeat_harness_contract.py",
+    "active_backend_health_probe": "scripts/active_backend_health_probe.py",
+    "high_conviction_topk_api_consistency_probe": "scripts/high_conviction_topk_api_consistency_probe.py",
+    "venue_api_consistency_probe": "scripts/venue_dry_run_api_consistency_probe.py",
+    "paper_shadow_outcome_reconciliation": "scripts/paper_shadow_outcome_reconciliation.py",
+    "paper_shadow_outcome_api_consistency_probe": "scripts/paper_shadow_outcome_api_consistency_probe.py",
+    "customer_safe_alternative_api_consistency_probe": "scripts/customer_safe_alternative_api_consistency_probe.py",
+    "repo_cleanroom_audit": "scripts/repo_cleanroom_audit.py"
   },
   "required_docs": [
     {
@@ -82,7 +89,10 @@
         "issues.json",
         "data/live_predict_probe.json",
         "data/live_decision_quality_drilldown.json",
-        "data/recent_drift_report.json"
+        "data/recent_drift_report.json",
+        "/api/status.data_freshness",
+        "/api/strategy_data_sync.freshness",
+        "strategy_data_sync_maintenance when --no-collect skips full collect"
       ]
     },
     {
@@ -174,6 +184,42 @@
       "purpose": "current runtime blocker, live bucket, support route, fail-closed state"
     },
     {
+      "name": "paper_shadow_outcome_reconciliation_truth",
+      "paths": [
+        "scripts/paper_shadow_outcome_reconciliation.py",
+        "scripts/paper_shadow_outcome_api_consistency_probe.py",
+        "data/paper_shadow_outcome_reconciliation.json",
+        "/api/execution/overview.paper_shadow_outcome_reconciliation"
+      ],
+      "purpose": "rerunnable paper/shadow 24h outcome proof with schema-v2 top-level/quick_read pending, ETA, resolved, label-replay, and fail-closed fields; heartbeat refreshes it before PM/docs consume it and verifies API/artifact consistency"
+    },
+    {
+      "name": "customer_safe_alternative_truth",
+      "paths": [
+        "data/customer_safe_alternative_proof.json",
+        "scripts/customer_safe_alternative_api_consistency_probe.py",
+        "/api/execution/overview.customer_safe_alternative_proof"
+      ],
+      "purpose": "customer-safe alternative-solution proof, selected next customer artifact, alias/count quick-read, fail-closed flags, and strict overview/artifact consistency before docs call the safe lane usable"
+    },
+    {
+      "name": "active_backend_health_truth",
+      "paths": [
+        "/health.runtime_build",
+        "scripts/active_backend_health_probe.py"
+      ],
+      "purpose": "active API process freshness, head sync status, startup continuity status, and stale backend restart requirement before trusting API payloads"
+    },
+    {
+      "name": "strategy_data_freshness_truth",
+      "paths": [
+        "/api/status.data_freshness",
+        "/api/strategy_data_sync.freshness",
+        "data/heartbeat_*_summary.json:strategy_data_sync_maintenance"
+      ],
+      "purpose": "raw/features/labels/strategy freshness and bounded maintenance result for no-collect heartbeats before treating Strategy Lab evidence as current"
+    },
+    {
       "name": "recent_drift_truth",
       "paths": [
         "data/recent_drift_report.json",
@@ -186,17 +232,21 @@
       "name": "deployment_candidate_truth",
       "paths": [
         "data/high_conviction_topk_oos_matrix.json",
+        "scripts/high_conviction_topk_api_consistency_probe.py",
+        "/api/models/leaderboard.high_conviction_topk",
         "model/topk_walkforward_precision.json"
       ],
-      "purpose": "walk-forward OOS top-k deployment gate and fail-closed candidate tier"
+      "purpose": "walk-forward OOS top-k deployment gate, fail-closed candidate tier, and strict API/artifact consistency for Strategy Lab"
     },
     {
       "name": "venue_readiness_truth",
       "paths": [
         "data/execution_metadata_smoke.json",
-        "data/execution_metadata_external_monitor.json"
+        "data/venue_dry_run_proof.json",
+        "data/execution_metadata_external_monitor.json",
+        "scripts/venue_dry_run_api_consistency_probe.py"
       ],
-      "purpose": "venue proof state, runtime readiness blockers, operator next action"
+      "purpose": "venue proof state, dry-run lifecycle checklist, runtime readiness blockers, status-level and overview-level live-canary policy gate visibility, operator next action, artifact-first API overview/status source, and strict API consistency proof"
     },
     {
       "name": "current_state_docs",
@@ -240,12 +290,20 @@
       "description": "HEARTBEAT.md names scripts/heartbeat_harness_check.py and docs/harness/heartbeat-qa.md."
     },
     {
+      "id": "active_backend_current_head_probe",
+      "description": "Runtime API verification includes scripts/active_backend_health_probe.py --strict so stale active backends fail before operator proofs are trusted."
+    },
+    {
       "id": "readme_exposes_harness_entry",
       "description": "README.md lists docs/harness as a first-class documentation entry."
     },
     {
       "id": "anti_equilibrium_execution_guard",
       "description": "HEARTBEAT.md, QA, contract, checker, and current-state docs require a forced branch when same semantic signature/support delta=0 repeats; observation-only status refresh is incomplete."
+    },
+    {
+      "id": "strategy_data_sync_no_collect_guard",
+      "description": "--no-collect heartbeat summaries record strategy_data_sync_maintenance, and the runner triggers bounded strategy data sync when freshness is stale or within the configured stale headroom."
     }
   ],
   "verification_commands": [

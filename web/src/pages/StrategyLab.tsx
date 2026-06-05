@@ -11,11 +11,8 @@ import {
   YAxis,
 } from "recharts";
 import CandlestickChart from "../components/CandlestickChart";
-import ExecutionMetadataFreshnessDetail from "../components/ExecutionMetadataFreshnessDetail";
 import LivePathologySummaryCard, { type DecisionQualityScopePathologySummary } from "../components/LivePathologySummaryCard";
 import RecentCanonicalDriftCard, { type RecentCanonicalDriftSummary } from "../components/RecentCanonicalDriftCard";
-import VenueReadinessSummary from "../components/VenueReadinessSummary";
-import { ExecutionWorkspaceMetric, ExecutionWorkspaceSummary } from "../components/execution/ExecutionWorkspaceSummary";
 import { fetchApi, prewarmActiveApiBase, useApi } from "../hooks/useApi";
 import { useGlobalProgressTask } from "../hooks/useGlobalProgress";
 import { getSenseConfig } from "../config/senses";
@@ -121,6 +118,28 @@ interface BacktestRangeMeta {
     count?: number;
     span_days?: number | null;
   };
+}
+
+interface StrategyDataSyncRange {
+  start?: string | null;
+  end?: string | null;
+  count?: number | null;
+  span_days?: number | null;
+}
+
+interface StrategyDataSyncStatus {
+  symbol?: string | null;
+  checked_at?: string | null;
+  latest_synced_at?: string | null;
+  strategy?: StrategyDataSyncRange | null;
+  raw?: StrategyDataSyncRange | null;
+  features?: StrategyDataSyncRange | null;
+  labels?: StrategyDataSyncRange | null;
+}
+
+interface StrategyDataSyncResponse {
+  status?: string | null;
+  after?: StrategyDataSyncStatus | null;
 }
 
 interface StrategyMetadata {
@@ -273,6 +292,13 @@ interface StrategyLabLiveDecisionResponse {
   } | null;
 }
 
+interface LiveCanaryPolicyGate {
+  status?: string | null;
+  passed?: boolean | null;
+  summary?: string | null;
+  blockers?: string[] | null;
+}
+
 interface StrategyLabRuntimeStatusResponse {
   execution_surface_contract?: {
     canonical_execution_route?: string;
@@ -302,6 +328,7 @@ interface StrategyLabRuntimeStatusResponse {
     live_ready_blockers?: string[];
     operator_message?: string;
     recent_canonical_drift?: RecentCanonicalDriftSummary | null;
+    live_canary_policy_gate?: LiveCanaryPolicyGate | null;
     live_runtime_truth?: {
       runtime_closure_state?: string | null;
       runtime_closure_summary?: string | null;
@@ -1057,6 +1084,15 @@ const formatPct = (value: number | null | undefined, digits = 1, signed = false)
   return `${prefix}${(value * 100).toFixed(digits)}%`;
 };
 const formatDecimal = (value: number | null | undefined, digits = 2) => (isFiniteNumber(value) ? value.toFixed(digits) : "—");
+const formatSyncTimestamp = (value?: string | null) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("zh-TW");
+};
+const formatSyncRange = (range?: StrategyDataSyncRange | null) => {
+  if (!range) return "—";
+  return `${formatSyncTimestamp(range.start)} → ${formatSyncTimestamp(range.end)} · ${formatDecimal(range.count, 0)} 點`;
+};
 const formatDurationSeconds = (value: number | null | undefined) => {
   if (!isFiniteNumber(value)) return "—";
   if (value < 60) return `${Math.max(0, Math.round(value))} 秒`;
@@ -1765,7 +1801,10 @@ export default function StrategyLab() {
   const [initialCapital, setInitialCapital] = useState(10000);
   const [chartStart, setChartStart] = useState<string>("");
   const [chartEnd, setChartEnd] = useState<string>("");
-  const [strategyDataRange, setStrategyDataRange] = useState<BacktestRangeMeta["available"] | null>(null);
+  const [strategyDataRange, setStrategyDataRange] = useState<StrategyDataSyncRange | null>(null);
+  const [strategyDataSync, setStrategyDataSync] = useState<StrategyDataSyncStatus | null>(null);
+  const [strategyDataSyncing, setStrategyDataSyncing] = useState(false);
+  const [strategyDataSyncError, setStrategyDataSyncError] = useState<string | null>(null);
   const [investmentHorizon, setInvestmentHorizon] = useState<keyof typeof investmentHorizonLabels>("medium");
   const [activeTab, setActiveTab] = useState<"workspace" | "leaderboard">("workspace");
   const [capitalModeFilter, setCapitalModeFilter] = useState<"all" | "classic_pyramid" | "reserve_90">("all");
@@ -2416,16 +2455,45 @@ export default function StrategyLab() {
 
   const loadStrategyDataRange = async () => {
     try {
-      const data = await fetchStrategyLabEndpointJson("/api/strategy_data_range") as { start?: string | null; end?: string | null; count?: number; span_days?: number | null };
-      setStrategyDataRange(data ?? null);
-      if (data?.end) {
+      const data = await fetchStrategyLabEndpointJson("/api/strategy_data_sync") as StrategyDataSyncStatus;
+      const range = data?.strategy ?? null;
+      setStrategyDataSync(data ?? null);
+      setStrategyDataRange(range);
+      if (range?.end) {
         // 保留 applyBacktestPreset("2y") 作為預設策略視窗語意，但這裡直接傳 fresh range，避免 React state 尚未同步時落回舊 snapshot 日期。
-        applyBacktestPreset("2y", data);
+        applyBacktestPreset("2y", range);
       }
-      return data;
+      return range;
     } catch (err) {
       console.error("Strategy data range error:", err);
       return null;
+    }
+  };
+
+  const handleStrategyDataSync = async () => {
+    setStrategyDataSyncing(true);
+    setStrategyDataSyncError(null);
+    try {
+      const data = await fetchApi<StrategyDataSyncResponse>("/api/strategy_data_sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol: "BTCUSDT", lookback_days: 30 }),
+      });
+      const status = data?.after ?? null;
+      if (status) {
+        const range = status.strategy ?? null;
+        setStrategyDataSync(status);
+        setStrategyDataRange(range);
+        if (range?.end) {
+          applyBacktestPreset("2y", range);
+        }
+      } else {
+        await loadStrategyDataRange();
+      }
+    } catch (err: any) {
+      setStrategyDataSyncError(err?.message || "資料同步失敗");
+    } finally {
+      setStrategyDataSyncing(false);
     }
   };
 
@@ -3029,6 +3097,20 @@ export default function StrategyLab() {
   const venueReadinessBlockersLabel = liveExecutionSyncPending
     ? "同步中"
     : (venueReadinessBlockers.length ? venueReadinessBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : humanizeExecutionReason(executionSurfaceContract?.operator_message || "目前沒有額外場館阻塞摘要"));
+  const strategyLiveCanaryPolicyGate = executionSurfaceContract?.live_canary_policy_gate ?? null;
+  const strategyLiveCanaryPolicyBlockers = Array.isArray(strategyLiveCanaryPolicyGate?.blockers)
+    ? strategyLiveCanaryPolicyGate.blockers
+    : [];
+  const strategyLiveCanaryPolicyGateLabel = liveExecutionSyncPending
+    ? "同步中"
+    : (strategyLiveCanaryPolicyGate?.passed ? "已通過" : "未通過");
+  const strategyLiveCanaryPolicyDetailLabel = liveExecutionSyncPending
+    ? "正在同步 bounded live-canary policy。"
+    : strategyLiveCanaryPolicyGate?.passed
+      ? "mode / live flag / allowlist / symbol cap / kill switch 已符合；仍需 runtime gates 全過。"
+      : (strategyLiveCanaryPolicyBlockers.length > 0
+        ? strategyLiveCanaryPolicyBlockers.map((item) => humanizeExecutionReason(item)).join(" · ")
+        : "缺少 bounded live-canary policy gate；不可升級 canary。");
   const lifecycleArtifactChecklist = Array.isArray(lifecycleContract?.artifact_checklist)
     ? lifecycleContract.artifact_checklist
     : [];
@@ -3112,6 +3194,15 @@ export default function StrategyLab() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4 space-y-3">
+        <div className="text-sm font-semibold text-slate-300">🛡️ Canary policy</div>
+        <div className={`text-2xl font-bold ${strategyLiveCanaryPolicyGate?.passed ? "text-emerald-300" : "text-amber-300"}`}>
+          {strategyLiveCanaryPolicyGateLabel}
+        </div>
+        <div className="text-xs leading-5 text-slate-400">{strategyLiveCanaryPolicyDetailLabel}</div>
+        <div className="text-[11px] text-slate-500">目前阻塞點 {currentLiveBlockerLabel} · {currentLiveBlockerSummaryLabel}</div>
       </div>
     </div>
   );
@@ -3410,13 +3501,46 @@ export default function StrategyLab() {
                       ))}
                     </div>
                   </div>
-                  <div className={`rounded-lg border px-3 py-2 text-[11px] ${activeResult?.backtest_range?.backfill_required ? "border-amber-700/40 bg-amber-950/10 text-amber-100" : "border-slate-700/50 bg-slate-950/30 text-slate-400"}`}>
-                    <div>可用特徵資料：{strategyDataRange?.start ? new Date(strategyDataRange.start).toLocaleDateString("zh-TW") : "—"} → {strategyDataRange?.end ? new Date(strategyDataRange.end).toLocaleDateString("zh-TW") : "—"}</div>
-                    <div className="mt-1 text-cyan-100/85">{WORKSPACE_BACKTEST_WINDOW_HINT}</div>
-                    <div>
-                      {activeResult?.backtest_range?.backfill_required
-                        ? `缺少約 ${Math.round(activeResult.backtest_range.missing_start_days || 0)} 天較早資料，需先回填。`
-                        : "資料不足時會直接標示，不會用短資料假裝跑完。"}
+                  <div className={`rounded-lg border px-3 py-3 text-[11px] ${activeResult?.backtest_range?.backfill_required ? "border-amber-700/40 bg-amber-950/10 text-amber-100" : "border-cyan-700/40 bg-cyan-950/10 text-cyan-50"}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-cyan-300/70">Backtest Data Sync</div>
+                        <div className="mt-1 text-sm font-semibold text-white">目前同步資料點：{formatSyncTimestamp(strategyDataSync?.latest_synced_at ?? strategyDataRange?.end)}</div>
+                        <div className="mt-1 text-slate-300">回測可用：{formatSyncRange(strategyDataSync?.strategy ?? strategyDataRange)}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleStrategyDataSync}
+                        disabled={strategyDataSyncing}
+                        className="app-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {strategyDataSyncing ? "同步中..." : "立即同步"}
+                      </button>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-slate-300 md:grid-cols-3">
+                      <div className="rounded-md border border-slate-700/50 bg-slate-950/40 px-2 py-2">
+                        <div className="text-slate-500">Raw 最新</div>
+                        <div className="font-medium text-slate-100">{formatSyncTimestamp(strategyDataSync?.raw?.end)}</div>
+                        <div className="text-[10px] text-slate-500">{formatDecimal(strategyDataSync?.raw?.count, 0)} 點</div>
+                      </div>
+                      <div className="rounded-md border border-slate-700/50 bg-slate-950/40 px-2 py-2">
+                        <div className="text-slate-500">Features 最新</div>
+                        <div className="font-medium text-slate-100">{formatSyncTimestamp(strategyDataSync?.features?.end)}</div>
+                        <div className="text-[10px] text-slate-500">{formatDecimal(strategyDataSync?.features?.count, 0)} 點</div>
+                      </div>
+                      <div className="rounded-md border border-slate-700/50 bg-slate-950/40 px-2 py-2">
+                        <div className="text-slate-500">Labels 最新</div>
+                        <div className="font-medium text-slate-100">{formatSyncTimestamp(strategyDataSync?.labels?.end)}</div>
+                        <div className="text-[10px] text-slate-500">{formatDecimal(strategyDataSync?.labels?.count, 0)} 點</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-cyan-100/85">{WORKSPACE_BACKTEST_WINDOW_HINT}</div>
+                    <div className="mt-1 text-slate-300">
+                      {strategyDataSyncError
+                        ? `同步錯誤：${strategyDataSyncError}`
+                        : activeResult?.backtest_range?.backfill_required
+                          ? `缺少約 ${Math.round(activeResult.backtest_range.missing_start_days || 0)} 天較早資料，需先回填。`
+                          : "資料不足時會直接標示，不會用短資料假裝跑完。"}
                     </div>
                   </div>
                   {strategyResultStale && (
@@ -3450,93 +3574,6 @@ export default function StrategyLab() {
                 title="BTC/USDT 價格圖"
               />
             </div>
-
-            <ExecutionWorkspaceSummary
-              title="即時部署同步"
-              subtitle={liveExecutionSyncSubtitle}
-              className={executionSyncTone({
-                pending: liveExecutionSyncPending,
-                liveReady: Boolean(executionSurfaceContract?.live_ready),
-                blocker: currentLiveBlocker,
-                reconciliationStatus: executionReconciliation?.status,
-              })}
-              gridClassName="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5"
-              aside={(
-                <div className="text-right text-xs">
-                  <div className="font-semibold">{liveDeployStatusLabel}</div>
-                  <div className="opacity-70">目前阻塞點 {currentLiveBlockerLabel}</div>
-                  <div className="mt-1 opacity-60">當前分桶 {liveSupportRowsLabel} · 缺口 {liveSupportGapLabel}</div>
-                  <div className="mt-1 opacity-60">{liveSupportStatusSummaryLabel}</div>
-                  <div className="mt-1 opacity-60">{liveSupportReferenceSummaryLabel}</div>
-                  <div className="mt-1 opacity-60">{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}</div>
-                </div>
-              )}
-              actions={(
-                <>
-                  <a href={executionOperationsSurface?.route || "/execution"} className="app-button-secondary">
-                    前往 Bot 營運 →
-                  </a>
-                  <a href="/execution/status" className="app-button-secondary">
-                    前往執行狀態 →
-                  </a>
-                </>
-              )}
-              footer={<div className="text-xs opacity-80">診斷頁面 {humanizeRuntimeDetailText(executionDiagnosticsSurface?.label || "執行狀態")} · {executionDiagnosticsSurface?.route || "/execution/status"}</div>}
-            >
-              <ExecutionWorkspaceMetric
-                label="目前阻塞點"
-                value={currentLiveBlockerLabel}
-                detail={(
-                  <>
-                    <div>{currentLiveBlockerSummaryLabel}</div>
-                    <div className="opacity-70">{liveSupportRouteSummaryLabel}</div>
-                    <div className="opacity-70">{liveSupportStatusSummaryLabel}</div>
-                    <div className="opacity-70">{liveSupportReferenceSummaryLabel}</div>
-                  </>
-                )}
-              />
-              <ExecutionWorkspaceMetric
-                label="場館阻塞"
-                value={venueReadinessBlockersLabel}
-                extra={<VenueReadinessSummary venues={venueChecks} className="mt-2" compact />}
-              />
-              <ExecutionWorkspaceMetric
-                label="部署閉環"
-                value={runtimeClosureStateLabel}
-                detail={runtimeClosureSummaryLabel}
-              />
-              <ExecutionWorkspaceMetric
-                label="當前分桶根因"
-                value={currentBucketRootCauseLabel}
-                detail={(
-                  <>
-                    <div>{humanizeRuntimeDetailText(currentBucketRootCauseSummary)}</div>
-                    <div className="opacity-70">當前分桶 {currentBucketRootCauseBucket}</div>
-                    <div className="opacity-70">候選修補方案 {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}</div>
-                    <div className="opacity-70">{currentBucketRootCauseDrilldownLabel}</div>
-                    <div className="opacity-70">下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}</div>
-                  </>
-                )}
-              />
-              <ExecutionWorkspaceMetric
-                label="啟用倉位腿"
-                value={activeSleevesLabel}
-                detail={activeSleevesSummaryLabel}
-              />
-              <ExecutionWorkspaceMetric
-                label="元資料新鮮度"
-                value={<span className={metadataFreshnessTone(metadataSmokeFreshness?.status)}>{metadataSmokeFreshnessLabel}</span>}
-                detail={(
-                  <ExecutionMetadataFreshnessDetail
-                    pending={runtimeStatusPending}
-                    generatedAt={metadataSmoke?.generated_at}
-                    freshness={metadataSmokeFreshness}
-                    governance={metadataSmoke?.governance ?? null}
-                    compact
-                  />
-                )}
-              />
-            </ExecutionWorkspaceSummary>
             <LivePathologySummaryCard
               summary={liveScopePathologySummary}
               title="🧬 精準路徑 / 外溢口袋對照"
@@ -3731,6 +3768,21 @@ export default function StrategyLab() {
                       </div>
                     </div>
                   )}
+                  <div className="rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 py-3 text-xs text-rose-50 space-y-2">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-rose-100">當前分桶根因</div>
+                        <div className="mt-1 text-[11px] text-rose-100/80">{currentBucketRootCauseSummary}</div>
+                      </div>
+                      <div className="text-right text-[11px] text-rose-100/80">
+                        <div>{currentBucketRootCauseLabel}</div>
+                        <div>候選修補方案 {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}</div>
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-rose-50/85">
+                      當前分桶 {currentBucketRootCauseBucket} · {currentBucketRootCauseDrilldownLabel}
+                    </div>
+                  </div>
                   {profileSplit?.split_required && governanceContract && (
                     <div className={`rounded-lg border px-3 py-3 text-xs space-y-2 ${governanceContract.treat_as_parity_blocker ? "border-rose-500/30 bg-rose-500/10 text-rose-50" : "border-cyan-500/30 bg-cyan-500/10 text-cyan-50"}`}>
                       <div className="flex flex-wrap items-start justify-between gap-3">

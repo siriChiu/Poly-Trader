@@ -7,7 +7,9 @@ source tree.  They intentionally check git-tracked files, not ignored local outp
 from __future__ import annotations
 
 import fnmatch
+import json
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -66,10 +68,30 @@ def test_gitignore_blocks_future_heartbeat_log_pollution() -> None:
         "data/heartbeat_*_report.md",
         "data/heartbeat_*_report.txt",
         "data/heartbeat_*_results.json",
+        "data/hb*_summary.json",
+        "data/hb*_results.json",
+        "data/hb_*_probe.json",
+        "data/hb_parallel_summary_*.json",
     ]
 
-    for pattern in required_patterns:
+    required_unignored_contracts = [
+        "!data/live_predict_probe.json",
+        "!data/high_conviction_topk_oos_matrix.json",
+        "!data/no_trade_lane_replay.json",
+        "!data/venue_dry_run_proof.json",
+        "!model/xgb_model.pkl",
+    ]
+
+    for pattern in required_patterns + required_unignored_contracts:
         assert pattern in gitignore
+
+    lines = set(gitignore.splitlines())
+    assert "/_*.py" in lines
+    assert "/hb_*.py" in lines
+    assert "scripts/hb_*.py" in lines
+    assert "!scripts/hb_parallel_runner.py" in lines
+    assert "_*.py" not in lines
+    assert "hb_*.py" not in lines
 
 
 def test_moved_legacy_scripts_are_documented() -> None:
@@ -95,3 +117,49 @@ def test_prd_high_conviction_truth_tracks_current_live_blocker() -> None:
     assert "bucket_rows=0/50" in section
     assert "deployment_blocker=circuit_breaker_active" not in section
     assert "support route 已是 `exact_bucket_supported`" not in section
+
+
+def test_repo_cleanroom_audit_preserves_operational_state() -> None:
+    """Cleanroom audit must not be a thin wrapper around destructive git clean."""
+
+    output = subprocess.check_output(
+        [sys.executable, "scripts/repo_cleanroom_audit.py", "--format", "json"],
+        cwd=PROJECT_ROOT,
+        text=True,
+    )
+    payload = json.loads(output)
+
+    assert "scripts/repo_cleanroom_audit.py" in payload["closed_loop_entrypoints"]
+    assert "venv" in payload["protected_policy"]["never_clean_by_default"]
+    candidate_paths = [candidate["path"] for candidate in payload["cleanup_candidates"]]
+    assert not any(
+        path.startswith(("model/", "model_4h/")) and "__pycache__" not in path
+        for path in candidate_paths
+    )
+
+    forbidden_prefixes = (
+        "venv/",
+        ".venv/",
+        "env/",
+        "web/node_modules/",
+        "data/live_",
+        "data/q15_",
+        "data/high_conviction_",
+        "data/customer_safe_",
+        "data/execution_metadata_",
+    )
+    for candidate in payload["cleanup_candidates"]:
+        assert not candidate["path"].startswith(forbidden_prefixes)
+
+
+def test_cleanroom_entrypoint_is_documented() -> None:
+    docs = [
+        (PROJECT_ROOT / "README.md").read_text(encoding="utf-8"),
+        (PROJECT_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8"),
+        (PROJECT_ROOT / "HEARTBEAT.md").read_text(encoding="utf-8"),
+        (PROJECT_ROOT / "docs/harness/README.md").read_text(encoding="utf-8"),
+    ]
+
+    for text in docs:
+        assert "scripts/repo_cleanroom_audit.py" in text
+    assert "git clean -fdX" in docs[1]

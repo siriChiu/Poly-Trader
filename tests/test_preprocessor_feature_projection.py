@@ -33,7 +33,7 @@ def _build_df(rows=80):
 def test_compute_features_from_raw_projects_4h_outputs(monkeypatch):
     df = _build_df()
 
-    def fake_ti(_df):
+    def fake_ti(_df, **kwargs):
         return {
             "feat_rsi14": 0.61,
             "feat_macd_hist": 0.02,
@@ -131,7 +131,7 @@ def test_compute_features_from_raw_leaves_nq_returns_null_without_history(monkey
     df = _build_df(rows=80)
     df["nq_value"] = [18000.0] + [None] * 79
 
-    monkeypatch.setattr(preprocessor, "_compute_technical_indicators_from_df", lambda _df: {})
+    monkeypatch.setattr(preprocessor, "_compute_technical_indicators_from_df", lambda _df, **kwargs: {})
 
     features = preprocessor.compute_features_from_raw(df)
 

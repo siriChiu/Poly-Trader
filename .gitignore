@@ -59,17 +59,44 @@ data/heartbeat_*_summary.md
 data/heartbeat_*_report.md
 data/heartbeat_*_report.txt
 data/heartbeat_*_results.json
+data/hb*_summary.json
+data/hb*_results.json
+data/hb_*_probe.json
+data/hb_parallel_summary_*.json
 
-# Temp/debug scripts at project root and in scripts/
-_*.py
-temp_*.py
-tmp_*.py
-debug_*.py
-check_regime.py
-hb_*.py
-regime_train.py
+# Root-level temp/debug scripts. Keep these anchored so package files like
+# analysis/__init__.py and formal scripts/hb_*.py remain visible.
+/_*.py
+/temp_*.py
+/tmp_*.py
+/debug_*.py
+/check_regime.py
+/hb_*.py
+/regime_train.py
 scripts/_*.py
 scripts/debug_*.py
+scripts/hb_*.py
+!scripts/hb_analysis.py
+!scripts/hb_circuit_breaker_audit.py
+!scripts/hb_collect.py
+!scripts/hb_compact_execution_overview_probe.py
+!scripts/hb_compact_leaderboard_probe.py
+!scripts/hb_compact_runtime_probe.py
+!scripts/hb_compact_status_probe.py
+!scripts/hb_db_inspect.py
+!scripts/hb_diag_stdlib.py
+!scripts/hb_diagnostic.py
+!scripts/hb_extract_runtime_facts.py
+!scripts/hb_inspect.py
+!scripts/hb_leaderboard_candidate_probe.py
+!scripts/hb_model_leaderboard_api_probe.py
+!scripts/hb_parallel_runner.py
+!scripts/hb_predict_probe.py
+!scripts/hb_q15_boundary_replay.py
+!scripts/hb_q15_bucket_root_cause.py
+!scripts/hb_q15_support_audit.py
+!scripts/hb_q35_scaling_audit.py
+!scripts/hb_train_eval.py
 
 # Generated analysis outputs / snapshots
 *_result.json
@@ -86,6 +113,30 @@ data/*.json
 model/*.json
 model/*.pkl
 model_4h/*.pkl
+
+# Current-state contract artifacts are tracked/visible; generated per-run logs stay ignored.
+!data/circuit_breaker_audit.json
+!data/customer_safe_alternative_proof.json
+!data/execution_metadata_smoke.json
+!data/high_conviction_topk_oos_matrix.json
+!data/live_canary_structural_pivot.json
+!data/live_decision_quality_drilldown.json
+!data/live_predict_probe.json
+!data/no_trade_lane_replay.json
+!data/paper_shadow_outcome_reconciliation.json
+!data/q15_drift_rebaseline_backtest.json
+!data/q15_exact_bucket_row_harvest_proof.json
+!data/q15_map_signal_redesign_proof.json
+!data/q15_support_audit.json
+!data/q15_support_fill_feasibility.json
+!data/recent_drift_report.json
+!data/venue_dry_run_proof.json
+!model/ic_signs.json
+!model/last_metrics.json
+!model/topk_walkforward_precision.json
+!model/regime_models.pkl
+!model/xgb_model.pkl
+!model_4h/xgb_4h.pkl
 catboost_info/
 
 # VIX/DXY heartbeat scripts

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import os
 from typing import Any, Dict
 
 SUPPORTED_EXECUTION_VENUES = {"okx"}
@@ -24,6 +25,14 @@ DEFAULT_EXECUTION_CONFIG: Dict[str, Any] = {
         },
     },
 }
+
+
+def _first_env_value(*names: str) -> str:
+    for name in names:
+        value = os.environ.get(name)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return ""
 
 
 def _normalize_execution_venue(value: Any) -> tuple[str, str | None]:
@@ -72,5 +81,14 @@ def resolve_trading_config(config: Dict[str, Any]) -> Dict[str, Any]:
             merged["venues"][venue_key] = {"enabled": False}
             continue
         venue_cfg["enabled"] = bool(venue_cfg.get("enabled", venue_key == DEFAULT_EXECUTION_VENUE))
+        if venue_key == "okx":
+            env_values = {
+                "api_key": _first_env_value("POLY_TRADER_OKX_API_KEY", "OKX_API_KEY"),
+                "api_secret": _first_env_value("POLY_TRADER_OKX_API_SECRET", "OKX_API_SECRET"),
+                "passphrase": _first_env_value("POLY_TRADER_OKX_PASSPHRASE", "OKX_PASSPHRASE"),
+            }
+            for key, value in env_values.items():
+                if value:
+                    venue_cfg[key] = value
     merged["dry_run"] = merged["mode"] != "live" or not merged["enable_live_trading"]
     return merged

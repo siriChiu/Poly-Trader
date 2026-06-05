@@ -365,6 +365,47 @@ def _topk_context(topk: Mapping[str, Any], customer_safe: Mapping[str, Any]) -> 
     }
 
 
+def _lane_actionability_context(live_probe: Mapping[str, Any], support: Mapping[str, Any]) -> dict[str, Any]:
+    bucket = str(support.get("structure_bucket") or live_probe.get("current_live_structure_bucket") or "")
+    regime_gate = str(live_probe.get("regime_gate") or "").upper()
+    should_trade = _as_bool(live_probe.get("should_trade"))
+    allowed_layers_raw = _to_int(live_probe.get("allowed_layers_raw"), default=None)
+    allowed_layers = _to_int(live_probe.get("allowed_layers"), default=None)
+    no_trade_block_lane = bool(
+        bucket.startswith("BLOCK|")
+        or regime_gate == "BLOCK"
+        or (
+            should_trade is False
+            and allowed_layers_raw == 0
+            and allowed_layers == 0
+        )
+    )
+    if no_trade_block_lane:
+        return {
+            "current_lane_actionability": "no_trade_block_lane",
+            "support_evidence_role": "no_trade_decision_validation_not_deployable_support",
+            "operator_interpretation": (
+                "當前即時 lane 是 BLOCK / 不交易決策 lane。0/50 exact support 應視為無風險觀望驗證，"
+                "不是可收集來支撐買入 / 加倉部署的 support。"
+            ),
+            "map_signal_forced_lane": "no_trade_lane_audit",
+            "next_validation_artifact": "data/no_trade_lane_replay.json；驗證觀望 / reduce-only 行為，不把它寫成 risk-on support closure。",
+        }
+    return {
+        "current_lane_actionability": "risk_on_candidate_lane",
+        "support_evidence_role": "deployment_support_identity_required",
+        "operator_interpretation": (
+            "Current live lane can become risk-on only after exact support, breaker, model-shadow, "
+            "venue lifecycle, and live-canary policy gates all pass."
+        ),
+        "map_signal_forced_lane": "support_identity_redesign",
+        "next_validation_artifact": _next_validation_artifact(
+            "current_live_support_gate",
+            support.get("structure_bucket"),
+        ),
+    }
+
+
 def _venue_context(execution_smoke: Mapping[str, Any], customer_safe: Mapping[str, Any]) -> dict[str, Any]:
     customer_venue = customer_safe.get("venue_runtime_proof") if isinstance(customer_safe.get("venue_runtime_proof"), dict) else {}
     source = customer_venue if customer_venue else execution_smoke
@@ -542,6 +583,7 @@ def build_live_canary_structural_pivot(
     support = _support_context(live, topk_payload, customer, support_fill, q15_audit)
     topk = _topk_context(topk_payload, customer)
     venue = _venue_context(execution, customer)
+    lane_actionability = _lane_actionability_context(live, support)
     gates = _gate_summary(support, release, topk, venue, config)
     primary_gate = gates["single_failed_gate_for_72h_decision"]
     next_artifact = _next_validation_artifact(primary_gate, support.get("structure_bucket"))
@@ -559,10 +601,44 @@ def build_live_canary_structural_pivot(
         "q15_support_fill_feasibility": support_fill,
         "q15_support_audit": q15_audit,
     }
+    quick_read = {
+        "deployment_blocker": support.get("deployment_blocker"),
+        "current_live_structure_bucket": support.get("structure_bucket"),
+        "current_lane_actionability": lane_actionability.get("current_lane_actionability"),
+        "support_evidence_role": lane_actionability.get("support_evidence_role"),
+        "map_signal_forced_lane": lane_actionability.get("map_signal_forced_lane"),
+        "current_lane_next_validation_artifact": lane_actionability.get("next_validation_artifact"),
+        "support_rows": support.get("support_rows"),
+        "minimum_support_rows": support.get("minimum_support_rows"),
+        "support_gap": support.get("support_gap"),
+        "support_route_verdict": support.get("support_route_verdict"),
+        "support_governance_route": support.get("support_governance_route"),
+        "support_ready": support.get("support_ready"),
+        "release_ready": release.get("release_ready"),
+        "recent_window_wins": release.get("current_recent_window_wins"),
+        "required_recent_window_wins": release.get("required_recent_window_wins"),
+        "additional_recent_window_wins_needed": release.get("additional_recent_window_wins_needed"),
+        "topk_deployable": topk.get("topk_deployable"),
+        "deployable_rows": topk.get("deployable_rows"),
+        "paper_shadow_available": topk.get("paper_shadow_available"),
+        "venue_runtime_ready": venue.get("runtime_ready"),
+        "live_canary_policy_ready": config.get("policy_ready"),
+        "micro_canary_ready": gates.get("micro_canary_ready"),
+        "live_exposure_allowed": gates.get("live_exposure_allowed"),
+        "risk_on_order_enabled": gates.get("risk_on_order_enabled"),
+        "order_submission_enabled": gates.get("order_submission_enabled"),
+        "single_failed_gate_for_72h_decision": primary_gate,
+        "single_failed_gate": primary_gate,
+        "next_validation_artifact": next_artifact,
+    }
 
     return {
         "generated_at": generated_at or _now_iso(),
         "artifact": "live_canary_structural_pivot",
+        # Stable top-level quick-read fields for PM/API/operator checks that
+        # should not have to infer readiness from nested gate payloads.
+        "quick_read": quick_read,
+        **quick_read,
         "source_artifacts": _source_meta(payloads),
         "pm_handoff_carried_forward": {
             "decision": "PM 強制反平衡：若 72h 內不能執行 bounded micro-canary，必須寫明單一失敗 gate 與下一個驗證 artifact；不得再只做 observation-only heartbeat。",
@@ -572,6 +648,10 @@ def build_live_canary_structural_pivot(
         "current_truth": {
             "deployment_blocker": support.get("deployment_blocker"),
             "structure_bucket": support.get("structure_bucket"),
+            "current_lane_actionability": lane_actionability.get("current_lane_actionability"),
+            "support_evidence_role": lane_actionability.get("support_evidence_role"),
+            "operator_interpretation": lane_actionability.get("operator_interpretation"),
+            "map_signal_forced_lane": lane_actionability.get("map_signal_forced_lane"),
             "support_rows": support.get("support_rows"),
             "minimum_support_rows": support.get("minimum_support_rows"),
             "support_gap": support.get("support_gap"),
@@ -611,6 +691,10 @@ def build_live_canary_structural_pivot(
             "equilibrium_deadlock_verdict": support.get("equilibrium_deadlock_verdict"),
             "forced_research_action_required": support.get("forced_research_action_required"),
             "forced_research_action_output_path": support.get("forced_research_action_output_path"),
+            "current_lane_actionability": lane_actionability.get("current_lane_actionability"),
+            "support_evidence_role": lane_actionability.get("support_evidence_role"),
+            "map_signal_forced_lane": lane_actionability.get("map_signal_forced_lane"),
+            "map_signal_next_validation_artifact": lane_actionability.get("next_validation_artifact"),
         },
         "micro_canary_gate": gates,
         "lanes": [
@@ -666,10 +750,19 @@ def build_live_canary_structural_pivot(
             {
                 "lane": "D_map_signal_redesign_for_current_bucket",
                 "goal": (
-                    "When exact current bucket support remains below minimum with support delta=0, "
-                    "stop waiting for rows and produce a Map/Signal redesign proof path."
+                    (
+                        "Current BLOCK/no-trade lane should be audited as abstain/reduce-only evidence, "
+                        "not harvested as buy/add deployment support."
+                    )
+                    if lane_actionability.get("current_lane_actionability") == "no_trade_block_lane"
+                    else (
+                        "When exact current bucket support remains below minimum with support delta=0, "
+                        "stop waiting for rows and produce a Map/Signal redesign proof path."
+                    )
                 ),
                 "can_start_now": bool(
+                    lane_actionability.get("current_lane_actionability") == "no_trade_block_lane"
+                    or
                     support.get("forced_research_action_required")
                     or (
                         support.get("support_gap", 0) > 0
@@ -679,10 +772,27 @@ def build_live_canary_structural_pivot(
                         )
                     )
                 ),
-                "status": "equilibrium_deadlock_required" if support.get("equilibrium_deadlock_confirmed") else ("required" if support.get("support_gap", 0) > 0 and (
-                    support.get("support_delta_vs_previous") == 0
-                    or support.get("semantic_signature_delta_vs_previous") == 0
-                ) else "standby"),
+                "status": (
+                    "no_trade_lane_audit_required"
+                    if lane_actionability.get("current_lane_actionability") == "no_trade_block_lane"
+                    else (
+                        "equilibrium_deadlock_required"
+                        if support.get("equilibrium_deadlock_confirmed")
+                        else (
+                            "forced_research_action_required"
+                            if support.get("forced_research_action_required")
+                            else (
+                                "required"
+                                if support.get("support_gap", 0) > 0
+                                and (
+                                    support.get("support_delta_vs_previous") == 0
+                                    or support.get("semantic_signature_delta_vs_previous") == 0
+                                )
+                                else "standby"
+                            )
+                        )
+                    )
+                ),
                 "blocks_strategy_risk": True,
                 "live_exposure": "none",
                 "exit_gate": "A new support identity / semantic bucket map is proposed, replayed, and proven without reclassifying reference rows as deployable support.",
@@ -690,8 +800,11 @@ def build_live_canary_structural_pivot(
                 "semantic_signature_stagnant_run_count": support.get("semantic_signature_stagnant_run_count"),
                 "equilibrium_deadlock_confirmed": support.get("equilibrium_deadlock_confirmed"),
                 "equilibrium_deadlock_verdict": support.get("equilibrium_deadlock_verdict"),
+                "forced_research_action_required": support.get("forced_research_action_required"),
                 "forced_research_action_output_path": support.get("forced_research_action_output_path"),
-                "next_artifact": support_redesign_artifact,
+                "current_lane_actionability": lane_actionability.get("current_lane_actionability"),
+                "support_evidence_role": lane_actionability.get("support_evidence_role"),
+                "next_artifact": lane_actionability.get("next_validation_artifact") or support_redesign_artifact,
             },
         ],
         "operator_config_snapshot_redacted": config,
@@ -749,6 +862,8 @@ def markdown(payload: Mapping[str, Any]) -> str:
         f"- PM handoff carried forward: `{(payload.get('pm_handoff_carried_forward') or {}).get('decision')}`",
         f"- deployment_blocker: `{truth.get('deployment_blocker')}`",
         f"- current bucket: `{truth.get('structure_bucket')}`",
+        f"- lane actionability: `{truth.get('current_lane_actionability')}` / support evidence role: `{truth.get('support_evidence_role')}`",
+        f"- operator interpretation: {truth.get('operator_interpretation')}",
         f"- support: `{truth.get('support_rows')}/{truth.get('minimum_support_rows')}` (gap `{truth.get('support_gap')}`, delta `{truth.get('support_delta_vs_previous')}`, stagnant `{truth.get('stagnant_run_count')}`)",
         f"- semantic-signature progress: delta `{truth.get('semantic_signature_delta_vs_previous')}`, stagnant `{truth.get('semantic_signature_stagnant_run_count')}` (does not relax strict support_identity)",
         f"- equilibrium deadlock: confirmed=`{truth.get('equilibrium_deadlock_confirmed')}`, verdict=`{truth.get('equilibrium_deadlock_verdict')}`, forced_artifact=`{truth.get('forced_research_action_output_path')}`",
@@ -759,6 +874,7 @@ def markdown(payload: Mapping[str, Any]) -> str:
         f"- micro_canary_ready: **{gate.get('micro_canary_ready')}** / order_submission_enabled: **{gate.get('order_submission_enabled')}**",
         f"- single_failed_gate_for_72h_decision: `{decision.get('single_failed_gate_for_72h_decision')}`",
         f"- next_validation_artifact: `{decision.get('next_validation_artifact')}`",
+        f"- map_signal_forced_lane: `{decision.get('map_signal_forced_lane')}` / next artifact: `{decision.get('map_signal_next_validation_artifact')}`",
         "",
         "## Decision",
         str(decision.get("decision")),

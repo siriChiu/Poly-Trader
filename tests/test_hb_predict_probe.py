@@ -170,6 +170,89 @@ def test_build_probe_payload_promotes_circuit_breaker_release_math_to_top_level(
     assert "至少還差 11 勝" in payload["runtime_closure_summary"]
 
 
+def test_build_probe_payload_uses_circuit_breaker_audit_release_fallback(monkeypatch, tmp_path):
+    monkeypatch.setattr(hb_predict_probe, "build_live_pathology_scope_surface", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(hb_predict_probe, "_load_q35_scaling_audit_summary", lambda _bucket: {})
+    audit_path = tmp_path / "circuit_breaker_audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "verdict": "breaker_clear",
+                "release_condition": {
+                    "release_ready": True,
+                    "recent_window": 50,
+                    "current_recent_window_win_rate": 0.4,
+                    "current_recent_window_wins": 20,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 0,
+                    "streak_must_be_below": 50,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hb_predict_probe, "CIRCUIT_BREAKER_AUDIT_PATH", audit_path)
+
+    payload = hb_predict_probe._build_probe_payload(
+        latest={"timestamp": "2026-06-05T01:42:29+00:00", "regime_label": "bear"},
+        result={
+            "target_col": "simulated_pyramid_win",
+            "used_model": "regime_bear_ensemble",
+            "model_type": "RegimeAwarePredictor",
+            "signal": "HOLD",
+            "confidence": 0.697014,
+            "regime_label": "bear",
+            "regime_gate": "BLOCK",
+            "structure_bucket": "BLOCK|bias200_below_min|q15",
+            "entry_quality_label": "C",
+            "allowed_layers": 0,
+            "allowed_layers_raw": 0,
+            "allowed_layers_reason": "unsupported_exact_live_structure_bucket",
+            "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "deployment_blocker_source": "decision_quality_contract",
+            "deployment_blocker_details": {
+                "current_live_structure_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "current_live_structure_bucket_gap_to_minimum": 50,
+                "support_route_verdict": "insufficient_support_everywhere",
+                "support_route_deployable": False,
+                "support_progress": {
+                    "status": "no_recent_comparable_history",
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                },
+            },
+            "support_route_verdict": "insufficient_support_everywhere",
+            "support_route_deployable": False,
+            "support_progress": {
+                "status": "no_recent_comparable_history",
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+        },
+        target_col="simulated_pyramid_win",
+        used_model="regime_bear_ensemble",
+        current_live_structure_bucket="BLOCK|bias200_below_min|q15",
+        current_live_structure_bucket_rows=0,
+        q15_support_audit={},
+        four_h_non_null={},
+        lag_non_null={},
+    )
+
+    assert payload["deployment_blocker"] == "unsupported_exact_live_structure_bucket"
+    assert payload["runtime_closure_state"] == "patch_inactive_or_blocked"
+    assert payload["release_condition"]["release_ready"] is True
+    assert payload["deployment_blocker_details"]["release_condition"]["release_ready"] is True
+    assert payload["release_ready"] is True
+    assert payload["current_recent_window_wins"] == 20
+    assert payload["required_recent_window_wins"] == 15
+    assert payload["additional_recent_window_wins_needed"] == 0
+    assert payload["recent_window"] == 50
+
+
 
 def test_build_probe_payload_canonicalizes_zero_row_q15_insufficient_support_mode(monkeypatch):
     monkeypatch.setattr(hb_predict_probe, "build_live_pathology_scope_surface", lambda *_args, **_kwargs: {})

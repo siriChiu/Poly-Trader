@@ -15,9 +15,11 @@ const STATUS_REQUEST_TIMEOUT_MS = 20000;
 const EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS = 20000;
 const DEV_API_DISCOVERY_TIMEOUT_MS = 1200;
 const DEV_API_STATUS_DISCOVERY_TIMEOUT_MS = 2000;
+const DEV_API_FAILED_BASE_COOLDOWN_MS = 30000;
 
 let activeApiBaseMemo: string | null = null;
 let prewarmActiveApiBasePromise: Promise<void> | null = null;
+const failedApiBaseUntil = new Map<string, number>();
 
 type ApiBaseHealthProbe = {
   base: string;
@@ -60,19 +62,56 @@ function isLocalDevHost(hostname: string): boolean {
   return hostname === "127.0.0.1" || hostname === "localhost";
 }
 
-function getDevApiCandidateBases(): string[] {
+function markApiBaseFailed(base: string | null): void {
+  if (!base) return;
+  failedApiBaseUntil.set(base, Date.now() + DEV_API_FAILED_BASE_COOLDOWN_MS);
+}
+
+function markApiBaseHealthy(base: string | null): void {
+  if (!base) return;
+  failedApiBaseUntil.delete(base);
+}
+
+function isApiBaseTemporarilyFailed(base: string): boolean {
+  const failedUntil = failedApiBaseUntil.get(base);
+  if (!failedUntil) return false;
+  if (Date.now() >= failedUntil) {
+    failedApiBaseUntil.delete(base);
+    return false;
+  }
+  return true;
+}
+
+function getDefaultDevApiBase(): string | null {
+  if (API_BASE || typeof window === "undefined") return null;
+  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+  const host = window.location.hostname || "127.0.0.1";
+  if (!isLocalDevHost(host)) return null;
+  return `${protocol}//${host}:${DEV_LOCAL_API_CANDIDATE_PORTS[0]}`;
+}
+
+function getDevApiCandidateBases(options: { includeFailed?: boolean; defaultOnlyWhenAllFailed?: boolean } = {}): string[] {
   if (API_BASE || typeof window === "undefined") return [];
   const protocol = window.location.protocol === "https:" ? "https:" : "http:";
   const host = window.location.hostname || "127.0.0.1";
-  const currentPort = Number.parseInt(window.location.port || "0", 10);
-  const alreadyOnBackendPort = DEV_LOCAL_API_CANDIDATE_PORTS.includes(currentPort as (typeof DEV_LOCAL_API_CANDIDATE_PORTS)[number]);
-  if (!isLocalDevHost(host) || alreadyOnBackendPort) return [];
+  if (!isLocalDevHost(host)) return [];
   const preferred = getStoredActiveApiBase();
   const candidates = DEV_LOCAL_API_CANDIDATE_PORTS.map((port) => `${protocol}//${host}:${port}`);
-  if (preferred && candidates.includes(preferred)) {
-    return [preferred, ...candidates.filter((candidate) => candidate !== preferred)];
+  const orderedCandidates = preferred && candidates.includes(preferred)
+    ? [preferred, ...candidates.filter((candidate) => candidate !== preferred)]
+    : candidates;
+  if (options.includeFailed) {
+    return orderedCandidates;
   }
-  return candidates;
+  const availableCandidates = orderedCandidates.filter((candidate) => !isApiBaseTemporarilyFailed(candidate));
+  if (availableCandidates.length) {
+    return availableCandidates;
+  }
+  if (options.defaultOnlyWhenAllFailed) {
+    const defaultBase = getDefaultDevApiBase();
+    return defaultBase ? [defaultBase] : [];
+  }
+  return orderedCandidates;
 }
 
 function buildApiUrlForBase(endpoint: string, base: string | null): string {
@@ -81,7 +120,7 @@ function buildApiUrlForBase(endpoint: string, base: string | null): string {
 
 function getApiRequestCandidates(): string[] {
   if (API_BASE) return [API_BASE];
-  const devCandidates = getDevApiCandidateBases();
+  const devCandidates = getDevApiCandidateBases({ defaultOnlyWhenAllFailed: true });
   if (devCandidates.length) return devCandidates;
   const preferred = getStoredActiveApiBase();
   return [preferred ?? ""];
@@ -108,6 +147,11 @@ async function probeApiBaseHealth(base: string): Promise<ApiBaseHealthProbe> {
     const runtimeBuild = payload?.runtime_build && typeof payload.runtime_build === "object"
       ? payload.runtime_build as Record<string, any>
       : null;
+    if (resp.ok) {
+      markApiBaseHealthy(base);
+    } else {
+      markApiBaseFailed(base);
+    }
     return {
       base,
       healthy: resp.ok,
@@ -116,6 +160,7 @@ async function probeApiBaseHealth(base: string): Promise<ApiBaseHealthProbe> {
       gitHeadCommit: typeof runtimeBuild?.git_head_commit === "string" ? runtimeBuild.git_head_commit : null,
     };
   } catch {
+    markApiBaseFailed(base);
     return {
       base,
       healthy: false,
@@ -194,7 +239,7 @@ async function prewarmDevApiBase(): Promise<void> {
 
   prewarmActiveApiBasePromise = (async () => {
     const preferred = getStoredActiveApiBase();
-    const probeCandidates = getDevApiCandidateBases();
+    const probeCandidates = getDevApiCandidateBases({ includeFailed: true });
     const healthChecks = await Promise.all(probeCandidates.map(async (base) => probeApiBaseHealth(base)));
     const healthyCandidates = healthChecks.filter((probe) => probe.healthy);
 
@@ -251,6 +296,7 @@ function getRequestTimeoutMs(endpoint: string): number {
   if (endpoint.startsWith("/api/models/leaderboard")) return LEADERBOARD_REQUEST_TIMEOUT_MS;
   if (endpoint.startsWith("/api/execution/overview")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;
   if (endpoint.startsWith("/api/execution/runs")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;
+  if (endpoint.startsWith("/api/execution/workers")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;
   return endpoint.startsWith("/api/chart/klines")
     ? CHART_REQUEST_TIMEOUT_MS
     : DEFAULT_REQUEST_TIMEOUT_MS;
@@ -398,7 +444,10 @@ async function fetchTrackedResponse(endpoint: string, options?: RequestInit): Pr
 
       try {
         const resp = await fetch(requestUrl, { ...options, signal: controller.signal });
-        if (base) persistActiveApiBase(base);
+        if (base) {
+          markApiBaseHealthy(base);
+          persistActiveApiBase(base);
+        }
         updateGlobalProgress(taskId, { progress: 45, detail: `${endpoint} · 已收到回應` });
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({ detail: resp.statusText }));
@@ -415,6 +464,9 @@ async function fetchTrackedResponse(endpoint: string, options?: RequestInit): Pr
 
         if ((isTimeout || isNetworkError) && base === getStoredActiveApiBase()) {
           persistActiveApiBase(null);
+        }
+        if (isTimeout || isNetworkError) {
+          markApiBaseFailed(base);
         }
         lastError = normalizedError;
 

@@ -72,6 +72,14 @@ def _parse_isoish_timestamp(value: Any) -> datetime | None:
     return parsed
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _drilldown_feature_timestamp(drilldown: dict[str, Any]) -> Any:
+    return drilldown.get("feature_timestamp") or drilldown.get("generated_at")
+
+
 def _probe_current_bucket(probe: dict[str, Any]) -> Any:
     scope_name = probe.get("decision_quality_calibration_scope") or "regime_label+regime_gate+entry_quality_label"
     scope_diag = (probe.get("decision_quality_scope_diagnostics") or {}).get(scope_name) or {}
@@ -164,8 +172,8 @@ def _artifact_context_freshness(
             mismatches.extend(bull_context_mismatches)
 
     probe_ts = _parse_isoish_timestamp(probe.get("feature_timestamp"))
-    drilldown_ts = _parse_isoish_timestamp(drilldown.get("generated_at"))
-    if probe_ts is not None and drilldown_ts is not None and abs((probe_ts - drilldown_ts).total_seconds()) >= 1:
+    drilldown_feature_ts = _parse_isoish_timestamp(_drilldown_feature_timestamp(drilldown))
+    if probe_ts is not None and drilldown_feature_ts is not None and abs((probe_ts - drilldown_feature_ts).total_seconds()) >= 1:
         mismatches.append("feature_timestamp")
 
     return {
@@ -179,6 +187,7 @@ def _artifact_context_freshness(
         ),
         "latest_live_probe_feature_timestamp": probe.get("feature_timestamp"),
         "drilldown_generated_at": drilldown.get("generated_at"),
+        "drilldown_feature_timestamp": _drilldown_feature_timestamp(drilldown),
         "probe_current_live_structure_bucket": probe_bucket,
         "artifact_current_live_structure_bucket": bull_bucket or current_bucket,
         "probe_regime_label": probe.get("regime_label"),
@@ -549,12 +558,14 @@ def build_report(probe: dict[str, Any], drilldown: dict[str, Any], bull_pocket: 
         }
 
     return {
-        "generated_at": probe.get("feature_timestamp") or drilldown.get("generated_at"),
+        "generated_at": _utc_now_iso(),
+        "feature_timestamp": probe.get("feature_timestamp") or _drilldown_feature_timestamp(drilldown),
         "target_col": probe.get("target_col") or bull_pocket.get("target_col"),
         "bucket_scope_label": bucket_scope_label,
         "support_identity": support_identity,
         "artifact_context_freshness": artifact_context_freshness,
         "current_live": {
+            "feature_timestamp": probe.get("feature_timestamp") or _drilldown_feature_timestamp(drilldown),
             "regime_label": live_regime,
             "regime_gate": live_gate,
             "entry_quality_label": live_entry_quality_label,
@@ -616,6 +627,7 @@ def _markdown(report: dict[str, Any]) -> str:
             "# Current-Live Bucket Root Cause",
             "",
             f"- generated_at: **{report.get('generated_at')}**",
+            f"- feature_timestamp: **{report.get('feature_timestamp')}**",
             f"- target_col: **{report.get('target_col')}**",
             f"- bucket_scope: **{report.get('bucket_scope_label') or 'current-live bucket'}**",
             f"- verdict: **{report.get('verdict')}**",

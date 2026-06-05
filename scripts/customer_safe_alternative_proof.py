@@ -29,8 +29,10 @@ SOURCE_PATHS = {
     "q15_support_fill_feasibility": DATA_DIR / "q15_support_fill_feasibility.json",
     "high_conviction_topk_oos_matrix": DATA_DIR / "high_conviction_topk_oos_matrix.json",
     "execution_metadata_smoke": DATA_DIR / "execution_metadata_smoke.json",
+    "venue_dry_run_proof": DATA_DIR / "venue_dry_run_proof.json",
     "recent_drift_report": DATA_DIR / "recent_drift_report.json",
 }
+TOPK_LIVE_SUPPORT_STALE_AFTER_MINUTES = 30.0
 
 
 def _now_iso() -> str:
@@ -90,6 +92,45 @@ def _first_present(*values: Any, default: Any = None) -> Any:
             continue
         return value
     return default
+
+
+def _artifact_freshness(
+    generated_at: Any,
+    *,
+    stale_after_minutes: float,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    checked_at = now or datetime.now(timezone.utc)
+    if checked_at.tzinfo is None:
+        checked_at = checked_at.replace(tzinfo=timezone.utc)
+    checked_at = checked_at.astimezone(timezone.utc)
+    result: dict[str, Any] = {
+        "freshness_status": "unavailable",
+        "freshness_reason": "missing_generated_at",
+        "age_minutes": None,
+        "stale_after_minutes": stale_after_minutes,
+        "deployment_blocking": True,
+    }
+    if not generated_at:
+        return result
+    try:
+        generated_dt = datetime.fromisoformat(str(generated_at).replace("Z", "+00:00"))
+    except ValueError:
+        result["freshness_reason"] = "invalid_generated_at"
+        return result
+    if generated_dt.tzinfo is None:
+        generated_dt = generated_dt.replace(tzinfo=timezone.utc)
+    age_minutes = max((checked_at - generated_dt.astimezone(timezone.utc)).total_seconds(), 0.0) / 60.0
+    status = "fresh" if age_minutes <= stale_after_minutes else "stale"
+    result.update(
+        {
+            "freshness_status": status,
+            "freshness_reason": "artifact_within_policy" if status == "fresh" else "artifact_older_than_policy",
+            "age_minutes": age_minutes,
+            "deployment_blocking": status != "fresh",
+        }
+    )
+    return result
 
 
 def _select_shadow_replay_gate(replay: Mapping[str, Any]) -> dict[str, Any]:
@@ -313,6 +354,7 @@ def _breaker_context(live_probe: Mapping[str, Any], circuit_breaker_audit: Mappi
     return {
         "deployment_blocker": deployment_blocker,
         "runtime_closure_state": runtime_closure_state,
+        "release_context_present": bool(release),
         "release_ready": release_ready,
         "recent_window": _to_int(_first_present(release.get("recent_window"), 50), default=50),
         "current_recent_window_wins": None if current_wins is None else _to_int(current_wins),
@@ -328,7 +370,13 @@ def _breaker_context(live_probe: Mapping[str, Any], circuit_breaker_audit: Mappi
     }
 
 
-def _topk_context(topk: Mapping[str, Any]) -> dict[str, Any]:
+def _topk_context(
+    topk: Mapping[str, Any],
+    *,
+    live_probe: Mapping[str, Any] | None = None,
+    breaker: Mapping[str, Any] | None = None,
+    support: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     risk_qualified = _to_int(_first_present(topk.get("risk_qualified_rows"), topk.get("risk_qualified_count")))
     runtime_blocked = _to_int(
         _first_present(topk.get("runtime_blocked_candidate_rows"), topk.get("runtime_blocked_candidate_count"))
@@ -336,9 +384,92 @@ def _topk_context(topk: Mapping[str, Any]) -> dict[str, Any]:
     deployable = _to_int(_first_present(topk.get("deployable_rows"), topk.get("deployable_count")))
     nearest_rows = _as_list(topk.get("nearest_deployable_rows"))
     nearest = nearest_rows[0] if nearest_rows and isinstance(nearest_rows[0], dict) else {}
+    support_ctx = topk.get("support_context") if isinstance(topk.get("support_context"), dict) else {}
+    live_probe = live_probe or {}
+    breaker = breaker or {}
+    support = support or {}
+    live_details = live_probe.get("deployment_blocker_details") if isinstance(live_probe.get("deployment_blocker_details"), dict) else {}
+    breaker_release = breaker if breaker.get("release_context_present") else {}
+
+    def _overlay(field: str, *fallbacks: Any) -> Any:
+        return _first_present(
+            support_ctx.get(field),
+            live_probe.get(field),
+            live_details.get(field),
+            support.get(field),
+            nearest.get(field),
+            *fallbacks,
+        )
+
+    def _release_overlay(field: str, *fallbacks: Any) -> Any:
+        return _first_present(
+            support_ctx.get(field),
+            live_probe.get(field),
+            live_details.get(field),
+            breaker_release.get(field),
+            nearest.get(field),
+            *fallbacks,
+        )
+
+    current_rows = _overlay("current_live_structure_bucket_rows", support.get("current_rows"))
+    minimum_rows = _overlay("minimum_support_rows")
+    gap_to_minimum = _overlay("current_live_structure_bucket_gap_to_minimum", support.get("gap_to_minimum"))
+    overlay_applied = any(
+        value is not None
+        for value in (
+            support_ctx.get("source_live_probe_generated_at"),
+            support_ctx.get("current_recent_window_wins"),
+            support_ctx.get("current_live_structure_bucket_rows"),
+            live_probe.get("generated_at"),
+        )
+    )
+    source_live_probe_generated_at = _first_present(
+        live_probe.get("generated_at"),
+        support_ctx.get("source_live_probe_generated_at"),
+        nearest.get("source_live_probe_generated_at"),
+    )
+    live_support_freshness = _artifact_freshness(
+        source_live_probe_generated_at,
+        stale_after_minutes=TOPK_LIVE_SUPPORT_STALE_AFTER_MINUTES,
+    )
+    support_context_freshness_status = _first_present(
+        live_support_freshness.get("freshness_status"),
+        support_ctx.get("support_context_freshness_status"),
+    )
+    support_context_freshness_reason = _first_present(
+        live_support_freshness.get("freshness_reason"),
+        support_ctx.get("support_context_freshness_reason"),
+    )
+    support_context_deployment_blocking = _as_bool(
+        _first_present(
+            live_support_freshness.get("deployment_blocking"),
+            support_ctx.get("support_context_deployment_blocking"),
+        )
+    )
+    support_context_status = _first_present(
+        "stale_live_probe_shadow_only" if support_context_deployment_blocking else "fresh_live_probe_overlay",
+        support_ctx.get("support_context_status"),
+    )
+    live_truth_overlay_blocker = _first_present(
+        support_context_freshness_reason if support_context_deployment_blocking else "—",
+        support_ctx.get("live_truth_overlay_blocker"),
+    )
     return {
         "artifact_freshness_status": topk.get("artifact_freshness_status"),
         "artifact_deployment_blocking": _as_bool(topk.get("artifact_deployment_blocking")),
+        "support_context_status": support_context_status,
+        "support_context_freshness_status": support_context_freshness_status,
+        "support_context_freshness_reason": support_context_freshness_reason,
+        "support_context_age_minutes": _first_present(
+            support_ctx.get("support_context_age_minutes"),
+            live_support_freshness.get("age_minutes"),
+        ),
+        "support_context_stale_after_minutes": _first_present(
+            support_ctx.get("support_context_stale_after_minutes"),
+            live_support_freshness.get("stale_after_minutes"),
+        ),
+        "support_context_deployment_blocking": support_context_deployment_blocking,
+        "live_truth_overlay_blocker": live_truth_overlay_blocker,
         "risk_qualified_rows": risk_qualified,
         "runtime_blocked_candidate_rows": runtime_blocked,
         "deployable_rows": deployable,
@@ -359,25 +490,95 @@ def _topk_context(topk: Mapping[str, Any]) -> dict[str, Any]:
             "blocked_only_by_live_guardrails": nearest.get("blocked_only_by_live_guardrails"),
             "gate_failures": [str(item) for item in _as_list(nearest.get("gate_failures"))],
             "live_gate_failures": [str(item) for item in _as_list(nearest.get("live_gate_failures"))],
-            "support_route": nearest.get("support_route"),
-            "support_governance_route": nearest.get("support_governance_route"),
-            "support_route_deployable": nearest.get("support_route_deployable"),
-            "deployment_blocker": nearest.get("deployment_blocker"),
-            "runtime_closure_state": nearest.get("runtime_closure_state"),
-            "current_live_structure_bucket": nearest.get("current_live_structure_bucket"),
-            "current_live_structure_bucket_rows": nearest.get("current_live_structure_bucket_rows"),
-            "minimum_support_rows": nearest.get("minimum_support_rows"),
-            "current_live_structure_bucket_gap_to_minimum": nearest.get("current_live_structure_bucket_gap_to_minimum"),
-            "release_ready": nearest.get("release_ready"),
-            "current_recent_window_wins": nearest.get("current_recent_window_wins"),
-            "required_recent_window_wins": nearest.get("required_recent_window_wins"),
-            "additional_recent_window_wins_needed": nearest.get("additional_recent_window_wins_needed"),
+            "support_route": _overlay("support_route", support.get("support_route_verdict")),
+            "support_governance_route": _overlay("support_governance_route", support.get("support_governance_route")),
+            "support_route_deployable": _overlay("support_route_deployable", support.get("support_route_deployable")),
+            "deployment_blocker": _overlay("deployment_blocker", support.get("deployment_blocker")),
+            "runtime_closure_state": _overlay("runtime_closure_state"),
+            "current_live_structure_bucket": _overlay("current_live_structure_bucket", support.get("structure_bucket")),
+            "current_live_structure_bucket_rows": current_rows,
+            "minimum_support_rows": minimum_rows,
+            "current_live_structure_bucket_gap_to_minimum": gap_to_minimum,
+            "release_ready": _release_overlay("release_ready"),
+            "current_recent_window_win_rate": _release_overlay("current_recent_window_win_rate"),
+            "current_recent_window_wins": _release_overlay("current_recent_window_wins"),
+            "required_recent_window_wins": _release_overlay("required_recent_window_wins"),
+            "additional_recent_window_wins_needed": _release_overlay("additional_recent_window_wins_needed"),
+            "source_live_probe_generated_at": _first_present(
+                source_live_probe_generated_at,
+            ),
+            "runtime_overlay_applied": overlay_applied,
+            "runtime_overlay_source": "topk_support_context_or_live_probe" if overlay_applied else "nearest_candidate_row",
             "verdict": _first_present(nearest.get("deployable_verdict"), nearest.get("verdict")),
         },
     }
 
 
-def _venue_context(execution_smoke: Mapping[str, Any]) -> dict[str, Any]:
+def _venue_context(
+    execution_smoke: Mapping[str, Any],
+    venue_dry_run_proof: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    venue_dry_run_proof = venue_dry_run_proof or {}
+    dry_run_venues = venue_dry_run_proof.get("venues")
+    if isinstance(dry_run_venues, list) and dry_run_venues:
+        venues = []
+        for row in dry_run_venues:
+            if not isinstance(row, dict):
+                continue
+            venues.append(
+                {
+                    "venue": row.get("venue"),
+                    "adapter_supported": _as_bool(row.get("adapter_supported")),
+                    "enabled_in_config": _as_bool(row.get("enabled_in_config")),
+                    "credentials_configured": _as_bool(row.get("credentials_configured")),
+                    "proof_state": row.get("proof_state"),
+                    "runtime_ready": _as_bool(row.get("runtime_ready")),
+                    "blockers": [str(item) for item in _as_list(row.get("blockers"))],
+                    "operator_next_action": row.get("operator_next_action"),
+                    "verify_next": row.get("verify_next"),
+                    "order_preview_status": (
+                        row.get("order_preview", {}).get("status")
+                        if isinstance(row.get("order_preview"), dict)
+                        else None
+                    ),
+                    "ack_status": (
+                        row.get("ack_simulation", {}).get("status")
+                        if isinstance(row.get("ack_simulation"), dict)
+                        else None
+                    ),
+                    "cancel_status": (
+                        row.get("cancel_simulation", {}).get("status")
+                        if isinstance(row.get("cancel_simulation"), dict)
+                        else None
+                    ),
+                    "fill_status": (
+                        row.get("fill_simulation", {}).get("status")
+                        if isinstance(row.get("fill_simulation"), dict)
+                        else None
+                    ),
+                    "reconciliation_status": (
+                        row.get("reconciliation_check", {}).get("status")
+                        if isinstance(row.get("reconciliation_check"), dict)
+                        else None
+                    ),
+                }
+            )
+        runtime_ready = _as_bool(venue_dry_run_proof.get("runtime_ready")) and bool(venues) and all(v["runtime_ready"] for v in venues)
+        return {
+            "artifact": "venue_dry_run_proof",
+            "artifact_path": "data/venue_dry_run_proof.json",
+            "status": venue_dry_run_proof.get("status") or ("ready" if runtime_ready else "blocked_missing_runtime_backed_proof"),
+            "generated_at": venue_dry_run_proof.get("generated_at"),
+            "runtime_ready": runtime_ready,
+            "readiness_state": "runtime_ready" if runtime_ready else "blocked_missing_runtime_backed_proof",
+            "runtime_ready_count": _to_int(venue_dry_run_proof.get("runtime_ready_count")),
+            "runtime_ready_blockers": [str(item) for item in _as_list(venue_dry_run_proof.get("runtime_ready_blockers"))],
+            "order_submission_enabled": _as_bool(venue_dry_run_proof.get("order_submission_enabled")),
+            "risk_on_order_enabled": _as_bool(venue_dry_run_proof.get("risk_on_order_enabled")),
+            "dry_run_only": _as_bool(venue_dry_run_proof.get("dry_run_only", True)),
+            "venues": venues,
+        }
+
     venues = []
     for row in _as_list(execution_smoke.get("venues")):
         if not isinstance(row, dict):
@@ -397,10 +598,17 @@ def _venue_context(execution_smoke: Mapping[str, Any]) -> dict[str, Any]:
         )
     runtime_ready = _as_bool(execution_smoke.get("runtime_ready")) and bool(venues) and all(v["runtime_ready"] for v in venues)
     return {
+        "artifact": "execution_metadata_smoke",
+        "artifact_path": "data/execution_metadata_smoke.json",
+        "status": "ready" if runtime_ready else "blocked_missing_runtime_backed_proof",
+        "generated_at": execution_smoke.get("generated_at"),
         "runtime_ready": runtime_ready,
         "readiness_state": execution_smoke.get("readiness_state") or "blocked_until_runtime_lifecycle_proof",
         "runtime_ready_count": _to_int(execution_smoke.get("runtime_ready_count")),
         "runtime_ready_blockers": [str(item) for item in _as_list(execution_smoke.get("runtime_ready_blockers"))],
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "dry_run_only": True,
         "venues": venues,
     }
 
@@ -586,6 +794,159 @@ def _alternative_solution_portfolio(
     }
 
 
+def _blocked_live_lanes(
+    *,
+    live_exposure_allowed: bool,
+    primary_blocking_gate: str,
+    support: Mapping[str, Any],
+    breaker: Mapping[str, Any],
+    topk: Mapping[str, Any],
+    venue: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Quick-read list of risk-on actions that remain unavailable.
+
+    This mirrors the live gate.  It is intentionally redundant so PM/status
+    checkers and simple `jq` probes can see blocked customer actions without
+    traversing the full nested proof.
+    """
+
+    if live_exposure_allowed:
+        return []
+
+    release_condition = {
+        "primary_blocking_gate": primary_blocking_gate,
+        "breaker_release_ready": breaker.get("release_ready"),
+        "current_recent_window_wins": breaker.get("current_recent_window_wins"),
+        "required_recent_window_wins": breaker.get("required_recent_window_wins"),
+        "additional_recent_window_wins_needed": breaker.get("additional_recent_window_wins_needed"),
+        "support_rows": support.get("current_rows"),
+        "minimum_support_rows": support.get("minimum_support_rows"),
+        "support_gap": support.get("gap_to_minimum"),
+        "support_route_verdict": support.get("support_route_verdict"),
+        "topk_deployable_rows": topk.get("deployable_rows"),
+        "topk_support_context_status": topk.get("support_context_status"),
+        "topk_support_context_freshness_status": topk.get("support_context_freshness_status"),
+        "topk_support_context_deployment_blocking": topk.get("support_context_deployment_blocking"),
+        "topk_live_truth_overlay_blocker": topk.get("live_truth_overlay_blocker"),
+        "venue_runtime_ready": venue.get("runtime_ready"),
+        "venue_status": venue.get("status"),
+    }
+    base = {
+        "blocking_gate": primary_blocking_gate,
+        "release_condition": release_condition,
+        "live_exposure_allowed": False,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "allowed_alternative": "paper/shadow dry-run、等待 / 觀望、減碼 / 賣出風險降低",
+    }
+    return [
+        {
+            **base,
+            "id": "live_buy_add_exposure",
+            "blocked_actions": ["live_buy", "live_add", "live_canary_buy"],
+            "operator_message": "真實買入 / 加倉維持 fail-closed；只能用 shadow_buy / paper_buy 演練。",
+        },
+        {
+            **base,
+            "id": "risk_on_automation_enable",
+            "blocked_actions": ["automation_enable", "risk_on_auto_ordering"],
+            "operator_message": "風險進攻自動化不可啟用；手動等待 / 觀望與減風險路徑保留。",
+        },
+        {
+            **base,
+            "id": "unbounded_live_canary",
+            "blocked_actions": ["unbounded_live_canary", "uncapped_live_order"],
+            "operator_message": "任何 live canary 都必須先通過 bounded policy、support、breaker、Top-K 與 venue proof。",
+        },
+    ]
+
+
+def _next_customer_actions(
+    *,
+    live_exposure_allowed: bool,
+    support: Mapping[str, Any],
+    breaker: Mapping[str, Any],
+    topk: Mapping[str, Any],
+    venue: Mapping[str, Any],
+    selected_next_artifact: Any,
+) -> list[dict[str, Any]]:
+    """Concrete next safe actions for PM/customer quick-read surfaces."""
+
+    if live_exposure_allowed:
+        return [
+            {
+                "id": "bounded_live_canary_review",
+                "surface": "/execution",
+                "mode": "bounded_live_canary_review",
+                "action": "檢查 live-canary policy allowlist、symbol cap、kill switch 與 adapter-pre cap enforcement。",
+                "expected_evidence": "execution.live_canary policy + runtime gates all true before any live buy/add.",
+                "live_exposure_allowed": True,
+                "order_submission_enabled": True,
+                "risk_on_order_enabled": True,
+                "requires_bounded_live_canary_policy": True,
+            }
+        ]
+
+    return [
+        {
+            "id": "open_execution_paper_shadow",
+            "surface": "/execution",
+            "mode": "paper_shadow",
+            "action": "啟動或檢視 paper/shadow selective sleeve，使用 shadow_buy / paper_buy 演練。",
+            "expected_evidence": "data/paper_shadow_outcome_reconciliation.json pending/resolved outcome proof；live_order_submitted=false。",
+            "live_exposure_allowed": False,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+        },
+        {
+            "id": "review_strategy_lab_topk_shadow_candidates",
+            "surface": "/lab",
+            "mode": "research_to_shadow",
+            "action": "檢視 high-conviction Top-K OOS 候選、recent-window release math 與 exact support gap。",
+            "expected_evidence": (
+                "data/high_conviction_topk_oos_matrix.json deployable_rows=0 until live gates pass; "
+                f"support_context_freshness_status={topk.get('support_context_freshness_status')}"
+            ),
+            "topk_support_context_status": topk.get("support_context_status"),
+            "topk_support_context_freshness_status": topk.get("support_context_freshness_status"),
+            "topk_support_context_deployment_blocking": topk.get("support_context_deployment_blocking"),
+            "topk_live_truth_overlay_blocker": topk.get("live_truth_overlay_blocker"),
+            "live_exposure_allowed": False,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+        },
+        {
+            "id": "verify_venue_dry_run_lifecycle",
+            "surface": "/execution/status",
+            "mode": "venue_dry_run",
+            "action": "重跑 venue dry-run proof，確認 adapter / credential boolean / ack / cancel / fill / reconciliation blocker。",
+            "expected_evidence": "data/venue_dry_run_proof.json remains secret-safe and fail-closed until runtime proof passes.",
+            "verify_command": "python scripts/venue_dry_run_proof.py",
+            "live_exposure_allowed": False,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+        },
+        {
+            "id": "track_breaker_and_exact_support",
+            "surface": "artifacts",
+            "mode": "gate_tracking",
+            "action": "刷新 live probe / circuit breaker audit / support-fill feasibility，確認 exact rows 與 recent wins 是否有 movement。",
+            "expected_evidence": selected_next_artifact or "data/customer_safe_alternative_proof.json",
+            "breaker_release_ready": breaker.get("release_ready"),
+            "current_recent_window_wins": breaker.get("current_recent_window_wins"),
+            "required_recent_window_wins": breaker.get("required_recent_window_wins"),
+            "support_rows": support.get("current_rows"),
+            "minimum_support_rows": support.get("minimum_support_rows"),
+            "support_gap": support.get("gap_to_minimum"),
+            "topk_deployable_rows": topk.get("deployable_rows"),
+            "venue_runtime_ready": venue.get("runtime_ready"),
+            "live_exposure_allowed": False,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+        },
+    ]
+
+
 def build_customer_safe_alternative_proof(
     *,
     live_predict_probe: Mapping[str, Any] | None = None,
@@ -593,6 +954,7 @@ def build_customer_safe_alternative_proof(
     q15_support_fill_feasibility: Mapping[str, Any] | None = None,
     high_conviction_topk_oos_matrix: Mapping[str, Any] | None = None,
     execution_metadata_smoke: Mapping[str, Any] | None = None,
+    venue_dry_run_proof: Mapping[str, Any] | None = None,
     recent_drift_report: Mapping[str, Any] | None = None,
     generated_at: str | None = None,
 ) -> dict[str, Any]:
@@ -601,12 +963,13 @@ def build_customer_safe_alternative_proof(
     support_fill = dict(q15_support_fill_feasibility or {})
     topk = dict(high_conviction_topk_oos_matrix or {})
     execution_smoke = dict(execution_metadata_smoke or {})
+    venue_dry_run = dict(venue_dry_run_proof or {})
     recent_drift = dict(recent_drift_report or {})
 
     support = _support_context(live_probe, support_fill, topk)
     breaker = _breaker_context(live_probe, breaker_audit)
-    topk_ctx = _topk_context(topk)
-    venue = _venue_context(execution_smoke)
+    topk_ctx = _topk_context(topk, live_probe=live_probe, breaker=breaker, support=support)
+    venue = _venue_context(execution_smoke, venue_dry_run)
     recent = _recent_context(recent_drift)
     verdict = support_fill.get("verdict") if isinstance(support_fill.get("verdict"), dict) else {}
 
@@ -655,6 +1018,9 @@ def build_customer_safe_alternative_proof(
             "live_exposure_allowed": False,
             "order_submission_enabled": False,
             "credential_values_redacted": True,
+            "artifact": venue.get("artifact"),
+            "artifact_path": venue.get("artifact_path"),
+            "dry_run_only": venue.get("dry_run_only"),
             "venues": venue["venues"],
             "operator_message": "場館證據鏈只能顯示 adapter / enabled / credential boolean 與 lifecycle blocker；不可輸出 credential 值。",
         },
@@ -721,12 +1087,145 @@ def build_customer_safe_alternative_proof(
         "q15_support_fill_feasibility": support_fill,
         "high_conviction_topk_oos_matrix": topk,
         "execution_metadata_smoke": execution_smoke,
+        "venue_dry_run_proof": venue_dry_run,
         "recent_drift_report": recent_drift,
+    }
+    live_deployment_gate = {
+        "canary_ready": canary_ready,
+        "live_exposure_allowed": live_exposure_allowed,
+        "order_submission_enabled": order_submission_enabled,
+        "risk_on_order_enabled": live_exposure_allowed,
+        "support_ready": support_ready,
+        "topk_deployable": topk_deployable,
+        "venue_runtime_ready": venue_ready,
+        "circuit_breaker_ready": breaker_ready,
+        "breaker_release_ready": breaker_ready,
+        "blocking_gate": primary_blocking_gate,
+        "primary_blocking_gate": primary_blocking_gate,
+        "blocking_gates": blocking_gates,
+        "operator_summary": "可進 canary" if canary_ready else "目前只允許 customer-safe paper/shadow dry-run 演練與 reduce-only；真實買入 / 加倉 / 自動下單維持 fail-closed。",
+    }
+    allowed_today = [
+        "啟動 paper-shadow 訊號帳本並追蹤 24h pyramid outcome",
+        "透過 /api/trade shadow_buy / paper_buy 強制 dry-run，產出 paper/shadow 委託演練證據且不送 live order",
+        "展示 Strategy Lab / Execution Console 的高信心 OOS 候選，但標示 deployable=false",
+        "做 venue dry-run preview / ack simulation / cancel simulation / fill simulation / reconciliation checklist",
+        "保留等待 / 觀望、減碼 / 取消掛單 / 賣出風險降低路徑",
+    ]
+    not_allowed = [
+        "真實/live 買入 / 加倉",
+        "啟用風險進攻自動下單或完整實單自動化",
+        "把 exact-live-lane proxy、reference windows、OOS pass、paper/shadow 或 dry-run 證據包裝成 live deployment closure",
+        "輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]",
+    ]
+    alternative_solutions = [
+        dict(option)
+        for option in alternative_portfolio.get("options", [])
+        if isinstance(option, dict)
+    ]
+    selected_alternative_solution = alternative_portfolio.get("selected_option")
+    selected_next_customer_artifact = alternative_portfolio.get("selected_next_artifact")
+    alternative_solution_required = _as_bool(verdict.get("alternative_solution_required", not live_exposure_allowed))
+    blocked_live_lanes = _blocked_live_lanes(
+        live_exposure_allowed=live_exposure_allowed,
+        primary_blocking_gate=primary_blocking_gate,
+        support=support,
+        breaker=breaker,
+        topk=topk_ctx,
+        venue=venue,
+    )
+    next_customer_actions = _next_customer_actions(
+        live_exposure_allowed=live_exposure_allowed,
+        support=support,
+        breaker=breaker,
+        topk=topk_ctx,
+        venue=venue,
+        selected_next_artifact=selected_next_customer_artifact,
+    )
+    summary = {
+        "canary_ready": canary_ready,
+        "live_exposure_allowed": live_exposure_allowed,
+        "order_submission_enabled": order_submission_enabled,
+        "risk_on_order_enabled": live_exposure_allowed,
+        "support_ready": support_ready,
+        "topk_deployable": topk_deployable,
+        "venue_runtime_ready": venue_ready,
+        "circuit_breaker_ready": breaker_ready,
+        "breaker_release_ready": breaker_ready,
+        "blocking_gate": primary_blocking_gate,
+        "primary_blocking_gate": primary_blocking_gate,
+        "blocking_gates": blocking_gates,
+        "support_rows": support["current_rows"],
+        "minimum_support_rows": support["minimum_support_rows"],
+        "support_gap": support["gap_to_minimum"],
+        "support_route_verdict": support["support_route_verdict"],
+        "support_governance_route": support["support_governance_route"],
+        "deployment_blocker": support["deployment_blocker"],
+        "current_live_structure_bucket": support["structure_bucket"],
+        "current_recent_window_wins": breaker["current_recent_window_wins"],
+        "required_recent_window_wins": breaker["required_recent_window_wins"],
+        "additional_recent_window_wins_needed": breaker["additional_recent_window_wins_needed"],
+        "topk_risk_qualified_rows": topk_ctx["risk_qualified_rows"],
+        "topk_runtime_blocked_candidate_rows": topk_ctx["runtime_blocked_candidate_rows"],
+        "topk_deployable_rows": topk_ctx["deployable_rows"],
+        "topk_support_context_status": topk_ctx["support_context_status"],
+        "topk_support_context_freshness_status": topk_ctx["support_context_freshness_status"],
+        "topk_support_context_freshness_reason": topk_ctx["support_context_freshness_reason"],
+        "topk_support_context_deployment_blocking": topk_ctx["support_context_deployment_blocking"],
+        "topk_live_truth_overlay_blocker": topk_ctx["live_truth_overlay_blocker"],
+        "venue_status": venue["status"],
+        "venue_runtime_ready_count": venue["runtime_ready_count"],
+        "allowed_today_count": len(allowed_today),
+        "not_allowed_count": len(not_allowed),
+        "blocked_live_lane_count": len(blocked_live_lanes),
+        "alternative_solution_required": alternative_solution_required,
+        "alternative_solution_option_count": len(alternative_solutions),
+        "alternative_solution_options": len(alternative_solutions),
+        "selected_alternative_solution": selected_alternative_solution,
+        "selected_alternative": selected_alternative_solution,
+        "selected_next_customer_artifact": selected_next_customer_artifact,
+        "selected_next_artifact": selected_next_customer_artifact,
+        "next_customer_action_count": len(next_customer_actions),
+        "operator_summary": live_deployment_gate["operator_summary"],
     }
 
     return {
         "generated_at": generated_at or _now_iso(),
         "artifact": "customer_safe_alternative_proof",
+        "summary": summary,
+        "canary_ready": canary_ready,
+        "live_exposure_allowed": live_exposure_allowed,
+        "order_submission_enabled": order_submission_enabled,
+        "risk_on_order_enabled": live_exposure_allowed,
+        "support_rows": support["current_rows"],
+        "minimum_support_rows": support["minimum_support_rows"],
+        "support_gap": support["gap_to_minimum"],
+        "blocking_gate": primary_blocking_gate,
+        "primary_blocking_gate": primary_blocking_gate,
+        "blocking_gates": blocking_gates,
+        "breaker_release_ready": breaker_ready,
+        "current_recent_window_wins": breaker["current_recent_window_wins"],
+        "required_recent_window_wins": breaker["required_recent_window_wins"],
+        "additional_recent_window_wins_needed": breaker["additional_recent_window_wins_needed"],
+        "topk_deployable_rows": topk_ctx["deployable_rows"],
+        "topk_risk_qualified_rows": topk_ctx["risk_qualified_rows"],
+        "topk_runtime_blocked_candidate_rows": topk_ctx["runtime_blocked_candidate_rows"],
+        "topk_support_context_status": topk_ctx["support_context_status"],
+        "topk_support_context_freshness_status": topk_ctx["support_context_freshness_status"],
+        "topk_support_context_freshness_reason": topk_ctx["support_context_freshness_reason"],
+        "topk_support_context_deployment_blocking": topk_ctx["support_context_deployment_blocking"],
+        "topk_live_truth_overlay_blocker": topk_ctx["live_truth_overlay_blocker"],
+        "venue_runtime_ready": venue_ready,
+        "venue_status": venue["status"],
+        "blocked_live_lane_count": len(blocked_live_lanes),
+        "alternative_solution_required": alternative_solution_required,
+        "alternative_solution_option_count": len(alternative_solutions),
+        "alternative_solution_options": len(alternative_solutions),
+        "selected_alternative_solution": selected_alternative_solution,
+        "selected_alternative": selected_alternative_solution,
+        "selected_next_customer_artifact": selected_next_customer_artifact,
+        "selected_next_artifact": selected_next_customer_artifact,
+        "next_customer_action_count": len(next_customer_actions),
         "source_artifacts": _source_meta(payloads),
         "pm_handoff_carried_forward": {
             "decision": pm_handoff_decision,
@@ -734,41 +1233,19 @@ def build_customer_safe_alternative_proof(
             "selected_customer_safe_lane": "paper_shadow_decision_support_sleeve",
             "forbidden_shortcut": "不可降低 live-trading 門檻、不可把 proxy/reference/OOS/shadow 包裝成 live deployability。",
         },
-        "live_deployment_gate": {
-            "canary_ready": canary_ready,
-            "live_exposure_allowed": live_exposure_allowed,
-            "order_submission_enabled": order_submission_enabled,
-            "risk_on_order_enabled": live_exposure_allowed,
-            "support_ready": support_ready,
-            "topk_deployable": topk_deployable,
-            "venue_runtime_ready": venue_ready,
-            "circuit_breaker_ready": breaker_ready,
-            "breaker_release_ready": breaker_ready,
-            "blocking_gate": primary_blocking_gate,
-            "primary_blocking_gate": primary_blocking_gate,
-            "blocking_gates": blocking_gates,
-            "operator_summary": "可進 canary" if canary_ready else "目前只允許 customer-safe paper/shadow dry-run 演練與 reduce-only；真實買入 / 加倉 / 自動下單維持 fail-closed。",
-        },
+        "live_deployment_gate": live_deployment_gate,
         "circuit_breaker_gate": breaker,
         "current_live_support": support,
         "topk_shadow_candidate_context": topk_ctx,
         "venue_runtime_proof": venue,
         "recent_window_context": recent,
         "alternative_solution_portfolio": alternative_portfolio,
+        "alternative_solutions": alternative_solutions,
         "customer_safe_lanes": customer_safe_lanes,
-        "allowed_today": [
-            "啟動 paper-shadow 訊號帳本並追蹤 24h pyramid outcome",
-            "透過 /api/trade shadow_buy / paper_buy 強制 dry-run，產出 paper/shadow 委託演練證據且不送 live order",
-            "展示 Strategy Lab / Execution Console 的高信心 OOS 候選，但標示 deployable=false",
-            "做 venue dry-run preview / ack simulation / cancel simulation / reconciliation checklist",
-            "保留等待 / 觀望、減碼 / 取消掛單 / 賣出風險降低路徑",
-        ],
-        "not_allowed": [
-            "真實/live 買入 / 加倉",
-            "啟用風險進攻自動下單或完整實單自動化",
-            "把 exact-live-lane proxy、reference windows、OOS pass、paper/shadow 或 dry-run 證據包裝成 live deployment closure",
-            "輸出 credential / API key / secret 值；只能顯示 boolean 或 [REDACTED]",
-        ],
+        "blocked_live_lanes": blocked_live_lanes,
+        "next_customer_actions": next_customer_actions,
+        "allowed_today": allowed_today,
+        "not_allowed": not_allowed,
         "next_gate": next_gate,
         "fail_closed_invariants": {
             "support_reference_only_until_exact_rows_meet_minimum": not support_ready,
@@ -923,8 +1400,9 @@ def markdown(payload: Mapping[str, Any]) -> str:
         f"- Top-K risk-qualified rows: `{topk.get('risk_qualified_rows')}`",
         f"- Runtime-blocked candidates: `{topk.get('runtime_blocked_candidate_rows')}`",
         f"- Deployable rows: `{topk.get('deployable_rows')}`",
+        f"- Top-K support overlay: status=`{topk.get('support_context_status')}` / freshness=`{topk.get('support_context_freshness_status')}` / blocking=`{topk.get('support_context_deployment_blocking')}` / reason=`{topk.get('topk_live_truth_overlay_blocker') or topk.get('live_truth_overlay_blocker')}`",
         _nearest_candidate_markdown(topk.get("nearest_candidate") if isinstance(topk.get("nearest_candidate"), dict) else {}),
-        f"- Venue runtime_ready: `{venue.get('runtime_ready')}` / `{venue.get('readiness_state')}`",
+        f"- Venue runtime_ready: `{venue.get('runtime_ready')}` / `{venue.get('readiness_state')}` / artifact=`{venue.get('artifact')}` status=`{venue.get('status')}`",
         "- Allowed today:",
     ]
     for item in payload.get("allowed_today") or []:
@@ -932,6 +1410,26 @@ def markdown(payload: Mapping[str, Any]) -> str:
     lines += ["", "## Not allowed"]
     for item in payload.get("not_allowed") or []:
         lines.append(f"- {item}")
+    next_actions = [item for item in payload.get("next_customer_actions") or [] if isinstance(item, dict)]
+    if next_actions:
+        lines += ["", "## Next customer actions"]
+        for item in next_actions:
+            lines.append(
+                f"- `{item.get('id')}`: surface=`{item.get('surface')}`, mode=`{item.get('mode')}`, "
+                f"live_exposure_allowed=`{item.get('live_exposure_allowed')}`, next={item.get('expected_evidence')}"
+            )
+    blocked_lanes = [item for item in payload.get("blocked_live_lanes") or [] if isinstance(item, dict)]
+    if blocked_lanes:
+        lines += ["", "## Blocked live lanes"]
+        for item in blocked_lanes:
+            blocked_actions = ", ".join(str(action) for action in item.get("blocked_actions") or []) or "—"
+            release = item.get("release_condition") if isinstance(item.get("release_condition"), dict) else {}
+            lines.append(
+                f"- `{item.get('id')}`: blocked_actions=`{blocked_actions}`, gate=`{item.get('blocking_gate')}`, "
+                f"support=`{release.get('support_rows')}/{release.get('minimum_support_rows')}`, "
+                f"breaker_wins=`{release.get('current_recent_window_wins')}/{release.get('required_recent_window_wins')}`, "
+                f"order_submission_enabled=`{item.get('order_submission_enabled')}`"
+            )
     if recent:
         raw_tail = recent.get("tail_streak")
         tail: dict[str, Any] = raw_tail if isinstance(raw_tail, dict) else {}
@@ -1008,6 +1506,7 @@ def main(argv: list[str] | None = None) -> int:
         q15_support_fill_feasibility=payloads["q15_support_fill_feasibility"],
         high_conviction_topk_oos_matrix=payloads["high_conviction_topk_oos_matrix"],
         execution_metadata_smoke=payloads["execution_metadata_smoke"],
+        venue_dry_run_proof=payloads["venue_dry_run_proof"],
         recent_drift_report=payloads["recent_drift_report"],
     )
     write_outputs(proof, args.json_out, args.markdown_out)

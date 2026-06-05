@@ -145,6 +145,8 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 - `/api/trade` blocked response 應提供前端可讀結構：`success=false`、`trade_blocked=true`、`blocked_side`、`reason`、`runtime_blocker`。
 - venue readiness 要分清楚 metadata OK 與 live/canary proof；缺 credential、order ack、fill lifecycle 時不可宣稱 live-ready。
 - `execution/metadata_smoke.py` 與 `/api/status.execution_metadata_smoke` 必須輸出 top-level `runtime_ready / runtime_ready_count / readiness_scope / readiness_state / runtime_ready_blockers`，且每個 venue row 保留 `proof_state / readiness_state / runtime_ready / blockers / operator_next_action / verify_next`；UI badge 只有在 `runtime_ready=true` 且無 blockers 時才能顯示可交易，`all_ok=true` 只能代表 metadata contract OK。
+- `data/venue_dry_run_proof.json` 是 venue dry-run lifecycle proof 的 source artifact；`/api/status.venue_dry_run_proof` 與 `/api/execution/overview.venue_dry_run_proof` 必須 artifact-first 消費同一份 proof，並可用 `scripts/venue_dry_run_api_consistency_probe.py --strict` 驗證 status / overview / artifact 同源、fail-closed、secret-safe。
+- `/api/status.execution_surface_contract.live_canary_policy_gate` 與 `/api/execution/overview.execution_readiness.gates[]` 必須同源顯示 live-canary policy gate；Dashboard / Execution Status / Strategy Lab 這類 status-only summaries 也必須顯示同一 gate 與繁中 blocker copy。`live_canary_policy_gate` 只有在 `execution.mode=live`、`enable_live_trading=true`、`execution.live_canary.enabled=true`、explicit `allowed_symbols` 包含 symbol、symbol-specific `max_base_qty_by_symbol` 已配置且 kill switch 關閉時才可通過。缺 policy 時即使其他 runtime gates 接近完成也仍 fail-closed。
 
 ---
 
@@ -152,7 +154,7 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/status` | current live runtime truth、execution surface contract、metadata smoke；同時提供 high-conviction Top-K shadow-only support truth 與 `range_chop_playbook` |
+| `GET /api/status` | current live runtime truth、execution surface contract、metadata smoke、artifact-first `venue_dry_run_proof`；同時提供 high-conviction Top-K shadow-only support truth、`range_chop_playbook` 與 status-level `live_canary_policy_gate` |
 | `GET /api/predict/confidence` | predictor decision profile |
 | `GET /api/features/coverage` | feature coverage、maturity、source blockers |
 | `GET /api/chart/klines` | K 線與增量補資料 |
@@ -161,7 +163,7 @@ canonical 目標以 spot-long pyramid 的路徑品質為主：
 | `GET /api/strategies/leaderboard` | 策略排行榜 |
 | `GET /api/models/leaderboard` | 模型排行榜；high_conviction_topk.support_context 必須覆蓋較新的 live probe support truth，並保留 support-progress 停滯欄位供 Strategy Lab 顯示 |
 | `POST /api/trade` | manual trade/derisk entry；buy/add exposure 必須讀 current-live blocker |
-| `GET /api/execution/overview` | Execution Console operator summary；selective sleeve 在 Top-K OOS 已過但 live gate 未過時只能顯示影子觀察啟動；高低震盪 / 擁塞只顯示影子觀察 / 減風險劇本 |
+| `GET /api/execution/overview` | Execution Console operator summary；artifact-first 顯示同一份 `venue_dry_run_proof`；`execution_readiness` 顯示 model/support/breaker/venue/live-canary-policy/shadow gates；selective sleeve 在 Top-K OOS 已過但 live gate 未過時只能顯示影子觀察啟動；高低震盪 / 擁塞只顯示影子觀察 / 減風險劇本 |
 | `GET /api/execution/status` | execution diagnostics / readiness detail |
 | `GET /ws/live` | 即時推送 |
 
@@ -182,6 +184,7 @@ UI 原則：
 - current-live blocker 優先於 venue summary。
 - 初次 API sync 不得顯示假 `none/unavailable`；必須顯示同步中。
 - operator-facing copy 需中文化，不直接暴露內部 routing token。
+- Dashboard / Execution Status / Strategy Lab 這類 status-only surfaces 必須顯示 `/api/status.execution_surface_contract.live_canary_policy_gate`，並透過 `web/src/utils/runtimeCopy.ts` 中文化 policy blockers；不可只顯示場館 blockers 或 raw control-plane tokens。
 - support route / governance route / runtime closure summary 需集中透過 `web/src/utils/runtimeCopy.ts` humanize；例如 `insufficient_support_everywhere` 必須顯示為 `所有支持路徑仍不足`，`exact_live_lane_proxy_available` 必須顯示為 `已有精準路徑近似樣本`，避免 control-plane token 外洩到操作員畫面。
 
 ---
@@ -213,10 +216,13 @@ cd web && npm run build
 
 ```bash
 source venv/bin/activate
+python scripts/repo_cleanroom_audit.py --format text
 python -m pytest tests/test_repo_hygiene.py -q
 python -m pytest tests/test_frontend_decision_contract.py -q
 cd web && npm run build
 ```
+
+`repo_cleanroom_audit.py --clean` 是唯一建議的本地 cleanroom 入口；它只刪 root scratch scripts、per-run heartbeat logs、cache、frontend build output 與 CatBoost scratch，保留 venv、DB、model、current-state artifacts。不要用 `git clean -fdX` 當替代品。
 
 ---
 

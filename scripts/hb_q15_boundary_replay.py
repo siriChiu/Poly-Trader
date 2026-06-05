@@ -85,6 +85,10 @@ def _parse_isoish_timestamp(value: Any) -> datetime | None:
     return parsed
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def _probe_current_bucket(probe: dict[str, Any]) -> Any:
     scope_name = probe.get("decision_quality_calibration_scope") or "regime_label+regime_gate+entry_quality_label"
     scope_diag = (probe.get("decision_quality_scope_diagnostics") or {}).get(scope_name) or {}
@@ -134,9 +138,11 @@ def _artifact_context_freshness(
             mismatches.append(f"root_cause_{key}")
 
     probe_ts = _parse_isoish_timestamp(probe.get("feature_timestamp"))
+    support_feature_ts = support_current.get("feature_timestamp") or support_audit.get("feature_timestamp") or support_audit.get("generated_at")
+    root_feature_ts = root_cause.get("feature_timestamp") or root_cause.get("generated_at")
     for name, raw_ts in (
-        ("support_audit_feature_timestamp", support_current.get("feature_timestamp") or support_audit.get("generated_at")),
-        ("root_cause_generated_at", root_cause.get("generated_at")),
+        ("support_audit_feature_timestamp", support_feature_ts),
+        ("root_cause_feature_timestamp", root_feature_ts),
     ):
         artifact_ts = _parse_isoish_timestamp(raw_ts)
         if probe_ts is not None and artifact_ts is not None and abs((probe_ts - artifact_ts).total_seconds()) >= 1:
@@ -146,6 +152,8 @@ def _artifact_context_freshness(
         "verdict": "current_context" if not mismatches else "stale_or_non_current_context",
         "mismatched_fields": sorted(set(mismatches)),
         "latest_live_probe_feature_timestamp": probe.get("feature_timestamp"),
+        "support_audit_feature_timestamp": support_feature_ts,
+        "root_cause_feature_timestamp": root_feature_ts,
         "probe_current_live_structure_bucket": probe_bucket,
         "support_audit_current_live_structure_bucket": support_bucket,
         "root_cause_current_live_structure_bucket": root_bucket,
@@ -338,11 +346,13 @@ def build_report(
     ]
 
     return {
-        "generated_at": probe.get("feature_timestamp") or current_live.get("generated_at"),
+        "generated_at": _utc_now_iso(),
+        "feature_timestamp": probe.get("feature_timestamp") or current_live.get("feature_timestamp") or support_audit.get("feature_timestamp"),
         "target_col": probe.get("target_col") or support_audit.get("target_col") or root_cause.get("target_col"),
         "support_identity": support_identity,
         "artifact_context_freshness": artifact_context_freshness,
         "current_live": {
+            "feature_timestamp": probe.get("feature_timestamp") or current_live.get("feature_timestamp") or support_audit.get("feature_timestamp"),
             "signal": probe.get("signal"),
             "regime_label": probe.get("regime_label"),
             "regime_gate": probe.get("regime_gate"),
@@ -406,6 +416,7 @@ def _markdown(report: dict[str, Any]) -> str:
             "# q15 Boundary Replay",
             "",
             f"- generated_at: **{report.get('generated_at')}**",
+            f"- feature_timestamp: **{report.get('feature_timestamp')}**",
             f"- target_col: **{report.get('target_col')}**",
             f"- verdict: **{report.get('verdict')}**",
             f"- artifact_context_freshness: **{freshness.get('verdict')}** (`{freshness.get('mismatched_fields')}`)",

@@ -1,0 +1,168 @@
+{
+  "artifact_schema_version": 2,
+  "awaiting_label_replay": 0,
+  "can_poll_workers": true,
+  "entries": [
+    {
+      "created_at": "2026-06-03T09:54:57.574909Z",
+      "event_id": 2,
+      "event_type": "paper_shadow_worker_poll",
+      "live_order_submitted": false,
+      "order_submission_enabled": false,
+      "outcome_24h": {
+        "label_timestamp": "2026-06-03T10:00:00Z",
+        "match_delta_minutes": 5.04,
+        "operator_action": "24h shadow outcome 已由 canonical 1440m label resolved；仍只是演練證據，不代表 live-ready。",
+        "pnl_pct": -0.018091377869462327,
+        "proposal_time": "2026-06-03T09:54:57.574909Z",
+        "pyramid_win": false,
+        "quality": -0.4767545334955495,
+        "simulated_pyramid_win": 0,
+        "source": "labels.simulated_pyramid_1440m",
+        "status": "resolved_from_1440m_label",
+        "window_end": "2026-06-04T09:54:57.574909Z",
+        "window_hours": 24
+      },
+      "profile_id": "selective",
+      "proposal": {
+        "allowed_layers": 0,
+        "deployment_blocker": "circuit_breaker_active",
+        "generated_at": "2026-06-03T09:54:57.574909Z",
+        "live_order_submitted": false,
+        "mode": "paper_shadow",
+        "operator_action": "已記錄 paper/shadow worker proposal；current-live guardrail 仍阻塞真實買入 / 加倉。",
+        "order_submission_enabled": false,
+        "profile_id": "selective",
+        "proposal_schema_version": 1,
+        "qty": null,
+        "risk_on_order_enabled": false,
+        "run_id": "25f698d7-1997-4da6-a7d5-2b4170162167",
+        "runtime_closure_state": "circuit_breaker_active",
+        "side": "paper_shadow_decision",
+        "signal": "CIRCUIT_BREAKER",
+        "symbol": "BTCUSDT",
+        "venue": "okx"
+      },
+      "risk_on_order_enabled": false,
+      "run_id": "25f698d7-1997-4da6-a7d5-2b4170162167",
+      "run_label": "高信念精選",
+      "run_state": "running",
+      "strategy_bundle_hash": "fc937519675fa49194374870193cc8436adeb13e4512828ba1368001ebdb779c",
+      "worker_status": "paper_shadow_worker_polled"
+    }
+  ],
+  "generated_at": "2026-06-05T03:46:53.792855Z",
+  "label_source": "labels.simulated_pyramid_1440m",
+  "live_order_submitted": false,
+  "mode": "paper_shadow_outcome_reconciliation",
+  "next_reconcile_at": null,
+  "operator_message": "paper/shadow worker outcome reconciliation 已建立；它只核對演練 proposal 與 24h labels，不送單。",
+  "order_submission_enabled": false,
+  "parity_blocked_events": 0,
+  "pending_hours_remaining_min": null,
+  "pending_outcomes": 0,
+  "poll_blocked_by_pending_outcome": false,
+  "quick_read": {
+    "awaiting_label_replay": 0,
+    "blocked_live_actions": [
+      "live_buy",
+      "live_add",
+      "automation_enable"
+    ],
+    "can_poll_workers": true,
+    "live_order_submitted": false,
+    "next_reconcile_at": null,
+    "operator_message": "這是 paper/shadow rehearsal proof，只證明演練鏈路狀態；不代表可真實下單。",
+    "order_submission_enabled": false,
+    "parity_blocked_events": 0,
+    "pending_hours_remaining_min": null,
+    "pending_outcomes": 0,
+    "poll_blocked_by_pending_outcome": false,
+    "reconciliation_due": false,
+    "rehearsal_status": "resolved_evidence_ready",
+    "resolution_due_count": 0,
+    "resolved_outcomes": 1,
+    "risk_on_order_enabled": false,
+    "status": "recording_with_resolved_outcomes",
+    "worker_poll_events": 1
+  },
+  "reconciliation_due": false,
+  "rehearsal_proof": {
+    "artifact_status": "recording_with_resolved_outcomes",
+    "blocked_live_actions": [
+      "live_buy",
+      "live_add",
+      "automation_enable"
+    ],
+    "can_poll_workers": true,
+    "can_reconcile_outcomes": true,
+    "chain": [
+      {
+        "count": 1,
+        "key": "start_run",
+        "label": "Start paper/shadow run",
+        "status": "complete"
+      },
+      {
+        "count": 1,
+        "key": "worker_poll",
+        "label": "Worker poll proposal",
+        "status": "complete"
+      },
+      {
+        "count": 1,
+        "key": "outcome_reconciliation",
+        "label": "24h outcome reconciliation",
+        "status": "complete"
+      },
+      {
+        "count": 1,
+        "key": "label_resolution",
+        "label": "1440m label resolution",
+        "status": "complete"
+      }
+    ],
+    "latest_run": {
+      "last_event_at": "2026-06-03T09:54:57.574909Z",
+      "last_event_type": "paper_shadow_worker_poll",
+      "profile_id": "selective",
+      "run_id": "25f698d7-1997-4da6-a7d5-2b4170162167",
+      "state": "running",
+      "strategy_bundle_hash": "fc937519675fa49194374870193cc8436adeb13e4512828ba1368001ebdb779c",
+      "worker_status": "paper_shadow_worker_polled"
+    },
+    "live_order_submitted": false,
+    "next_operator_action": "檢視 resolved 24h outcome，將勝負 / pnl / quality 用於 paper/shadow 決策證據；live buy/add 仍保持 fail-closed。",
+    "next_reconcile_at": null,
+    "operator_message": "這是 paper/shadow rehearsal proof，只證明演練鏈路狀態；不代表可真實下單。",
+    "order_submission_enabled": false,
+    "pending_hours_remaining_min": null,
+    "poll_blocked_by_pending_outcome": false,
+    "resolution_due_count": 0,
+    "risk_on_order_enabled": false,
+    "run_counts": {
+      "paused": 0,
+      "running": 1,
+      "stopped": 0,
+      "total": 1
+    },
+    "status": "resolved_evidence_ready"
+  },
+  "rehearsal_status": "resolved_evidence_ready",
+  "resolution_due_count": 0,
+  "resolved_outcomes": 1,
+  "risk_on_order_enabled": false,
+  "source": "execution_run_events.paper_shadow_worker_poll",
+  "status": "recording_with_resolved_outcomes",
+  "summary": {
+    "awaiting_label_replay": 0,
+    "entries": 1,
+    "live_order_submitted": false,
+    "parity_blocked_events": 0,
+    "pending_outcomes": 0,
+    "resolved_outcomes": 1,
+    "worker_poll_events": 1
+  },
+  "window_hours": 24,
+  "worker_poll_events": 1
+}

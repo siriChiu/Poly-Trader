@@ -36,6 +36,7 @@ Q15_SUPPORT_AUDIT_PATH = PROJECT_ROOT / "data" / "q15_support_audit.json"
 Q15_BUCKET_ROOT_CAUSE_PATH = PROJECT_ROOT / "data" / "q15_bucket_root_cause.json"
 Q35_SCALING_AUDIT_PATH = PROJECT_ROOT / "data" / "q35_scaling_audit.json"
 BULL_4H_POCKET_ABLATION_PATH = PROJECT_ROOT / "data" / "bull_4h_pocket_ablation.json"
+CIRCUIT_BREAKER_AUDIT_PATH = PROJECT_ROOT / "data" / "circuit_breaker_audit.json"
 NO_DEPLOY_RUNTIME_CLOSURE_STATES = {
     "circuit_breaker_active",
     "decision_quality_below_trade_floor",
@@ -411,6 +412,44 @@ def _load_q15_support_audit(current_live_structure_bucket: str | None) -> dict |
         and (support_route.get("verdict") is not None or support_progress)
     ):
         return payload
+    return None
+
+
+def _load_circuit_breaker_release_condition() -> dict | None:
+    if not CIRCUIT_BREAKER_AUDIT_PATH.exists():
+        return None
+    try:
+        payload = json.loads(CIRCUIT_BREAKER_AUDIT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    candidates = [
+        payload.get("release_condition"),
+        payload.get("aligned_scope", {}).get("release_condition") if isinstance(payload.get("aligned_scope"), dict) else None,
+        payload.get("canonical_scope"),
+    ]
+    release_keys = {
+        "release_ready",
+        "blocked_by",
+        "streak_release_ready",
+        "recent_win_rate_release_ready",
+        "streak_must_be_below",
+        "current_streak",
+        "recent_window",
+        "recent_win_rate_floor",
+        "recent_win_rate_must_be_at_least",
+        "current_recent_window_win_rate",
+        "current_recent_window_wins",
+        "required_recent_window_wins",
+        "additional_recent_window_wins_needed",
+    }
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        release = {key: candidate.get(key) for key in release_keys if candidate.get(key) is not None}
+        if release.get("release_ready") is not None:
+            return release
     return None
 
 
@@ -1224,6 +1263,11 @@ def _build_probe_payload(
         runtime_result["support_governance_reference_evidence"] = support_governance_reference_evidence
     breaker_release = deployment_blocker_details.get("release_condition") if isinstance(deployment_blocker_details.get("release_condition"), dict) else {}
     breaker_recent_window = deployment_blocker_details.get("recent_window") if isinstance(deployment_blocker_details.get("recent_window"), dict) else {}
+    if not breaker_release:
+        audit_release = _load_circuit_breaker_release_condition()
+        if audit_release:
+            deployment_blocker_details["release_condition"] = audit_release
+            breaker_release = audit_release
     circuit_breaker_release_surface = shared_circuit_breaker_release_surface(runtime_result)
     if circuit_breaker_release_surface:
         runtime_result.update(circuit_breaker_release_surface)

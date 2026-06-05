@@ -2,6 +2,7 @@
  * Dashboard v2.0 — 使用者體驗增強版
  */
 import { useState, useEffect, useCallback } from "react";
+import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import RadarChart from "../components/RadarChart";
 import AdviceCard from "../components/AdviceCard";
 import FeatureChart from "../components/FeatureChart";
@@ -116,6 +117,13 @@ type LiveRuntimeTruth = {
   decision_quality_scope_pathology_summary?: DecisionQualityScopePathologySummary | null;
 };
 
+type LiveCanaryPolicyGate = {
+  status?: string | null;
+  passed?: boolean | null;
+  summary?: string | null;
+  blockers?: string[] | null;
+};
+
 interface RuntimeStatusResponse {
   automation: boolean;
   dry_run: boolean;
@@ -149,6 +157,7 @@ interface RuntimeStatusResponse {
     readiness_scope?: string;
     live_ready?: boolean;
     live_ready_blockers?: string[];
+    live_canary_policy_gate?: LiveCanaryPolicyGate | null;
     operator_message?: string;
     live_runtime_truth?: LiveRuntimeTruth | null;
     recent_canonical_drift?: RecentCanonicalDriftSummary | null;
@@ -703,6 +712,37 @@ interface DashboardScorePoint {
   score?: number | null;
 }
 
+interface CircuitBreakerHistoryPoint {
+  timestamp?: string | null;
+  target?: number | null;
+  label?: string | null;
+  consecutive_loss_streak?: number | null;
+  recent_window_size?: number | null;
+  recent_window_wins?: number | null;
+  recent_window_losses?: number | null;
+  recent_window_win_rate?: number | null;
+  recent_window_win_rate_floor?: number | null;
+  recent_window_wins_required?: number | null;
+  additional_recent_window_wins_needed?: number | null;
+  streak_threshold?: number | null;
+  triggered_by?: string[] | null;
+  circuit_breaker_active?: boolean | null;
+}
+
+interface CircuitBreakerHistoryResponse {
+  status?: string;
+  generated_at?: string;
+  horizon_minutes?: number;
+  window_size?: number;
+  win_rate_floor?: number;
+  streak_threshold?: number;
+  rows_available?: number;
+  visible_limit?: number;
+  points?: CircuitBreakerHistoryPoint[];
+  latest?: CircuitBreakerHistoryPoint | null;
+  error?: string;
+}
+
 interface TradeFeedbackState {
   tone: "success" | "error" | "pending";
   title: string;
@@ -756,6 +796,20 @@ function formatGuardrailValue(value: unknown, digits = 6): string {
 function formatPct(value: number | null | undefined, digits = 1): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
   return `${(value * 100).toFixed(digits)}%`;
+}
+
+function formatChartTimestamp(value: string | null | undefined, index: number): string {
+  if (!value) return `#${index + 1}`;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("zh-TW", { month: "2-digit", day: "2-digit" });
+}
+
+function formatChartTooltipTimestamp(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString("zh-TW");
 }
 
 function formatGuardrailRules(rules: Record<string, unknown> | null | undefined): string[] {
@@ -821,6 +875,7 @@ export default function Dashboard() {
   const { data: confidenceData } = useApi<ConfidenceData>("/api/predict/confidence", 60000);
   const { data: modelStats } = useApi<ModelStats>("/api/model/stats", 60000);
   const { data: runtimeStatus, loading: runtimeStatusLoading, error: runtimeStatusError, refresh: refreshRuntimeStatus } = useApi<RuntimeStatusResponse>("/api/status", 60000);
+  const { data: blockerHistory, loading: blockerHistoryLoading, error: blockerHistoryError } = useApi<CircuitBreakerHistoryResponse>("/api/execution/blocker-history?limit=240", 60000);
 
   // WebSocket
   useEffect(() => {
@@ -981,6 +1036,7 @@ export default function Dashboard() {
     || runtimeStatus
     || confidenceData
     || featureCoverageData
+    || blockerHistory
   );
   const dashboardTransportMode: "live" | "syncing" | "snapshot" | "offline" = wsConnected
     ? "live"
@@ -1061,6 +1117,45 @@ export default function Dashboard() {
     : (typeof breakerRecentWindow?.floor === "number" ? breakerRecentWindow.floor : null);
   const breakerCurrentStreak = typeof breakerRelease?.current_streak === "number" ? breakerRelease.current_streak : null;
   const breakerStreakLimit = typeof breakerRelease?.streak_must_be_below === "number" ? breakerRelease.streak_must_be_below : null;
+  const blockerHistoryLatest = blockerHistory?.latest ?? null;
+  const blockerHistoryWindow = blockerHistory?.window_size ?? breakerWindow ?? 50;
+  const blockerHistoryWinRateFloor = blockerHistory?.win_rate_floor ?? breakerFloor ?? 0.3;
+  const blockerHistoryStreakThreshold = blockerHistory?.streak_threshold ?? breakerStreakLimit ?? 50;
+  const blockerHistoryRows = (blockerHistory?.points ?? []).map((point, index) => ({
+    ...point,
+    index: index + 1,
+    timestamp_label: formatChartTimestamp(point.timestamp, index),
+    tooltip_timestamp: formatChartTooltipTimestamp(point.timestamp),
+    recent_win_rate_pct: typeof point.recent_window_win_rate === "number" ? point.recent_window_win_rate * 100 : null,
+    win_rate_floor_pct: blockerHistoryWinRateFloor * 100,
+    loss_streak: typeof point.consecutive_loss_streak === "number" ? point.consecutive_loss_streak : null,
+    streak_threshold_line: blockerHistoryStreakThreshold,
+    breaker_state: point.circuit_breaker_active ? "active" : "clear",
+  }));
+  const blockerHistoryLatestWinRate = typeof blockerHistoryLatest?.recent_window_win_rate === "number"
+    ? blockerHistoryLatest.recent_window_win_rate
+    : breakerRecentWinRate;
+  const blockerHistoryLatestStreak = typeof blockerHistoryLatest?.consecutive_loss_streak === "number"
+    ? blockerHistoryLatest.consecutive_loss_streak
+    : breakerCurrentStreak;
+  const blockerHistoryLatestWins = typeof blockerHistoryLatest?.recent_window_wins === "number"
+    ? blockerHistoryLatest.recent_window_wins
+    : breakerWins;
+  const blockerHistoryLatestWinsGap = typeof blockerHistoryLatest?.additional_recent_window_wins_needed === "number"
+    ? blockerHistoryLatest.additional_recent_window_wins_needed
+    : breakerWinsGap;
+  const blockerHistoryLatestTriggeredBy = Array.isArray(blockerHistoryLatest?.triggered_by)
+    ? blockerHistoryLatest.triggered_by
+    : [];
+  const blockerHistorySummary = blockerHistoryLoading && !blockerHistory
+    ? "正在同步熔斷歷史序列…"
+    : blockerHistoryError
+      ? `歷史序列載入失敗：${blockerHistoryError}`
+      : blockerHistory?.status === "error"
+        ? `歷史序列建立失敗：${blockerHistory.error || "unknown"}`
+        : blockerHistoryRows.length > 0
+          ? `最新：連續虧損 ${blockerHistoryLatestStreak ?? "—"}/${blockerHistoryStreakThreshold}，最近 ${blockerHistoryWindow} 筆勝率 ${formatPct(blockerHistoryLatestWinRate)} / 門檻 ${formatPct(blockerHistoryWinRateFloor)}，勝場 ${blockerHistoryLatestWins ?? "—"}/${blockerHistoryWindow}，至少還差 ${blockerHistoryLatestWinsGap ?? "—"} 勝。`
+          : "尚未取得 canonical 1440m label 歷史，無法畫出熔斷循環。";
   const liveRuntimeSupportAlignmentTone = liveRuntimeTruth?.support_alignment_status?.includes("under_minimum")
     ? "text-amber-200"
     : liveRuntimeTruth?.support_alignment_status === "runtime_ahead_of_calibration"
@@ -1089,6 +1184,20 @@ export default function Dashboard() {
   const dashboardVenueBlockersLabel = runtimeStatusPending
     ? "同步中"
     : (dashboardVenueBlockers.length > 0 ? dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ") : "目前沒有額外場館阻塞");
+  const dashboardLiveCanaryPolicyGate = executionSurfaceContract?.live_canary_policy_gate ?? null;
+  const dashboardLiveCanaryPolicyBlockers = Array.isArray(dashboardLiveCanaryPolicyGate?.blockers)
+    ? dashboardLiveCanaryPolicyGate.blockers
+    : [];
+  const dashboardLiveCanaryPolicyGateLabel = runtimeStatusPending
+    ? "同步中"
+    : (dashboardLiveCanaryPolicyGate?.passed ? "已通過" : "未通過");
+  const dashboardLiveCanaryPolicyDetailLabel = runtimeStatusPending
+    ? "正在同步 bounded live-canary policy。"
+    : dashboardLiveCanaryPolicyGate?.passed
+      ? "mode / live flag / allowlist / symbol cap / kill switch 已符合；仍需 runtime gates 全過。"
+      : (dashboardLiveCanaryPolicyBlockers.length > 0
+        ? dashboardLiveCanaryPolicyBlockers.map((item) => humanizeExecutionReason(item)).join(" · ")
+        : "缺少 bounded live-canary policy gate；不可升級 canary。");
   const dashboardSupportRouteVerdictLabel = runtimeStatusPending
     ? "同步中"
     : humanizeSupportRouteLabel(liveRuntimeTruth?.support_route_verdict || null);
@@ -1379,6 +1488,7 @@ export default function Dashboard() {
               <div>目前阻塞點 {dashboardCurrentLiveBlockerLabel} · {dashboardPrimaryRuntimeMessageLabel}</div>
               <div className="opacity-70">當前分桶 {dashboardSupportRowsLabel} · 缺口 {dashboardSupportGapLabel} · 支持路徑 {dashboardSupportRouteVerdictLabel} · 治理路徑 {dashboardSupportGovernanceRouteLabel}</div>
               <div className="opacity-70">場館阻塞 {dashboardVenueBlockersLabel}</div>
+              <div className="opacity-70">Canary policy {dashboardLiveCanaryPolicyGateLabel} · {dashboardLiveCanaryPolicyDetailLabel}</div>
             </>
           )}
           extra={<VenueReadinessSummary venues={venueChecks} className="mt-2" compact />}
@@ -1407,6 +1517,115 @@ export default function Dashboard() {
           detail={reconciliationSummaryLabel}
         />
       </ExecutionWorkspaceSummary>
+
+      <div className="rounded-xl border border-amber-700/40 bg-slate-950/30 px-4 py-3 text-xs text-slate-200">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <div className="font-semibold text-amber-100">🔁 current_live_deployment_blocker 循環監控</div>
+            <div className="mt-1 leading-5 text-slate-300">{blockerHistorySummary}</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+            <span>資料列 {blockerHistory?.rows_available ?? "—"}</span>
+            <span>視窗 {blockerHistoryWindow}</span>
+            <span>horizon {blockerHistory?.horizon_minutes ?? 1440}m</span>
+            {blockerHistoryLatestTriggeredBy.length > 0 && (
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-amber-100">
+                active: {blockerHistoryLatestTriggeredBy.join(" + ")}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="mt-2 text-[11px] leading-5 text-slate-400">
+          橘線＝最近 {blockerHistoryWindow} 筆勝率；紅線＝連續虧損筆數。若紅線維持高檔且橘線貼近 0%，代表 blocker 不是 UI 循環，而是 label tail 仍持續落在熔斷區。
+        </div>
+        {blockerHistoryRows.length > 0 ? (
+          <div className="mt-3 h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={blockerHistoryRows} margin={{ top: 10, right: 28, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.15)" />
+                <XAxis
+                  dataKey="timestamp_label"
+                  minTickGap={28}
+                  tick={{ fill: "#94a3b8", fontSize: 10 }}
+                  tickLine={{ stroke: "#334155" }}
+                  axisLine={{ stroke: "#334155" }}
+                />
+                <YAxis
+                  yAxisId="winRate"
+                  domain={[0, 100]}
+                  tickFormatter={(value: number) => `${value.toFixed(0)}%`}
+                  tick={{ fill: "#fbbf24", fontSize: 10 }}
+                  tickLine={{ stroke: "#334155" }}
+                  axisLine={{ stroke: "#334155" }}
+                />
+                <YAxis
+                  yAxisId="streak"
+                  orientation="right"
+                  domain={[0, "dataMax + 10"]}
+                  tick={{ fill: "#f87171", fontSize: 10 }}
+                  tickLine={{ stroke: "#334155" }}
+                  axisLine={{ stroke: "#334155" }}
+                />
+                <Tooltip
+                  contentStyle={{ background: "#020617", border: "1px solid rgba(148, 163, 184, 0.35)", borderRadius: 12, color: "#e2e8f0" }}
+                  labelFormatter={(_label: unknown, payload: any[]) => {
+                    const row = Array.isArray(payload) && payload[0]?.payload ? payload[0].payload : null;
+                    return row?.tooltip_timestamp || "—";
+                  }}
+                  formatter={(value: unknown, name: unknown) => {
+                    const numeric = Number(value);
+                    const label = String(name || "");
+                    if (!Number.isFinite(numeric)) return ["—", label];
+                    if (label.includes("勝率")) return [`${numeric.toFixed(1)}%`, label];
+                    return [numeric.toFixed(0), label];
+                  }}
+                />
+                <Legend wrapperStyle={{ color: "#cbd5e1", fontSize: 11 }} />
+                <ReferenceLine
+                  yAxisId="winRate"
+                  y={blockerHistoryWinRateFloor * 100}
+                  stroke="#f59e0b"
+                  strokeDasharray="4 4"
+                  label={{ value: `勝率門檻 ${(blockerHistoryWinRateFloor * 100).toFixed(0)}%`, fill: "#fbbf24", fontSize: 10 }}
+                />
+                <ReferenceLine
+                  yAxisId="streak"
+                  y={blockerHistoryStreakThreshold}
+                  stroke="#ef4444"
+                  strokeDasharray="4 4"
+                  label={{ value: `連虧門檻 ${blockerHistoryStreakThreshold}`, fill: "#fca5a5", fontSize: 10, position: "right" }}
+                />
+                <Line
+                  yAxisId="winRate"
+                  type="monotone"
+                  dataKey="recent_win_rate_pct"
+                  name={`最近 ${blockerHistoryWindow} 筆勝率`}
+                  stroke="#fbbf24"
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+                <Line
+                  yAxisId="streak"
+                  type="monotone"
+                  dataKey="loss_streak"
+                  name="連續虧損筆數"
+                  stroke="#f87171"
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="mt-3 rounded-lg border border-slate-700/50 bg-slate-900/50 px-3 py-6 text-center text-slate-500">
+            {blockerHistoryLoading ? "正在載入 line plot…" : "沒有可畫出的 blocker 歷史點。"}
+          </div>
+        )}
+      </div>
 
       <div className={`rounded-xl border px-4 py-3 text-xs ${continuityTone}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">

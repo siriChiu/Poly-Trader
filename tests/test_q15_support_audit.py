@@ -260,6 +260,13 @@ def test_build_report_emits_active_repair_plan_for_stalled_q15_support(monkeypat
     assert repair["current_rows"] == 4
     assert repair["gap_to_minimum"] == 46
     assert repair["stagnant_run_count"] == 3
+    branch = report["forced_branch_decision"]
+    assert branch["status"] == "forced_action_required"
+    assert branch["selected_branch"] == "exact_bucket_row_harvest_proof"
+    assert branch["live_exposure_allowed"] is False
+    branch_statuses = {item["id"]: item["status"] for item in branch["branch_matrix"]}
+    assert branch_statuses["exact_bucket_row_harvest_proof"] == "blocked_no_positive_delta"
+    assert branch_statuses["hard_no_go_single_failed_gate"] == "available"
     assert {action["id"] for action in repair["actions"]} >= {
         "collect_exact_current_bucket_rows",
         "force_q15_support_audit_refresh",
@@ -268,9 +275,311 @@ def test_build_report_emits_active_repair_plan_for_stalled_q15_support(monkeypat
     markdown = q15_support_audit._markdown(report)
     assert "## Active repair plan" in markdown
     assert "## Equilibrium deadlock assessment" in markdown
+    assert "## Forced branch decision" in markdown
     assert "equilibrium_deadlock_confirmed" in markdown
     assert "live_exposure_allowed: **False**" in markdown
 
+
+def test_build_report_keeps_current_live_deadlock_when_not_q15_lane(monkeypatch):
+    bucket = "BLOCK|bias200_below_min|q00"
+    identity = _support_identity(
+        bucket,
+        regime_label="bear",
+        regime_gate="BLOCK",
+        entry_quality_label="C",
+        calibration_window=200,
+    )
+
+    def fake_history(*, current_entry, data_dir=None):
+        base = {k: v for k, v in current_entry.items() if k != "observed_at"}
+        return [
+            base,
+            {
+                **base,
+                "heartbeat": "adhoc_previous",
+                "timestamp": "2026-06-04T04:00:00+00:00",
+                "live_current_structure_bucket_rows": 0,
+                "support_identity": identity,
+            },
+            {
+                **base,
+                "heartbeat": "adhoc_older",
+                "timestamp": "2026-06-04T03:00:00+00:00",
+                "live_current_structure_bucket_rows": 0,
+                "support_identity": identity,
+            },
+        ]
+
+    monkeypatch.setattr(q15_support_audit, "_load_recent_q15_support_history", fake_history)
+
+    probe = {
+        "feature_timestamp": "2026-06-04 05:00:00",
+        "target_col": "simulated_pyramid_win",
+        "signal": "CIRCUIT_BREAKER",
+        "regime_label": "bear",
+        "regime_gate": "BLOCK",
+        "entry_quality": 0.5513,
+        "entry_quality_label": "C",
+        "decision_quality_label": "D",
+        "decision_quality_horizon_minutes": 1440,
+        "decision_quality_calibration_window": 200,
+        "allowed_layers": 0,
+        "allowed_layers_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
+        "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
+        "decision_quality_scope_diagnostics": {
+            "regime_label+regime_gate+entry_quality_label": {
+                "current_live_structure_bucket": bucket,
+                "current_live_structure_bucket_rows": 0,
+            }
+        },
+    }
+    drilldown = {
+        "component_gap_attribution": {
+            "trade_floor": 0.55,
+            "entry_quality": 0.5513,
+            "remaining_gap_to_floor": 0.0,
+        }
+    }
+    bull_pocket = {
+        "target_col": "simulated_pyramid_win",
+        "support_pathology_summary": {
+            "minimum_support_rows": 50,
+            "exact_bucket_root_cause": "same_lane_shifted_to_neighbor_bucket",
+            "preferred_support_cohort": "exact_live_lane_proxy",
+            "recommended_action": "current-live exact support 不足，維持 fail-closed。",
+        },
+    }
+    leaderboard_probe = {
+        "alignment": {
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "bull_exact_live_bucket_proxy_rows": 0,
+            "bull_exact_live_lane_proxy_rows": 10,
+            "bull_support_neighbor_rows": 0,
+        }
+    }
+
+    report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
+
+    assert report["scope_applicability"]["status"] == "current_live_not_q15_lane"
+    assert report["support_route"]["support_progress"]["equilibrium_deadlock"]["confirmed"] is True
+    assert report["equilibrium_deadlock"]["verdict"] == "equilibrium_deadlock_confirmed"
+    assert report["active_repair_plan"]["phase"] == "equilibrium_deadlock_escape"
+    assert report["active_repair_plan"]["forced_research_action_required"] is True
+    branch = report["forced_branch_decision"]
+    assert branch["status"] == "hard_no_go_recorded"
+    assert branch["selected_branch"] == "hard_no_go_single_failed_gate"
+    assert branch["equilibrium_deadlock_confirmed"] is True
+    assert branch["forced_research_action_required"] is True
+    assert report["next_action"].startswith("直接判定 current-live exact-support gate")
+
+
+def test_forced_branch_decision_records_circuit_breaker_single_gate_no_go():
+    decision = q15_support_audit._forced_branch_decision(
+        current_live={
+            "signal": "CIRCUIT_BREAKER",
+            "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
+        },
+        support_route={"deployable": False},
+        support_progress={
+            "current_rows": 6,
+            "minimum_support_rows": 50,
+            "delta_vs_previous": 0,
+        },
+        equilibrium_deadlock={
+            "confirmed": True,
+            "forced_research_action_artifact": {
+                "required": True,
+                "forbidden_shortcuts": [
+                    "enable_live_buy_or_add_before_exact_support_and_venue_lifecycle_proof"
+                ],
+            },
+        },
+        forced_deadlock_artifact={
+            "required": True,
+            "forbidden_shortcuts": [
+                "enable_live_buy_or_add_before_exact_support_and_venue_lifecycle_proof"
+            ],
+        },
+        gap_to_minimum=44,
+        current_rows=6,
+        minimum_rows=50,
+        semantic_signature_delta=0,
+        semantic_signature_stagnant=3,
+    )
+
+    assert decision["status"] == "hard_no_go_recorded"
+    assert decision["selected_branch"] == "hard_no_go_single_failed_gate"
+    assert decision["single_failed_gate"] == "circuit_breaker_gate"
+    assert decision["next_validation_artifact"] == "data/circuit_breaker_audit.json"
+    assert decision["live_exposure_allowed"] is False
+    assert decision["shadow_or_paper_allowed"] is True
+    statuses = {item["id"]: item["status"] for item in decision["branch_matrix"]}
+    assert statuses["hard_no_go_single_failed_gate"] == "selected"
+    assert statuses["exact_bucket_row_harvest_proof"] == "blocked_no_positive_delta"
+
+
+def test_forced_branch_decision_marks_drift_rebaseline_artifact_delivered_reference_only():
+    decision = q15_support_audit._forced_branch_decision(
+        current_live={
+            "signal": "HOLD",
+            "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+        },
+        support_route={"deployable": False},
+        support_progress={
+            "current_rows": 0,
+            "minimum_support_rows": 50,
+            "delta_vs_previous": 0,
+        },
+        equilibrium_deadlock={
+            "confirmed": False,
+            "forced_research_action_artifact": {
+                "required": True,
+                "forbidden_shortcuts": [
+                    "enable_live_buy_or_add_before_exact_support_and_venue_lifecycle_proof"
+                ],
+            },
+        },
+        forced_deadlock_artifact={
+            "required": True,
+            "forbidden_shortcuts": [
+                "enable_live_buy_or_add_before_exact_support_and_venue_lifecycle_proof"
+            ],
+        },
+        drift_rebaseline_artifact={
+            "artifact": "q15_drift_rebaseline_backtest",
+            "generated_at": "2026-06-05T02:00:00Z",
+            "verdict": {
+                "status": "reference_candidate_found_but_current_window_unproven",
+                "selected_candidate_id": "semantic_entry_quality_family",
+                "selected_current_window_rows": 0,
+                "selected_all_history_rows": 93,
+                "deployable": False,
+            },
+        },
+        gap_to_minimum=50,
+        current_rows=0,
+        minimum_rows=50,
+        semantic_signature_delta=0,
+        semantic_signature_stagnant=2,
+    )
+
+    statuses = {item["id"]: item for item in decision["branch_matrix"]}
+    drift_branch = statuses["drift_rebaseline_backtest"]
+    assert drift_branch["status"] == "delivered_reference_only"
+    assert drift_branch["artifact_verdict"] == "reference_candidate_found_but_current_window_unproven"
+    assert drift_branch["selected_candidate_id"] == "semantic_entry_quality_family"
+    assert drift_branch["selected_current_window_rows"] == 0
+    assert drift_branch["selected_all_history_rows"] == 93
+    assert drift_branch["deployable"] is False
+    assert drift_branch["live_exposure_allowed"] is False
+
+
+def test_forced_branch_decision_marks_map_signal_artifact_delivered_no_current_window_deployable():
+    decision = q15_support_audit._forced_branch_decision(
+        current_live={
+            "signal": "HOLD",
+            "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
+        },
+        support_route={"deployable": False},
+        support_progress={
+            "current_rows": 0,
+            "minimum_support_rows": 50,
+            "delta_vs_previous": 0,
+        },
+        equilibrium_deadlock={
+            "confirmed": True,
+            "forced_research_action_artifact": {"required": True},
+        },
+        forced_deadlock_artifact={"required": True},
+        map_signal_redesign_artifact={
+            "artifact": "q15_map_signal_redesign_proof",
+            "generated_at": "2026-06-05T02:30:00Z",
+            "verdict": {
+                "status": "map_signal_redesign_reference_only_current_window_rejected",
+                "selected_candidate_id": "dominant_neighbor_exact_lane",
+                "selected_target_bucket": "BLOCK|bear_bias200_hard_block|q00",
+                "selected_current_window_rows": 14,
+                "selected_all_history_rows": 87,
+                "best_reference_candidate_id": "best_historical_exact_lane_bucket",
+                "primary_failed_gate": "current_window_metric_gate",
+                "deployable": False,
+            },
+        },
+        gap_to_minimum=50,
+        current_rows=0,
+        minimum_rows=50,
+        semantic_signature_delta=0,
+        semantic_signature_stagnant=3,
+    )
+
+    statuses = {item["id"]: item for item in decision["branch_matrix"]}
+    map_branch = statuses["map_signal_redesign_proof"]
+    assert map_branch["status"] == "delivered_no_current_window_deployable"
+    assert map_branch["artifact_verdict"] == "map_signal_redesign_reference_only_current_window_rejected"
+    assert map_branch["selected_candidate_id"] == "dominant_neighbor_exact_lane"
+    assert map_branch["selected_target_bucket"] == "BLOCK|bear_bias200_hard_block|q00"
+    assert map_branch["selected_current_window_rows"] == 14
+    assert map_branch["selected_all_history_rows"] == 87
+    assert map_branch["best_reference_candidate_id"] == "best_historical_exact_lane_bucket"
+    assert map_branch["primary_failed_gate"] == "current_window_metric_gate"
+    assert map_branch["deployable"] is False
+    assert map_branch["live_exposure_allowed"] is False
+
+
+def test_forced_branch_decision_marks_exact_row_harvest_positive_delta_artifact():
+    decision = q15_support_audit._forced_branch_decision(
+        current_live={
+            "signal": "HOLD",
+            "execution_guardrail_reason": "under_minimum_exact_live_structure_bucket",
+        },
+        support_route={"deployable": False},
+        support_progress={
+            "current_rows": 19,
+            "previous_rows": 0,
+            "minimum_support_rows": 50,
+            "delta_vs_previous": 19,
+        },
+        equilibrium_deadlock={
+            "confirmed": False,
+            "forced_research_action_artifact": {"required": True},
+        },
+        forced_deadlock_artifact={"required": True},
+        exact_row_harvest_artifact={
+            "artifact": "q15_exact_bucket_row_harvest_proof",
+            "generated_at": "2026-06-05T03:00:00Z",
+            "verdict": {
+                "status": "exact_bucket_row_harvest_positive_delta_under_minimum",
+                "current_exact_bucket_rows": 19,
+                "previous_rows": 0,
+                "minimum_support_rows": 50,
+                "rows_needed_to_minimum": 31,
+                "delta_vs_previous": 19,
+                "semantic_signature_delta_vs_previous": 18,
+                "semantic_signature_stagnant_run_count": 0,
+                "support_gate_ready": False,
+                "primary_failed_gate": "current_live_support_gate",
+                "live_exposure_allowed": False,
+            },
+        },
+        gap_to_minimum=31,
+        current_rows=19,
+        minimum_rows=50,
+        semantic_signature_delta=18,
+        semantic_signature_stagnant=0,
+    )
+
+    statuses = {item["id"]: item for item in decision["branch_matrix"]}
+    exact_branch = statuses["exact_bucket_row_harvest_proof"]
+    assert exact_branch["status"] == "delivered_positive_delta_under_minimum"
+    assert exact_branch["next_artifact"] == "data/q15_exact_bucket_row_harvest_proof.json"
+    assert exact_branch["artifact_verdict"] == "exact_bucket_row_harvest_positive_delta_under_minimum"
+    assert exact_branch["current_rows"] == 19
+    assert exact_branch["previous_rows"] == 0
+    assert exact_branch["rows_needed"] == 31
+    assert exact_branch["delta_vs_previous"] == 19
+    assert exact_branch["support_gate_ready"] is False
+    assert exact_branch["primary_failed_gate"] == "current_live_support_gate"
+    assert exact_branch["live_exposure_allowed"] is False
 
 
 def test_summarize_support_progress_treats_legacy_supported_anchor_as_reference_only(tmp_path):
@@ -889,7 +1198,7 @@ def test_build_report_combines_support_route_and_floor_cross_legality(monkeypatc
     assert report["floor_cross_legality"]["best_single_component"] == "feat_4h_bias50"
 
 
-def test_build_report_prefers_probe_live_bucket_over_stale_bull_pocket_context():
+def test_build_report_prefers_probe_live_bucket_over_stale_bull_pocket_context(monkeypatch):
     probe = {
         "feature_timestamp": "2026-04-15 15:48:14",
         "target_col": "simulated_pyramid_win",
@@ -949,8 +1258,12 @@ def test_build_report_prefers_probe_live_bucket_over_stale_bull_pocket_context()
         }
     }
 
+    monkeypatch.setattr(q15_support_audit, "_utc_now_iso", lambda: "2026-06-03T12:00:00Z")
+
     report = q15_support_audit.build_report(probe, drilldown, bull_pocket, leaderboard_probe)
 
+    assert report["generated_at"] == "2026-06-03T12:00:00Z"
+    assert report["feature_timestamp"] == "2026-04-15 15:48:14"
     assert report["current_live"]["feature_timestamp"] == "2026-04-15 15:48:14"
     assert report["current_live"]["current_live_structure_bucket"] == "CAUTION|structure_quality_caution|q15"
     assert report["current_live"]["current_live_structure_bucket_rows"] == 0
@@ -1524,7 +1837,13 @@ def test_build_report_falls_back_to_probe_exact_lane_bucket_diagnostics_for_q15_
     assert report["component_experiment"]["positive_discrimination_evidence"]["comparisons"][0]["bucket"] == "CAUTION|structure_quality_caution|q35"
 
 
-def test_build_report_marks_non_q15_current_live_support_missing_as_reference_only():
+def test_build_report_marks_non_q15_current_live_support_missing_as_reference_only(monkeypatch):
+    monkeypatch.setattr(
+        q15_support_audit,
+        "_load_recent_q15_support_history",
+        lambda *, current_entry, data_dir=None: [current_entry],
+    )
+
     probe = {
         "feature_timestamp": "2026-04-29 15:11:29.486209",
         "target_col": "simulated_pyramid_win",

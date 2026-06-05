@@ -26,6 +26,28 @@ def test_compute_missing_range_flags_older_history_gap():
     assert plan["requested_days"] > 700
 
 
+def test_compute_missing_range_flags_newer_history_gap():
+    coverage = {
+        "raw": {"start": "2024-04-16T00:00:00Z", "end": "2026-05-28T08:00:00Z", "count": 10},
+        "features": {"start": "2024-04-16T00:00:00Z", "end": "2026-05-28T08:00:00Z", "count": 9},
+        "labels": {"start": "2024-04-16T00:00:00Z", "end": "2026-05-28T08:00:00Z", "count": 8},
+    }
+
+    plan = backfill_backtest_range.compute_missing_range(
+        coverage,
+        target_start="2024-05-29T00:00:00Z",
+        target_end="2026-05-29T00:00:00Z",
+    )
+
+    assert plan["needs_backfill"] is True
+    assert plan["missing_raw_start"] is False
+    assert plan["missing_feature_start"] is False
+    assert plan["missing_label_start"] is False
+    assert plan["missing_raw_end"] is True
+    assert plan["missing_feature_end"] is True
+    assert plan["missing_label_end"] is True
+
+
 def test_run_backfill_pipeline_dry_run_reports_plan_only(monkeypatch):
     monkeypatch.setattr(
         backfill_backtest_range,
@@ -50,6 +72,67 @@ def test_run_backfill_pipeline_dry_run_reports_plan_only(monkeypatch):
     assert result["actions"]["raw_rows_inserted"] == 0
     assert result["actions"]["feature_rows_inserted"] == 0
     assert result["actions"]["labels_saved"] == 0
+
+
+def test_run_backfill_pipeline_apply_executes_newer_gap_steps(monkeypatch):
+    calls = {"fetch": 0, "feature": 0, "4h": 0, "label": 0, "save": 0}
+
+    monkeypatch.setattr(
+        backfill_backtest_range,
+        "collect_coverage",
+        lambda session, symbol="BTCUSDT", horizon_hours=24: {
+            "raw": {"start": "2024-04-16T00:00:00Z", "end": "2026-05-28T08:00:00Z", "count": 10},
+            "features": {"start": "2024-04-16T00:00:00Z", "end": "2026-05-28T08:00:00Z", "count": 9},
+            "labels": {"start": "2024-04-16T00:00:00Z", "end": "2026-05-28T08:00:00Z", "count": 8},
+        },
+    )
+    monkeypatch.setattr(
+        backfill_backtest_range,
+        "fetch_and_store_raw_history",
+        lambda session, symbol, days: calls.__setitem__("fetch", calls["fetch"] + 1) or 12,
+    )
+    monkeypatch.setattr(
+        backfill_backtest_range,
+        "backfill_missing_feature_rows",
+        lambda session, symbol="BTCUSDT", lookback_days=None: calls.__setitem__("feature", calls["feature"] + 1) or 10,
+    )
+    monkeypatch.setattr(
+        backfill_backtest_range.backfill_4h_distance_module,
+        "main",
+        lambda: calls.__setitem__("4h", calls["4h"] + 1) or 0,
+    )
+
+    class DummyLabels:
+        empty = False
+        def __len__(self):
+            return 11
+
+    monkeypatch.setattr(
+        backfill_backtest_range,
+        "generate_future_return_labels",
+        lambda session, symbol="BTCUSDT", horizon_hours=24: calls.__setitem__("label", calls["label"] + 1) or DummyLabels(),
+    )
+    monkeypatch.setattr(
+        backfill_backtest_range,
+        "save_labels_to_db",
+        lambda session, labels_df, symbol="BTCUSDT", horizon_hours=24, force_update_all=False: calls.__setitem__("save", calls["save"] + 1),
+    )
+
+    result = backfill_backtest_range.run_backfill_pipeline(
+        session=None,
+        symbol="BTCUSDT",
+        target_start="2024-05-29T00:00:00Z",
+        target_end="2026-05-29T00:00:00Z",
+        apply_changes=True,
+    )
+
+    assert result["dry_run"] is False
+    assert result["plan"]["missing_raw_end"] is True
+    assert result["actions"]["raw_rows_inserted"] == 12
+    assert result["actions"]["feature_rows_inserted"] == 10
+    assert result["actions"]["four_h_distance_refreshed"] is True
+    assert result["actions"]["labels_saved"] == 11
+    assert calls == {"fetch": 1, "feature": 1, "4h": 1, "label": 1, "save": 1}
 
 
 def test_run_backfill_pipeline_apply_executes_fetch_feature_and_label_steps(monkeypatch):

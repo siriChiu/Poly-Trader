@@ -87,6 +87,9 @@ blocked live trading
     - `data/live_predict_probe.json`
     - `data/high_conviction_topk_oos_matrix.json`
     - `data/execution_metadata_smoke.json`
+    - `data/venue_dry_run_proof.json`
+    - `data/customer_safe_alternative_proof.json`
+    - `data/paper_shadow_outcome_reconciliation.json`
     - `data/recent_drift_report.json`
 
 Engineering heartbeat material is mandatory evidence, but it is **not** PM authority. The PM heartbeat must include one counterfactual: “if this engineering proof path takes weeks/months or never moves, what alternative solution should the customer start evaluating now?” It must also include one anti-equilibrium challenge: “what would make this PM conclusion wrong, too slow, or captured by the existing framework?”

@@ -3,11 +3,14 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from fastapi import HTTPException
 from sqlalchemy import text
+
+from execution.strategy_bundle import build_strategy_bundle, bundle_summary, persist_strategy_bundle
 
 CONTROL_MODE = "stateful_run_control_beta"
 RUNTIME_BINDING_STATUS = "control_plane_only"
@@ -21,6 +24,12 @@ CONTROL_PLANE_UPGRADE_PREREQUISITE = (
     "下一步必須把每個 Bot 的資金 / 持倉 / 委託歸因綁到各自運行，"
     "否則這仍只是可持久化的運行控制測試版，不是完整的 Bot 執行期。"
 )
+WORKER_POLL_EVENT_TYPE = "paper_shadow_worker_poll"
+WORKER_PARITY_BLOCKED_EVENT_TYPE = "worker_bundle_parity_blocked"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PAPER_SHADOW_OUTCOME_ARTIFACT_PATH = PROJECT_ROOT / "data" / "paper_shadow_outcome_reconciliation.json"
+PAPER_SHADOW_OUTCOME_WINDOW_HOURS = 24
+PAPER_SHADOW_LABEL_MATCH_TOLERANCE_HOURS = 6
 
 PRIMARY_SLEEVE_ORDER = ("trend", "pullback", "rebound", "selective")
 PRIMARY_SLEEVE_META: Dict[str, Dict[str, str]] = {
@@ -97,6 +106,11 @@ _SCHEMA_STATEMENTS = (
         strategy_source TEXT,
         strategy_hash TEXT,
         strategy_snapshot_json TEXT,
+        strategy_bundle_hash TEXT,
+        strategy_bundle_path TEXT,
+        strategy_bundle_status TEXT,
+        worker_status TEXT,
+        worker_control_json TEXT,
         last_event_type TEXT,
         last_event_message TEXT,
         last_event_at TEXT,
@@ -123,6 +137,28 @@ _SCHEMA_STATEMENTS = (
 
 def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+
+def _parse_datetime(value: Any) -> Optional[datetime]:
+    if isinstance(value, datetime):
+        parsed = value
+    elif value is None:
+        return None
+    else:
+        text_value = str(value).strip()
+        if not text_value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(text_value.replace("Z", "+00:00"))
+        except ValueError:
+            try:
+                parsed = datetime.strptime(text_value.split(".")[0], "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 
@@ -280,6 +316,182 @@ def _compact_strategy_binding(entry: Dict[str, Any], sleeve_key: str) -> Dict[st
     )
     compact["operator_action"] = "可直接沿用這份已儲存策略快照；若要改參數，請先回 Strategy Lab 另存新版本。"
     return compact
+
+
+
+def _strategy_entry_for_binding(strategy_binding: Optional[Dict[str, Any]], sleeve_key: str) -> Optional[Dict[str, Any]]:
+    if not isinstance(strategy_binding, dict):
+        return None
+    if str(strategy_binding.get("strategy_source") or "") == "high_conviction_topk_shadow":
+        return _synthetic_shadow_strategy_entry(strategy_binding, sleeve_key)
+    target_hash = str(strategy_binding.get("strategy_hash") or "").strip()
+    target_slug = str(strategy_binding.get("strategy_slug") or "").strip()
+    target_name = str(strategy_binding.get("strategy_name") or "").strip()
+    if not any([target_hash, target_slug, target_name]):
+        return None
+    try:
+        from backtesting.strategy_lab import load_all_strategies
+
+        strategies = load_all_strategies(include_internal=False)
+    except Exception:
+        return None
+
+    fallback: Optional[Dict[str, Any]] = None
+    for entry in strategies:
+        if not isinstance(entry, dict):
+            continue
+        metadata = _strategy_metadata(entry)
+        entry_sleeve = str(metadata.get("primary_sleeve_key") or sleeve_key or "").strip() or sleeve_key
+        compact = _compact_strategy_binding(entry, entry_sleeve)
+        if target_hash and compact.get("strategy_hash") == target_hash:
+            return entry
+        if target_slug and str(entry.get("slug") or "") == target_slug:
+            fallback = entry
+        elif target_name and str(entry.get("name") or "") == target_name and fallback is None:
+            fallback = entry
+    return fallback
+
+
+
+def _shadow_strategy_binding_from_control_contract(profile_id: str, control_contract: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if profile_id != "selective":
+        return None
+    high_conviction_topk = _as_dict(control_contract.get("high_conviction_topk"))
+    if not high_conviction_topk:
+        return None
+    candidate_rows = high_conviction_topk.get("nearest_deployable_rows")
+    candidate = candidate_rows[0] if isinstance(candidate_rows, list) and candidate_rows and isinstance(candidate_rows[0], dict) else {}
+    support_context = _as_dict(high_conviction_topk.get("support_context"))
+    model_name = (
+        candidate.get("model_name")
+        or candidate.get("model")
+        or candidate.get("candidate_model")
+        or "high_conviction_topk"
+    )
+    threshold_name = (
+        candidate.get("threshold_name")
+        or candidate.get("top_k")
+        or candidate.get("candidate_threshold")
+        or "shadow_threshold"
+    )
+    strategy_name = f"Paper Shadow Top-K · {model_name} · {threshold_name}"
+    source_payload = {
+        "profile_id": profile_id,
+        "strategy_name": strategy_name,
+        "candidate": candidate,
+        "support_context": support_context,
+        "deployment_readiness_status": high_conviction_topk.get("deployment_readiness_status"),
+        "risk_qualified_count": high_conviction_topk.get("risk_qualified_count"),
+        "runtime_blocked_candidate_count": high_conviction_topk.get("runtime_blocked_candidate_count"),
+    }
+    strategy_hash = hashlib.sha1(_json_dumps(source_payload).encode("utf-8")).hexdigest()[:12]
+    return {
+        "status": "synthetic_paper_shadow_bound",
+        "strategy_name": strategy_name,
+        "strategy_slug": f"paper-shadow-topk-{strategy_hash}",
+        "strategy_source": "high_conviction_topk_shadow",
+        "strategy_hash": strategy_hash,
+        "schema_version": 1,
+        "updated_at": _utcnow_iso(),
+        "created_at": None,
+        "run_count": None,
+        "primary_sleeve_key": profile_id,
+        "primary_sleeve_label": PRIMARY_SLEEVE_META.get(profile_id, {}).get("label") or profile_id,
+        "strategy_type": "shadow_topk_rehearsal",
+        "model_name": str(model_name),
+        "title": strategy_name,
+        "description": "由 high-conviction Top-K runtime-blocked candidate 生成的 paper/shadow rehearsal binding；只用於 worker parity 與 outcome reconciliation。",
+        "sleeve_summary": "高信念精選 · paper/shadow only · live buy/add fail-closed",
+        "decision_quality_label": candidate.get("deployment_candidate_tier") or high_conviction_topk.get("deployment_readiness_status"),
+        "avg_decision_quality_score": _to_float_maybe(candidate.get("avg_decision_quality_score")),
+        "avg_expected_win_rate": _to_float_maybe(candidate.get("win_rate") or candidate.get("oos_win_rate")),
+        "roi": _to_float_maybe(candidate.get("oos_roi") or candidate.get("roi")),
+        "profit_factor": _to_float_maybe(candidate.get("profit_factor")),
+        "total_trades": _to_int_maybe(candidate.get("trade_count") or candidate.get("total_trades")),
+        "max_drawdown": _to_float_maybe(candidate.get("max_drawdown")),
+        "worst_fold": _to_float_maybe(candidate.get("worst_fold")),
+        "high_conviction_candidate": candidate,
+        "high_conviction_support_context": support_context,
+        "summary": f"{strategy_name} · shadow-only · hash {strategy_hash}",
+        "operator_action": "這是 Top-K 影子演練 binding：可產生 worker parity / outcome proof，但不允許 live buy/add。",
+    }
+
+
+def _synthetic_shadow_strategy_entry(strategy_binding: Dict[str, Any], sleeve_key: str) -> Dict[str, Any]:
+    candidate = _as_dict(strategy_binding.get("high_conviction_candidate"))
+    support_context = _as_dict(strategy_binding.get("high_conviction_support_context"))
+    model_name = str(strategy_binding.get("model_name") or candidate.get("model_name") or "high_conviction_topk")
+    threshold_name = str(candidate.get("threshold_name") or candidate.get("top_k") or "shadow_threshold")
+    definition = {
+        "type": "shadow_topk_rehearsal",
+        "params": {
+            "model_name": model_name,
+            "threshold_name": threshold_name,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "live_order_submitted": False,
+        },
+    }
+    metadata = {
+        "primary_sleeve_key": sleeve_key,
+        "primary_sleeve_label": strategy_binding.get("primary_sleeve_label") or PRIMARY_SLEEVE_META.get(sleeve_key, {}).get("label") or sleeve_key,
+        "strategy_type": "shadow_topk_rehearsal",
+        "model_name": model_name,
+        "title": strategy_binding.get("title") or strategy_binding.get("strategy_name"),
+        "description": strategy_binding.get("description"),
+        "sleeve_summary": strategy_binding.get("sleeve_summary"),
+        "strategy_source": "high_conviction_topk_shadow",
+        "support_context": support_context,
+        "paper_shadow_only": True,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+    }
+    last_results = {
+        "roi": _to_float_maybe(strategy_binding.get("roi") or candidate.get("oos_roi") or candidate.get("roi")),
+        "win_rate": _to_float_maybe(strategy_binding.get("avg_expected_win_rate") or candidate.get("win_rate")),
+        "max_drawdown": _to_float_maybe(strategy_binding.get("max_drawdown") or candidate.get("max_drawdown")),
+        "profit_factor": _to_float_maybe(strategy_binding.get("profit_factor") or candidate.get("profit_factor")),
+        "total_trades": _to_int_maybe(strategy_binding.get("total_trades") or candidate.get("trade_count") or candidate.get("total_trades")),
+        "backtest_range": candidate.get("backtest_range") if isinstance(candidate.get("backtest_range"), dict) else None,
+    }
+    return {
+        "schema_version": strategy_binding.get("schema_version") or 1,
+        "name": strategy_binding.get("strategy_name"),
+        "slug": strategy_binding.get("strategy_slug"),
+        "created_at": strategy_binding.get("created_at"),
+        "updated_at": strategy_binding.get("updated_at"),
+        "strategy_source": "high_conviction_topk_shadow",
+        "definition": definition,
+        "metadata": metadata,
+        "last_results": last_results,
+    }
+
+
+def _freeze_strategy_bundle_for_run(
+    strategy_binding: Optional[Dict[str, Any]],
+    profile_id: str,
+    run_id: str,
+    *,
+    config: Optional[Dict[str, Any]],
+    status_payload: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    entry = _strategy_entry_for_binding(strategy_binding, profile_id)
+    if entry is None:
+        return {
+            "status": "missing_saved_strategy_entry",
+            "strategy_bundle_summary": None,
+            "strategy_bundle_hash": None,
+            "strategy_bundle_path": None,
+            "strategy_bundle_json": None,
+        }
+    bundle = build_strategy_bundle(entry, profile_id, config=config, status_payload=status_payload)
+    persisted = persist_strategy_bundle(bundle, run_id=run_id, profile_id=profile_id)
+    summary = bundle_summary(bundle)
+    return {
+        **persisted,
+        "status": persisted.get("status") or "persisted",
+        "strategy_bundle_summary": summary,
+    }
 
 
 
@@ -758,7 +970,8 @@ def _runtime_binding_artifacts(row: Dict[str, Any], status_payload: Optional[Dic
             else summary
         ),
         "shadow_only": shadow_only,
-        "risk_on_order_enabled": False if shadow_only else None,
+        "risk_on_order_enabled": False,
+        "order_submission_enabled": False,
         "high_conviction_topk": high_conviction_topk if shadow_only else None,
         "mirrored_components": mirrored_components,
         "missing_components": [
@@ -866,6 +1079,797 @@ def _serialize_event(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 
+def _worker_control_contract(row: Dict[str, Any], current_state: str) -> Dict[str, Any]:
+    stored = _json_loads(row.get("worker_control_json"))
+    stored = stored if isinstance(stored, dict) else {}
+    status = str(row.get("worker_status") or stored.get("status") or "backend_worker_not_bound").strip() or "backend_worker_not_bound"
+    return {
+        "status": status,
+        "state": current_state,
+        "backend_worker_bound": bool(stored.get("backend_worker_bound", False)),
+        "worker_kind": stored.get("worker_kind"),
+        "backend_worker_pid": stored.get("backend_worker_pid"),
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "bundle_hash_match": stored.get("bundle_hash_match"),
+        "last_poll_at": stored.get("last_poll_at"),
+        "poll_count": stored.get("poll_count") or 0,
+        "latest_order_proposal": stored.get("latest_order_proposal"),
+        "last_blocker": stored.get("last_blocker"),
+        "last_error": stored.get("last_error"),
+        "pause_effect": stored.get("pause_effect") or "pause 會先寫入 run state 並讓未來 worker poll/submit fail-closed；目前尚未綁定長駐 strategy worker。",
+        "stop_effect": stored.get("stop_effect") or "stop 會寫入 stopped state 並阻斷後續下單；目前 open orders 仍需透過 shared account reconciliation / 人工場館確認。",
+        "cancel_open_orders_status": stored.get("cancel_open_orders_status") or "not_bound_to_exchange_adapter",
+        "latest_command": stored.get("latest_command"),
+        "latest_command_at": stored.get("latest_command_at"),
+        "next_min_gap": (
+            stored.get("next_min_gap")
+            or "按「同步 worker」可產生 paper/shadow parity event；下一步是把 proposal 接到 24h outcome reconciliation。"
+        ),
+        "operator_action": stored.get("operator_action") or "目前控制面安全 fail-closed：UI 可啟停狀態與 freeze bundle，但不會直接呼叫 OKX 下單。",
+    }
+
+
+
+def _initial_worker_control(run_id: str, profile_id: str, *, shadow_only: bool) -> Dict[str, Any]:
+    return {
+        "status": "shadow_worker_not_started" if shadow_only else "backend_worker_pending",
+        "run_id": run_id,
+        "profile_id": profile_id,
+        "backend_worker_bound": False,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "latest_command": "start",
+        "latest_command_at": _utcnow_iso(),
+        "cancel_open_orders_status": "not_requested",
+        "operator_action": (
+            "影子觀察只收集決策事件；不送單、不加倉。"
+            if shadow_only
+            else "strategy bundle 已 freeze；可用「同步 worker」產生 paper/shadow parity event，送單前仍 fail-closed。"
+        ),
+        "next_min_gap": "把 paper/shadow proposal 接到 24h outcome reconciliation；live buy/add 仍等 current-live / venue / bounded canary gate。",
+    }
+
+
+
+def _load_strategy_bundle_gate(row: Dict[str, Any]) -> Dict[str, Any]:
+    expected_hash = str(row.get("strategy_bundle_hash") or "").strip()
+    path_text = str(row.get("strategy_bundle_path") or "").strip()
+    gate: Dict[str, Any] = {
+        "status": "unknown",
+        "expected_bundle_hash": expected_hash or None,
+        "strategy_bundle_path": path_text or None,
+        "bundle_hash_match": False,
+    }
+    if not expected_hash:
+        gate["status"] = "missing_strategy_bundle_hash"
+        return gate
+    if not path_text:
+        gate["status"] = "missing_strategy_bundle_path"
+        return gate
+    path = Path(path_text).expanduser()
+    if not path.exists():
+        gate["status"] = "missing_strategy_bundle_file"
+        return gate
+    try:
+        artifact = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        gate.update({"status": "strategy_bundle_json_error", "error": str(exc)[:160]})
+        return gate
+    if not isinstance(artifact, dict):
+        gate["status"] = "strategy_bundle_json_not_object"
+        return gate
+    artifact_hash = str(artifact.get("bundle_hash") or "").strip()
+    gate["artifact_bundle_hash"] = artifact_hash or None
+    gate["bundle_id"] = artifact.get("bundle_id")
+    gate["deployability_status"] = artifact.get("deployability_status")
+    gate["binding_status"] = _as_dict(artifact.get("execution_binding")).get("binding_status")
+    if artifact_hash != expected_hash:
+        gate["status"] = "strategy_bundle_hash_mismatch"
+        return gate
+    gate["status"] = "strategy_bundle_hash_match"
+    gate["bundle_hash_match"] = True
+    return gate
+
+
+
+def _build_worker_order_proposal(row: Dict[str, Any], status_payload: Optional[Dict[str, Any]], now: str) -> Dict[str, Any]:
+    status_payload = _as_dict(status_payload)
+    execution = _as_dict(status_payload.get("execution"))
+    surface = _as_dict(status_payload.get("execution_surface_contract"))
+    live_runtime_truth = _as_dict(execution.get("live_runtime_truth") or surface.get("live_runtime_truth"))
+    signal = str(live_runtime_truth.get("signal") or "HOLD").strip() or "HOLD"
+    deployment_blocker = live_runtime_truth.get("deployment_blocker") or live_runtime_truth.get("execution_guardrail_reason")
+    return {
+        "proposal_schema_version": 1,
+        "generated_at": now,
+        "run_id": row.get("id"),
+        "profile_id": row.get("profile_id"),
+        "symbol": row.get("symbol") or status_payload.get("symbol"),
+        "venue": row.get("venue"),
+        "mode": "paper_shadow" if str(row.get("runtime_binding_status") or "") == SHADOW_RUNTIME_BINDING_STATUS else "paper",
+        "signal": signal,
+        "allowed_layers": live_runtime_truth.get("allowed_layers"),
+        "runtime_closure_state": live_runtime_truth.get("runtime_closure_state"),
+        "deployment_blocker": deployment_blocker,
+        "side": "paper_shadow_decision",
+        "qty": None,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "live_order_submitted": False,
+        "operator_action": (
+            "已記錄 paper/shadow worker proposal；這是演練事件，不送 OKX、不加倉。"
+            if not deployment_blocker
+            else "已記錄 paper/shadow worker proposal；current-live guardrail 仍阻塞真實買入 / 加倉。"
+        ),
+    }
+
+
+
+def _pending_worker_proposal_gate(db, run_id: str, *, now: datetime) -> Optional[Dict[str, Any]]:
+    row = _one(
+        db,
+        """
+        SELECT id, payload_json, created_at
+        FROM execution_run_events
+        WHERE run_id = :run_id
+          AND event_type = :event_type
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """,
+        {"run_id": run_id, "event_type": WORKER_POLL_EVENT_TYPE},
+    )
+    if not row:
+        return None
+    payload = _json_loads(row.get("payload_json"))
+    payload = payload if isinstance(payload, dict) else {}
+    proposal = payload.get("order_proposal") if isinstance(payload.get("order_proposal"), dict) else None
+    if proposal is None:
+        return None
+    proposal_time = _parse_datetime(proposal.get("generated_at"))
+    if proposal_time is None:
+        return None
+    window_end = proposal_time + timedelta(hours=PAPER_SHADOW_OUTCOME_WINDOW_HOURS)
+    if now >= window_end:
+        return None
+    seconds_remaining = max(0.0, (window_end - now).total_seconds())
+    return {
+        "status": "pending_observation_window",
+        "run_id": run_id,
+        "event_id": row.get("id"),
+        "event_created_at": row.get("created_at"),
+        "proposal_generated_at": proposal_time.isoformat().replace("+00:00", "Z"),
+        "window_end": window_end.isoformat().replace("+00:00", "Z"),
+        "hours_remaining": round(seconds_remaining / 3600.0, 3),
+        "window_hours": PAPER_SHADOW_OUTCOME_WINDOW_HOURS,
+        "operator_action": "這條 run 已有未到期的 paper/shadow proposal；等待 24h window 結束並 reconcile，不重複寫入 poll event。",
+    }
+
+
+def poll_execution_paper_shadow_workers(
+    db,
+    status_payload: Optional[Dict[str, Any]] = None,
+    *,
+    limit: int = 20,
+) -> Dict[str, Any]:
+    ensure_execution_control_plane_schema(db)
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat().replace("+00:00", "Z")
+    run_rows = _rows(
+        db,
+        """
+        SELECT *
+        FROM execution_runs
+        WHERE state = 'running'
+        ORDER BY updated_at ASC, created_at ASC
+        LIMIT :limit
+        """,
+        {"limit": max(1, min(int(limit or 20), 100))},
+    )
+    processed_run_ids: List[str] = []
+    parity_blocked_run_ids: List[str] = []
+    pending_outcome_blocked_run_ids: List[str] = []
+    pending_outcome_gates: List[Dict[str, Any]] = []
+    poll_event_count = 0
+
+    for row in run_rows:
+        run_id = str(row.get("id") or "")
+        profile_id = str(row.get("profile_id") or "")
+        if not run_id or not profile_id:
+            continue
+        worker_control = _worker_control_contract(row, "running")
+        pending_gate = _pending_worker_proposal_gate(db, run_id, now=now_dt)
+        if pending_gate is not None:
+            pending_outcome_blocked_run_ids.append(run_id)
+            pending_outcome_gates.append(pending_gate)
+            continue
+        bundle_gate = _load_strategy_bundle_gate(row)
+        bundle_hash_match = bool(bundle_gate.get("bundle_hash_match"))
+        proposal = _build_worker_order_proposal(row, status_payload, now) if bundle_hash_match else None
+        poll_count = int(worker_control.get("poll_count") or 0) + 1
+        event_type = WORKER_POLL_EVENT_TYPE if bundle_hash_match else WORKER_PARITY_BLOCKED_EVENT_TYPE
+        level = "info" if bundle_hash_match else "warning"
+        message = (
+            "backend paper/shadow worker 已完成 state poll；bundle hash match，已寫入演練 proposal；不送單、不加倉。"
+            if bundle_hash_match
+            else "backend paper/shadow worker 已拒絕產生 proposal：strategy bundle parity gate 未通過。"
+        )
+        worker_control.update(
+            {
+                "status": "paper_shadow_worker_polled" if bundle_hash_match else "worker_bundle_parity_blocked",
+                "state": "running",
+                "backend_worker_bound": bundle_hash_match,
+                "worker_kind": "backend_managed_state_poller",
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+                "bundle_hash_match": bundle_hash_match,
+                "last_poll_at": now,
+                "poll_count": poll_count,
+                "latest_command": "worker_poll",
+                "latest_command_at": now,
+                "latest_order_proposal": proposal,
+                "last_blocker": None if bundle_hash_match else bundle_gate.get("status"),
+                "last_error": bundle_gate.get("error"),
+                "operator_action": (
+                    "backend state poller 已記錄 paper/shadow proposal；run 暫停 / 停止後下一輪 poll 不會再產生事件。"
+                    if bundle_hash_match
+                    else "請先修復 strategy bundle hash/path parity；worker 在 parity gate 通過前不產生演練 proposal。"
+                ),
+                "next_min_gap": (
+                    "接 24h paper/shadow outcome reconciliation；live buy/add 仍需 current-live、venue lifecycle 與 bounded canary gate 全過。"
+                    if bundle_hash_match
+                    else "重建或重新 freeze Strategy Lab bundle，確保 DB run hash 與 bundle artifact hash 一致。"
+                ),
+            }
+        )
+        event_payload = {
+            "worker_control": worker_control,
+            "bundle_gate": bundle_gate,
+            "order_proposal": proposal,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "live_order_submitted": False,
+        }
+        db.execute(
+            text(
+                """
+                UPDATE execution_runs
+                SET worker_status = :worker_status,
+                    worker_control_json = :worker_control_json,
+                    last_event_type = :last_event_type,
+                    last_event_message = :last_event_message,
+                    last_event_at = :last_event_at,
+                    updated_at = :updated_at
+                WHERE id = :run_id
+                """
+            ),
+            {
+                "run_id": run_id,
+                "worker_status": worker_control.get("status"),
+                "worker_control_json": _json_dumps(worker_control),
+                "last_event_type": event_type,
+                "last_event_message": message,
+                "last_event_at": now,
+                "updated_at": now,
+            },
+        )
+        _insert_event(
+            db,
+            run_id=run_id,
+            profile_id=profile_id,
+            event_type=event_type,
+            level=level,
+            message=message,
+            payload=event_payload,
+            created_at=now,
+        )
+        processed_run_ids.append(run_id)
+        poll_event_count += 1 if bundle_hash_match else 0
+        if not bundle_hash_match:
+            parity_blocked_run_ids.append(run_id)
+
+    db.commit()
+    updated_rows = []
+    returned_run_ids = processed_run_ids + [run_id for run_id in pending_outcome_blocked_run_ids if run_id not in processed_run_ids]
+    if returned_run_ids:
+        placeholders = ", ".join([f":run_id_{idx}" for idx, _ in enumerate(returned_run_ids)])
+        params = {f"run_id_{idx}": run_id for idx, run_id in enumerate(returned_run_ids)}
+        updated_rows = _rows(db, f"SELECT * FROM execution_runs WHERE id IN ({placeholders})", params)
+    events_by_run = _load_run_events(db, [str(row.get("id") or "") for row in updated_rows])
+    status = "ok" if processed_run_ids else ("pending_outcome_blocked" if pending_outcome_blocked_run_ids else "no_running_runs")
+    return {
+        "status": status,
+        "operator_message": (
+            "backend paper/shadow worker poll 已完成；只產生演練事件，不送單、不加倉。"
+            if processed_run_ids
+            else (
+                "已有 running run 的 24h paper/shadow outcome 尚未到期；本次不重複寫入 worker poll event。"
+                if pending_outcome_blocked_run_ids
+                else "目前沒有 running run 可供 backend paper/shadow worker poll。"
+            )
+        ),
+        "summary": {
+            "running_runs_checked": len(run_rows),
+            "processed_runs": len(processed_run_ids),
+            "poll_events_recorded": poll_event_count,
+            "parity_blocked_runs": len(parity_blocked_run_ids),
+            "pending_outcome_blocked_runs": len(pending_outcome_blocked_run_ids),
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+        },
+        "processed_run_ids": processed_run_ids,
+        "parity_blocked_run_ids": parity_blocked_run_ids,
+        "pending_outcome_blocked_run_ids": pending_outcome_blocked_run_ids,
+        "pending_outcome_gates": pending_outcome_gates,
+        "runs": [
+            _serialize_run(row, events_by_run.get(str(row.get("id") or ""), []), status_payload=status_payload)
+            for row in updated_rows
+        ],
+    }
+
+
+
+def _label_outcome_for_proposal(
+    db,
+    *,
+    symbol: Any,
+    proposal_time: datetime,
+) -> Optional[Dict[str, Any]]:
+    symbol_key = _normalize_symbol_key(symbol)
+    rows = _rows(
+        db,
+        """
+        SELECT timestamp, symbol, simulated_pyramid_win, simulated_pyramid_pnl, simulated_pyramid_quality
+        FROM labels
+        WHERE horizon_minutes = 1440
+          AND simulated_pyramid_win IS NOT NULL
+        ORDER BY timestamp DESC
+        LIMIT 20000
+        """,
+    )
+    nearest: Optional[Dict[str, Any]] = None
+    nearest_delta: Optional[float] = None
+    for row in rows:
+        if symbol_key and _normalize_symbol_key(row.get("symbol")) != symbol_key:
+            continue
+        label_time = _parse_datetime(row.get("timestamp"))
+        if label_time is None:
+            continue
+        delta_seconds = abs((label_time - proposal_time).total_seconds())
+        if nearest_delta is None or delta_seconds < nearest_delta:
+            nearest = row
+            nearest_delta = delta_seconds
+    if nearest is None or nearest_delta is None:
+        return None
+    tolerance_seconds = PAPER_SHADOW_LABEL_MATCH_TOLERANCE_HOURS * 3600
+    if nearest_delta > tolerance_seconds:
+        return None
+    return {
+        "status": "resolved_from_1440m_label",
+        "label_timestamp": _parse_datetime(nearest.get("timestamp")).isoformat().replace("+00:00", "Z") if _parse_datetime(nearest.get("timestamp")) else nearest.get("timestamp"),
+        "match_delta_minutes": round(nearest_delta / 60.0, 3),
+        "pyramid_win": bool(int(nearest.get("simulated_pyramid_win") or 0)),
+        "simulated_pyramid_win": int(nearest.get("simulated_pyramid_win") or 0),
+        "pnl_pct": _to_float_maybe(nearest.get("simulated_pyramid_pnl")),
+        "quality": _to_float_maybe(nearest.get("simulated_pyramid_quality")),
+        "source": "labels.simulated_pyramid_1440m",
+    }
+
+
+
+def _outcome_for_worker_proposal(db, proposal: Dict[str, Any], *, now: datetime) -> Dict[str, Any]:
+    proposal_time = _parse_datetime(proposal.get("generated_at"))
+    if proposal_time is None:
+        return {
+            "status": "proposal_time_unparseable",
+            "window_hours": PAPER_SHADOW_OUTCOME_WINDOW_HOURS,
+            "pyramid_win": None,
+            "pnl_pct": None,
+            "quality": None,
+            "operator_action": "proposal generated_at 無法解析；需重新產生 paper/shadow worker event。",
+        }
+    window_end = proposal_time + timedelta(hours=PAPER_SHADOW_OUTCOME_WINDOW_HOURS)
+    base = {
+        "window_hours": PAPER_SHADOW_OUTCOME_WINDOW_HOURS,
+        "proposal_time": proposal_time.isoformat().replace("+00:00", "Z"),
+        "window_end": window_end.isoformat().replace("+00:00", "Z"),
+    }
+    if now < window_end:
+        seconds_remaining = max(0.0, (window_end - now).total_seconds())
+        return {
+            **base,
+            "status": "pending_observation_window",
+            "hours_remaining": round(seconds_remaining / 3600.0, 3),
+            "pyramid_win": None,
+            "pnl_pct": None,
+            "quality": None,
+            "operator_action": "24h observation window 尚未結束；只保留 paper/shadow 記錄，不送單。",
+        }
+
+    label_outcome = _label_outcome_for_proposal(db, symbol=proposal.get("symbol"), proposal_time=proposal_time)
+    if label_outcome is None:
+        return {
+            **base,
+            "status": "awaiting_label_replay",
+            "pyramid_win": None,
+            "pnl_pct": None,
+            "quality": None,
+            "operator_action": "24h window 已結束，但尚未找到匹配的 1440m simulated_pyramid label；需重跑 labels/backfill。",
+        }
+    return {
+        **base,
+        **label_outcome,
+        "operator_action": "24h shadow outcome 已由 canonical 1440m label resolved；仍只是演練證據，不代表 live-ready。",
+    }
+
+
+def _build_paper_shadow_rehearsal_proof(
+    db,
+    *,
+    artifact_status: str,
+    summary: Dict[str, Any],
+    entry_count: int,
+    entries: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    run_rows = _rows(
+        db,
+        """
+        SELECT state, COUNT(*) AS count
+        FROM execution_runs
+        GROUP BY state
+        """,
+    )
+    run_counts = {str(row.get("state") or "unknown"): int(row.get("count") or 0) for row in run_rows}
+    total_runs = sum(run_counts.values())
+    running_runs = run_counts.get("running", 0)
+    paused_runs = run_counts.get("paused", 0)
+    stopped_runs = run_counts.get("stopped", 0)
+    latest_running = _one(
+        db,
+        """
+        SELECT id, profile_id, state, worker_status, last_event_type, last_event_at, strategy_bundle_hash
+        FROM execution_runs
+        WHERE state = 'running'
+        ORDER BY updated_at DESC, created_at DESC
+        LIMIT 1
+        """,
+    )
+    latest_run = latest_running or _one(
+        db,
+        """
+        SELECT id, profile_id, state, worker_status, last_event_type, last_event_at, strategy_bundle_hash
+        FROM execution_runs
+        ORDER BY updated_at DESC, created_at DESC
+        LIMIT 1
+        """,
+    )
+
+    resolved = int(summary.get("resolved_outcomes") or 0)
+    pending = int(summary.get("pending_outcomes") or 0)
+    awaiting_label = int(summary.get("awaiting_label_replay") or 0)
+    parity_blocked = int(summary.get("parity_blocked_events") or 0)
+    worker_events = int(summary.get("worker_poll_events") or 0)
+    live_order_submitted = bool(summary.get("live_order_submitted"))
+    entries = entries or []
+    pending_windows: List[Dict[str, Any]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        outcome = entry.get("outcome_24h") if isinstance(entry.get("outcome_24h"), dict) else {}
+        if str(outcome.get("status") or "") != "pending_observation_window":
+            continue
+        window_end = _parse_datetime(outcome.get("window_end"))
+        hours_remaining = _to_float_maybe(outcome.get("hours_remaining"))
+        pending_windows.append(
+            {
+                "event_id": entry.get("event_id"),
+                "run_id": entry.get("run_id"),
+                "window_end": window_end,
+                "hours_remaining": hours_remaining,
+            }
+        )
+    pending_window_ends = [item["window_end"] for item in pending_windows if item.get("window_end") is not None]
+    next_reconcile_at = min(pending_window_ends).isoformat().replace("+00:00", "Z") if pending_window_ends else None
+    pending_hours_remaining_values = [
+        float(item["hours_remaining"])
+        for item in pending_windows
+        if isinstance(item.get("hours_remaining"), (int, float))
+    ]
+    pending_hours_remaining_min = min(pending_hours_remaining_values) if pending_hours_remaining_values else None
+    resolution_due_count = sum(1 for value in pending_hours_remaining_values if value <= 0) + awaiting_label
+
+    if live_order_submitted:
+        status = "safety_violation_live_order"
+        next_operator_action = "立即停止 rehearsal 並檢查 worker event；paper/shadow outcome 不應出現 live_order_submitted=true。"
+    elif resolved > 0:
+        status = "resolved_evidence_ready"
+        next_operator_action = "檢視 resolved 24h outcome，將勝負 / pnl / quality 用於 paper/shadow 決策證據；live buy/add 仍保持 fail-closed。"
+    elif awaiting_label > 0:
+        status = "label_replay_required"
+        next_operator_action = "重跑 1440m labels/backfill 後再執行 worker outcome reconcile。"
+    elif pending > 0:
+        status = "pending_observation_window"
+        next_operator_action = "等待 24h observation window 結束，或在 label 完成後重新 reconcile。"
+    elif parity_blocked > 0:
+        status = "bundle_parity_blocked"
+        next_operator_action = "重新 freeze strategy bundle，確認 DB run hash 與 bundle artifact hash 一致後再 poll worker。"
+    elif running_runs > 0:
+        status = "needs_worker_poll"
+        next_operator_action = "已有 running run；按「同步 worker」產生 paper/shadow proposal event，再進入 24h outcome reconciliation。"
+    elif total_runs > 0:
+        status = "needs_running_run"
+        next_operator_action = "先 resume 或重新 start 一條 paper/shadow run；非 running run 不會產生 worker proposal。"
+    else:
+        status = "needs_paper_shadow_run"
+        next_operator_action = "先在 Execution Console 啟動可用的 paper/shadow sleeve，然後同步 worker 產生 rehearsal event。"
+
+    chain = [
+        {
+            "key": "start_run",
+            "label": "Start paper/shadow run",
+            "status": "complete" if total_runs > 0 else "required",
+            "count": total_runs,
+        },
+        {
+            "key": "worker_poll",
+            "label": "Worker poll proposal",
+            "status": "complete" if worker_events > 0 else ("ready" if running_runs > 0 else "blocked"),
+            "count": worker_events,
+        },
+        {
+            "key": "outcome_reconciliation",
+            "label": "24h outcome reconciliation",
+            "status": "complete" if entry_count > 0 else "waiting_for_worker_event",
+            "count": entry_count,
+        },
+        {
+            "key": "label_resolution",
+            "label": "1440m label resolution",
+            "status": "complete" if resolved > 0 else ("pending" if pending > 0 else ("required" if awaiting_label > 0 else "not_started")),
+            "count": resolved,
+        },
+    ]
+
+    return {
+        "status": status,
+        "artifact_status": artifact_status,
+        "can_poll_workers": running_runs > 0 and pending == 0,
+        "can_reconcile_outcomes": entry_count > 0,
+        "poll_blocked_by_pending_outcome": pending > 0,
+        "next_reconcile_at": next_reconcile_at,
+        "pending_hours_remaining_min": round(pending_hours_remaining_min, 3) if pending_hours_remaining_min is not None else None,
+        "resolution_due_count": resolution_due_count,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "live_order_submitted": live_order_submitted,
+        "run_counts": {
+            "running": running_runs,
+            "paused": paused_runs,
+            "stopped": stopped_runs,
+            "total": total_runs,
+        },
+        "latest_run": {
+            "run_id": latest_run.get("id") if latest_run else None,
+            "profile_id": latest_run.get("profile_id") if latest_run else None,
+            "state": latest_run.get("state") if latest_run else None,
+            "worker_status": latest_run.get("worker_status") if latest_run else None,
+            "last_event_type": latest_run.get("last_event_type") if latest_run else None,
+            "last_event_at": latest_run.get("last_event_at") if latest_run else None,
+            "strategy_bundle_hash": latest_run.get("strategy_bundle_hash") if latest_run else None,
+        },
+        "chain": chain,
+        "next_operator_action": next_operator_action,
+        "blocked_live_actions": ["live_buy", "live_add", "automation_enable"],
+        "operator_message": "這是 paper/shadow rehearsal proof，只證明演練鏈路狀態；不代表可真實下單。",
+    }
+
+
+
+def build_paper_shadow_outcome_reconciliation(
+    db,
+    status_payload: Optional[Dict[str, Any]] = None,
+    *,
+    persist: bool = False,
+    artifact_path: Optional[Path] = None,
+    limit: int = 100,
+) -> Dict[str, Any]:
+    ensure_execution_control_plane_schema(db)
+    now = datetime.now(timezone.utc)
+    limit = max(1, min(int(limit or 100), 500))
+    rows = _rows(
+        db,
+        """
+        SELECT
+            events.id AS event_id,
+            events.run_id AS run_id,
+            events.profile_id AS profile_id,
+            events.event_type AS event_type,
+            events.level AS level,
+            events.message AS message,
+            events.payload_json AS payload_json,
+            events.created_at AS created_at,
+            runs.state AS run_state,
+            runs.label AS run_label,
+            runs.symbol AS run_symbol,
+            runs.venue AS run_venue,
+            runs.mode AS run_mode,
+            runs.strategy_bundle_hash AS strategy_bundle_hash,
+            runs.worker_status AS worker_status
+        FROM execution_run_events AS events
+        LEFT JOIN execution_runs AS runs ON runs.id = events.run_id
+        WHERE events.event_type IN (:poll_event_type, :blocked_event_type)
+        ORDER BY events.created_at DESC, events.id DESC
+        LIMIT :limit
+        """,
+        {
+            "poll_event_type": WORKER_POLL_EVENT_TYPE,
+            "blocked_event_type": WORKER_PARITY_BLOCKED_EVENT_TYPE,
+            "limit": limit,
+        },
+    )
+
+    entries: List[Dict[str, Any]] = []
+    parity_blocked_count = 0
+    pending_count = 0
+    resolved_count = 0
+    awaiting_label_count = 0
+    proposal_count = 0
+
+    for row in rows:
+        payload = _json_loads(row.get("payload_json"))
+        payload = payload if isinstance(payload, dict) else {}
+        proposal = payload.get("order_proposal") if isinstance(payload.get("order_proposal"), dict) else None
+        bundle_gate = payload.get("bundle_gate") if isinstance(payload.get("bundle_gate"), dict) else {}
+        if str(row.get("event_type") or "") == WORKER_PARITY_BLOCKED_EVENT_TYPE:
+            parity_blocked_count += 1
+            entries.append(
+                {
+                    "event_id": row.get("event_id"),
+                    "run_id": row.get("run_id"),
+                    "profile_id": row.get("profile_id"),
+                    "event_type": row.get("event_type"),
+                    "created_at": row.get("created_at"),
+                    "run_state": row.get("run_state"),
+                    "worker_status": row.get("worker_status"),
+                    "strategy_bundle_hash": row.get("strategy_bundle_hash"),
+                    "bundle_gate": bundle_gate,
+                    "outcome_24h": {
+                        "status": "blocked_before_proposal",
+                        "window_hours": PAPER_SHADOW_OUTCOME_WINDOW_HOURS,
+                        "pyramid_win": None,
+                        "pnl_pct": None,
+                        "operator_action": "bundle parity gate 未過，沒有產生 paper/shadow proposal。",
+                    },
+                    "order_submission_enabled": False,
+                    "risk_on_order_enabled": False,
+                    "live_order_submitted": False,
+                }
+            )
+            continue
+        if proposal is None:
+            continue
+        proposal_count += 1
+        outcome = _outcome_for_worker_proposal(db, proposal, now=now)
+        status = str(outcome.get("status") or "")
+        if status == "pending_observation_window":
+            pending_count += 1
+        elif status == "resolved_from_1440m_label":
+            resolved_count += 1
+        elif status == "awaiting_label_replay":
+            awaiting_label_count += 1
+        entries.append(
+            {
+                "event_id": row.get("event_id"),
+                "run_id": row.get("run_id"),
+                "profile_id": row.get("profile_id"),
+                "event_type": row.get("event_type"),
+                "created_at": row.get("created_at"),
+                "run_state": row.get("run_state"),
+                "run_label": row.get("run_label"),
+                "worker_status": row.get("worker_status"),
+                "strategy_bundle_hash": row.get("strategy_bundle_hash"),
+                "proposal": proposal,
+                "outcome_24h": outcome,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+                "live_order_submitted": False,
+            }
+        )
+
+    if proposal_count == 0 and parity_blocked_count == 0:
+        status = "no_worker_events"
+    elif resolved_count > 0:
+        status = "recording_with_resolved_outcomes"
+    elif awaiting_label_count > 0:
+        status = "recording_awaiting_label_replay"
+    elif pending_count > 0:
+        status = "recording_pending_outcomes"
+    else:
+        status = "recording_blocked_before_proposal"
+
+    summary = {
+        "worker_poll_events": proposal_count,
+        "resolved_outcomes": resolved_count,
+        "pending_outcomes": pending_count,
+        "awaiting_label_replay": awaiting_label_count,
+        "parity_blocked_events": parity_blocked_count,
+        "entries": len(entries),
+        "live_order_submitted": False,
+    }
+    rehearsal_proof = _build_paper_shadow_rehearsal_proof(
+        db,
+        artifact_status=status,
+        summary=summary,
+        entry_count=len(entries),
+        entries=entries,
+    )
+    resolution_due_count = int(rehearsal_proof.get("resolution_due_count") or 0)
+    live_order_submitted = bool(summary.get("live_order_submitted") or rehearsal_proof.get("live_order_submitted"))
+    quick_read = {
+        "status": status,
+        "rehearsal_status": rehearsal_proof.get("status"),
+        "worker_poll_events": proposal_count,
+        "pending_outcomes": pending_count,
+        "resolved_outcomes": resolved_count,
+        "awaiting_label_replay": awaiting_label_count,
+        "parity_blocked_events": parity_blocked_count,
+        "can_poll_workers": rehearsal_proof.get("can_poll_workers"),
+        "poll_blocked_by_pending_outcome": rehearsal_proof.get("poll_blocked_by_pending_outcome"),
+        "next_reconcile_at": rehearsal_proof.get("next_reconcile_at"),
+        "pending_hours_remaining_min": rehearsal_proof.get("pending_hours_remaining_min"),
+        "resolution_due_count": resolution_due_count,
+        "reconciliation_due": resolution_due_count > 0,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "live_order_submitted": live_order_submitted,
+        "blocked_live_actions": rehearsal_proof.get("blocked_live_actions") or [],
+        "operator_message": rehearsal_proof.get("operator_message"),
+    }
+    artifact = {
+        "artifact_schema_version": 2,
+        "generated_at": now.isoformat().replace("+00:00", "Z"),
+        "status": status,
+        "rehearsal_status": quick_read["rehearsal_status"],
+        "mode": "paper_shadow_outcome_reconciliation",
+        "source": "execution_run_events.paper_shadow_worker_poll",
+        "window_hours": PAPER_SHADOW_OUTCOME_WINDOW_HOURS,
+        "label_source": "labels.simulated_pyramid_1440m",
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "live_order_submitted": live_order_submitted,
+        "worker_poll_events": proposal_count,
+        "pending_outcomes": pending_count,
+        "resolved_outcomes": resolved_count,
+        "awaiting_label_replay": awaiting_label_count,
+        "parity_blocked_events": parity_blocked_count,
+        "can_poll_workers": quick_read["can_poll_workers"],
+        "poll_blocked_by_pending_outcome": quick_read["poll_blocked_by_pending_outcome"],
+        "next_reconcile_at": quick_read["next_reconcile_at"],
+        "pending_hours_remaining_min": quick_read["pending_hours_remaining_min"],
+        "resolution_due_count": resolution_due_count,
+        "reconciliation_due": quick_read["reconciliation_due"],
+        "quick_read": quick_read,
+        "summary": summary,
+        "rehearsal_proof": rehearsal_proof,
+        "entries": entries,
+        "operator_message": (
+            "paper/shadow worker outcome reconciliation 已建立；它只核對演練 proposal 與 24h labels，不送單。"
+            if entries
+            else "尚未有 paper/shadow worker event 可做 outcome reconciliation。"
+        ),
+    }
+    target_path = Path(artifact_path or PAPER_SHADOW_OUTCOME_ARTIFACT_PATH)
+    if persist:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    return {
+        "artifact": artifact,
+        "artifact_path": str(target_path),
+        "persisted": bool(persist),
+    }
+
+
+
 def _serialize_run(
     row: Dict[str, Any],
     events: Optional[List[Dict[str, Any]]] = None,
@@ -879,6 +1883,7 @@ def _serialize_run(
     strategy_binding = _json_loads(row.get("strategy_snapshot_json"))
     if not isinstance(strategy_binding, dict):
         strategy_binding = None
+    worker_control = _worker_control_contract(row, current_state)
     return {
         "run_id": row.get("id"),
         "profile_id": row.get("profile_id"),
@@ -905,12 +1910,19 @@ def _serialize_run(
         "runtime_binding_contract": runtime_binding_contract,
         "runtime_binding_snapshot": runtime_binding_snapshot,
         "strategy_binding": strategy_binding,
+        "strategy_bundle_hash": row.get("strategy_bundle_hash"),
+        "strategy_bundle_path": row.get("strategy_bundle_path"),
+        "strategy_bundle_status": row.get("strategy_bundle_status"),
+        "worker_status": row.get("worker_status") or worker_control.get("status"),
+        "worker_control": worker_control,
         "action_contract": {
             "can_pause": current_state == "running",
             "can_resume": current_state == "paused",
             "can_stop": current_state in {"running", "paused"},
             "shadow_only": shadow_only,
-            "risk_on_order_enabled": False if shadow_only else None,
+            "risk_on_order_enabled": False,
+            "order_submission_enabled": False,
+            "worker_control": worker_control,
             "upgrade_prerequisite": (
                 "影子觀察運行只能收集即時決策與事件紀錄，不會送單；需等即時支持、場館證據鏈與單一 Bot 帳本通過後再升級。"
                 if shadow_only
@@ -975,6 +1987,11 @@ def ensure_execution_control_plane_schema(db) -> None:
             "strategy_source": "TEXT",
             "strategy_hash": "TEXT",
             "strategy_snapshot_json": "TEXT",
+            "strategy_bundle_hash": "TEXT",
+            "strategy_bundle_path": "TEXT",
+            "strategy_bundle_status": "TEXT",
+            "worker_status": "TEXT",
+            "worker_control_json": "TEXT",
         },
     )
     db.commit()
@@ -1236,7 +2253,13 @@ def _current_run_for_profile(db, profile_id: str) -> Optional[Dict[str, Any]]:
 
 
 
-def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, Any], overview_payload: Dict[str, Any]) -> Dict[str, Any]:
+def start_execution_profile_run(
+    db,
+    profile_id: str,
+    status_payload: Dict[str, Any],
+    overview_payload: Dict[str, Any],
+    config: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     snapshot = build_execution_control_plane_snapshot(db, status_payload, overview_payload)
     profile_row = _require_profile_row(db, profile_id)
     profile_snapshot = _json_loads(profile_row.get("snapshot_json")) or {}
@@ -1302,6 +2325,9 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
             },
         )
 
+    if shadow_only and (not strategy_binding or strategy_binding.get("status") == "missing_saved_strategy"):
+        strategy_binding = _shadow_strategy_binding_from_control_contract(profile_id, control_contract)
+
     existing = _current_run_for_profile(db, profile_id)
     now = _utcnow_iso()
     if existing and str(existing.get("state") or "") == "running":
@@ -1344,6 +2370,19 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
         }
 
     if existing and str(existing.get("state") or "") == "paused":
+        resume_worker_control = _worker_control_contract(existing, "paused")
+        resume_worker_control.update(
+            {
+                "status": "resume_requested_no_backend_worker",
+                "state": "running",
+                "backend_worker_bound": False,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+                "latest_command": "resumed",
+                "latest_command_at": now,
+                "operator_action": "run 已恢復為 running；但 backend worker 尚未綁定，送單前仍 fail-closed。",
+            }
+        )
         db.execute(
             text(
                 """
@@ -1351,6 +2390,8 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
                 SET state = 'running',
                     stop_time = NULL,
                     stop_reason = NULL,
+                    worker_status = :worker_status,
+                    worker_control_json = :worker_control_json,
                     last_event_type = :last_event_type,
                     last_event_message = :last_event_message,
                     last_event_at = :last_event_at,
@@ -1360,6 +2401,8 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
             ),
             {
                 "run_id": existing.get("id"),
+                "worker_status": resume_worker_control.get("status"),
+                "worker_control_json": _json_dumps(resume_worker_control),
                 "last_event_type": "resumed",
                 "last_event_message": "Execution run 已恢復為 running。",
                 "last_event_at": now,
@@ -1373,7 +2416,13 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
             event_type="resumed",
             level="info",
             message="Execution run 已恢復為 running。",
-            payload={"state": "running", "runtime_binding_status": RUNTIME_BINDING_STATUS},
+            payload={
+                "state": "running",
+                "runtime_binding_status": RUNTIME_BINDING_STATUS,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+                "worker_control": resume_worker_control,
+            },
             created_at=now,
         )
         db.commit()
@@ -1401,6 +2450,26 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
     event_type = "shadow_started" if shadow_only else "started"
     action_result = "shadow_started" if shadow_only else "started"
     operator_message = "高信念精選影子觀察已啟動；不送單、不加倉。" if shadow_only else "已建立新的 execution run。"
+    worker_control = _initial_worker_control(run_id, profile_id, shadow_only=shadow_only)
+    bundle_freeze = _freeze_strategy_bundle_for_run(
+        strategy_binding,
+        profile_id,
+        run_id,
+        config=config,
+        status_payload=status_payload,
+    ) if strategy_binding else {
+        "status": "missing_strategy_binding",
+        "strategy_bundle_summary": None,
+        "strategy_bundle_hash": None,
+        "strategy_bundle_path": None,
+        "strategy_bundle_json": None,
+    }
+    strategy_binding_snapshot = dict(strategy_binding) if strategy_binding else None
+    if strategy_binding_snapshot is not None:
+        strategy_binding_snapshot["strategy_bundle"] = bundle_freeze.get("strategy_bundle_summary")
+        strategy_binding_snapshot["strategy_bundle_status"] = bundle_freeze.get("status")
+        strategy_binding_snapshot["strategy_bundle_hash"] = bundle_freeze.get("strategy_bundle_hash")
+        strategy_binding_snapshot["strategy_bundle_path"] = bundle_freeze.get("strategy_bundle_path")
     db.execute(
         text(
             """
@@ -1409,6 +2478,8 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
                 runtime_binding_status, budget_amount, budget_ratio, capital_currency,
                 activation_status, lifecycle_status, start_time, stop_time, stop_reason,
                 operator_note, strategy_name, strategy_source, strategy_hash, strategy_snapshot_json,
+                strategy_bundle_hash, strategy_bundle_path, strategy_bundle_status,
+                worker_status, worker_control_json,
                 last_event_type, last_event_message, last_event_at,
                 created_at, updated_at
             ) VALUES (
@@ -1416,6 +2487,8 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
                 :runtime_binding_status, :budget_amount, :budget_ratio, :capital_currency,
                 :activation_status, :lifecycle_status, :start_time, :stop_time, :stop_reason,
                 :operator_note, :strategy_name, :strategy_source, :strategy_hash, :strategy_snapshot_json,
+                :strategy_bundle_hash, :strategy_bundle_path, :strategy_bundle_status,
+                :worker_status, :worker_control_json,
                 :last_event_type, :last_event_message, :last_event_at,
                 :created_at, :updated_at
             )
@@ -1443,7 +2516,12 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
             "strategy_name": strategy_binding.get("strategy_name") if strategy_binding else None,
             "strategy_source": strategy_binding.get("strategy_source") if strategy_binding else None,
             "strategy_hash": strategy_binding.get("strategy_hash") if strategy_binding else None,
-            "strategy_snapshot_json": _json_dumps(strategy_binding) if strategy_binding else None,
+            "strategy_snapshot_json": _json_dumps(strategy_binding_snapshot) if strategy_binding_snapshot else None,
+            "strategy_bundle_hash": bundle_freeze.get("strategy_bundle_hash"),
+            "strategy_bundle_path": bundle_freeze.get("strategy_bundle_path"),
+            "strategy_bundle_status": bundle_freeze.get("status"),
+            "worker_status": worker_control.get("status"),
+            "worker_control_json": _json_dumps(worker_control),
             "last_event_type": event_type,
             "last_event_message": message,
             "last_event_at": now,
@@ -1464,8 +2542,12 @@ def start_execution_profile_run(db, profile_id: str, status_payload: Dict[str, A
             "budget_amount": profile_row.get("planned_budget_amount"),
             "budget_ratio": profile_row.get("planned_budget_ratio"),
             "shadow_only": shadow_only,
-            "risk_on_order_enabled": False if shadow_only else None,
+            "risk_on_order_enabled": False,
+            "order_submission_enabled": False,
             "high_conviction_topk": high_conviction_topk if shadow_only else None,
+            "strategy_bundle": bundle_freeze.get("strategy_bundle_summary"),
+            "strategy_bundle_status": bundle_freeze.get("status"),
+            "worker_control": worker_control,
         },
         created_at=now,
     )
@@ -1494,6 +2576,25 @@ def _transition_run_state(
     run_row = _require_run_row(db, run_id)
     now = _utcnow_iso()
     current_state = str(run_row.get("state") or "stopped")
+    worker_control = _worker_control_contract(run_row, current_state)
+    transition_worker_status = "pause_requested_no_backend_worker" if target_state == "paused" else "stop_requested_no_backend_worker"
+    worker_control.update(
+        {
+            "status": transition_worker_status,
+            "state": target_state,
+            "backend_worker_bound": False,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "latest_command": event_type,
+            "latest_command_at": now,
+            "cancel_open_orders_status": "not_bound_to_exchange_adapter" if target_state == "stopped" else "not_requested",
+            "operator_action": (
+                "run 已暫停；未來 worker 必須 poll 到 paused 並停止新 order proposal。"
+                if target_state == "paused"
+                else "run 已停止；不會在 control plane 內呼叫 OKX 下單，既有掛單需以 reconciliation / 人工場館確認。"
+            ),
+        }
+    )
     if noop_when and current_state == noop_when:
         _insert_event(
             db,
@@ -1537,6 +2638,8 @@ def _transition_run_state(
             SET state = :state,
                 stop_time = :stop_time,
                 stop_reason = :stop_reason,
+                worker_status = :worker_status,
+                worker_control_json = :worker_control_json,
                 last_event_type = :last_event_type,
                 last_event_message = :last_event_message,
                 last_event_at = :last_event_at,
@@ -1549,6 +2652,8 @@ def _transition_run_state(
             "state": target_state,
             "stop_time": now if target_state == "stopped" else None,
             "stop_reason": stop_reason,
+            "worker_status": worker_control.get("status"),
+            "worker_control_json": _json_dumps(worker_control),
             "last_event_type": event_type,
             "last_event_message": message,
             "last_event_at": now,
@@ -1562,7 +2667,13 @@ def _transition_run_state(
         event_type=event_type,
         level="info",
         message=message,
-        payload={"state": target_state, "stop_reason": stop_reason},
+        payload={
+            "state": target_state,
+            "stop_reason": stop_reason,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "worker_control": worker_control,
+        },
         created_at=now,
     )
     db.commit()

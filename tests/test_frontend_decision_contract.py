@@ -56,6 +56,10 @@ def test_execution_status_route_and_page_contract():
         'const automationStatusLabel = runtimeStatusPending ? "自動交易同步中" : `自動交易 ${runtimeStatus?.automation ? "開啟" : "關閉"}`;',
         'const liveReadinessStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
         'const liveReadinessMetricValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可進場" : "仍阻塞");',
+        'live_canary_policy_gate?: LiveCanaryPolicyGate | null;',
+        'const liveCanaryPolicyGate = executionSurfaceContract?.live_canary_policy_gate ?? null;',
+        'const liveCanaryPolicyDetailLabel = runtimeStatusPending',
+        'Canary policy {liveCanaryPolicyGateLabel} · {liveCanaryPolicyDetailLabel}',
         '<ExecutionPill>{executionStatusSymbolLabel}</ExecutionPill>',
         '<ExecutionPill>{executionStatusModeLabel}</ExecutionPill>',
         '<ExecutionPill>{executionStatusVenueLabel}</ExecutionPill>',
@@ -76,7 +80,7 @@ def test_execution_status_route_and_page_contract():
         '需要回頭檢查倉位腿與策略表現，請到策略實驗室。',
         '營運入口 {humanizeRuntimeDetailText(operationsSurface?.label || "Bot 營運")} · {operationsSurface?.route || "/execution"}',
         '診斷入口 {humanizeRuntimeDetailText(diagnosticsSurface?.label || "執行狀態")} · {diagnosticsSurface?.route || "/execution/status"}',
-        'detail={`阻塞點 ${currentLiveBlockerLabel} · ${primaryRuntimeMessage} · 治理範圍 ${readinessScopeLabel}`}',
+        'detail={`阻塞點 ${currentLiveBlockerLabel} · ${primaryRuntimeMessage} · 治理範圍 ${readinessScopeLabel} · Canary policy ${liveCanaryPolicyGateLabel} · ${liveCanaryPolicyDetailLabel}`}',
         'value={liveReadinessMetricValue}',
         '場館阻塞 {venueBlockersLabel}',
     ]
@@ -250,18 +254,22 @@ def test_execution_console_surfaces_m5_readiness_shadow_ledger_venue_proof_and_c
         'canary_gap_answers?: CanaryGapAnswers | null;',
         'time_to_evidence?: TimeToEvidence | null;',
         'alternative_solution_review?: AlternativeSolutionReview | null;',
+        'milestone_progression?: MilestoneProgression | null;',
         'const executionReadiness = executionOverview?.execution_readiness || null;',
         'const shadowTradeLedger = executionOverview?.shadow_trade_ledger || null;',
         'const venueDryRunProof = executionOverview?.venue_dry_run_proof || null;',
         'const canaryGapAnswers = executionOverview?.canary_gap_answers || null;',
         'const timeToEvidence = executionReadiness?.time_to_evidence || canaryGapAnswers?.time_to_evidence || null;',
         'const alternativeSolutionReview = executionReadiness?.alternative_solution_review || canaryGapAnswers?.alternative_solution_review || null;',
+        'const milestoneProgression = executionReadiness?.milestone_progression || canaryGapAnswers?.milestone_progression || null;',
+        'readinessGateByKey.get("live_canary_policy_gate")',
         '實戰準備度',
         'Shadow / Reduce-only',
         '模型 gate',
         '即時支持 gate',
         '熔斷 gate',
         '場館 gate',
+        'Live-canary policy gate',
         '影子觀察 gate',
         'Shadow Trade Ledger',
         '24h 結果',
@@ -270,6 +278,7 @@ def test_execution_console_surfaces_m5_readiness_shadow_ledger_venue_proof_and_c
         'order preview',
         'ack simulation',
         'cancel simulation',
+        'fill simulation',
         'reconciliation check',
         '目前距離 canary 還差什麼',
         '今天可以演練什麼',
@@ -277,6 +286,9 @@ def test_execution_console_surfaces_m5_readiness_shadow_ledger_venue_proof_and_c
         '如果 gate 全過，第一筆 canary 如何執行',
         'time-to-evidence / 替代解法評審',
         '替代解法今天可前進',
+        'MILESTONE progression / 不卡死路由',
+        '程式現在要進入哪裡',
+        '可切換的安全 lane',
         '仍然不可做',
         '買入 / 加倉仍鎖住',
         '不送單',
@@ -1043,6 +1055,10 @@ def test_dashboard_execution_summary_keeps_current_live_blocker_ahead_of_venue_r
         'const dashboardVenueBlockers = Array.isArray(executionSurfaceContract?.live_ready_blockers)',
         'const dashboardVenueBlockersLabel = runtimeStatusPending',
         'dashboardVenueBlockers.map((item) => humanizeExecutionReason(item)).join(" · ")',
+        'live_canary_policy_gate?: LiveCanaryPolicyGate | null;',
+        'const dashboardLiveCanaryPolicyGate = executionSurfaceContract?.live_canary_policy_gate ?? null;',
+        'const dashboardLiveCanaryPolicyDetailLabel = runtimeStatusPending',
+        'Canary policy {dashboardLiveCanaryPolicyGateLabel} · {dashboardLiveCanaryPolicyDetailLabel}',
         'const dashboardSupportRouteVerdictLabel = runtimeStatusPending',
         'humanizeSupportRouteLabel(liveRuntimeTruth?.support_route_verdict || null)',
         'const dashboardSupportGovernanceRouteLabel = runtimeStatusPending',
@@ -1126,6 +1142,51 @@ def test_execution_surfaces_humanize_blocker_labels_and_reasons_via_shared_runti
     assert 'liveRuntimeTruth?.deployment_blocker_reason' in execution_console_source
     assert 'const currentLiveBlockerLabel = runtimeStatusPending ? "同步中" : (currentLiveBlocker || "unavailable");' not in execution_status_source
     assert 'const currentLiveBlockerLabel = liveExecutionSyncPending ? "同步中" : (currentLiveBlocker || "unknown");' not in strategy_lab_source
+
+
+def test_status_only_surfaces_show_live_canary_policy_gate_with_operator_copy():
+    runtime_copy_source = _read("utils/runtimeCopy.ts")
+    dashboard_source = _read("pages/Dashboard.tsx")
+    execution_status_source = _read("pages/ExecutionStatus.tsx")
+    strategy_lab_source = _read("pages/StrategyLab.tsx")
+
+    for snippet in [
+        '["execution.mode must be live", "執行模式尚未切到實盤。"]',
+        '["enable_live_trading must be true", "實盤交易旗標尚未啟用。"]',
+        '["execution.live_canary.enabled must be true", "實盤 Canary policy 尚未啟用。"]',
+        '["explicit allowed_symbols must include the symbol", "Canary allowlist 尚未明確包含目前商品。"]',
+        '["symbol max_base_qty_by_symbol cap must be configured", "目前商品尚未配置 Canary 最大基礎數量上限。"]',
+        '["kill_switch must be false", "停機開關仍啟用。"]',
+    ]:
+        assert snippet in runtime_copy_source
+
+    for source in [dashboard_source, execution_status_source, strategy_lab_source]:
+        assert 'live_canary_policy_gate?: LiveCanaryPolicyGate | null;' in source
+        assert '缺少 bounded live-canary policy gate；不可升級 canary。' in source
+        assert 'mode / live flag / allowlist / symbol cap / kill switch 已符合；仍需 runtime gates 全過。' in source
+
+    for snippet in [
+        'const dashboardLiveCanaryPolicyGate = executionSurfaceContract?.live_canary_policy_gate ?? null;',
+        'const dashboardLiveCanaryPolicyDetailLabel = runtimeStatusPending',
+        'Canary policy {dashboardLiveCanaryPolicyGateLabel} · {dashboardLiveCanaryPolicyDetailLabel}',
+    ]:
+        assert snippet in dashboard_source
+
+    for snippet in [
+        'const liveCanaryPolicyGate = executionSurfaceContract?.live_canary_policy_gate ?? null;',
+        'const liveCanaryPolicyDetailLabel = runtimeStatusPending',
+        'Canary policy {liveCanaryPolicyGateLabel} · {liveCanaryPolicyDetailLabel}',
+    ]:
+        assert snippet in execution_status_source
+
+    for snippet in [
+        'const strategyLiveCanaryPolicyGate = executionSurfaceContract?.live_canary_policy_gate ?? null;',
+        'const strategyLiveCanaryPolicyDetailLabel = liveExecutionSyncPending',
+        '🛡️ Canary policy',
+        '{strategyLiveCanaryPolicyGateLabel}',
+        '{strategyLiveCanaryPolicyDetailLabel}',
+    ]:
+        assert snippet in strategy_lab_source
 
 
 def test_execution_status_humanizes_readiness_scope_with_shared_runtime_copy():
@@ -1465,25 +1526,16 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'humanizeRuntimeClosureStateLabel',
         'const executionReconciliation = runtimeStatus?.execution_reconciliation ?? null;',
         'const executionSurfaceContract = runtimeStatus?.execution_surface_contract ?? null;',
-        'const executionOperationsSurface = executionSurfaceContract?.operations_surface ?? null;',
-        'const executionDiagnosticsSurface = executionSurfaceContract?.diagnostics_surface ?? null;',
-        'const metadataSmoke = runtimeStatus?.execution_metadata_smoke ?? null;',
         'const runtimeStatusPending = runtimeStatusLoading && !runtimeStatus && !runtimeStatusError;',
         'const liveExecutionSyncPending = runtimeStatusPending && liveRuntimePending;',
         'const currentLiveBlockerLabel = liveExecutionSyncPending',
         'humanizeCurrentLiveBlockerLabel(currentLiveBlocker || "unknown")',
         'const currentLiveBlockerSummaryLabel = liveExecutionSyncPending',
         'humanizeExecutionReason(currentLiveBlockerSummary)',
-        'const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
         'const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(',
         'const reconciliationStatusLabel = runtimeStatusPending',
         'humanizeExecutionReconciliationStatusLabel(',
         'const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;',
-        'const liveExecutionSyncSubtitle = liveExecutionSyncPending',
-        'const metadataSmokeFreshnessLabel = runtimeStatusPending',
-        'const venueChecks = Array.isArray(metadataSmoke?.venues) ? metadataSmoke.venues : [];',
-        'ExecutionMetadataFreshnessDetail',
-        'VenueReadinessSummary',
         'const liveRuntimeClosureState = liveDecisionStatus?.runtime_closure_state ?? liveRuntimeTruth?.runtime_closure_state ?? null;',
         'const liveRuntimeClosureSummary = liveDecisionStatus?.runtime_closure_summary ?? liveRuntimeTruth?.runtime_closure_summary ?? null;',
         'const runtimeClosureStateLabel = liveExecutionSyncPending',
@@ -1509,10 +1561,16 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         '策略模組選擇',
         '先選 1 個主 preset，再疊加 modifier；只看摘要，不先讀長說明。',
         '已選取',
-        '即時部署同步',
-        'subtitle={liveExecutionSyncSubtitle}',
-        '目前阻塞點 {currentLiveBlockerLabel}',
-        '{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}',
+        'interface StrategyDataSyncStatus {',
+        'const [strategyDataSync, setStrategyDataSync] = useState<StrategyDataSyncStatus | null>(null);',
+        'const data = await fetchStrategyLabEndpointJson("/api/strategy_data_sync") as StrategyDataSyncStatus;',
+        'const handleStrategyDataSync = async () => {',
+        'await fetchApi<StrategyDataSyncResponse>("/api/strategy_data_sync",',
+        '目前同步資料點',
+        '立即同步',
+        'Raw 最新',
+        'Features 最新',
+        'Labels 最新',
         'const liveScopePathologySummary =',
         'liveRuntimeTruth?.decision_quality_scope_pathology_summary',
         'const currentLiveBlocker =',
@@ -1521,13 +1579,6 @@ def test_strategy_lab_keeps_decision_quality_summary_surfaces():
         'LivePathologySummaryCard',
         '🧬 精準路徑 / 外溢口袋對照',
         '目前阻塞點',
-        '場館阻塞',
-        '部署閉環',
-        '啟用倉位腿',
-        '元資料新鮮度',
-        '前往 Bot 營運 →',
-        '前往執行狀態 →',
-        '診斷頁面 {humanizeRuntimeDetailText(executionDiagnosticsSurface?.label || "執行狀態")}',
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -1720,27 +1771,25 @@ def test_signal_banner_keeps_reduce_path_available_when_add_exposure_blocked():
         assert snippet not in source
 
 
-def test_strategy_lab_live_sync_card_keeps_blocked_status_ahead_of_reconciliation_health():
+def test_strategy_lab_removes_live_deployment_sync_card_and_surfaces_data_sync():
     source = _read("pages/StrategyLab.tsx")
     required_snippets = [
-        'const liveDeployStatusLabel = liveExecutionSyncPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
-        'const reconciliationCoverageLimited = isExecutionReconciliationLimitedEvidence(',
-        'const reconciliationStatusLabel = runtimeStatusPending',
-        'humanizeExecutionReconciliationStatusLabel(',
-        'const reconciliationBadgeLabel = runtimeStatusPending ? "對帳同步中" : `對帳 ${reconciliationStatusLabel}`;',
-        'const liveExecutionSyncSubtitle = liveExecutionSyncPending',
-        'subtitle={liveExecutionSyncSubtitle}',
-        'pending: liveExecutionSyncPending,',
-        'liveReady: Boolean(executionSurfaceContract?.live_ready),',
-        'blocker: currentLiveBlocker,',
-        'reconciliationStatus: executionReconciliation?.status,',
-        '{liveDeployStatusLabel}',
-        '目前阻塞點 {currentLiveBlockerLabel}',
-        '當前分桶 {liveSupportRowsLabel} · 缺口 {liveSupportGapLabel}',
-        '{reconciliationBadgeLabel} · {reconciliationCheckedAtLabel}',
+        'interface StrategyDataSyncStatus {',
+        'const [strategyDataSync, setStrategyDataSync] = useState<StrategyDataSyncStatus | null>(null);',
+        'const handleStrategyDataSync = async () => {',
+        '目前同步資料點',
+        '回測可用',
+        'Raw 最新',
+        'Features 最新',
+        'Labels 最新',
+        '立即同步',
     ]
     for snippet in required_snippets:
         assert snippet in source
+    assert 'title="即時部署同步"' not in source
+    assert 'subtitle={liveExecutionSyncSubtitle}' not in source
+    assert '前往 Bot 營運 →' not in source
+    assert '前往執行狀態 →' not in source
     assert source.index('liveDeployStatusLabel') < source.index('reconciliationBadgeLabel')
 
 
@@ -1826,6 +1875,21 @@ def test_recent_canonical_drift_card_surfaces_latest_and_blocking_windows():
     assert 'return `${streak.count}x${target}`;' not in source
 
 
+def test_recent_canonical_drift_card_drops_empty_tail_root_cause_placeholder():
+    source = _read("components/RecentCanonicalDriftCard.tsx")
+    required_snippets = [
+        'function hasCanonicalTailRootCauseContent(rootCause?: CanonicalTailRootCause | null): rootCause is CanonicalTailRootCause {',
+        'if (!hasCanonicalTailRootCauseContent(rootCause)) return null;',
+        'rootCause.loss_path_breakdown',
+        'rootCause.regime_breakdown',
+        'rootCause.top_4h_shift_features',
+        'rootCause.feature_shift',
+        'rootCause.key_findings',
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+
 def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout():
     source = _read("pages/StrategyLab.tsx")
     required_snippets = [
@@ -1847,7 +1911,7 @@ def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout()
         'const detail = await fetchStrategyLabEndpointJson(`/api/strategies/${encodeURIComponent(strategyName)}`) as StrategyEntry;',
         'const data = await fetchStrategyLabEndpointJson(`/api/models/leaderboard${forceRefresh ? "?refresh=true" : ""}`) as any;',
         'const data = await fetchStrategyLabEndpointJson("/api/model/stats") as ModelStatsResponse;',
-        'const data = await fetchStrategyLabEndpointJson("/api/strategy_data_range")',
+        'const data = await fetchStrategyLabEndpointJson("/api/strategy_data_sync")',
         'if (initialLoading || strategies.length > 0) {',
         'loadLeaderboard(false);',
         'if (selectedStrategy || loadingStrategyName || strategies.length === 0) {',
@@ -1902,11 +1966,6 @@ def test_execution_status_and_strategy_lab_surface_q15_bucket_root_cause_candida
         '精準路徑樣本 ${currentBucketRootCauseSupportRowsLabel} · 缺口 ${currentBucketRootCauseSupportGapLabel}',
         'const currentBucketRootCauseDrilldownLabel = currentBucketRootCauseIsQ35',
         '交易門檻缺口 ${formatDecimal(currentBucketRootCauseTradeFloorGap, 4)} · q35 公式 / 重設仍只屬治理參考',
-        '當前分桶根因',
-        '當前分桶 {currentBucketRootCauseBucket}',
-        '候選修補方案 {currentBucketRootCausePatchTargetLabel} · {currentBucketRootCauseActionLabel}',
-        '{currentBucketRootCauseDrilldownLabel}',
-        '下一步請驗證 {humanizeRuntimeDetailText(currentBucketRootCause?.verify_next || "—")}',
     ]:
         assert snippet in strategy_lab_source
 
@@ -2145,7 +2204,6 @@ def test_dashboard_and_strategy_lab_humanize_gate_and_trade_labels():
         '🧠 模型 / 閘門摘要',
         '主閘門：{humanizeRegimeGateLabel(activeResult?.dominant_regime_gate || null)}',
         '原因 {humanizeTradeReasonLabel(trade.reason || null)} · 層數 {trade.layers ?? "—"} · 閘門 {humanizeRegimeGateLabel(trade.regime_gate || null)}',
-        '<div>{humanizeRuntimeDetailText(currentBucketRootCauseSummary)}</div>',
     ]:
         assert snippet in lab_source
 
@@ -2604,13 +2662,22 @@ def test_use_api_supports_local_backend_timeout_fallback_for_dev_runtime():
         'const DEV_LOCAL_API_CANDIDATE_PORTS = [8000, 8001] as const;',
         'const DEV_API_DISCOVERY_TIMEOUT_MS = 1200;',
         'const DEV_API_STATUS_DISCOVERY_TIMEOUT_MS = 2000;',
+        'const DEV_API_FAILED_BASE_COOLDOWN_MS = 30000;',
         'const LEADERBOARD_REQUEST_TIMEOUT_MS = 20000;',
         'const STATUS_REQUEST_TIMEOUT_MS = 20000;',
         'let prewarmActiveApiBasePromise: Promise<void> | null = null;',
+        'const failedApiBaseUntil = new Map<string, number>();',
         'type ApiBaseHealthProbe = {',
         'window.localStorage.setItem(ACTIVE_API_BASE_STORAGE_KEY, base);',
+        'function markApiBaseFailed(base: string | null): void {',
+        'function markApiBaseHealthy(base: string | null): void {',
+        'function isApiBaseTemporarilyFailed(base: string): boolean {',
+        'function getDefaultDevApiBase(): string | null {',
+        'function getDevApiCandidateBases(options: { includeFailed?: boolean; defaultOnlyWhenAllFailed?: boolean } = {}): string[] {',
+        'const availableCandidates = orderedCandidates.filter((candidate) => !isApiBaseTemporarilyFailed(candidate));',
         'async function probeApiBaseHealth(base: string): Promise<ApiBaseHealthProbe> {',
         'const resp = await fetch(buildApiUrlForBase("/health", base), {',
+        'markApiBaseFailed(base);',
         'const runtimeBuild = payload?.runtime_build && typeof payload.runtime_build === "object"',
         'headSyncStatus: typeof runtimeBuild?.head_sync_status === "string" ? runtimeBuild.head_sync_status : null,',
         'function scoreApiBaseHealthProbe(probe: ApiBaseHealthProbe): number {',
@@ -2626,11 +2693,14 @@ def test_use_api_supports_local_backend_timeout_fallback_for_dev_runtime():
         'totalScore: healthScore + runtimeContractScore,',
         'if (probe.totalScore > best.totalScore) return probe;',
         'persistActiveApiBase(bestCapability?.base ?? healthyCandidates[0]?.base ?? null);',
+        'const probeCandidates = getDevApiCandidateBases({ includeFailed: true });',
         'async function prewarmDevApiBase(): Promise<void> {',
         'export async function prewarmActiveApiBase(): Promise<string | null> {',
         'await prewarmDevApiBase();',
         'const requestCandidates = getApiRequestCandidates();',
+        'const devCandidates = getDevApiCandidateBases({ defaultOnlyWhenAllFailed: true });',
         'const timeoutMs = getRequestTimeoutMs(endpoint);',
+        'markApiBaseHealthy(base);',
         'if (endpoint.startsWith("/api/status")) return STATUS_REQUEST_TIMEOUT_MS;',
         'if (endpoint.startsWith("/api/strategies/leaderboard")) return LEADERBOARD_REQUEST_TIMEOUT_MS;',
         'if (endpoint.startsWith("/api/models/leaderboard")) return LEADERBOARD_REQUEST_TIMEOUT_MS;',
