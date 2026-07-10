@@ -1,6 +1,9 @@
 database:
   url: sqlite:////home/kazuha/Poly-Trader/poly_trader.db
 
+# Do not commit exchange secrets. Use environment variables instead:
+# POLY_TRADER_OKX_API_KEY / POLY_TRADER_OKX_API_SECRET / POLY_TRADER_OKX_PASSPHRASE
+# or OKX_API_KEY / OKX_API_SECRET / OKX_PASSPHRASE.
 okx:
   api_key: ""
   api_secret: ""
@@ -13,6 +16,17 @@ trading:
   dry_run: true
   venue: "okx"
 
+live_runner:
+  strategy_name: "Auto Leaderboard · 重掃 random_forest Hybrid #01"
+  interval_seconds: 300
+  capital_quote: 10000
+  one_action_per_feature_timestamp: true
+  shadow_candidate_enabled: true
+  shadow_evidence_mode: true
+  one_shadow_candidate_per_feature_timestamp: true
+  shadow_candidate_qty: 0.00001
+  order_type: "market"
+
 execution:
   mode: "paper"
   venue: "okx"
@@ -24,6 +38,15 @@ execution:
       - "BTC/USDT"
     max_base_qty_by_symbol:
       "BTC/USDT": 0.0001
+  cost_aware_edge:
+    # Default total threshold = 15 bps. Forecast edge must exceed this before
+    # any paper/shadow risk-on candidate is marked ready; live buy/add still
+    # requires strict exact support, venue proof, breaker, and canary policy.
+    taker_fee_bps: 5
+    spread_bps: 3
+    slippage_bps: 2
+    volatility_buffer_bps: 5
+    drawdown_buffer_bps: 0
   venues:
     okx:
       enabled: true

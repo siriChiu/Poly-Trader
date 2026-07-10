@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 from database.models import OrderLifecycleEvent, TradeHistory
 from execution.account_sync import AccountSyncService
-from execution.config import resolve_trading_config
-from execution.execution_service import ExecutionService
+from execution.config import resolve_cost_aware_edge_config, resolve_trading_config
+from execution.execution_service import ExecutionRejectError, ExecutionService
 from execution.exchanges.base import OrderRequest
 from execution.exchanges.okx_adapter import OKXAdapter
 
@@ -66,6 +66,33 @@ def test_resolve_trading_config_merges_execution_and_legacy_fields():
     assert cfg["dry_run"] is True
     assert "binance" not in cfg["venues"]
     assert cfg["venues"]["okx"]["passphrase"] == "p"
+    assert cfg["cost_aware_edge"] == {
+        "taker_fee_bps": 5.0,
+        "spread_bps": 3.0,
+        "slippage_bps": 2.0,
+        "volatility_buffer_bps": 5.0,
+        "drawdown_buffer_bps": 0.0,
+    }
+
+
+def test_resolve_cost_aware_edge_config_merges_defaults_legacy_and_execution_overrides():
+    config = {
+        "cost_aware_edge": {"fee_bps": "6", "spread_bps": "4"},
+        "trading": {"slippage_bps": "3"},
+        "execution": {"cost_aware_edge": {"volatility_buffer_bps": 7, "pyramid_drawdown_buffer_bps": 2}},
+    }
+
+    resolved = resolve_trading_config(config)
+    cost = resolve_cost_aware_edge_config(config)
+
+    assert resolved["cost_aware_edge"] == cost
+    assert cost == {
+        "taker_fee_bps": 6.0,
+        "spread_bps": 4.0,
+        "slippage_bps": 3.0,
+        "volatility_buffer_bps": 7.0,
+        "drawdown_buffer_bps": 2.0,
+    }
 
 
 def test_resolve_trading_config_reads_okx_credentials_from_env(monkeypatch):
@@ -210,6 +237,32 @@ def test_live_buy_requires_explicit_canary_policy(monkeypatch):
         assert "execution.live_canary.enabled" in payload["context"]["required_config"]
     else:
         raise AssertionError("live buy should require explicit tiny-canary policy")
+
+
+def test_standalone_live_policy_cannot_bypass_canary_policy(monkeypatch):
+    service = ExecutionService(
+        {
+            "execution": {
+                "mode": "live",
+                "venue": "okx",
+                "enable_live_trading": True,
+                # Historical standalone-runner escape hatch: this must not
+                # disable the hard live-canary allowlist/qty cap guard.
+                "live_policy": "explicit",
+            }
+        },
+        db_session=DummySession(),
+    )
+    monkeypatch.setattr(service, "get_adapter", lambda venue=None: FakeAdapter(dry_run=False))
+
+    try:
+        service.submit_order(symbol="BTCUSDT", side="buy", order_type="market", qty=0.01, price=62000.0)
+    except ExecutionRejectError as exc:
+        payload = exc.to_payload()
+        assert payload["code"] == "live_canary_policy_required"
+        assert payload["context"]["required_config"] == "execution.live_canary.enabled=true + allowed_symbols + max_base_qty_by_symbol"
+    else:
+        raise AssertionError("standalone live policy must still require explicit tiny-canary policy")
 
 
 def test_live_canary_rejects_order_above_symbol_qty_cap(monkeypatch):

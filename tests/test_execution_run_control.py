@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from backtesting import strategy_lab
 from database.models import init_db
 from execution import control_plane as control_plane_module
+from execution import live_runner as live_runner_module
 from execution import strategy_bundle as strategy_bundle_module
 from server.routes import api as api_module
 from sqlalchemy import text
@@ -193,6 +194,82 @@ def _seed_execution_strategy_catalog(tmp_path, monkeypatch):
     )
 
 
+
+def _seed_live_runner_shadow_decision(session, tmp_path, monkeypatch):
+    live_root = tmp_path / "live_trading"
+    live_root.mkdir()
+    monkeypatch.setattr(control_plane_module, "LIVE_TRADING_ROOT", live_root)
+    live_runner_module.ensure_audit_tables(session)
+    run_id = "live-runner-shadow-qa"
+    decision_payload = {
+        "run_id": run_id,
+        "strategy_name": "Trend QA Strategy",
+        "strategy_hash": "live-runner-hash",
+        "symbol": "BTCUSDT",
+        "venue": "okx",
+        "feature_timestamp": "2026-04-17T12:00:00Z",
+        "price": 68000.0,
+        "signal": "BUY",
+        "action": "BUY_LAYER",
+        "side": "buy",
+        "qty": 0.001,
+        "quote_amount": 68.0,
+        "order_submitted": 0,
+        "dry_run": 1,
+        "model_confidence": 0.82,
+        "entry_quality": 0.74,
+        "allowed_layers": 1,
+        "regime_gate": "ALLOW",
+        "structure_bucket": "ALLOW|trend|q65",
+        "reason": "shadow_candidate_for_24h_gate",
+        "payload_json": json.dumps({"layer": {"index": 1}, "execution_reject": {"code": "paper_shadow_no_submit"}}, ensure_ascii=False),
+        "created_at": "2026-04-17T12:05:00Z",
+    }
+    session.execute(
+        text(
+            """
+            INSERT INTO live_runner_runs(
+                id, strategy_name, strategy_hash, symbol, venue, mode, model_artifact_path,
+                status, config_json, started_at, stopped_at, last_heartbeat_at
+            ) VALUES (
+                :id, 'Trend QA Strategy', 'live-runner-hash', 'BTCUSDT', 'okx', 'paper',
+                'data/live_models/qa.pkl', 'running', :config_json,
+                '2026-04-17T12:00:00Z', NULL, '2026-04-17T12:05:00Z'
+            )
+            """
+        ),
+        {
+            "id": run_id,
+            "config_json": json.dumps(
+                {"trading": {"dry_run": True}, "execution": {"mode": "paper", "live_canary": {"enabled": False}}},
+                ensure_ascii=False,
+            ),
+        },
+    )
+    session.execute(
+        text(
+            """
+            INSERT INTO live_runner_decisions(
+                run_id, strategy_name, strategy_hash, symbol, venue, feature_timestamp, price,
+                signal, action, side, qty, quote_amount, order_id, client_order_id,
+                order_submitted, dry_run, model_confidence, entry_quality, allowed_layers,
+                regime_gate, structure_bucket, reason, payload_json, created_at
+            ) VALUES (
+                :run_id, :strategy_name, :strategy_hash, :symbol, :venue, :feature_timestamp, :price,
+                :signal, :action, :side, :qty, :quote_amount, NULL, NULL,
+                :order_submitted, :dry_run, :model_confidence, :entry_quality, :allowed_layers,
+                :regime_gate, :structure_bucket, :reason, :payload_json, :created_at
+            )
+            """
+        ),
+        decision_payload,
+    )
+    session.commit()
+    (live_root / f"{run_id}.jsonl").write_text(json.dumps(decision_payload, ensure_ascii=False) + "\n", encoding="utf-8")
+    return run_id
+
+
+
 def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_path):
     async def _fake_status():
         return _status_payload()
@@ -307,6 +384,7 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
         {"timestamp": "2026-04-17T12:00:00Z", "symbol": "BTCUSDT"},
     )
     session.commit()
+    live_runner_run_id = _seed_live_runner_shadow_decision(session, tmp_path, monkeypatch)
 
     outcome_payload = asyncio.run(api_module.api_execution_worker_reconcile(request=_local_request()))
     outcome_artifact = outcome_payload["artifact"]
@@ -321,6 +399,16 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert outcome_artifact["entries"][0]["outcome_24h"]["status"] == "resolved_from_1440m_label"
     assert outcome_artifact["entries"][0]["outcome_24h"]["pyramid_win"] is True
     assert outcome_artifact["entries"][0]["order_submission_enabled"] is False
+    assert outcome_artifact["source"] == "execution_run_events.paper_shadow_worker_poll+live_runner_decisions"
+    assert outcome_artifact["quick_read"]["live_runner_status"] == "runner_24h_resolved_evidence_ready"
+    assert outcome_artifact["quick_read"]["live_runner_resolved_outcomes"] == 1
+    assert outcome_artifact["quick_read"]["live_runner_jsonl_backed"] is True
+    assert outcome_artifact["summary"]["live_runner_total_runs"] == 1
+    assert outcome_artifact["summary"]["live_runner_total_decisions"] == 1
+    assert outcome_artifact["summary"]["live_runner_candidate_decisions"] == 1
+    assert outcome_artifact["live_runner_shadow_gate"]["status"] == "runner_24h_resolved_evidence_ready"
+    assert outcome_artifact["live_runner"]["latest_run"]["run_id"] == live_runner_run_id
+    assert outcome_artifact["live_runner"]["latest_decision"]["action"] == "BUY_LAYER"
 
     overview_payload = asyncio.run(api_module.api_execution_overview())
     trend_card = next(card for card in overview_payload["profile_cards"] if card["key"] == "trend")
@@ -328,6 +416,26 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert trend_card["control_contract"]["start_status"] == "already_running"
     assert trend_card["current_run"]["runtime_binding_contract"]["status"] == "symbol_scope_runtime_mirror"
     overview_outcome = overview_payload["paper_shadow_outcome_reconciliation"]
+    overview_live_runner = overview_payload["live_runner"]
+    assert overview_live_runner["status"] == "runner_24h_resolved_evidence_ready"
+    assert overview_live_runner["summary"]["total_runs"] == 1
+    assert overview_live_runner["summary"]["total_decisions"] == 1
+    assert overview_live_runner["summary"]["jsonl_backed"] is True
+    assert overview_live_runner["latest_run"]["run_id"] == live_runner_run_id
+    assert overview_live_runner["latest_decision"]["action"] == "BUY_LAYER"
+    assert overview_live_runner["shadow_evidence_gate"]["resolved_outcomes"] == 1
+    assert overview_live_runner["shadow_evidence_gate"]["order_submission_enabled"] is False
+    readiness = overview_payload["execution_readiness"]
+    readiness_gates = {gate["key"]: gate for gate in readiness["gates"]}
+    assert readiness_gates["live_runner_24h_shadow_gate"]["status"] == "passed"
+    assert readiness_gates["live_runner_24h_shadow_gate"]["resolved_outcomes"] == 1
+    assert readiness_gates["live_runner_24h_shadow_gate"]["jsonl_backed"] is True
+    assert readiness_gates["live_runner_24h_shadow_gate"]["order_submission_enabled"] is False
+    milestone = readiness["milestone_progression"]
+    roadmap_milestones = {item["key"]: item for item in milestone["milestones"]}
+    assert roadmap_milestones["M4_5_live_runner_24h_shadow_evidence"]["status"] == "passed"
+    assert milestone["live_runner_24h_shadow_gate"]["passed"] is True
+    assert overview_outcome["source"] == "execution_run_events.paper_shadow_worker_poll+live_runner_decisions"
     assert overview_outcome["status"] == "recording_with_resolved_outcomes"
     assert overview_outcome["quick_read"]["resolved_outcomes"] == 1
     assert overview_outcome["quick_read"]["order_submission_enabled"] is False

@@ -7,6 +7,22 @@ from typing import Any, Dict
 SUPPORTED_EXECUTION_VENUES = {"okx"}
 DEFAULT_EXECUTION_VENUE = "okx"
 
+DEFAULT_COST_AWARE_EDGE_CONFIG: Dict[str, float] = {
+    # Conservative first production-default model: taker fee + spread + slippage
+    # + one safety buffer = 15 bps.  drawdown_buffer_bps is explicit so the
+    # readiness contract can show it, but starts at 0 until runtime supplies a
+    # model-specific drawdown buffer.
+    "taker_fee_bps": 5.0,
+    "spread_bps": 3.0,
+    "slippage_bps": 2.0,
+    "volatility_buffer_bps": 5.0,
+    "drawdown_buffer_bps": 0.0,
+}
+_COST_AWARE_EDGE_ALIASES = {
+    "fee_bps": "taker_fee_bps",
+    "pyramid_drawdown_buffer_bps": "drawdown_buffer_bps",
+}
+
 
 DEFAULT_EXECUTION_CONFIG: Dict[str, Any] = {
     "mode": "paper",
@@ -15,6 +31,7 @@ DEFAULT_EXECUTION_CONFIG: Dict[str, Any] = {
     "max_daily_loss_pct": 0.03,
     "max_consecutive_failures": 3,
     "kill_switch": False,
+    "cost_aware_edge": dict(DEFAULT_COST_AWARE_EDGE_CONFIG),
     "venues": {
         "okx": {
             "enabled": True,
@@ -49,7 +66,25 @@ def resolve_trading_config(config: Dict[str, Any]) -> Dict[str, Any]:
     trading_cfg = source.get("trading") or {}
     okx_cfg = source.get("okx") or {}
 
-    merged.update({k: v for k, v in execution_cfg.items() if k != "venues" and v is not None})
+    merged.update({k: v for k, v in execution_cfg.items() if k not in {"venues", "cost_aware_edge"} and v is not None})
+    cost_aware_edge = deepcopy(DEFAULT_COST_AWARE_EDGE_CONFIG)
+
+    def _merge_cost_source(cost_source: Any) -> None:
+        if not isinstance(cost_source, dict):
+            return
+        for raw_key, raw_value in cost_source.items():
+            key = _COST_AWARE_EDGE_ALIASES.get(str(raw_key), str(raw_key))
+            if key not in DEFAULT_COST_AWARE_EDGE_CONFIG or raw_value is None:
+                continue
+            try:
+                cost_aware_edge[key] = float(raw_value)
+            except (TypeError, ValueError):
+                continue
+
+    _merge_cost_source(source.get("cost_aware_edge"))
+    _merge_cost_source({key: trading_cfg.get(key) for key in [*DEFAULT_COST_AWARE_EDGE_CONFIG.keys(), *_COST_AWARE_EDGE_ALIASES.keys()]})
+    _merge_cost_source(execution_cfg.get("cost_aware_edge"))
+    merged["cost_aware_edge"] = cost_aware_edge
     merged["mode"] = str(execution_cfg.get("mode") or ("paper" if trading_cfg.get("dry_run", True) else "live_canary"))
     requested_venue = execution_cfg.get("venue") or trading_cfg.get("venue") or merged.get("venue") or DEFAULT_EXECUTION_VENUE
     normalized_venue, unsupported_requested = _normalize_execution_venue(requested_venue)
@@ -91,4 +126,25 @@ def resolve_trading_config(config: Dict[str, Any]) -> Dict[str, Any]:
                 if value:
                     venue_cfg[key] = value
     merged["dry_run"] = merged["mode"] != "live" or not merged["enable_live_trading"]
+    return merged
+
+
+def resolve_cost_aware_edge_config(config: Dict[str, Any]) -> Dict[str, float]:
+    """Return normalized cost-aware edge inputs used by readiness gates.
+
+    The returned dict always contains every machine-readable component.  Missing
+    forecast edge still fails closed in readiness; defaults only prevent the
+    cost side of the contract from being absent.
+    """
+
+    resolved = resolve_trading_config(config or {})
+    values = resolved.get("cost_aware_edge") if isinstance(resolved.get("cost_aware_edge"), dict) else {}
+    merged = deepcopy(DEFAULT_COST_AWARE_EDGE_CONFIG)
+    for key, value in values.items():
+        if key not in merged or value is None:
+            continue
+        try:
+            merged[key] = float(value)
+        except (TypeError, ValueError):
+            continue
     return merged

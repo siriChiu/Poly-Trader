@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || process.env.VITE_API_BASE || 'http://localhost:8000'
+const wsProxyTarget = apiProxyTarget.replace(/^http/, 'ws')
+
 export default defineConfig({
   plugins: [react()],
   build: {
@@ -17,11 +20,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: apiProxyTarget,
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:8000',
+        target: wsProxyTarget,
         ws: true,
       },
     },

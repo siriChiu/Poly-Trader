@@ -2,7 +2,7 @@ import asyncio
 
 from backtesting import strategy_lab
 from database.models import init_db
-from execution.console_overview import build_execution_overview
+from execution.console_overview import attach_live_runner_shadow_gate_to_readiness, build_execution_overview
 from server.routes import api as api_module
 
 
@@ -266,6 +266,11 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
     assert gates["current_live_support_gate"]["required"] == 50
     assert gates["current_live_support_gate"]["gap"] == 48
     assert gates["circuit_breaker_gate"]["gap"] == 7
+    assert gates["circuit_breaker_gate"]["release_ready"] is False
+    assert gates["circuit_breaker_gate"]["next_validation_artifact"] == "data/circuit_breaker_audit.json"
+    assert gates["circuit_breaker_gate"]["release_evidence_lane"]["status"] == "needs_more_resolved_wins"
+    assert gates["circuit_breaker_gate"]["release_evidence_lane"]["wins_needed"] == 7
+    assert gates["circuit_breaker_gate"]["release_evidence_lane"]["order_submission_enabled"] is False
     assert gates["venue_gate"]["status"] == "blocked"
     assert gates["live_canary_policy_gate"]["status"] == "blocked"
     assert "execution.mode must be live" in gates["live_canary_policy_gate"]["blockers"]
@@ -344,6 +349,7 @@ def test_execution_readiness_requires_live_canary_policy_after_runtime_gates_pas
             "deployment_blocker": None,
             "runtime_closure_state": "ready",
             "allowed_layers": 1,
+            "forecast_edge_bps": 42.0,
             "current_live_structure_bucket": "ALLOW|trend|q65",
             "current_live_structure_bucket_rows": 50,
             "minimum_support_rows": 50,
@@ -393,7 +399,22 @@ def test_execution_readiness_requires_live_canary_policy_after_runtime_gates_pas
         "reconciliation_check": {"status": "ready", "runtime_backed": True},
     }
 
-    missing_policy_payload = build_execution_overview(status_payload, config={"execution": {"mode": "paper", "enable_live_trading": False}})
+    missing_policy_payload = build_execution_overview(
+        status_payload,
+        config={
+            "execution": {
+                "mode": "paper",
+                "enable_live_trading": False,
+                "cost_aware_edge": {
+                    "taker_fee_bps": 8,
+                    "spread_bps": 2,
+                    "slippage_bps": 3,
+                    "volatility_buffer_bps": 5,
+                    "drawdown_buffer_bps": 4,
+                },
+            }
+        },
+    )
     missing_policy_readiness = missing_policy_payload["execution_readiness"]
     missing_policy_gates = {gate["key"]: gate for gate in missing_policy_readiness["gates"]}
     assert missing_policy_readiness["canary_ready"] is False
@@ -408,6 +429,13 @@ def test_execution_readiness_requires_live_canary_policy_after_runtime_gates_pas
             "execution": {
                 "mode": "live",
                 "enable_live_trading": True,
+                "cost_aware_edge": {
+                    "taker_fee_bps": 8,
+                    "spread_bps": 2,
+                    "slippage_bps": 3,
+                    "volatility_buffer_bps": 5,
+                    "drawdown_buffer_bps": 4,
+                },
                 "live_canary": {
                     "enabled": True,
                     "allowed_symbols": ["BTC/USDT"],
@@ -428,6 +456,13 @@ def test_execution_readiness_requires_live_canary_policy_after_runtime_gates_pas
             "execution": {
                 "mode": "live",
                 "enable_live_trading": True,
+                "cost_aware_edge": {
+                    "taker_fee_bps": 8,
+                    "spread_bps": 2,
+                    "slippage_bps": 3,
+                    "volatility_buffer_bps": 5,
+                    "drawdown_buffer_bps": 4,
+                },
                 "live_canary": {
                     "enabled": True,
                     "allowed_symbols": ["BTC/USDT"],
@@ -443,6 +478,78 @@ def test_execution_readiness_requires_live_canary_policy_after_runtime_gates_pas
     assert ready_readiness["status"] == "canary_ready"
     assert ready_readiness["milestone_progression"]["status"] == "bounded_canary_ready"
     assert ready_readiness["milestone_progression"]["active_lane"] == "bounded_live_canary"
+
+
+def test_live_runner_24h_shadow_gate_is_hard_canary_readiness_and_milestone_gate():
+    milestone = {
+        "status": "bounded_canary_ready",
+        "current_milestone": "M5",
+        "active_lane": "bounded_live_canary",
+        "active_lane_label": "M5 bounded live-canary",
+        "milestones": [{"key": "M5_bounded_canary_or_safe_lane", "status": "passed"}],
+    }
+    overview = {
+        "symbol": "BTCUSDT",
+        "execution_readiness": {
+            "status": "canary_ready",
+            "stage_label": "Canary-ready",
+            "canary_ready": True,
+            "risk_on_order_enabled": False,
+            "order_submission_enabled": False,
+            "gates": [{"key": "live_canary_policy_gate", "label": "Live-canary policy", "status": "passed", "passed": True}],
+            "what_can_do_now": [],
+            "milestone_progression": dict(milestone),
+        },
+        "canary_gap_answers": {
+            "canary_ready": True,
+            "milestone_progression": dict(milestone),
+            "first_canary_plan_if_all_gates_pass": {"stop_conditions": ["gate regression"]},
+        },
+    }
+
+    blocked = attach_live_runner_shadow_gate_to_readiness(
+        overview,
+        {
+            "status": "needs_live_runner_shadow_run",
+            "summary": {"candidate_decisions": 0, "jsonl_backed": False, "live_order_submitted": False},
+            "shadow_evidence_gate": {"status": "needs_live_runner_shadow_run", "candidate_decisions": 0, "resolved_outcomes": 0},
+        },
+    )
+    blocked_readiness = blocked["execution_readiness"]
+    blocked_gates = {gate["key"]: gate for gate in blocked_readiness["gates"]}
+    assert blocked_readiness["canary_ready"] is False
+    assert blocked_readiness["blocking_gate_key"] == "live_runner_24h_shadow_gate"
+    assert blocked_gates["live_runner_24h_shadow_gate"]["status"] == "blocked"
+    assert blocked_readiness["milestone_progression"]["active_lane"] == "standalone_live_runner_shadow_candidate"
+    assert blocked_readiness["milestone_progression"]["preferred_entrypoint"]["command"].endswith("--dry-run --no-submit --shadow-candidate")
+    roadmap = {item["key"]: item for item in blocked_readiness["milestone_progression"]["milestones"]}
+    assert roadmap["M4_5_live_runner_24h_shadow_evidence"]["status"] == "blocked"
+
+    passed = attach_live_runner_shadow_gate_to_readiness(
+        overview,
+        {
+            "status": "runner_24h_resolved_evidence_ready",
+            "summary": {"candidate_decisions": 2, "jsonl_backed": True, "live_order_submitted": False},
+            "shadow_evidence_gate": {
+                "status": "runner_24h_resolved_evidence_ready",
+                "candidate_decisions": 2,
+                "resolved_outcomes": 1,
+                "pending_outcomes": 0,
+                "awaiting_label_replay": 0,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+                "live_order_submitted": False,
+            },
+        },
+    )
+    passed_readiness = passed["execution_readiness"]
+    passed_gates = {gate["key"]: gate for gate in passed_readiness["gates"]}
+    assert passed_readiness["canary_ready"] is True
+    assert passed_gates["live_runner_24h_shadow_gate"]["status"] == "passed"
+    assert passed_gates["live_runner_24h_shadow_gate"]["resolved_outcomes"] == 1
+    passed_roadmap = {item["key"]: item for item in passed_readiness["milestone_progression"]["milestones"]}
+    assert passed_roadmap["M4_5_live_runner_24h_shadow_evidence"]["status"] == "passed"
+    assert passed["canary_gap_answers"]["first_canary_plan_if_all_gates_pass"]["required_shadow_evidence_gate"] == "standalone runner 24h shadow evidence resolved ≥ 1 且 JSONL/DB 對齊"
 
 
 
@@ -749,7 +856,23 @@ def test_execution_readiness_uses_circuit_breaker_audit_when_exact_support_is_ac
     readiness = payload["execution_readiness"]
     gates = {gate["key"]: gate for gate in readiness["gates"]}
     assert readiness["canary_ready"] is False
-    assert readiness["blocking_gate_key"] == "current_live_support_gate"
+    assert readiness["blocking_gate_key"] == "current_lane_actionability_gate"
+    assert gates["current_lane_actionability_gate"]["status"] == "shadow_observation_ready_live_blocked"
+    assert gates["current_lane_actionability_gate"]["passed"] is False
+    assert gates["current_lane_actionability_gate"]["shadow_ready"] is True
+    assert gates["current_lane_actionability_gate"]["sub_gates"][0]["key"] == "strict_exact_support_subgate"
+    assert gates["current_lane_actionability_gate"]["sub_gates"][0]["current"] == 0
+    assert gates["current_lane_actionability_gate"]["sub_gates"][0]["gap"] == 50
+    assert gates["current_lane_actionability_gate"]["sub_gates"][2]["key"] == "cost_aware_edge_subgate"
+    assert gates["current_lane_actionability_gate"]["sub_gates"][2]["status"] == "needs_forecast_edge"
+    assert gates["current_lane_actionability_gate"]["sub_gates"][2]["required_edge_bps"] == 15.0
+    assert gates["current_lane_actionability_gate"]["sub_gates"][2]["cost_components_bps"] == {
+        "fee_bps": 5.0,
+        "spread_bps": 3.0,
+        "slippage_bps": 2.0,
+        "volatility_buffer_bps": 5.0,
+        "drawdown_buffer_bps": 0.0,
+    }
     assert gates["current_live_support_gate"]["status"] == "blocked"
     assert gates["current_live_support_gate"]["current"] == 0
     assert gates["current_live_support_gate"]["gap"] == 50
@@ -758,8 +881,97 @@ def test_execution_readiness_uses_circuit_breaker_audit_when_exact_support_is_ac
     assert gates["circuit_breaker_gate"]["required"] == 15
     assert gates["circuit_breaker_gate"]["gap"] == 0
     assert "熔斷已解除" in gates["circuit_breaker_gate"]["next_action"]
-    assert "即時支持 gate" in payload["canary_gap_answers"]["blocking_gate"]
+    assert "當前 lane 可行動 gate" in payload["canary_gap_answers"]["blocking_gate"]
 
+
+def test_execution_readiness_cost_aware_edge_subgate_passes_only_with_edge_above_costs():
+    status_payload = _status_payload()
+    live_truth = status_payload["execution"]["live_runtime_truth"]
+    live_truth.update(
+        {
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "allowed_layers": 0,
+            "forecast_edge_bps": 42.0,
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q85",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_missing",
+            "support_progress": {
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+        }
+    )
+    payload = build_execution_overview(
+        status_payload,
+        config={
+            "trading": {"max_position_ratio": 0.10},
+            "execution": {
+                "cost_aware_edge": {
+                    "taker_fee_bps": 8,
+                    "spread_bps": 2,
+                    "slippage_bps": 3,
+                    "volatility_buffer_bps": 5,
+                    "drawdown_buffer_bps": 4,
+                }
+            },
+        },
+    )
+
+    gates = {gate["key"]: gate for gate in payload["execution_readiness"]["gates"]}
+    current_lane = gates["current_lane_actionability_gate"]
+    cost_gate = {gate["key"]: gate for gate in current_lane["sub_gates"]}["cost_aware_edge_subgate"]
+    assert current_lane["passed"] is False
+    assert current_lane["paper_shadow_available"] is True
+    assert current_lane["paper_shadow_buy_candidate_ready"] is True
+    assert cost_gate["status"] == "passed"
+    assert cost_gate["current"] == 42.0
+    assert cost_gate["required"] == 22.0
+    assert cost_gate["gap"] == 0.0
+    assert cost_gate["order_submission_enabled"] is False
+    assert cost_gate["risk_on_order_enabled"] is False
+
+
+def test_execution_readiness_cost_aware_edge_uses_default_inputs_when_forecast_exists():
+    status_payload = _status_payload()
+    live_truth = status_payload["execution"]["live_runtime_truth"]
+    live_truth.update(
+        {
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "allowed_layers": 0,
+            "forecast_edge_bps": 16.0,
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q85",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_missing",
+            "support_progress": {
+                "current_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            },
+        }
+    )
+    payload = build_execution_overview(status_payload, config={"trading": {"max_position_ratio": 0.10}})
+
+    gates = {gate["key"]: gate for gate in payload["execution_readiness"]["gates"]}
+    current_lane = gates["current_lane_actionability_gate"]
+    cost_gate = {gate["key"]: gate for gate in current_lane["sub_gates"]}["cost_aware_edge_subgate"]
+    assert current_lane["passed"] is False
+    assert current_lane["paper_shadow_buy_candidate_ready"] is True
+    assert cost_gate["status"] == "passed"
+    assert cost_gate["current"] == 16.0
+    assert cost_gate["required"] == 15.0
+    assert cost_gate["cost_components_bps"] == {
+        "fee_bps": 5.0,
+        "spread_bps": 3.0,
+        "slippage_bps": 2.0,
+        "volatility_buffer_bps": 5.0,
+        "drawdown_buffer_bps": 0.0,
+    }
+    assert cost_gate["gap"] == 0.0
 
 
 def test_build_execution_overview_exposes_strategy_snapshot_summary(monkeypatch, tmp_path):

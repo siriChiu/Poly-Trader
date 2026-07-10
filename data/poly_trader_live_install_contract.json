@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "preferred_host_lane": "systemd_user",
+  "reason": "讓 standalone live runner 可在 dashboard/API 之外背景持續執行",
+  "project_root": "/home/kazuha/Poly-Trader",
+  "runner_binary": "/home/kazuha/Poly-Trader/bin/poly-trader-live",
+  "python_cli": "/home/kazuha/Poly-Trader/venv/bin/python scripts/poly_trader_live.py",
+  "config_path": "/home/kazuha/Poly-Trader/config.yaml",
+  "service_name": "poly-trader-live",
+  "dry_run": true,
+  "no_submit": true,
+  "shadow_candidate": true,
+  "shadow_evidence_mode": true,
+  "generated_at": "2026-07-09T06:10:01.054075Z",
+  "manual_run_command": "cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/bin/poly-trader-live --config /home/kazuha/Poly-Trader/config.yaml --dry-run --no-submit --shadow-candidate",
+  "install_status": {
+    "status": "install_ready",
+    "installed": false,
+    "checked_at": "2026-07-09T06:10:01.054032Z",
+    "systemd_user": {
+      "installed": false,
+      "returncode": 4,
+      "stdout": "",
+      "stderr": "Unit poly-trader-live.service could not be found.",
+      "checked_at": "2026-07-09T06:10:01.054032Z",
+      "verify_command": "systemctl --user status poly-trader-live.service --no-pager"
+    }
+  },
+  "systemd_user": {
+    "service_name": "poly-trader-live",
+    "service_file": "~/.config/systemd/user/poly-trader-live.service",
+    "service_unit": "[Unit]\nDescription=Poly-Trader standalone live trading runner\nWants=network-online.target\nAfter=network-online.target\n\n[Service]\nType=simple\nWorkingDirectory=/home/kazuha/Poly-Trader\nEnvironment=PYTHONUNBUFFERED=1\nExecStart=/bin/bash -lc 'cd /home/kazuha/Poly-Trader && /home/kazuha/Poly-Trader/bin/poly-trader-live --config /home/kazuha/Poly-Trader/config.yaml --dry-run --no-submit --shadow-candidate'\nRestart=on-failure\nRestartSec=15\nKillSignal=SIGTERM\nTimeoutStopSec=30\n\n[Install]\nWantedBy=default.target\n",
+    "install_steps": [
+      "mkdir -p ~/.config/systemd/user",
+      "cat > ~/.config/systemd/user/poly-trader-live.service",
+      "systemctl --user daemon-reload",
+      "systemctl --user enable --now poly-trader-live.service"
+    ],
+    "start_command": "systemctl --user start poly-trader-live.service",
+    "stop_command": "systemctl --user stop poly-trader-live.service",
+    "restart_command": "systemctl --user restart poly-trader-live.service",
+    "verify_command": "systemctl --user status poly-trader-live.service --no-pager",
+    "logs_command": "journalctl --user -u poly-trader-live.service -f"
+  },
+  "audit_outputs": {
+    "decision_tables": [
+      "live_runner_runs",
+      "live_runner_decisions"
+    ],
+    "jsonl_dir": "/home/kazuha/Poly-Trader/data/live_trading",
+    "trade_tables": [
+      "trade_history",
+      "order_lifecycle_events"
+    ]
+  },
+  "output_artifact": "/home/kazuha/Poly-Trader/data/poly_trader_live_install_contract.json"
+}

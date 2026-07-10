@@ -28,6 +28,7 @@ WORKER_POLL_EVENT_TYPE = "paper_shadow_worker_poll"
 WORKER_PARITY_BLOCKED_EVENT_TYPE = "worker_bundle_parity_blocked"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PAPER_SHADOW_OUTCOME_ARTIFACT_PATH = PROJECT_ROOT / "data" / "paper_shadow_outcome_reconciliation.json"
+LIVE_TRADING_ROOT = PROJECT_ROOT / "data" / "live_trading"
 PAPER_SHADOW_OUTCOME_WINDOW_HOURS = 24
 PAPER_SHADOW_LABEL_MATCH_TOLERANCE_HOURS = 6
 
@@ -187,6 +188,19 @@ def _one(db, query: str, params: Optional[Dict[str, Any]] = None) -> Optional[Di
     result = db.execute(text(query), params or {})
     row = result.mappings().first()
     return dict(row) if row else None
+
+
+
+def _table_exists(db, table_name: str) -> bool:
+    try:
+        row = _one(
+            db,
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = :table_name LIMIT 1",
+            {"table_name": table_name},
+        )
+    except Exception:
+        return False
+    return bool(row)
 
 
 
@@ -1503,6 +1517,399 @@ def _outcome_for_worker_proposal(db, proposal: Dict[str, Any], *, now: datetime)
     }
 
 
+def _bool_from_sql(value: Any) -> Optional[bool]:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(int(value))
+    text_value = str(value).strip().lower()
+    if text_value in {"1", "true", "yes", "y"}:
+        return True
+    if text_value in {"0", "false", "no", "n"}:
+        return False
+    return None
+
+
+
+def _live_runner_jsonl_summary(run_id: str, *, jsonl_root: Optional[Path] = None) -> Dict[str, Any]:
+    if not run_id:
+        return {"exists": False, "path": None, "line_count": 0, "latest_record": None}
+    path = Path(jsonl_root or LIVE_TRADING_ROOT) / f"{run_id}.jsonl"
+    if not path.exists():
+        return {"exists": False, "path": str(path), "line_count": 0, "latest_record": None}
+    line_count = 0
+    latest_record: Optional[Dict[str, Any]] = None
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                text_value = line.strip()
+                if not text_value:
+                    continue
+                line_count += 1
+                try:
+                    parsed = json.loads(text_value)
+                except Exception:
+                    continue
+                if isinstance(parsed, dict):
+                    latest_record = parsed
+    except Exception as exc:
+        return {
+            "exists": True,
+            "path": str(path),
+            "line_count": line_count,
+            "latest_record": None,
+            "error": str(exc),
+        }
+    compact_latest = None
+    if isinstance(latest_record, dict):
+        compact_latest = {
+            "run_id": latest_record.get("run_id"),
+            "created_at": latest_record.get("created_at"),
+            "feature_timestamp": latest_record.get("feature_timestamp"),
+            "action": latest_record.get("action"),
+            "reason": latest_record.get("reason"),
+            "order_submitted": bool(latest_record.get("order_submitted")),
+            "dry_run": latest_record.get("dry_run"),
+            "model_confidence": _to_float_maybe(latest_record.get("model_confidence")),
+            "entry_quality": _to_float_maybe(latest_record.get("entry_quality")),
+        }
+    return {"exists": True, "path": str(path), "line_count": line_count, "latest_record": compact_latest}
+
+
+
+def _serialize_live_runner_decision(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not row:
+        return None
+    payload = _json_loads(row.get("payload_json"))
+    payload = payload if isinstance(payload, dict) else {}
+    order_submitted = bool(_bool_from_sql(row.get("order_submitted")))
+    dry_run = _bool_from_sql(row.get("dry_run"))
+    return {
+        "decision_id": row.get("id"),
+        "run_id": row.get("run_id"),
+        "strategy_name": row.get("strategy_name"),
+        "strategy_hash": row.get("strategy_hash"),
+        "symbol": row.get("symbol"),
+        "venue": row.get("venue"),
+        "feature_timestamp": row.get("feature_timestamp"),
+        "created_at": row.get("created_at"),
+        "price": _to_float_maybe(row.get("price")),
+        "signal": row.get("signal"),
+        "action": row.get("action"),
+        "side": row.get("side"),
+        "qty": _to_float_maybe(row.get("qty")),
+        "quote_amount": _to_float_maybe(row.get("quote_amount")),
+        "order_id": row.get("order_id"),
+        "client_order_id": row.get("client_order_id"),
+        "order_submitted": order_submitted,
+        "dry_run": dry_run,
+        "live_order_submitted": bool(order_submitted and dry_run is False),
+        "model_confidence": _to_float_maybe(row.get("model_confidence")),
+        "entry_quality": _to_float_maybe(row.get("entry_quality")),
+        "allowed_layers": _to_int_maybe(row.get("allowed_layers")),
+        "regime_gate": row.get("regime_gate"),
+        "structure_bucket": row.get("structure_bucket"),
+        "reason": row.get("reason"),
+        "payload_summary": {
+            "has_execution_result": isinstance(payload.get("execution_result"), dict),
+            "has_execution_reject": isinstance(payload.get("execution_reject"), dict),
+            "has_execution_error": bool(payload.get("execution_error")),
+            "has_layer": isinstance(payload.get("layer"), dict),
+            "open_layers": len(payload.get("open_layers") or []) if isinstance(payload.get("open_layers"), list) else None,
+        },
+    }
+
+
+
+def _serialize_live_runner_run(row: Optional[Dict[str, Any]], *, jsonl_root: Path) -> Optional[Dict[str, Any]]:
+    if not row:
+        return None
+    config_payload = _json_loads(row.get("config_json"))
+    config_payload = config_payload if isinstance(config_payload, dict) else {}
+    execution_cfg = _as_dict(config_payload.get("execution"))
+    trading_cfg = _as_dict(config_payload.get("trading"))
+    return {
+        "run_id": row.get("id"),
+        "strategy_name": row.get("strategy_name"),
+        "strategy_hash": row.get("strategy_hash"),
+        "symbol": row.get("symbol"),
+        "venue": row.get("venue"),
+        "mode": row.get("mode"),
+        "status": row.get("status"),
+        "model_artifact_path": row.get("model_artifact_path"),
+        "started_at": row.get("started_at"),
+        "stopped_at": row.get("stopped_at"),
+        "last_heartbeat_at": row.get("last_heartbeat_at"),
+        "jsonl": _live_runner_jsonl_summary(str(row.get("id") or ""), jsonl_root=jsonl_root),
+        "config_contract": {
+            "redacted_config_present": bool(config_payload),
+            "execution_mode": execution_cfg.get("mode"),
+            "dry_run": trading_cfg.get("dry_run"),
+            "live_canary_enabled": bool(_as_dict(execution_cfg.get("live_canary")).get("enabled")),
+        },
+    }
+
+
+
+def _live_runner_decision_to_proposal(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    action = str(row.get("action") or "").upper()
+    side = str(row.get("side") or "").lower()
+    if action not in {"BUY_LAYER", "SELL_ALL"} and side not in {"buy", "sell", "reduce"}:
+        return None
+    generated_at = row.get("feature_timestamp") or row.get("created_at")
+    if _parse_datetime(generated_at) is None:
+        return None
+    order_submitted = bool(_bool_from_sql(row.get("order_submitted")))
+    dry_run = _bool_from_sql(row.get("dry_run"))
+    return {
+        "source": "live_runner_decisions",
+        "source_decision_id": row.get("id"),
+        "run_id": row.get("run_id"),
+        "symbol": row.get("symbol"),
+        "venue": row.get("venue"),
+        "generated_at": generated_at,
+        "feature_timestamp": row.get("feature_timestamp"),
+        "action": row.get("action"),
+        "side": row.get("side"),
+        "qty": _to_float_maybe(row.get("qty")),
+        "price": _to_float_maybe(row.get("price")),
+        "model_confidence": _to_float_maybe(row.get("model_confidence")),
+        "entry_quality": _to_float_maybe(row.get("entry_quality")),
+        "allowed_layers": _to_int_maybe(row.get("allowed_layers")),
+        "regime_gate": row.get("regime_gate"),
+        "structure_bucket": row.get("structure_bucket"),
+        "reason": row.get("reason"),
+        "order_submitted": order_submitted,
+        "dry_run": dry_run,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "live_order_submitted": bool(order_submitted and dry_run is False),
+    }
+
+
+
+def build_live_runner_overview(
+    db,
+    status_payload: Optional[Dict[str, Any]] = None,
+    *,
+    now: Optional[datetime] = None,
+    jsonl_root: Optional[Path] = None,
+    limit: int = 100,
+) -> Dict[str, Any]:
+    """Summarize standalone live_runner audit DB/JSONL rows for operator surfaces."""
+
+    now = now or datetime.now(timezone.utc)
+    jsonl_root = Path(jsonl_root or LIVE_TRADING_ROOT)
+    limit = max(1, min(int(limit or 100), 500))
+    if not _table_exists(db, "live_runner_runs") or not _table_exists(db, "live_runner_decisions"):
+        gate = {
+            "status": "no_live_runner_tables",
+            "window_hours": PAPER_SHADOW_OUTCOME_WINDOW_HOURS,
+            "candidate_decisions": 0,
+            "pending_outcomes": 0,
+            "resolved_outcomes": 0,
+            "awaiting_label_replay": 0,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "live_order_submitted": False,
+            "operator_message": "standalone live runner 尚未建立 audit tables；先啟動 paper/shadow runner smoke。",
+        }
+        return {
+            "status": "no_live_runner_tables",
+            "source": "live_runner_runs/live_runner_decisions",
+            "jsonl_root": str(jsonl_root),
+            "summary": {
+                "total_runs": 0,
+                "running_runs": 0,
+                "stopped_runs": 0,
+                "failed_runs": 0,
+                "total_decisions": 0,
+                "candidate_decisions": 0,
+                "jsonl_backed": False,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+                "live_order_submitted": False,
+            },
+            "latest_run": None,
+            "latest_decision": None,
+            "shadow_evidence_gate": gate,
+            "operator_message": gate["operator_message"],
+        }
+
+    status_rows = _rows(
+        db,
+        """
+        SELECT status, COUNT(*) AS count
+        FROM live_runner_runs
+        GROUP BY status
+        """,
+    )
+    status_counts = {str(row.get("status") or "unknown"): int(row.get("count") or 0) for row in status_rows}
+    total_runs = sum(status_counts.values())
+    total_decisions_row = _one(db, "SELECT COUNT(*) AS count FROM live_runner_decisions") or {}
+    total_decisions = int(total_decisions_row.get("count") or 0)
+    latest_run_row = _one(
+        db,
+        """
+        SELECT *
+        FROM live_runner_runs
+        ORDER BY COALESCE(last_heartbeat_at, stopped_at, started_at) DESC, started_at DESC
+        LIMIT 1
+        """,
+    )
+    latest_decision_row = _one(
+        db,
+        """
+        SELECT *
+        FROM live_runner_decisions
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """,
+    )
+    candidate_rows = _rows(
+        db,
+        """
+        SELECT *
+        FROM live_runner_decisions
+        WHERE action IN ('BUY_LAYER', 'SELL_ALL')
+           OR side IN ('buy', 'sell', 'reduce')
+           OR order_submitted = 1
+        ORDER BY created_at DESC, id DESC
+        LIMIT :limit
+        """,
+        {"limit": limit},
+    )
+
+    entries: List[Dict[str, Any]] = []
+    pending_count = 0
+    resolved_count = 0
+    awaiting_label_count = 0
+    live_order_submitted = False
+    for row in candidate_rows:
+        proposal = _live_runner_decision_to_proposal(row)
+        if proposal is None:
+            continue
+        outcome = _outcome_for_worker_proposal(db, proposal, now=now)
+        outcome_status = str(outcome.get("status") or "")
+        if outcome_status == "pending_observation_window":
+            pending_count += 1
+        elif outcome_status == "resolved_from_1440m_label":
+            resolved_count += 1
+        elif outcome_status == "awaiting_label_replay":
+            awaiting_label_count += 1
+        live_order_submitted = live_order_submitted or bool(proposal.get("live_order_submitted"))
+        entries.append(
+            {
+                "source": "live_runner_decisions",
+                "decision_id": row.get("id"),
+                "run_id": row.get("run_id"),
+                "created_at": row.get("created_at"),
+                "feature_timestamp": row.get("feature_timestamp"),
+                "action": row.get("action"),
+                "side": row.get("side"),
+                "reason": row.get("reason"),
+                "proposal": proposal,
+                "outcome_24h": outcome,
+                "order_submission_enabled": False,
+                "risk_on_order_enabled": False,
+                "live_order_submitted": bool(proposal.get("live_order_submitted")),
+            }
+        )
+
+    pending_window_ends = [
+        _parse_datetime(_as_dict(entry.get("outcome_24h")).get("window_end"))
+        for entry in entries
+        if str(_as_dict(entry.get("outcome_24h")).get("status") or "") == "pending_observation_window"
+    ]
+    pending_window_ends = [value for value in pending_window_ends if value is not None]
+    pending_hours_remaining_values = [
+        _to_float_maybe(_as_dict(entry.get("outcome_24h")).get("hours_remaining"))
+        for entry in entries
+        if str(_as_dict(entry.get("outcome_24h")).get("status") or "") == "pending_observation_window"
+    ]
+    pending_hours_remaining_values = [value for value in pending_hours_remaining_values if value is not None]
+    if live_order_submitted:
+        gate_status = "safety_violation_live_order"
+        operator_message = "live runner evidence 發現 live_order_submitted=true；立即停止並檢查 fail-closed guardrail。"
+    elif resolved_count > 0:
+        gate_status = "runner_24h_resolved_evidence_ready"
+        operator_message = "standalone live runner 已有 24h shadow outcome resolved；只作 paper/shadow 證據，不代表可真實買入。"
+    elif pending_count > 0:
+        gate_status = "runner_24h_pending_observation"
+        operator_message = "standalone live runner 已有候選決策，等待 24h observation window 結束後再對齊 labels。"
+    elif awaiting_label_count > 0:
+        gate_status = "runner_24h_label_replay_required"
+        operator_message = "standalone live runner 決策已超過 24h，但尚缺 1440m label；需補 labels/backfill。"
+    elif entries:
+        gate_status = "runner_24h_evidence_recording"
+        operator_message = "standalone live runner 已記錄候選決策；仍只做 paper/shadow evidence，不送單。"
+    elif total_decisions > 0:
+        gate_status = "runner_observing_no_trade_candidates"
+        operator_message = "standalone live runner 正在記錄 HOLD / 非交易決策；尚無需 24h outcome 的買賣候選。"
+    elif total_runs > 0:
+        gate_status = "runner_started_no_decisions"
+        operator_message = "standalone live runner run 已建立，但尚無決策列；先確認 runner 是否持續 heartbeat。"
+    else:
+        gate_status = "needs_live_runner_shadow_run"
+        operator_message = "尚未建立 standalone live runner run；先以 --dry-run / --no-submit 啟動 shadow smoke。"
+
+    latest_run = _serialize_live_runner_run(latest_run_row, jsonl_root=jsonl_root)
+    latest_decision = _serialize_live_runner_decision(latest_decision_row)
+    latest_run_dict = _as_dict(latest_run)
+    jsonl_backed = bool(_as_dict(latest_run_dict.get("jsonl")).get("exists")) if latest_run else False
+    latest_entry = entries[0] if entries else None
+    gate = {
+        "status": gate_status,
+        "source": "live_runner_decisions",
+        "window_hours": PAPER_SHADOW_OUTCOME_WINDOW_HOURS,
+        "candidate_decisions": len(entries),
+        "pending_outcomes": pending_count,
+        "resolved_outcomes": resolved_count,
+        "awaiting_label_replay": awaiting_label_count,
+        "next_reconcile_at": min(pending_window_ends).isoformat().replace("+00:00", "Z") if pending_window_ends else None,
+        "pending_hours_remaining_min": round(min(pending_hours_remaining_values), 3) if pending_hours_remaining_values else None,
+        "latest_entry": {
+            "decision_id": latest_entry.get("decision_id"),
+            "run_id": latest_entry.get("run_id"),
+            "created_at": latest_entry.get("created_at"),
+            "feature_timestamp": latest_entry.get("feature_timestamp"),
+            "action": latest_entry.get("action"),
+            "outcome_status": _as_dict(latest_entry.get("outcome_24h")).get("status"),
+        } if latest_entry else None,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "live_order_submitted": live_order_submitted,
+        "blocked_live_actions": ["live_buy", "live_add", "automation_enable"],
+        "operator_message": operator_message,
+    }
+    return {
+        "status": gate_status,
+        "source": "live_runner_runs/live_runner_decisions+jsonl",
+        "jsonl_root": str(jsonl_root),
+        "summary": {
+            "total_runs": total_runs,
+            "running_runs": status_counts.get("running", 0),
+            "stopped_runs": status_counts.get("stopped", 0),
+            "failed_runs": status_counts.get("failed", 0),
+            "status_counts": status_counts,
+            "total_decisions": total_decisions,
+            "candidate_decisions": len(entries),
+            "jsonl_backed": jsonl_backed,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "live_order_submitted": live_order_submitted,
+        },
+        "latest_run": latest_run,
+        "latest_decision": latest_decision,
+        "shadow_evidence_gate": gate,
+        "recent_entries": entries[:10],
+        "operator_message": operator_message,
+    }
+
+
+
 def _build_paper_shadow_rehearsal_proof(
     db,
     *,
@@ -1787,6 +2194,19 @@ def build_paper_shadow_outcome_reconciliation(
     else:
         status = "recording_blocked_before_proposal"
 
+    live_runner_overview = build_live_runner_overview(
+        db,
+        status_payload=status_payload,
+        now=now,
+        limit=limit,
+    )
+    live_runner_summary = _as_dict(live_runner_overview.get("summary"))
+    live_runner_gate = _as_dict(live_runner_overview.get("shadow_evidence_gate"))
+    live_runner_live_order_submitted = bool(
+        live_runner_summary.get("live_order_submitted") or live_runner_gate.get("live_order_submitted")
+    )
+    if live_runner_live_order_submitted:
+        status = "safety_violation_live_order"
     summary = {
         "worker_poll_events": proposal_count,
         "resolved_outcomes": resolved_count,
@@ -1794,7 +2214,14 @@ def build_paper_shadow_outcome_reconciliation(
         "awaiting_label_replay": awaiting_label_count,
         "parity_blocked_events": parity_blocked_count,
         "entries": len(entries),
-        "live_order_submitted": False,
+        "live_runner_total_runs": live_runner_summary.get("total_runs", 0),
+        "live_runner_total_decisions": live_runner_summary.get("total_decisions", 0),
+        "live_runner_candidate_decisions": live_runner_summary.get("candidate_decisions", 0),
+        "live_runner_pending_outcomes": live_runner_gate.get("pending_outcomes", 0),
+        "live_runner_resolved_outcomes": live_runner_gate.get("resolved_outcomes", 0),
+        "live_runner_awaiting_label_replay": live_runner_gate.get("awaiting_label_replay", 0),
+        "live_runner_jsonl_backed": bool(live_runner_summary.get("jsonl_backed")),
+        "live_order_submitted": live_runner_live_order_submitted,
     }
     rehearsal_proof = _build_paper_shadow_rehearsal_proof(
         db,
@@ -1819,6 +2246,14 @@ def build_paper_shadow_outcome_reconciliation(
         "pending_hours_remaining_min": rehearsal_proof.get("pending_hours_remaining_min"),
         "resolution_due_count": resolution_due_count,
         "reconciliation_due": resolution_due_count > 0,
+        "live_runner_status": live_runner_overview.get("status"),
+        "live_runner_total_runs": live_runner_summary.get("total_runs", 0),
+        "live_runner_total_decisions": live_runner_summary.get("total_decisions", 0),
+        "live_runner_candidate_decisions": live_runner_gate.get("candidate_decisions", 0),
+        "live_runner_pending_outcomes": live_runner_gate.get("pending_outcomes", 0),
+        "live_runner_resolved_outcomes": live_runner_gate.get("resolved_outcomes", 0),
+        "live_runner_jsonl_backed": bool(live_runner_summary.get("jsonl_backed")),
+        "live_runner_next_reconcile_at": live_runner_gate.get("next_reconcile_at"),
         "order_submission_enabled": False,
         "risk_on_order_enabled": False,
         "live_order_submitted": live_order_submitted,
@@ -1831,7 +2266,7 @@ def build_paper_shadow_outcome_reconciliation(
         "status": status,
         "rehearsal_status": quick_read["rehearsal_status"],
         "mode": "paper_shadow_outcome_reconciliation",
-        "source": "execution_run_events.paper_shadow_worker_poll",
+        "source": "execution_run_events.paper_shadow_worker_poll+live_runner_decisions",
         "window_hours": PAPER_SHADOW_OUTCOME_WINDOW_HOURS,
         "label_source": "labels.simulated_pyramid_1440m",
         "order_submission_enabled": False,
@@ -1851,6 +2286,15 @@ def build_paper_shadow_outcome_reconciliation(
         "quick_read": quick_read,
         "summary": summary,
         "rehearsal_proof": rehearsal_proof,
+        "live_runner": {
+            "status": live_runner_overview.get("status"),
+            "summary": live_runner_overview.get("summary"),
+            "latest_run": live_runner_overview.get("latest_run"),
+            "latest_decision": live_runner_overview.get("latest_decision"),
+            "shadow_evidence_gate": live_runner_gate,
+            "operator_message": live_runner_overview.get("operator_message"),
+        },
+        "live_runner_shadow_gate": live_runner_gate,
         "entries": entries,
         "operator_message": (
             "paper/shadow worker outcome reconciliation 已建立；它只核對演練 proposal 與 24h labels，不送單。"

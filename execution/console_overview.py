@@ -13,7 +13,7 @@ from execution.control_plane import (
     PRIMARY_SLEEVE_ORDER,
     build_execution_strategy_source_snapshot,
 )
-from execution.config import resolve_trading_config
+from execution.config import resolve_cost_aware_edge_config, resolve_trading_config
 from execution.range_chop_playbook import build_range_chop_playbook
 from execution.risk_control import check_position_size
 
@@ -254,7 +254,14 @@ def _build_milestone_progression(
             "key": "bounded_live_canary",
             "label": "Bounded live-canary",
             "can_enter": bool(canary_ready),
-            "required_gates": ["model_gate", "current_live_support_gate", "circuit_breaker_gate", "venue_gate", "live_canary_policy_gate"],
+            "required_gates": [
+                "model_gate",
+                "current_lane_actionability_gate",
+                "current_live_support_gate",
+                "circuit_breaker_gate",
+                "venue_gate",
+                "live_canary_policy_gate",
+            ],
             "expected_result": "只有全部 gate passed 且 symbol cap 內，才可進第一層最小 canary；不是 full deploy。",
         },
     ]
@@ -268,9 +275,11 @@ def _build_milestone_progression(
         },
         {
             "key": "M2_support_and_breaker",
-            "label": "M2 即時支持 + 熔斷解除",
+            "label": "M2 當前 lane actionability + 熔斷解除",
             "status": "passed" if support_passed and release_passed else "blocked",
             "support_passed": support_passed,
+            "current_lane_gate_key": "current_lane_actionability_gate",
+            "strict_exact_support_gate_key": "current_live_support_gate",
             "release_passed": release_passed,
             "next_lane_if_blocked": "paper_shadow_buy" if shadow_ready else "wait_hold_no_order",
         },
@@ -327,6 +336,170 @@ def _build_milestone_progression(
             else "MILESTONE 已到 bounded canary；仍按 cap 與 adapter guardrail 執行。"
         ),
     }
+
+
+def attach_live_runner_shadow_gate_to_readiness(
+    overview: Dict[str, Any],
+    live_runner_overview: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Attach standalone runner 24h evidence as a hard canary-readiness gate.
+
+    This mutates a copy of the overview.  The gate is evidence-only: it can
+    downgrade canary readiness, but it never enables order submission by itself.
+    """
+
+    result = dict(overview or {})
+    readiness = dict(_as_dict(result.get("execution_readiness")))
+    if not readiness:
+        return result
+
+    runner = _as_dict(live_runner_overview)
+    summary = _as_dict(runner.get("summary"))
+    gate = _as_dict(runner.get("shadow_evidence_gate"))
+    raw_status = str(gate.get("status") or runner.get("status") or "needs_live_runner_shadow_run")
+    candidate_decisions = _to_int(gate.get("candidate_decisions")) or _to_int(summary.get("candidate_decisions")) or 0
+    pending_outcomes = _to_int(gate.get("pending_outcomes")) or 0
+    resolved_outcomes = _to_int(gate.get("resolved_outcomes")) or 0
+    awaiting_label_replay = _to_int(gate.get("awaiting_label_replay")) or 0
+    jsonl_backed = bool(summary.get("jsonl_backed"))
+    live_order_submitted = bool(summary.get("live_order_submitted") or gate.get("live_order_submitted"))
+    passed = bool(
+        raw_status == "runner_24h_resolved_evidence_ready"
+        and resolved_outcomes > 0
+        and jsonl_backed
+        and not live_order_submitted
+    )
+    pending = raw_status == "runner_24h_pending_observation" or pending_outcomes > 0
+    if live_order_submitted:
+        gate_status = "blocked"
+        gate_summary = "live runner evidence 出現 live_order_submitted=true；必須先停止並稽核。"
+        next_action = "立即停止 standalone runner，檢查 DB/JSONL 與 ExecutionService guardrail。"
+    elif passed:
+        gate_status = "passed"
+        gate_summary = f"live runner 24h shadow evidence resolved {resolved_outcomes} 筆，JSONL 對齊。"
+        next_action = "保留 fail-closed；只有其他 hard gates 也通過後才可進 bounded live-canary review。"
+    elif pending:
+        gate_status = "pending"
+        gate_summary = f"live runner 已產生 {candidate_decisions} 筆 shadow candidate，等待 24h window / label 對齊。"
+        next_action = "保持 runner --dry-run --no-submit --shadow-candidate 定時執行，24h 後 reconcile labels。"
+    elif awaiting_label_replay > 0:
+        gate_status = "blocked"
+        gate_summary = f"live runner 有 {awaiting_label_replay} 筆 candidate 已到期但缺 1440m label。"
+        next_action = "補跑 labels/backfill，再重新讀取 /api/execution/overview。"
+    else:
+        gate_status = "blocked"
+        gate_summary = "live runner 尚未累積可用的 24h shadow candidate evidence。"
+        next_action = "啟動 standalone runner：bin/poly-trader-live --config config.yaml --dry-run --no-submit --shadow-candidate。"
+
+    readiness_gate = {
+        "key": "live_runner_24h_shadow_gate",
+        "label": "Standalone runner 24h shadow gate",
+        "status": gate_status,
+        "raw_status": raw_status,
+        "passed": passed,
+        "current": resolved_outcomes,
+        "required": 1,
+        "gap": 0 if passed else 1,
+        "candidate_decisions": candidate_decisions,
+        "pending_outcomes": pending_outcomes,
+        "resolved_outcomes": resolved_outcomes,
+        "awaiting_label_replay": awaiting_label_replay,
+        "jsonl_backed": jsonl_backed,
+        "next_reconcile_at": gate.get("next_reconcile_at"),
+        "pending_hours_remaining_min": gate.get("pending_hours_remaining_min"),
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "live_order_submitted": live_order_submitted,
+        "summary": gate_summary,
+        "next_action": next_action,
+        "operator_message": gate.get("operator_message") or gate_summary,
+    }
+
+    gates = [dict(item) for item in _as_list(readiness.get("gates")) if isinstance(item, dict)]
+    gates = [item for item in gates if item.get("key") != "live_runner_24h_shadow_gate"]
+    insert_at = next((idx for idx, item in enumerate(gates) if item.get("key") == "live_canary_policy_gate"), len(gates))
+    gates.insert(insert_at, readiness_gate)
+    readiness["gates"] = gates
+    readiness["live_runner_24h_shadow_gate"] = readiness_gate
+    readiness["order_submission_enabled"] = False
+    readiness["risk_on_order_enabled"] = False
+
+    previous_canary_ready = bool(readiness.get("canary_ready"))
+    canary_ready = bool(previous_canary_ready and passed)
+    readiness["canary_ready"] = canary_ready
+    if not canary_ready:
+        if previous_canary_ready or not readiness.get("blocking_gate_key"):
+            readiness["blocking_gate_key"] = "live_runner_24h_shadow_gate"
+            readiness["blocking_gate_label"] = "Standalone runner 24h shadow gate"
+        if readiness.get("status") == "canary_ready":
+            readiness["status"] = "shadow_reduce_only"
+            readiness["stage_label"] = "Shadow / Reduce-only"
+        if previous_canary_ready and not passed:
+            readiness["operator_message"] = "live-canary 仍被 standalone runner 24h shadow evidence gate 擋住：可持續演練與記錄，不可買入 / 加倉。"
+    else:
+        readiness["status"] = "canary_ready"
+        readiness["stage_label"] = "Canary-ready"
+
+    release_condition = str(readiness.get("next_release_condition") or "")
+    runner_condition = "standalone runner 24h shadow evidence resolved ≥ 1 且 JSONL/DB 對齊"
+    if runner_condition not in release_condition:
+        readiness["next_release_condition"] = f"{release_condition}；{runner_condition}" if release_condition else runner_condition
+
+    what_can_do = list(_as_list(readiness.get("what_can_do_now")))
+    runner_action = "讓 standalone live runner 以 --dry-run --no-submit --shadow-candidate 定時產生 shadow candidate，累積 24h resolved evidence"
+    if runner_action not in what_can_do:
+        what_can_do.append(runner_action)
+    readiness["what_can_do_now"] = what_can_do
+
+    milestone = dict(_as_dict(readiness.get("milestone_progression")))
+    if milestone:
+        milestones = [dict(item) for item in _as_list(milestone.get("milestones")) if isinstance(item, dict)]
+        milestones = [item for item in milestones if item.get("key") != "M4_5_live_runner_24h_shadow_evidence"]
+        runner_milestone = {
+            "key": "M4_5_live_runner_24h_shadow_evidence",
+            "label": "M4.5 standalone runner 24h shadow evidence",
+            "status": "passed" if passed else ("pending" if pending else "blocked"),
+            "raw_status": raw_status,
+            "candidate_decisions": candidate_decisions,
+            "pending_outcomes": pending_outcomes,
+            "resolved_outcomes": resolved_outcomes,
+            "jsonl_backed": jsonl_backed,
+            "next_lane_if_blocked": "standalone_live_runner_shadow_candidate",
+        }
+        insert_at = next((idx for idx, item in enumerate(milestones) if item.get("key") == "M5_bounded_canary_or_safe_lane"), len(milestones))
+        milestones.insert(insert_at, runner_milestone)
+        milestone["milestones"] = milestones
+        milestone["live_runner_24h_shadow_gate"] = readiness_gate
+        if not canary_ready and (previous_canary_ready or readiness.get("blocking_gate_key") == "live_runner_24h_shadow_gate"):
+            trade_symbol = _api_trade_symbol(result.get("symbol") or "BTCUSDT")
+            milestone["status"] = "safe_lane_active" if not live_order_submitted else "blocked"
+            milestone["active_lane"] = "standalone_live_runner_shadow_candidate"
+            milestone["active_lane_label"] = "M4.5 standalone runner shadow evidence lane"
+            milestone["preferred_entrypoint"] = {
+                "command": "bin/poly-trader-live --config config.yaml --dry-run --no-submit --shadow-candidate",
+                "expected_result": f"定時為 {trade_symbol} 寫入 live_runner_decisions / JSONL shadow candidate；live_order_submitted=false。",
+                "live_order_submitted": False,
+            }
+            milestone["operator_message"] = "Roadmap 已轉入 M4.5：先累積 standalone runner 24h resolved evidence，再回到 bounded canary。"
+        readiness["milestone_progression"] = milestone
+
+    result["execution_readiness"] = readiness
+    answers = dict(_as_dict(result.get("canary_gap_answers")))
+    if answers:
+        answers["canary_ready"] = readiness.get("canary_ready")
+        answers["live_runner_24h_shadow_gate"] = readiness_gate
+        answers["milestone_progression"] = readiness.get("milestone_progression")
+        first_plan = dict(_as_dict(answers.get("first_canary_plan_if_all_gates_pass")))
+        if first_plan:
+            first_plan["required_shadow_evidence_gate"] = "standalone runner 24h shadow evidence resolved ≥ 1 且 JSONL/DB 對齊"
+            stop_conditions = list(_as_list(first_plan.get("stop_conditions")))
+            if "24h runner shadow evidence missing/regressed" not in stop_conditions:
+                stop_conditions.append("24h runner shadow evidence missing/regressed")
+            first_plan["stop_conditions"] = stop_conditions
+            answers["first_canary_plan_if_all_gates_pass"] = first_plan
+        result["canary_gap_answers"] = answers
+    return result
+
 
 
 def _load_high_conviction_topk(status_payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -1258,6 +1431,77 @@ def build_execution_readiness_bundle(
     model_gate_passed = bool(deployable_count > 0)
     model_gate_status = "passed" if model_gate_passed else ("shadow_ready" if model_shadow_ready else "blocked")
 
+    execution_cost_cfg = resolve_cost_aware_edge_config(config or {})
+    trading_cost_cfg = _as_dict(config.get("trading"))
+    forecast_edge_bps = _first_float(
+        live_runtime_truth.get("forecast_edge_bps"),
+        live_runtime_truth.get("expected_edge_bps"),
+        live_runtime_truth.get("model_edge_bps"),
+        nearest_candidate.get("forecast_edge_bps"),
+        nearest_candidate.get("expected_edge_bps"),
+        nearest_candidate.get("edge_bps"),
+    )
+    oos_roi_proxy = _first_float(nearest_candidate.get("avg_pnl"), nearest_candidate.get("oos_roi"))
+    trade_count_proxy = _first_int(nearest_candidate.get("trade_count"), nearest_candidate.get("trades"))
+    reference_edge_proxy_bps = None
+    if forecast_edge_bps is None and oos_roi_proxy is not None and trade_count_proxy:
+        reference_edge_proxy_bps = round(float(oos_roi_proxy) / max(int(trade_count_proxy), 1) * 10000.0, 2)
+    fee_bps = _first_float(
+        live_runtime_truth.get("taker_fee_bps"),
+        live_runtime_truth.get("fee_bps"),
+        execution_cost_cfg.get("taker_fee_bps"),
+        execution_cost_cfg.get("fee_bps"),
+        trading_cost_cfg.get("taker_fee_bps"),
+        trading_cost_cfg.get("fee_bps"),
+    )
+    spread_bps = _first_float(
+        live_runtime_truth.get("spread_bps"),
+        execution_cost_cfg.get("spread_bps"),
+        trading_cost_cfg.get("spread_bps"),
+    )
+    slippage_bps = _first_float(
+        live_runtime_truth.get("slippage_bps"),
+        execution_cost_cfg.get("slippage_bps"),
+        trading_cost_cfg.get("slippage_bps"),
+    )
+    volatility_buffer_bps = _first_float(
+        live_runtime_truth.get("volatility_buffer_bps"),
+        execution_cost_cfg.get("volatility_buffer_bps"),
+        trading_cost_cfg.get("volatility_buffer_bps"),
+    )
+    drawdown_buffer_bps = _first_float(
+        live_runtime_truth.get("drawdown_buffer_bps"),
+        live_runtime_truth.get("pyramid_drawdown_buffer_bps"),
+        execution_cost_cfg.get("drawdown_buffer_bps"),
+        trading_cost_cfg.get("drawdown_buffer_bps"),
+        execution_cost_cfg.get("pyramid_drawdown_buffer_bps"),
+    )
+    cost_components = {
+        "fee_bps": fee_bps,
+        "spread_bps": spread_bps,
+        "slippage_bps": slippage_bps,
+        "volatility_buffer_bps": volatility_buffer_bps,
+        "drawdown_buffer_bps": drawdown_buffer_bps,
+    }
+    present_cost_components = [float(value) for value in cost_components.values() if value is not None]
+    required_edge_bps = round(sum(present_cost_components), 4) if present_cost_components else None
+    if forecast_edge_bps is None:
+        cost_aware_status = "needs_forecast_edge"
+        cost_aware_summary = "尚缺 forecast_edge_bps / expected_edge_bps；OOS ROI proxy 只可作研究參考，不可放行 paper 風險進攻 candidate。"
+    elif required_edge_bps is None:
+        cost_aware_status = "needs_cost_inputs"
+        cost_aware_summary = "已有 forecast edge，但尚缺 fee / spread / slippage / volatility buffer 成本模型；先不放行風險進攻 candidate。"
+    elif float(forecast_edge_bps) > float(required_edge_bps):
+        cost_aware_status = "passed"
+        cost_aware_summary = f"forecast edge {float(forecast_edge_bps):.2f}bps > 成本門檻 {float(required_edge_bps):.2f}bps；只可作 paper/shadow candidate filter。"
+    else:
+        cost_aware_status = "blocked_edge_below_cost"
+        cost_aware_summary = f"forecast edge {float(forecast_edge_bps):.2f}bps 未高於成本門檻 {float(required_edge_bps):.2f}bps；不進風險進攻 candidate。"
+    cost_aware_passed = cost_aware_status == "passed"
+    cost_aware_gap = None
+    if forecast_edge_bps is not None and required_edge_bps is not None:
+        cost_aware_gap = max(round(float(required_edge_bps) - float(forecast_edge_bps), 4), 0.0)
+
     if venue_dry_run_artifact:
         credential_present = bool(
             venue_dry_run_artifact.get("credential_present")
@@ -1300,7 +1544,8 @@ def build_execution_readiness_bundle(
     live_canary_policy_gate = _build_live_canary_policy_gate(config, symbol)
     live_canary_policy_passed = bool(live_canary_policy_gate.get("passed"))
     shadow_ready = bool(model_shadow_ready or range_chop.get("shadow_available") or range_chop.get("risk_reduction_allowed"))
-    canary_ready = bool(live_ready and model_gate_passed and support_passed and release_passed and venue_passed and live_canary_policy_passed)
+    current_lane_live_prerequisites_passed = bool(support_passed and cost_aware_passed)
+    canary_ready = bool(live_ready and model_gate_passed and current_lane_live_prerequisites_passed and release_passed and venue_passed and live_canary_policy_passed)
     risk_on_order_enabled = False
     order_submission_enabled = False
     readiness_status = "canary_ready" if canary_ready else ("shadow_reduce_only" if shadow_ready or range_chop.get("risk_reduction_allowed") else "blocked")
@@ -1326,6 +1571,135 @@ def build_execution_readiness_bundle(
         if release_passed
         else "最近窗勝場未達門檻前，只做 shadow / reduce-only，不升級 canary。"
     )
+    release_evidence_status = (
+        "release_ready"
+        if release_passed
+        else ("needs_more_resolved_wins" if release_gap is not None else "awaiting_release_math")
+    )
+    release_evidence_lane = {
+        "status": release_evidence_status,
+        "release_ready": release_passed,
+        "blocked_by": [str(item) for item in _as_list(release_condition.get("blocked_by")) if str(item).strip()],
+        "horizon_minutes": _first_int(release_condition.get("horizon_minutes"), circuit_breaker_audit.get("canonical_horizon_minutes"), 1440) or 1440,
+        "recent_window": release_window,
+        "current_recent_window_wins": release_wins,
+        "required_recent_window_wins": release_required_wins,
+        "wins_needed": release_gap,
+        "current_recent_window_win_rate": _first_float(release_condition.get("current_recent_window_win_rate")),
+        "current_streak": _first_int(release_condition.get("current_streak")),
+        "streak_must_be_below": _first_int(release_condition.get("streak_must_be_below")),
+        "next_validation_artifact": "data/circuit_breaker_audit.json",
+        "verify_next": "venv/bin/python scripts/hb_circuit_breaker_audit.py",
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "live_order_submitted": False,
+        "operator_message": (
+            "熔斷解除 evidence 已通過；仍不代表可送單，需其他 hard gates 同時通過。"
+            if release_passed
+            else f"熔斷解除還差 {release_gap if release_gap is not None else '—'} 個 24h resolved wins；重跑 circuit breaker audit 驗證，不可繞過。"
+        ),
+    }
+
+    strict_exact_support_subgate = {
+        "key": "strict_exact_support_subgate",
+        "label": "精準 exact support subgate",
+        "status": "passed" if support_passed else "live_blocked",
+        "passed": support_passed,
+        "current": support_rows,
+        "required": support_minimum,
+        "gap": support_gap,
+        "deployment_role": "live_canary_prerequisite",
+        "live_exposure_allowed": False,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "summary": (
+            f"當前 exact live bucket {support_rows if support_rows is not None else '—'}/{support_minimum if support_minimum is not None else '—'}；live buy/add "
+            f"{'仍需其他 hard gates' if support_passed else '保持阻塞'}。"
+        ),
+        "next_action": "這只決定 live-canary 前置條件；不足時不要只等待 50 筆，需轉入 shadow / cost-aware evidence lane。",
+    }
+    shadow_evidence_ready = bool(shadow_ready)
+    shadow_evidence_subgate = {
+        "key": "shadow_evidence_subgate",
+        "label": "paper/shadow evidence subgate",
+        "status": "ready" if shadow_evidence_ready else "blocked",
+        "passed": shadow_evidence_ready,
+        "shadow_ready": shadow_evidence_ready,
+        "current": 1 if shadow_evidence_ready else 0,
+        "required": 1,
+        "gap": 0 if shadow_evidence_ready else 1,
+        "risk_qualified_count": risk_qualified_count,
+        "runtime_blocked_candidate_count": runtime_blocked_candidate_count,
+        "live_candidate_count": deployable_count,
+        "paper_shadow_available": shadow_evidence_ready,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "summary": (
+            "已有離線 / 風控候選或區間劇本，可做 paper/shadow observation；真實送單仍關閉。"
+            if shadow_evidence_ready
+            else "尚未形成可記錄的 paper/shadow evidence lane。"
+        ),
+        "next_action": "先記錄訊號、假想 entry、24h outcome 與 missed-entry reason；不可標成 live clearance。",
+    }
+    cost_aware_edge_subgate = {
+        "key": "cost_aware_edge_subgate",
+        "label": "成本感知 edge subgate",
+        "status": cost_aware_status,
+        "passed": cost_aware_passed,
+        "current": forecast_edge_bps,
+        "required": required_edge_bps,
+        "gap": cost_aware_gap,
+        "forecast_edge_bps": forecast_edge_bps,
+        "required_edge_bps": required_edge_bps,
+        "cost_components_bps": cost_components,
+        "reference_edge_proxy_bps": reference_edge_proxy_bps,
+        "edge_proxy_source": "topk_oos_roi_per_trade_reference_only" if reference_edge_proxy_bps is not None else None,
+        "deployment_role": "paper_shadow_candidate_filter",
+        "live_exposure_allowed": False,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "summary": cost_aware_summary,
+        "next_action": "接入 fee + spread + slippage + volatility / drawdown buffer；只有 forecast edge 明確大於成本門檻，才允許 paper/shadow 風險進攻候選。",
+    }
+    paper_shadow_buy_candidate_ready = bool(shadow_evidence_ready and cost_aware_passed)
+    if support_passed and cost_aware_passed:
+        current_lane_status = "exact_support_and_cost_ready"
+        current_lane_summary = f"當前 lane exact support 與成本感知 edge 已達標：{support_summary}；但仍需模型、熔斷、場館與 canary policy 同時通過。"
+    elif support_passed:
+        current_lane_status = "exact_support_ready_cost_pending"
+        current_lane_summary = f"當前 lane exact support 已達標：{support_summary}；但成本感知 edge subgate 尚未通過，live buy/add 仍保持阻塞。"
+    elif shadow_evidence_ready:
+        current_lane_status = "shadow_observation_ready_live_blocked"
+        current_lane_summary = f"當前 exact live support 未達標：{support_summary}；live buy/add 阻塞，但可轉入 paper/shadow observation 與成本感知 edge 補證。"
+    else:
+        current_lane_status = "hold_only_live_blocked"
+        current_lane_summary = f"當前 exact live support 未達標：{support_summary}；暫時只保留 wait/hold、減風險與 evidence collection。"
+    if not support_passed:
+        current_lane_next_action = "不要把 exact support 0/50 寫成只剩等待；先走 paper/shadow observation、cost-aware edge、venue dry-run 與 24h outcome evidence，live buy/add 仍 fail-closed。"
+    elif not cost_aware_passed:
+        current_lane_next_action = "exact support 已達標但成本感知 edge 尚未通過；補 forecast_edge_bps 與 fee/spread/slippage/buffer 後再評估 buy/add。"
+    else:
+        current_lane_next_action = "exact support 與成本感知 edge 都只是 live prerequisites；繼續檢查模型、熔斷、場館與 bounded canary policy。"
+    current_lane_actionability_gate = {
+        "key": "current_lane_actionability_gate",
+        "label": "當前 lane 可行動 gate",
+        "status": current_lane_status,
+        "passed": current_lane_live_prerequisites_passed,
+        "shadow_ready": shadow_evidence_ready,
+        "paper_shadow_available": shadow_evidence_ready,
+        "paper_shadow_buy_candidate_ready": paper_shadow_buy_candidate_ready,
+        "live_buy_add_allowed": False,
+        "live_exposure_allowed": False,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "current": support_rows,
+        "required": support_minimum,
+        "gap": support_gap,
+        "actionability": "live_canary_prerequisite_ready" if current_lane_live_prerequisites_passed else ("paper_shadow_observation_only" if shadow_evidence_ready else "wait_hold_reduce_only"),
+        "summary": current_lane_summary,
+        "next_action": current_lane_next_action,
+        "sub_gates": [strict_exact_support_subgate, shadow_evidence_subgate, cost_aware_edge_subgate],
+    }
 
     gates = [
         {
@@ -1340,16 +1714,18 @@ def build_execution_readiness_bundle(
             "summary": "；".join(model_detail_parts),
             "next_action": "研究勝出模型可進影子觀察；不可標成可部署，直到即時 gate 與場館證據鏈通過。",
         },
+        current_lane_actionability_gate,
         {
             "key": "current_live_support_gate",
-            "label": "即時支持 gate",
+            "label": "即時支持 gate（legacy exact subgate）",
             "status": "passed" if support_passed else "blocked",
             "passed": support_passed,
             "current": support_rows,
             "required": support_minimum,
             "gap": support_gap,
             "summary": support_summary,
-            "next_action": "等待精準分桶累積到最低支持樣本；寬範圍 / 離線 / 參考支持不可替代。",
+            "sub_gate_of": "current_lane_actionability_gate",
+            "next_action": "精準 exact support 是 live-canary 前置條件；不足時 live buy/add 仍關閉，但不要只等待 50 筆，需走 paper/shadow + cost-aware evidence lane。",
         },
         {
             "key": "circuit_breaker_gate",
@@ -1359,6 +1735,14 @@ def build_execution_readiness_bundle(
             "current": release_wins,
             "required": release_required_wins,
             "gap": release_gap,
+            "release_ready": release_passed,
+            "release_condition": release_condition or None,
+            "release_evidence_lane": release_evidence_lane,
+            "next_validation_artifact": "data/circuit_breaker_audit.json",
+            "verify_next": "venv/bin/python scripts/hb_circuit_breaker_audit.py",
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "live_order_submitted": False,
             "summary": release_summary,
             "next_action": release_next_action,
         },
@@ -1401,10 +1785,11 @@ def build_execution_readiness_bundle(
     blocking_gate = None
     for gate_key in (
         "circuit_breaker_gate",
-        "current_live_support_gate",
+        "current_lane_actionability_gate",
         "venue_gate",
         "model_gate",
         "live_canary_policy_gate",
+        "current_live_support_gate",
         "shadow_observation_gate",
     ):
         gate = gate_by_key.get(gate_key)
@@ -1419,8 +1804,12 @@ def build_execution_readiness_bundle(
         "減碼 / 取消掛單 / 賣出風險降低路徑仍可用",
         "持續收集即時部署精準支持與 24h pyramid outcome",
     ]
+    if not release_passed:
+        what_can_do_now.append(
+            f"熔斷 release evidence：目前 {release_wins if release_wins is not None else '—'}/{release_window} 勝，還差 {release_gap if release_gap is not None else '—'} 個 resolved wins；重跑 scripts/hb_circuit_breaker_audit.py 驗證。"
+        )
     what_cannot_do_now = [
-        "買入 / 加倉仍鎖住，直到即時支持 gate、熔斷 gate、場館 gate 全過",
+        "買入 / 加倉仍鎖住，直到當前 lane exact support、熔斷 gate、場館 gate 全過",
         "不能把 OOS 勝出模型、寬範圍分桶或參考支持標成可部署",
         "不能啟用風險進攻自動下單或完整實單自動化",
     ]
@@ -1440,7 +1829,8 @@ def build_execution_readiness_bundle(
         "what_cannot_do_now": what_cannot_do_now,
         "time_to_evidence": time_to_evidence,
         "alternative_solution_review": alternative_solution_review,
-        "next_release_condition": "exact support ≥ 50/50、recent 50 ≥ 15 勝、venue proof chain 完整、live_canary policy 完整，且 live_ready=true。",
+        "circuit_breaker_release_evidence_lane": release_evidence_lane,
+        "next_release_condition": "current lane exact support ≥ 50/50、recent 50 ≥ 15 勝、venue proof chain 完整、live_canary policy 完整，且 live_ready=true。",
     }
 
     timestamp = str(payload.get("timestamp") or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
@@ -1528,7 +1918,9 @@ def build_execution_readiness_bundle(
 
     distance_to_canary = [
         f"熔斷 gate：{release_summary}",
-        f"即時支持 gate：{support_summary}",
+        f"當前 lane 可行動 gate：{current_lane_summary}",
+        f"精準 exact support subgate：{support_summary}",
+        f"成本感知 edge subgate：{cost_aware_summary}",
         f"time-to-evidence：{time_to_evidence_summary}",
         "場館 gate：credential present、order preview、ack simulation、cancel simulation、fill simulation、reconciliation check 都必須 runtime-backed。",
         f"Live-canary policy gate：{live_canary_policy_gate.get('summary')}",
@@ -1546,6 +1938,13 @@ def build_execution_readiness_bundle(
         venue_dry_run_proof=venue_dry_run_proof,
     )
     execution_readiness["milestone_progression"] = milestone_progression
+    execution_readiness["milestone_progression"]["circuit_breaker_release_evidence_lane"] = release_evidence_lane
+    for milestone in execution_readiness["milestone_progression"].get("milestones", []):
+        if isinstance(milestone, dict) and milestone.get("key") == "M2_support_and_breaker":
+            milestone["circuit_breaker_release_evidence_lane"] = release_evidence_lane
+            milestone["next_validation_artifact"] = "data/circuit_breaker_audit.json"
+            milestone["verify_next"] = "venv/bin/python scripts/hb_circuit_breaker_audit.py"
+            break
 
     canary_gap_answers = {
         "canary_ready": canary_ready,
@@ -1557,6 +1956,7 @@ def build_execution_readiness_bundle(
         "time_to_evidence": time_to_evidence,
         "alternative_solution_review": alternative_solution_review,
         "milestone_progression": milestone_progression,
+        "circuit_breaker_release_evidence_lane": release_evidence_lane,
         "first_canary_plan_if_all_gates_pass": {
             "exposure_pct_max": 0.01,
             "pyramid_layer": "20% first layer only",

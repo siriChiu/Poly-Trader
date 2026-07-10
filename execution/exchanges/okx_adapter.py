@@ -170,7 +170,7 @@ class OKXAdapter(BaseExchangeAdapter):
             side=request.side,
             order_type=request.order_type,
             qty=request.qty,
-            price=order.get("price") or request.price,
+            price=order.get("average") or order.get("price") or request.price,
             status=order.get("status") or "open",
             order_id=str(order.get("id")),
             client_order_id=order.get("clientOrderId") or order.get("clOrdId") or request.client_order_id,

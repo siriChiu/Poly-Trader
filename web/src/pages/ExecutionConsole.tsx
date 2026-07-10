@@ -87,14 +87,58 @@ type ReadinessGate = {
   key?: string | null;
   label?: string | null;
   status?: string | null;
+  raw_status?: string | null;
   passed?: boolean | null;
   shadow_ready?: boolean | null;
   current?: number | null;
   required?: number | null;
   gap?: number | null;
+  candidate_decisions?: number | null;
+  pending_outcomes?: number | null;
+  resolved_outcomes?: number | null;
+  awaiting_label_replay?: number | null;
+  jsonl_backed?: boolean | null;
+  next_reconcile_at?: string | null;
+  pending_hours_remaining_min?: number | null;
+  order_submission_enabled?: boolean | null;
+  risk_on_order_enabled?: boolean | null;
+  live_order_submitted?: boolean | null;
+  release_ready?: boolean | null;
+  release_condition?: Record<string, unknown> | null;
+  release_evidence_lane?: {
+    status?: string | null;
+    release_ready?: boolean | null;
+    blocked_by?: string[] | null;
+    horizon_minutes?: number | null;
+    recent_window?: number | null;
+    current_recent_window_wins?: number | null;
+    required_recent_window_wins?: number | null;
+    wins_needed?: number | null;
+    current_recent_window_win_rate?: number | null;
+    current_streak?: number | null;
+    streak_must_be_below?: number | null;
+    next_validation_artifact?: string | null;
+    verify_next?: string | null;
+    order_submission_enabled?: boolean | null;
+    risk_on_order_enabled?: boolean | null;
+    live_order_submitted?: boolean | null;
+    operator_message?: string | null;
+  } | null;
+  next_validation_artifact?: string | null;
+  verify_next?: string | null;
   summary?: string | null;
   next_action?: string | null;
   blockers?: string[] | null;
+  sub_gate_of?: string | null;
+  sub_gates?: ReadinessGate[] | null;
+  actionability?: string | null;
+  paper_shadow_available?: boolean | null;
+  paper_shadow_buy_candidate_ready?: boolean | null;
+  live_buy_add_allowed?: boolean | null;
+  live_exposure_allowed?: boolean | null;
+  forecast_edge_bps?: number | null;
+  required_edge_bps?: number | null;
+  reference_edge_proxy_bps?: number | null;
 };
 
 type TimeToEvidence = {
@@ -140,6 +184,7 @@ type MilestoneProgression = {
   preferred_entrypoint?: Record<string, unknown> | null;
   fallback_entrypoint?: Record<string, unknown> | null;
   safe_entry_lanes?: Array<Record<string, unknown>> | null;
+  live_runner_24h_shadow_gate?: ReadinessGate | null;
   milestones?: Array<Record<string, unknown>> | null;
 };
 
@@ -154,6 +199,7 @@ type ExecutionReadiness = {
   blocking_gate_label?: string | null;
   operator_message?: string | null;
   gates?: ReadinessGate[] | null;
+  live_runner_24h_shadow_gate?: ReadinessGate | null;
   what_can_do_now?: string[] | null;
   what_cannot_do_now?: string[] | null;
   time_to_evidence?: TimeToEvidence | null;
@@ -227,6 +273,7 @@ type CanaryGapAnswers = {
   time_to_evidence?: TimeToEvidence | null;
   alternative_solution_review?: AlternativeSolutionReview | null;
   milestone_progression?: MilestoneProgression | null;
+  live_runner_24h_shadow_gate?: ReadinessGate | null;
   first_canary_plan_if_all_gates_pass?: {
     exposure_pct_max?: number | null;
     pyramid_layer?: string | null;
@@ -234,6 +281,7 @@ type CanaryGapAnswers = {
     mode?: string | null;
     order_type?: string | null;
     add_exposure_enabled?: boolean | null;
+    required_shadow_evidence_gate?: string | null;
     stop_conditions?: string[] | null;
   } | null;
 };
@@ -555,6 +603,118 @@ type ExecutionOverviewProfileCard = {
   } | null;
 };
 
+type LiveRunnerOverview = {
+  status?: string | null;
+  source?: string | null;
+  jsonl_root?: string | null;
+  summary?: {
+    total_runs?: number | null;
+    running_runs?: number | null;
+    stopped_runs?: number | null;
+    failed_runs?: number | null;
+    status_counts?: Record<string, number> | null;
+    total_decisions?: number | null;
+    candidate_decisions?: number | null;
+    jsonl_backed?: boolean | null;
+    order_submission_enabled?: boolean | null;
+    risk_on_order_enabled?: boolean | null;
+    live_order_submitted?: boolean | null;
+  } | null;
+  latest_run?: {
+    run_id?: string | null;
+    strategy_name?: string | null;
+    strategy_hash?: string | null;
+    symbol?: string | null;
+    venue?: string | null;
+    mode?: string | null;
+    status?: string | null;
+    started_at?: string | null;
+    stopped_at?: string | null;
+    last_heartbeat_at?: string | null;
+    jsonl?: {
+      exists?: boolean | null;
+      path?: string | null;
+      line_count?: number | null;
+      latest_record?: Record<string, unknown> | null;
+    } | null;
+  } | null;
+  latest_decision?: {
+    decision_id?: number | string | null;
+    run_id?: string | null;
+    strategy_name?: string | null;
+    symbol?: string | null;
+    venue?: string | null;
+    feature_timestamp?: string | null;
+    created_at?: string | null;
+    signal?: string | null;
+    action?: string | null;
+    side?: string | null;
+    qty?: number | null;
+    quote_amount?: number | null;
+    order_submitted?: boolean | null;
+    dry_run?: boolean | null;
+    live_order_submitted?: boolean | null;
+    model_confidence?: number | null;
+    entry_quality?: number | null;
+    reason?: string | null;
+  } | null;
+  shadow_evidence_gate?: {
+    status?: string | null;
+    source?: string | null;
+    window_hours?: number | null;
+    candidate_decisions?: number | null;
+    pending_outcomes?: number | null;
+    resolved_outcomes?: number | null;
+    awaiting_label_replay?: number | null;
+    next_reconcile_at?: string | null;
+    pending_hours_remaining_min?: number | null;
+    latest_entry?: Record<string, unknown> | null;
+    order_submission_enabled?: boolean | null;
+    risk_on_order_enabled?: boolean | null;
+    live_order_submitted?: boolean | null;
+    blocked_live_actions?: string[] | null;
+    operator_message?: string | null;
+  } | null;
+  operator_message?: string | null;
+};
+
+
+type ShadowEvidenceDaemonOverview = {
+  status?: string | null;
+  updated_at?: string | null;
+  operator_message?: string | null;
+  summary?: {
+    cycles_completed?: number | null;
+    total_decisions?: number | null;
+    candidate_decisions?: number | null;
+    pending_outcomes?: number | null;
+    resolved_outcomes?: number | null;
+    awaiting_label_replay?: number | null;
+    jsonl_backed?: boolean | null;
+    live_order_submitted?: boolean | null;
+  } | null;
+  operator_review?: {
+    confirmation_due?: boolean | null;
+    next_operator_review_at?: string | null;
+    operator_action?: string | null;
+  } | null;
+  guardrail?: {
+    order_submission_enabled?: boolean | null;
+    risk_on_order_enabled?: boolean | null;
+    live_order_submitted?: boolean | null;
+  } | null;
+  latest_decision?: {
+    action?: string | null;
+    signal?: string | null;
+    reason?: string | null;
+    created_at?: string | null;
+    feature_timestamp?: string | null;
+    model_confidence?: number | null;
+    entry_quality?: number | null;
+  } | null;
+};
+
+
 type ExecutionOverviewResponse = {
   controls_mode?: string;
   operator_message?: string;
@@ -593,6 +753,9 @@ type ExecutionOverviewResponse = {
   shadow_trade_ledger?: ShadowTradeLedger | null;
   venue_dry_run_proof?: VenueDryRunProof | null;
   canary_gap_answers?: CanaryGapAnswers | null;
+  live_runner?: LiveRunnerOverview | null;
+  shadow_evidence_daemon?: ShadowEvidenceDaemonOverview | null;
+  paper_shadow_outcome_reconciliation?: PaperShadowOutcomeReconciliationResponse | null;
   profile_cards?: ExecutionOverviewProfileCard[] | null;
 };
 
@@ -794,6 +957,7 @@ type PaperShadowOutcomeReconciliationResponse = {
     status?: string | null;
     generated_at?: string | null;
     mode?: string | null;
+    source?: string | null;
     order_submission_enabled?: boolean | null;
     risk_on_order_enabled?: boolean | null;
     operator_message?: string | null;
@@ -805,8 +969,17 @@ type PaperShadowOutcomeReconciliationResponse = {
       awaiting_label_replay?: number | null;
       parity_blocked_events?: number | null;
       entries?: number | null;
+      live_runner_total_runs?: number | null;
+      live_runner_total_decisions?: number | null;
+      live_runner_candidate_decisions?: number | null;
+      live_runner_pending_outcomes?: number | null;
+      live_runner_resolved_outcomes?: number | null;
+      live_runner_awaiting_label_replay?: number | null;
+      live_runner_jsonl_backed?: boolean | null;
       live_order_submitted?: boolean | null;
     } | null;
+    live_runner?: LiveRunnerOverview | null;
+    live_runner_shadow_gate?: LiveRunnerOverview["shadow_evidence_gate"] | null;
   } | null;
 };
 
@@ -1207,6 +1380,47 @@ export default function ExecutionConsole() {
     : workerRehearsalProof?.next_reconcile_at
       ? `next reconcile ${workerRehearsalProof.next_reconcile_at}`
       : "reconcile ETA 尚未建立";
+  const liveRunnerOverview = executionOverview?.live_runner || workerOutcomeArtifact?.live_runner || null;
+  const liveRunnerSummary = liveRunnerOverview?.summary ?? null;
+  const liveRunnerGate = liveRunnerOverview?.shadow_evidence_gate || workerOutcomeArtifact?.live_runner_shadow_gate || null;
+  const liveRunnerLatestRun = liveRunnerOverview?.latest_run ?? null;
+  const liveRunnerLatestDecision = liveRunnerOverview?.latest_decision ?? null;
+  const liveRunnerStatusLabel = overviewPending
+    ? "同步中"
+    : humanizeRuntimeDetailText(liveRunnerOverview?.status || "尚未建立 standalone runner");
+  const liveRunnerGateStatusLabel = humanizeRuntimeDetailText(liveRunnerGate?.status || "尚未建立 24h gate");
+  const liveRunnerLatestActionLabel = humanizeRuntimeDetailText(liveRunnerLatestDecision?.action || liveRunnerLatestDecision?.signal || "尚無決策");
+  const liveRunnerLatestDecisionDetailLabel = liveRunnerLatestDecision
+    ? `${formatTime(liveRunnerLatestDecision.created_at || liveRunnerLatestDecision.feature_timestamp)} · confidence ${formatNumber(liveRunnerLatestDecision.model_confidence, 3)} · EQ ${formatNumber(liveRunnerLatestDecision.entry_quality, 3)} · ${humanizeRuntimeDetailText(liveRunnerLatestDecision.reason || "—")}`
+    : "等待 runner 寫入 live_runner_decisions。";
+  const liveRunnerEvidenceLabel = `${liveRunnerSummary?.total_runs ?? 0} runs · ${liveRunnerSummary?.total_decisions ?? 0} decisions · JSONL ${liveRunnerSummary?.jsonl_backed ? "已對齊" : "未對齊"}`;
+  const liveRunnerGateCountsLabel = `24h gate resolved ${liveRunnerGate?.resolved_outcomes ?? 0} · pending ${liveRunnerGate?.pending_outcomes ?? 0} · label replay ${liveRunnerGate?.awaiting_label_replay ?? 0}`;
+  const liveRunnerFailClosedLabel = liveRunnerGate?.order_submission_enabled || liveRunnerSummary?.order_submission_enabled
+    ? "送單允許（需立即複核）"
+    : "Fail-closed · 不送單";
+  const liveRunnerJsonlPathLabel = liveRunnerLatestRun?.jsonl?.path || liveRunnerOverview?.jsonl_root || "data/live_trading";
+  const shadowEvidenceDaemon = executionOverview?.shadow_evidence_daemon ?? null;
+  const shadowEvidenceDaemonSummary = shadowEvidenceDaemon?.summary ?? null;
+  const shadowEvidenceDaemonReview = shadowEvidenceDaemon?.operator_review ?? null;
+  const shadowEvidenceDaemonGuardrail = shadowEvidenceDaemon?.guardrail ?? null;
+  const shadowEvidenceDaemonLatest = shadowEvidenceDaemon?.latest_decision ?? null;
+  const shadowEvidenceDaemonStatusLabel = overviewPending
+    ? "同步中"
+    : humanizeRuntimeDetailText(shadowEvidenceDaemon?.status || "尚未建立 daemon artifact");
+  const shadowEvidenceDaemonDetailLabel = humanizeRuntimeDetailText(shadowEvidenceDaemon?.operator_message || "背景 daemon 只蒐集 shadow evidence，不送單。");
+  const shadowEvidenceDaemonCountsLabel = `cycles ${shadowEvidenceDaemonSummary?.cycles_completed ?? 0} · decisions ${shadowEvidenceDaemonSummary?.total_decisions ?? 0} · candidates ${shadowEvidenceDaemonSummary?.candidate_decisions ?? 0}`;
+  const shadowEvidenceDaemonOutcomeLabel = `pending ${shadowEvidenceDaemonSummary?.pending_outcomes ?? 0} · resolved ${shadowEvidenceDaemonSummary?.resolved_outcomes ?? 0} · label replay ${shadowEvidenceDaemonSummary?.awaiting_label_replay ?? 0}`;
+  const shadowEvidenceDaemonLatestLabel = shadowEvidenceDaemonLatest
+    ? `${formatTime(shadowEvidenceDaemonLatest.created_at || shadowEvidenceDaemonLatest.feature_timestamp)} · ${humanizeRuntimeDetailText(shadowEvidenceDaemonLatest.action || shadowEvidenceDaemonLatest.signal || "HOLD")} · ${humanizeRuntimeDetailText(shadowEvidenceDaemonLatest.reason || "—")}`
+    : "等待第一筆 shadow evidence decision。";
+  const shadowEvidenceDaemonReviewLabel = shadowEvidenceDaemonReview?.confirmation_due
+    ? "需要使用者確認 evidence"
+    : `下次確認 ${formatTime(shadowEvidenceDaemonReview?.next_operator_review_at)}`;
+  const shadowEvidenceDaemonTone = shadowEvidenceDaemonGuardrail?.live_order_submitted
+    ? "border-red-400/25 bg-red-400/8 text-red-100"
+    : shadowEvidenceDaemonReview?.confirmation_due
+      ? "border-amber-400/25 bg-amber-400/8 text-amber-100"
+      : "border-cyan-400/20 bg-cyan-400/8 text-cyan-100";
   const runsByProfileId = new Map(executionRunRecords.map((run) => [run.profile_id || "", run]));
   const runLedgerPreviews = executionRunRecords
     .map((run) => run.runtime_binding_snapshot?.shared_symbol_ledger_preview ?? null)
@@ -1701,6 +1915,7 @@ export default function ExecutionConsole() {
             <div className="grid gap-2 sm:grid-cols-2">
               {[
                 readinessGateByKey.get("model_gate") || { label: "模型 gate", summary: "同步中" },
+                readinessGateByKey.get("current_lane_actionability_gate") || { label: "當前 lane 可行動 gate", summary: "同步中" },
                 readinessGateByKey.get("current_live_support_gate") || { label: "即時支持 gate", summary: "同步中" },
                 readinessGateByKey.get("circuit_breaker_gate") || { label: "熔斷 gate", summary: "同步中" },
                 readinessGateByKey.get("venue_gate") || { label: "場館 gate", summary: "同步中" },
@@ -1715,8 +1930,25 @@ export default function ExecutionConsole() {
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-slate-400">{humanizeRuntimeDetailText(gate.summary || gate.next_action || "同步中")}</div>
+                  {Array.isArray(gate.sub_gates) && gate.sub_gates.length > 0 && (
+                    <div className="mt-2 space-y-1 rounded-lg border border-cyan-300/10 bg-cyan-300/5 p-2 text-[11px] text-cyan-100/80">
+                      <div className="font-semibold text-cyan-50">sub-gates：strict exact / shadow evidence / cost-aware edge</div>
+                      {gate.sub_gates.map((subGate) => (
+                        <div key={subGate.key || subGate.label || "subgate"} className="flex flex-wrap items-center justify-between gap-2">
+                          <span>{subGate.label || subGate.key}</span>
+                          <span className="text-cyan-100/65">{subGate.status || (subGate.passed ? "passed" : "blocked")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {(typeof gate.current === "number" || typeof gate.required === "number" || typeof gate.gap === "number") && (
                     <div className="mt-2 text-[11px] text-slate-500">{gate.current ?? "—"} / {gate.required ?? "—"} · 缺 {gate.gap ?? "—"}</div>
+                  )}
+                  {gate.release_evidence_lane && (
+                    <div className="mt-2 rounded-lg border border-amber-300/15 bg-amber-300/5 p-2 text-[11px] text-amber-100/85">
+                      <div>release evidence：{gate.release_evidence_lane.status || "同步中"} · 還差 {gate.release_evidence_lane.wins_needed ?? gate.gap ?? "—"} 勝</div>
+                      <div className="mt-1 text-amber-100/65">artifact：{gate.release_evidence_lane.next_validation_artifact || gate.next_validation_artifact || "data/circuit_breaker_audit.json"}</div>
+                    </div>
                   )}
                 </div>
               ))}
@@ -1848,6 +2080,24 @@ export default function ExecutionConsole() {
           </div>
         </div>
       </ExecutionSectionCard>
+
+      <section className={`rounded-[24px] border p-4 text-xs ${shadowEvidenceDaemonTone}`}>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="text-sm font-semibold text-white">Shadow evidence daemon</div>
+            <div className="mt-1 text-cyan-100/85">{shadowEvidenceDaemonStatusLabel} · {shadowEvidenceDaemonDetailLabel}</div>
+            <div className="mt-2 text-[11px] text-slate-400">最新 decision：{shadowEvidenceDaemonLatestLabel}</div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">{shadowEvidenceDaemonCountsLabel}</span>
+            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">{shadowEvidenceDaemonOutcomeLabel}</span>
+            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">{shadowEvidenceDaemonReviewLabel}</span>
+            <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-emerald-100">
+              {shadowEvidenceDaemonGuardrail?.live_order_submitted ? "⚠️ live order detected" : "Fail-closed · 不送單"}
+            </span>
+          </div>
+        </div>
+      </section>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <ExecutionMetricCard
@@ -2160,6 +2410,40 @@ export default function ExecutionConsole() {
                 {runsLoading ? "/api/execution/runs 載入中…" : `運行列表載入失敗：${runsError}`}
               </div>
             )}
+            <div className="mt-4 rounded-[20px] border border-cyan-500/15 bg-cyan-500/[0.06] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-cyan-100">Standalone Live Runner 證據</div>
+                  <div className="mt-1 text-xs text-slate-400">{liveRunnerEvidenceLabel}</div>
+                  <div className="mt-1 text-xs text-slate-500">JSONL {liveRunnerJsonlPathLabel}</div>
+                </div>
+                <div className={`rounded-full border px-2.5 py-1 text-[11px] ${getStatusTone(liveRunnerOverview?.status || "pending")}`}>
+                  {liveRunnerStatusLabel}
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-[12px] xl:grid-cols-4">
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">最新決策</div>
+                  <div className="mt-1 font-semibold text-white">{liveRunnerLatestActionLabel}</div>
+                  <div className="text-slate-400">{liveRunnerLatestDecisionDetailLabel}</div>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">24h Gate</div>
+                  <div className="mt-1 font-semibold text-white">{liveRunnerGateStatusLabel}</div>
+                  <div className="text-slate-400">{liveRunnerGateCountsLabel}</div>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Runner</div>
+                  <div className="mt-1 font-semibold text-white">{liveRunnerLatestRun?.run_id || "尚未建立"}</div>
+                  <div className="text-slate-400">heartbeat {formatTime(liveRunnerLatestRun?.last_heartbeat_at)}</div>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">送單狀態</div>
+                  <div className={`mt-1 font-semibold ${liveRunnerGate?.order_submission_enabled || liveRunnerSummary?.order_submission_enabled ? "text-rose-300" : "text-emerald-300"}`}>{liveRunnerFailClosedLabel}</div>
+                  <div className="text-slate-400">{humanizeRuntimeDetailText(liveRunnerGate?.operator_message || liveRunnerOverview?.operator_message || "paper/shadow evidence only")}</div>
+                </div>
+              </div>
+            </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {executionRunRecords.length > 0 ? executionRunRecords.slice(0, 6).map((run) => {
                 const runStrategyBinding = run.strategy_binding ?? null;

@@ -49,20 +49,31 @@ from feature_engine.feature_history_policy import (
     _compute_archive_window_coverage,
 )
 from execution.account_sync import AccountSyncService
-from execution.console_overview import build_execution_overview, build_live_canary_policy_gate
+from execution.console_overview import (
+    attach_live_runner_shadow_gate_to_readiness,
+    build_execution_overview,
+    build_live_canary_policy_gate,
+)
 from execution.control_plane import (
     build_paper_shadow_outcome_reconciliation,
     build_execution_control_plane_snapshot,
     build_execution_strategy_source_snapshot,
+    build_live_runner_overview,
     get_execution_run_detail,
     pause_execution_run,
     poll_execution_paper_shadow_workers,
     start_execution_profile_run,
     stop_execution_run,
 )
+from execution.config import resolve_cost_aware_edge_config
 from execution.execution_service import ExecutionRejectError, ExecutionService
 from execution.metadata_smoke import run_metadata_smoke
 from execution.range_chop_playbook import build_range_chop_playbook
+from execution.shadow_evidence_daemon import (
+    acknowledge_shadow_evidence_operator_review,
+    build_shadow_evidence_daemon_artifact,
+    load_shadow_evidence_daemon_artifact,
+)
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -3508,10 +3519,29 @@ async def api_status() -> Dict[str, Any]:
     maybe_confidence_payload = get_confidence_prediction()
     confidence_payload = await maybe_confidence_payload if hasattr(maybe_confidence_payload, "__await__") else maybe_confidence_payload
     live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload)
+    cost_aware_edge_config = resolve_cost_aware_edge_config(cfg)
+    cost_components_bps = {
+        "fee_bps": cost_aware_edge_config.get("taker_fee_bps"),
+        "spread_bps": cost_aware_edge_config.get("spread_bps"),
+        "slippage_bps": cost_aware_edge_config.get("slippage_bps"),
+        "volatility_buffer_bps": cost_aware_edge_config.get("volatility_buffer_bps"),
+        "drawdown_buffer_bps": cost_aware_edge_config.get("drawdown_buffer_bps"),
+    }
+    required_edge_bps = round(sum(float(value) for value in cost_components_bps.values() if value is not None), 4)
+    cost_aware_edge_runtime = {
+        "status": "cost_inputs_configured",
+        "source": "execution.cost_aware_edge",
+        "required_edge_bps": required_edge_bps,
+        "cost_components_bps": cost_components_bps,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+    }
+    live_runtime_truth["cost_aware_edge"] = cost_aware_edge_runtime
     recent_canonical_drift = _load_recent_canonical_drift_summary()
     high_conviction_topk = _load_high_conviction_topk_summary(limit=3, live_truth=live_runtime_truth)
     range_chop_playbook = build_range_chop_playbook(live_runtime_truth, high_conviction_topk)
     execution_summary["live_runtime_truth"] = live_runtime_truth
+    execution_summary["cost_aware_edge"] = cost_aware_edge_runtime
     execution_summary["recent_canonical_drift"] = recent_canonical_drift
     execution_summary["high_conviction_topk"] = high_conviction_topk
     execution_summary["range_chop_playbook"] = range_chop_playbook
@@ -3546,6 +3576,7 @@ async def api_status() -> Dict[str, Any]:
         metadata_smoke,
     )
     execution_surface_contract["live_runtime_truth"] = live_runtime_truth
+    execution_surface_contract["cost_aware_edge"] = cost_aware_edge_runtime
     execution_surface_contract["recent_canonical_drift"] = recent_canonical_drift
     execution_surface_contract["high_conviction_topk"] = high_conviction_topk
     execution_surface_contract["range_chop_playbook"] = range_chop_playbook
@@ -3574,6 +3605,7 @@ async def api_status() -> Dict[str, Any]:
         "execution_metadata_smoke": metadata_smoke,
         "venue_dry_run_proof": venue_dry_run_proof,
         "execution_surface_contract": execution_surface_contract,
+        "cost_aware_edge": cost_aware_edge_runtime,
         "high_conviction_topk": high_conviction_topk,
         "range_chop_playbook": range_chop_playbook,
         "recent_canonical_drift": recent_canonical_drift,
@@ -3596,7 +3628,64 @@ async def api_execution_overview() -> Dict[str, Any]:
     overview["paper_shadow_outcome_reconciliation"] = _compact_paper_shadow_outcome_reconciliation(
         outcome_reconciliation
     )
+    live_runner_overview = build_live_runner_overview(db, status_payload=status_payload)
+    overview["live_runner"] = _compact_live_runner_overview(live_runner_overview)
+    overview["shadow_evidence_daemon"] = build_shadow_evidence_daemon_artifact(
+        previous_artifact=load_shadow_evidence_daemon_artifact(),
+        live_runner_overview=live_runner_overview,
+        outcome_reconciliation=outcome_reconciliation,
+        latest_cycle_decision=None,
+    )
+    overview = attach_live_runner_shadow_gate_to_readiness(overview, overview["live_runner"])
     return overview
+
+
+def _compact_live_runner_overview(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Return overview-safe standalone live runner state without full candidate rows."""
+
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    gate = payload.get("shadow_evidence_gate") if isinstance(payload.get("shadow_evidence_gate"), dict) else {}
+    latest_run = payload.get("latest_run") if isinstance(payload.get("latest_run"), dict) else None
+    latest_decision = payload.get("latest_decision") if isinstance(payload.get("latest_decision"), dict) else None
+    return {
+        "status": payload.get("status"),
+        "source": payload.get("source"),
+        "jsonl_root": payload.get("jsonl_root"),
+        "summary": {
+            "total_runs": summary.get("total_runs"),
+            "running_runs": summary.get("running_runs"),
+            "stopped_runs": summary.get("stopped_runs"),
+            "failed_runs": summary.get("failed_runs"),
+            "status_counts": summary.get("status_counts"),
+            "total_decisions": summary.get("total_decisions"),
+            "candidate_decisions": summary.get("candidate_decisions"),
+            "jsonl_backed": summary.get("jsonl_backed"),
+            "order_submission_enabled": summary.get("order_submission_enabled"),
+            "risk_on_order_enabled": summary.get("risk_on_order_enabled"),
+            "live_order_submitted": summary.get("live_order_submitted"),
+        },
+        "latest_run": latest_run,
+        "latest_decision": latest_decision,
+        "shadow_evidence_gate": {
+            "status": gate.get("status"),
+            "source": gate.get("source"),
+            "window_hours": gate.get("window_hours"),
+            "candidate_decisions": gate.get("candidate_decisions"),
+            "pending_outcomes": gate.get("pending_outcomes"),
+            "resolved_outcomes": gate.get("resolved_outcomes"),
+            "awaiting_label_replay": gate.get("awaiting_label_replay"),
+            "next_reconcile_at": gate.get("next_reconcile_at"),
+            "pending_hours_remaining_min": gate.get("pending_hours_remaining_min"),
+            "latest_entry": gate.get("latest_entry"),
+            "order_submission_enabled": gate.get("order_submission_enabled"),
+            "risk_on_order_enabled": gate.get("risk_on_order_enabled"),
+            "live_order_submitted": gate.get("live_order_submitted"),
+            "blocked_live_actions": gate.get("blocked_live_actions"),
+            "operator_message": gate.get("operator_message"),
+        },
+        "operator_message": payload.get("operator_message"),
+    }
+
 
 
 def _compact_paper_shadow_outcome_reconciliation(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -3606,6 +3695,8 @@ def _compact_paper_shadow_outcome_reconciliation(payload: Dict[str, Any]) -> Dic
     summary = artifact.get("summary") if isinstance(artifact.get("summary"), dict) else {}
     proof = artifact.get("rehearsal_proof") if isinstance(artifact.get("rehearsal_proof"), dict) else {}
     quick_read = artifact.get("quick_read") if isinstance(artifact.get("quick_read"), dict) else {}
+    live_runner = artifact.get("live_runner") if isinstance(artifact.get("live_runner"), dict) else {}
+    live_runner_gate = artifact.get("live_runner_shadow_gate") if isinstance(artifact.get("live_runner_shadow_gate"), dict) else {}
     return {
         "artifact_path": payload.get("artifact_path"),
         "persisted": bool(payload.get("persisted")),
@@ -3614,6 +3705,7 @@ def _compact_paper_shadow_outcome_reconciliation(payload: Dict[str, Any]) -> Dic
         "status": artifact.get("status"),
         "rehearsal_status": artifact.get("rehearsal_status"),
         "mode": artifact.get("mode"),
+        "source": artifact.get("source"),
         "window_hours": artifact.get("window_hours"),
         "label_source": artifact.get("label_source"),
         "order_submission_enabled": artifact.get("order_submission_enabled"),
@@ -3638,6 +3730,13 @@ def _compact_paper_shadow_outcome_reconciliation(payload: Dict[str, Any]) -> Dic
             "awaiting_label_replay": summary.get("awaiting_label_replay"),
             "parity_blocked_events": summary.get("parity_blocked_events"),
             "entries": summary.get("entries"),
+            "live_runner_total_runs": summary.get("live_runner_total_runs"),
+            "live_runner_total_decisions": summary.get("live_runner_total_decisions"),
+            "live_runner_candidate_decisions": summary.get("live_runner_candidate_decisions"),
+            "live_runner_pending_outcomes": summary.get("live_runner_pending_outcomes"),
+            "live_runner_resolved_outcomes": summary.get("live_runner_resolved_outcomes"),
+            "live_runner_awaiting_label_replay": summary.get("live_runner_awaiting_label_replay"),
+            "live_runner_jsonl_backed": summary.get("live_runner_jsonl_backed"),
             "live_order_submitted": summary.get("live_order_submitted"),
         },
         "rehearsal_proof": {
@@ -3659,7 +3758,48 @@ def _compact_paper_shadow_outcome_reconciliation(payload: Dict[str, Any]) -> Dic
             "blocked_live_actions": proof.get("blocked_live_actions"),
             "operator_message": proof.get("operator_message"),
         },
+        "live_runner": {
+            "status": live_runner.get("status"),
+            "summary": live_runner.get("summary"),
+            "latest_run": live_runner.get("latest_run"),
+            "latest_decision": live_runner.get("latest_decision"),
+            "shadow_evidence_gate": live_runner.get("shadow_evidence_gate") or live_runner_gate,
+            "operator_message": live_runner.get("operator_message"),
+        },
+        "live_runner_shadow_gate": live_runner_gate,
         "operator_message": artifact.get("operator_message"),
+    }
+
+
+@router.get("/execution/shadow-evidence")
+async def api_execution_shadow_evidence() -> Dict[str, Any]:
+    db = get_db()
+    live_runner_overview = build_live_runner_overview(db)
+    outcome_reconciliation = build_paper_shadow_outcome_reconciliation(db, persist=False)
+    surface = build_shadow_evidence_daemon_artifact(
+        previous_artifact=load_shadow_evidence_daemon_artifact(),
+        live_runner_overview=live_runner_overview,
+        outcome_reconciliation=outcome_reconciliation,
+        latest_cycle_decision=None,
+    )
+    return {
+        **surface,
+        "live_runner": _compact_live_runner_overview(live_runner_overview),
+        "paper_shadow_outcome_reconciliation": _compact_paper_shadow_outcome_reconciliation(outcome_reconciliation),
+    }
+
+
+@router.post("/execution/shadow-evidence/ack")
+async def api_execution_shadow_evidence_ack() -> Dict[str, Any]:
+    artifact = acknowledge_shadow_evidence_operator_review()
+    return {
+        "ok": True,
+        "status": artifact.get("status"),
+        "updated_at": artifact.get("updated_at"),
+        "operator_message": artifact.get("operator_message"),
+        "operator_review": artifact.get("operator_review"),
+        "summary": artifact.get("summary"),
+        "guardrail": artifact.get("guardrail"),
     }
 
 

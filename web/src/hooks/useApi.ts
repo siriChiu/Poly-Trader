@@ -7,7 +7,7 @@ import { beginGlobalProgress, endGlobalProgress, updateGlobalProgress } from "./
 const RAW_BASE = (import.meta as any)?.env?.VITE_API_BASE?.trim?.() || "";
 export const API_BASE = RAW_BASE.replace(/\/$/, "");
 const ACTIVE_API_BASE_STORAGE_KEY = "poly_trader.active_api_base";
-const DEV_LOCAL_API_CANDIDATE_PORTS = [8000, 8001] as const;
+const DEV_LOCAL_API_CANDIDATE_PORTS = [8000, 8001, 9123] as const;
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 const CHART_REQUEST_TIMEOUT_MS = 15000;
 const LEADERBOARD_REQUEST_TIMEOUT_MS = 20000;
@@ -451,6 +451,16 @@ async function fetchTrackedResponse(endpoint: string, options?: RequestInit): Pr
         updateGlobalProgress(taskId, { progress: 45, detail: `${endpoint} · 已收到回應` });
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+          const retryableHttpStatus = [404, 421, 502, 503, 504].includes(resp.status);
+          if (canFallback && retryableHttpStatus && index < requestCandidates.length - 1) {
+            if (base) markApiBaseFailed(base);
+            const nextBase = requestCandidates[index + 1];
+            updateGlobalProgress(taskId, {
+              progress: 20,
+              detail: `${endpoint} · ${base || "same-origin"} 回應 ${resp.status}，改試 ${nextBase || "same-origin"}`,
+            });
+            continue;
+          }
           throw new Error(formatApiErrorDetail(err.detail ?? err) || `${resp.status}`);
         }
         updateGlobalProgress(taskId, { progress: 100, detail: `${endpoint} · 完成` });

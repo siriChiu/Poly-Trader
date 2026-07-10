@@ -772,6 +772,17 @@ def test_api_status_includes_runtime_raw_and_feature_continuity(monkeypatch):
     assert payload["venue_dry_run_proof"] == venue_dry_run_proof_payload
     assert payload["execution"]["venue_dry_run_proof"] == venue_dry_run_proof_payload
     assert payload["execution_surface_contract"]["venue_dry_run_proof"] == venue_dry_run_proof_payload
+    assert payload["cost_aware_edge"]["required_edge_bps"] == 15.0
+    assert payload["cost_aware_edge"]["cost_components_bps"] == {
+        "fee_bps": 5.0,
+        "spread_bps": 3.0,
+        "slippage_bps": 2.0,
+        "volatility_buffer_bps": 5.0,
+        "drawdown_buffer_bps": 0.0,
+    }
+    assert payload["execution"]["cost_aware_edge"] == payload["cost_aware_edge"]
+    assert payload["execution_surface_contract"]["cost_aware_edge"] == payload["cost_aware_edge"]
+    assert payload["execution"]["live_runtime_truth"]["cost_aware_edge"] == payload["cost_aware_edge"]
     status_policy_gate = payload["execution_surface_contract"]["live_canary_policy_gate"]
     assert payload["execution"]["live_canary_policy_gate"] == status_policy_gate
     assert status_policy_gate["key"] == "live_canary_policy_gate"

@@ -373,7 +373,7 @@ class ExecutionService:
                     rules=rules,
                 ),
             )
-        if request.price is not None and not self._is_close(request.price, adjusted_price):
+        if request.price is not None and request.order_type.lower() != "market" and not self._is_close(request.price, adjusted_price):
             reject_code = "price_tick_mismatch" if price_tick not in (None, 0, 0.0, "0", "0.0") else "price_precision_mismatch"
             reject_message = (
                 "Price does not satisfy exchange tick-size contract"

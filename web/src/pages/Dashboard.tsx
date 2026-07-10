@@ -59,6 +59,42 @@ interface ModelStats {
   model_params: Record<string, any>;
 }
 
+interface ShadowEvidenceDaemonResponse {
+  status?: string | null;
+  updated_at?: string | null;
+  operator_message?: string | null;
+  summary?: {
+    cycles_completed?: number | null;
+    total_decisions?: number | null;
+    candidate_decisions?: number | null;
+    pending_outcomes?: number | null;
+    resolved_outcomes?: number | null;
+    awaiting_label_replay?: number | null;
+    jsonl_backed?: boolean | null;
+    next_collect_at?: string | null;
+    live_order_submitted?: boolean | null;
+  } | null;
+  operator_review?: {
+    confirmation_due?: boolean | null;
+    next_operator_review_at?: string | null;
+    operator_action?: string | null;
+  } | null;
+  guardrail?: {
+    order_submission_enabled?: boolean | null;
+    risk_on_order_enabled?: boolean | null;
+    live_order_submitted?: boolean | null;
+  } | null;
+  latest_decision?: {
+    action?: string | null;
+    signal?: string | null;
+    reason?: string | null;
+    created_at?: string | null;
+    feature_timestamp?: string | null;
+    model_confidence?: number | null;
+    entry_quality?: number | null;
+  } | null;
+}
+
 type SupportProgress = {
   status?: string | null;
   reason?: string | null;
@@ -812,6 +848,13 @@ function formatChartTooltipTimestamp(value: string | null | undefined): string {
   return parsed.toLocaleString("zh-TW");
 }
 
+function formatDashboardTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString("zh-TW");
+}
+
 function formatGuardrailRules(rules: Record<string, unknown> | null | undefined): string[] {
   if (!rules) return [];
   return Object.entries(rules)
@@ -875,6 +918,7 @@ export default function Dashboard() {
   const { data: confidenceData } = useApi<ConfidenceData>("/api/predict/confidence", 60000);
   const { data: modelStats } = useApi<ModelStats>("/api/model/stats", 60000);
   const { data: runtimeStatus, loading: runtimeStatusLoading, error: runtimeStatusError, refresh: refreshRuntimeStatus } = useApi<RuntimeStatusResponse>("/api/status", 60000);
+  const { data: shadowEvidence, loading: shadowEvidenceLoading, error: shadowEvidenceError, refresh: refreshShadowEvidence } = useApi<ShadowEvidenceDaemonResponse>("/api/execution/shadow-evidence", 60000);
   const { data: blockerHistory, loading: blockerHistoryLoading, error: blockerHistoryError } = useApi<CircuitBreakerHistoryResponse>("/api/execution/blocker-history?limit=240", 60000);
 
   // WebSocket
@@ -1347,6 +1391,40 @@ export default function Dashboard() {
               ? "啟動檢查失敗"
               : "尚未收到啟動檢查結果";
   const dashboardExecutionStatusValue = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
+  const shadowEvidenceSummary = shadowEvidence?.summary ?? null;
+  const shadowEvidenceReview = shadowEvidence?.operator_review ?? null;
+  const shadowEvidenceGuardrail = shadowEvidence?.guardrail ?? null;
+  const shadowEvidenceLatest = shadowEvidence?.latest_decision ?? null;
+  const shadowEvidenceTone = shadowEvidenceGuardrail?.live_order_submitted
+    ? "border-red-700/40 bg-red-950/25 text-red-100"
+    : shadowEvidenceReview?.confirmation_due
+      ? "border-amber-700/40 bg-amber-950/20 text-amber-100"
+      : "border-cyan-700/35 bg-slate-950/30 text-cyan-100";
+  const shadowEvidenceStatusLabel = shadowEvidenceLoading && !shadowEvidence
+    ? "同步中"
+    : shadowEvidenceError
+      ? "daemon artifact 載入失敗"
+      : humanizeRuntimeDetailText(shadowEvidence?.status || "尚未建立 daemon artifact");
+  const shadowEvidenceDetailLabel = shadowEvidenceError
+    ? `無法讀取 /api/execution/shadow-evidence：${shadowEvidenceError}`
+    : humanizeRuntimeDetailText(shadowEvidence?.operator_message || "背景 evidence daemon 尚未產生摘要。B/G runner 只做 paper/shadow，不送單。");
+  const shadowEvidenceCountsLabel = `cycles ${shadowEvidenceSummary?.cycles_completed ?? 0} · decisions ${shadowEvidenceSummary?.total_decisions ?? 0} · candidates ${shadowEvidenceSummary?.candidate_decisions ?? 0}`;
+  const shadowEvidenceOutcomeLabel = `pending ${shadowEvidenceSummary?.pending_outcomes ?? 0} · resolved ${shadowEvidenceSummary?.resolved_outcomes ?? 0} · label replay ${shadowEvidenceSummary?.awaiting_label_replay ?? 0}`;
+  const shadowEvidenceLatestLabel = shadowEvidenceLatest
+    ? `${formatDashboardTime(shadowEvidenceLatest.created_at || shadowEvidenceLatest.feature_timestamp)} · ${humanizeRuntimeDetailText(shadowEvidenceLatest.action || shadowEvidenceLatest.signal || "HOLD")} · ${humanizeRuntimeDetailText(shadowEvidenceLatest.reason || "—")}`
+    : "等待第一筆 shadow decision。";
+  const shadowEvidenceReviewLabel = shadowEvidenceReview?.confirmation_due
+    ? "需要使用者確認 evidence"
+    : `下次確認 ${formatDashboardTime(shadowEvidenceReview?.next_operator_review_at)}`;
+
+  const handleShadowEvidenceAck = useCallback(async () => {
+    try {
+      await fetchApi("/api/execution/shadow-evidence/ack", { method: "POST" });
+      await refreshShadowEvidence();
+    } catch (e) {
+      console.error("Failed to acknowledge shadow evidence review", e);
+    }
+  }, [refreshShadowEvidence]);
 
   const handleTrade = useCallback(async (side: string) => {
     if (side === "hold") return;
@@ -1517,6 +1595,31 @@ export default function Dashboard() {
           detail={reconciliationSummaryLabel}
         />
       </ExecutionWorkspaceSummary>
+
+      <div className={`rounded-xl border px-4 py-3 text-xs ${shadowEvidenceTone}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-semibold text-cyan-50">🧾 Shadow evidence daemon</div>
+            <div className="mt-1 leading-5 text-slate-200">{shadowEvidenceStatusLabel} · {shadowEvidenceDetailLabel}</div>
+            <div className="mt-1 text-[11px] text-slate-400">最新：{shadowEvidenceLatestLabel}</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-300">
+            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">{shadowEvidenceCountsLabel}</span>
+            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">{shadowEvidenceOutcomeLabel}</span>
+            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">{shadowEvidenceReviewLabel}</span>
+            <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-emerald-100">
+              {shadowEvidenceGuardrail?.live_order_submitted ? "⚠️ live order detected" : "Fail-closed · 不送單"}
+            </span>
+            <button
+              type="button"
+              onClick={handleShadowEvidenceAck}
+              className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-cyan-100 transition hover:border-cyan-300/60 hover:bg-cyan-400/15"
+            >
+              {shadowEvidenceReview?.confirmation_due ? "我已確認" : "確認 evidence"}
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="rounded-xl border border-amber-700/40 bg-slate-950/30 px-4 py-3 text-xs text-slate-200">
         <div className="flex flex-wrap items-start justify-between gap-2">
