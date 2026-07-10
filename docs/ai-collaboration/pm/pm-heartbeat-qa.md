@@ -19,8 +19,8 @@
 **Question:** Do I have the minimal map of PM, engineering, and runtime truth?
 
 **Answer rules:**
-- Read `PM_HEARTBEAT.md`, `docs/pm/README.md`, `docs/pm/pm-status.md`.
-- Read engineering truth from `HEARTBEAT.md`, `ISSUES.md`, `ROADMAP.md`, and `ORID_DECISIONS.md`.
+- Read `docs/ai-collaboration/PM_HEARTBEAT.md`, `docs/ai-collaboration/pm/README.md`, `docs/ai-collaboration/pm/pm-status.md`.
+- Read engineering truth from `docs/ai-collaboration/HEARTBEAT.md`, `ISSUES.md`, `ROADMAP.md`, and `ORID_DECISIONS.md`.
 - Check dirty files before editing.
 
 **Evidence:** `git status --short --branch`, file paths read, PM checker result.
@@ -151,7 +151,7 @@ Every PM run must leave a concrete action contract:
 - verification command or route;
 - fallback if it fails.
 
-**Evidence:** `docs/pm/pm-status.md`, issue ID, command, route, or artifact path.
+**Evidence:** `docs/ai-collaboration/pm/pm-status.md`, issue ID, command, route, or artifact path.
 
 **If fail:** The PM heartbeat is report-only and should be classified as delivery risk.
 

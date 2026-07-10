@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synchronize docs/pm/pm-status.md from current runtime artifacts.
+"""Synchronize docs/ai-collaboration/pm/pm-status.md from current runtime artifacts.
 
 The engineering heartbeat refreshes live artifacts before the next PM heartbeat
 runs.  This helper keeps the PM status document aligned with those artifacts so
@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-STATUS_PATH = PROJECT_ROOT / "docs" / "pm" / "pm-status.md"
+STATUS_PATH = PROJECT_ROOT / "docs" / "ai-collaboration" / "pm" / "pm-status.md"
 TOPK_STALE_AFTER_MINUTES = 60.0
 TOPK_LIVE_SUPPORT_STALE_AFTER_MINUTES = 30.0
 PM_CURRENT_ARTIFACT_STALE_AFTER_MINUTES = 24.0 * 60.0
@@ -746,7 +746,7 @@ Customer-usable lanes now:
 3. **Top-K freshness lane**：維持 `data/high_conviction_topk_oos_matrix.json` 與 live support overlay 在 freshness target 內，或讓 `/api/models/leaderboard` / Strategy Lab 明確標示 stale/reference-only。
 4. **Customer-usable lane**：用 route/API/test/browser proof 證明 `/execution` paper/shadow selective sleeve、worker parity event、worker outcome reconciliation `rehearsal_proof`、pending poll guard / ETA、Shadow Trade Ledger、range-chop playbook、dry-run readiness 或 `live_canary_policy_gate` 可操作。
 5. **Venue proof lane**：產出 OKX sandbox/dry-run 或 metadata-to-runtime proof checklist；credential present 只可顯示布林，不可洩漏 secret。
-6. **PM drift harness lane**：維持 `scripts/pm_heartbeat_check.py` 以 current runtime artifacts 驗證 `docs/pm/pm-status.md`，避免 stale literals 誤通過。
+6. **PM drift harness lane**：維持 `scripts/pm_heartbeat_check.py` 以 current runtime artifacts 驗證 `docs/ai-collaboration/pm/pm-status.md`，避免 stale literals 誤通過。
 7. **alternative-solution lane**：至少列三個 alternative-solution，並選一個可於下輪驗證的 artifact；安全 gate 不可放鬆，但產品路線不可被單一路徑綁死。
 8. **forced-execution lane**：若 same semantic signature / support delta=0 再重複，必須選 Venue lifecycle proof、Model shadow to decision、Strategy micro-canary readiness、Map-Signal redesign 或 hard no-go single failed gate；任何 live buy/add 都必須先通過 bounded live-canary policy 與 adapter-pre cap enforcement。
 

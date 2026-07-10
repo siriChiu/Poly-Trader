@@ -14,8 +14,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from feature_engine.feature_history_policy import compute_sqlite_feature_coverage
 
 DB_PATH = PROJECT_ROOT / 'poly_trader.db'
-OUT_JSON = Path('/home/kazuha/Poly-Trader/data/feature_coverage_report.json')
-OUT_MD = Path('/home/kazuha/Poly-Trader/data/feature_coverage_report.md')
+OUT_JSON = PROJECT_ROOT / 'data' / 'feature_coverage_report.json'
+OUT_MD = PROJECT_ROOT / 'docs' / 'analysis' / 'feature_coverage_report.md'
 
 
 def main() -> int:

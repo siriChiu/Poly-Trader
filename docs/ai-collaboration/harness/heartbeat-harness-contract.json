@@ -8,10 +8,10 @@
   },
   "entrypoints": {
     "agent_map": "AGENTS.md",
-    "agent_role": "AI_AGENT_ROLE.md",
-    "heartbeat_charter": "HEARTBEAT.md",
-    "harness_readme": "docs/harness/README.md",
-    "qa_playbook": "docs/harness/heartbeat-qa.md",
+    "agent_role": "docs/ai-collaboration/AI_AGENT_ROLE.md",
+    "heartbeat_charter": "docs/ai-collaboration/HEARTBEAT.md",
+    "harness_readme": "docs/ai-collaboration/harness/README.md",
+    "qa_playbook": "docs/ai-collaboration/harness/heartbeat-qa.md",
     "validator": "scripts/heartbeat_harness_check.py",
     "validator_test": "tests/test_heartbeat_harness_contract.py",
     "active_backend_health_probe": "scripts/active_backend_health_probe.py",
@@ -28,11 +28,11 @@
       "role": "short agent map, not an encyclopedia"
     },
     {
-      "path": "AI_AGENT_ROLE.md",
+      "path": "docs/ai-collaboration/AI_AGENT_ROLE.md",
       "role": "agent identity, autonomy, safety boundaries"
     },
     {
-      "path": "HEARTBEAT.md",
+      "path": "docs/ai-collaboration/HEARTBEAT.md",
       "role": "evergreen heartbeat operating procedure"
     },
     {
@@ -52,11 +52,11 @@
       "role": "current ORID decision only"
     },
     {
-      "path": "docs/harness/README.md",
+      "path": "docs/ai-collaboration/harness/README.md",
       "role": "heartbeat harness map"
     },
     {
-      "path": "docs/harness/heartbeat-qa.md",
+      "path": "docs/ai-collaboration/harness/heartbeat-qa.md",
       "role": "question-answer gates for each heartbeat"
     }
   ],
@@ -67,7 +67,7 @@
       "required_evidence": [
         "git status",
         "AGENTS.md",
-        "HEARTBEAT.md",
+        "docs/ai-collaboration/HEARTBEAT.md",
         "previous PM heartbeat handoff",
         "graphify when present"
       ]
@@ -170,8 +170,8 @@
       "name": "previous_pm_heartbeat_handoff",
       "paths": [
         "cron context_from poly-trader-pm-heartbeat-1h",
-        "PM_HEARTBEAT.md",
-        "docs/pm/pm-status.md"
+        "docs/ai-collaboration/PM_HEARTBEAT.md",
+        "docs/ai-collaboration/pm/pm-status.md"
       ],
       "purpose": "PM heartbeat conclusions and decisions that must be carried into the next engineering heartbeat before choosing P0/P1 work"
     },
@@ -283,11 +283,11 @@
     },
     {
       "id": "agent_map_links_harness",
-      "description": "AGENTS.md links to HEARTBEAT.md and docs/harness/README.md without becoming a giant manual."
+      "description": "AGENTS.md links to docs/ai-collaboration/HEARTBEAT.md and docs/ai-collaboration/harness/README.md without becoming a giant manual."
     },
     {
       "id": "heartbeat_runs_harness_checker",
-      "description": "HEARTBEAT.md names scripts/heartbeat_harness_check.py and docs/harness/heartbeat-qa.md."
+      "description": "docs/ai-collaboration/HEARTBEAT.md names scripts/heartbeat_harness_check.py and docs/ai-collaboration/harness/heartbeat-qa.md."
     },
     {
       "id": "active_backend_current_head_probe",
@@ -295,11 +295,11 @@
     },
     {
       "id": "readme_exposes_harness_entry",
-      "description": "README.md lists docs/harness as a first-class documentation entry."
+      "description": "README.md lists docs/ai-collaboration/harness as a first-class documentation entry."
     },
     {
       "id": "anti_equilibrium_execution_guard",
-      "description": "HEARTBEAT.md, QA, contract, checker, and current-state docs require a forced branch when same semantic signature/support delta=0 repeats; observation-only status refresh is incomplete."
+      "description": "docs/ai-collaboration/HEARTBEAT.md, QA, contract, checker, and current-state docs require a forced branch when same semantic signature/support delta=0 repeats; observation-only status refresh is incomplete."
     },
     {
       "id": "strategy_data_sync_no_collect_guard",
@@ -309,7 +309,7 @@
   "verification_commands": [
     "python scripts/heartbeat_harness_check.py --format text",
     "python -m pytest tests/test_heartbeat_harness_contract.py -q",
-    "git diff --check -- AGENTS.md AI_AGENT_ROLE.md HEARTBEAT.md ARCHITECTURE.md README.md docs/harness scripts/heartbeat_harness_check.py tests/test_heartbeat_harness_contract.py",
+    "git diff --check -- AGENTS.md docs/ai-collaboration/AI_AGENT_ROLE.md docs/ai-collaboration/HEARTBEAT.md ARCHITECTURE.md README.md docs/ai-collaboration/harness scripts/heartbeat_harness_check.py tests/test_heartbeat_harness_contract.py",
     "python -m pytest tests/test_execution_service.py -k live_canary -q"
   ]
 }

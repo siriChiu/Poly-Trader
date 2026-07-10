@@ -18,7 +18,7 @@
 **問：我是否已經拿到最短可用地圖，而不是把整個 repo 塞進上下文？**
 
 **答題規則：**
-- 已讀 `AGENTS.md`、`HEARTBEAT.md`、`AI_AGENT_ROLE.md`。
+- 已讀 `AGENTS.md`、`docs/ai-collaboration/HEARTBEAT.md`、`docs/ai-collaboration/AI_AGENT_ROLE.md`。
 - 若 `graphify-out/` 存在，先讀 `graphify-out/GRAPH_REPORT.md` 與 wiki index，或用 `graphify query` 定位。
 - 清楚知道本輪會碰哪些檔案，以及哪些 dirty files 不能覆蓋。
 - 工程 heartbeat 必須已取得上一輪 PM heartbeat 的結論與決定（cron `context_from` 或 PM current-state docs），並把它列為本輪輸入。
@@ -207,7 +207,7 @@ loses support rows / breaker release math, or exposes secret-like fields.
 
 **答題規則：**
 - `ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md` 只保留 current state。
-- `HEARTBEAT.md`、`docs/harness/*` 是 evergreen process / contract，不記錄單輪流水帳。
+- `docs/ai-collaboration/HEARTBEAT.md`、`docs/ai-collaboration/harness/*` 是 evergreen process / contract，不記錄單輪流水帳。
 - `ARCHITECTURE.md` 只記穩定契約。
 
 **證據：** docs diff、harness checker、`git diff --check`。

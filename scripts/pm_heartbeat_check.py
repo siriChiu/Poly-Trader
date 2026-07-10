@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CONTRACT_PATH = PROJECT_ROOT / "docs" / "pm" / "pm-heartbeat-contract.json"
-QA_PATH = PROJECT_ROOT / "docs" / "pm" / "pm-heartbeat-qa.md"
+CONTRACT_PATH = PROJECT_ROOT / "docs" / "ai-collaboration" / "pm" / "pm-heartbeat-contract.json"
+QA_PATH = PROJECT_ROOT / "docs" / "ai-collaboration" / "pm" / "pm-heartbeat-qa.md"
 TOPK_STALE_AFTER_MINUTES = 60.0
 TOPK_LIVE_SUPPORT_STALE_AFTER_MINUTES = 30.0
 PM_CURRENT_ARTIFACT_STALE_AFTER_MINUTES = 24.0 * 60.0
@@ -55,11 +55,11 @@ REQUIRED_GATE_IDS = [
 ]
 
 REQUIRED_DOC_REFERENCES = {
-    "AGENTS.md": ["PM_HEARTBEAT.md", "docs/pm/README.md"],
-    "PM_HEARTBEAT.md": [
-        "docs/pm/README.md",
-        "docs/pm/pm-heartbeat-qa.md",
-        "docs/pm/pm-status.md",
+    "AGENTS.md": ["docs/ai-collaboration/PM_HEARTBEAT.md", "docs/ai-collaboration/pm/README.md"],
+    "docs/ai-collaboration/PM_HEARTBEAT.md": [
+        "docs/ai-collaboration/pm/README.md",
+        "docs/ai-collaboration/pm/pm-heartbeat-qa.md",
+        "docs/ai-collaboration/pm/pm-status.md",
         "scripts/pm_heartbeat_check.py",
         "customer-side advocate",
         "framework-capture",
@@ -73,10 +73,10 @@ REQUIRED_DOC_REFERENCES = {
         "bounded live-canary",
         "72h",
     ],
-    "docs/pm/README.md": ["customer-side advocate", "framework-capture", "alternative-solution", "time-to-evidence", "anti-equilibrium", "customer-value delta", "cost-of-delay", "red-team PM", "forced-execution", "bounded live-canary", "72h"],
-    "docs/pm/pm-heartbeat-qa.md": ["PMHQ1_stakeholder_expectation", "PMHQ9_alternative_solution_review", "PMHQ10_anti_equilibrium_review", "PMHQ11_forced_execution_pivot", "framework-capture", "alternative-solution", "time-to-evidence", "anti-equilibrium", "customer-value delta", "cost-of-delay", "forced-execution", "bounded live-canary", "72h"],
-    "README.md": ["docs/pm/README.md", "scripts/pm_heartbeat_check.py"],
-    "ARCHITECTURE.md": ["docs/pm", "PM_HEARTBEAT.md"],
+    "docs/ai-collaboration/pm/README.md": ["customer-side advocate", "framework-capture", "alternative-solution", "time-to-evidence", "anti-equilibrium", "customer-value delta", "cost-of-delay", "red-team PM", "forced-execution", "bounded live-canary", "72h"],
+    "docs/ai-collaboration/pm/pm-heartbeat-qa.md": ["PMHQ1_stakeholder_expectation", "PMHQ9_alternative_solution_review", "PMHQ10_anti_equilibrium_review", "PMHQ11_forced_execution_pivot", "framework-capture", "alternative-solution", "time-to-evidence", "anti-equilibrium", "customer-value delta", "cost-of-delay", "forced-execution", "bounded live-canary", "72h"],
+    "README.md": ["docs/ai-collaboration/pm/README.md", "scripts/pm_heartbeat_check.py"],
+    "ARCHITECTURE.md": ["docs/ai-collaboration/pm", "docs/ai-collaboration/PM_HEARTBEAT.md"],
 }
 
 
@@ -652,14 +652,14 @@ def _pm_status_required_snippets() -> tuple[list[str], list[str]]:
 
 
 def _check_pm_status_current_state() -> list[CheckResult]:
-    status_path = PROJECT_ROOT / "docs" / "pm" / "pm-status.md"
+    status_path = PROJECT_ROOT / "docs" / "ai-collaboration" / "pm" / "pm-status.md"
     if not status_path.exists():
         return [
             CheckResult(
                 "pm_status_exists",
                 "PM status doc exists?",
                 False,
-                "docs/pm/pm-status.md",
+                "docs/ai-collaboration/pm/pm-status.md",
             )
         ]
     text = status_path.read_text(encoding="utf-8")

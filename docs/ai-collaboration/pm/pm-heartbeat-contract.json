@@ -3,14 +3,14 @@
   "updated_at": "2026-06-04T16:59:49+08:00",
   "purpose": "Poly-Trader PM heartbeat contract for customer-side delivery advocacy, claim audit, framework-capture detection, anti-equilibrium review, alternative-solution review, and safety-preserving arbitration between customer urgency and engineering guardrails, forced-execution pivot when no-delta repeats, and bounded live-canary governance.",
   "entrypoints": {
-    "pm_charter": "PM_HEARTBEAT.md",
-    "pm_readme": "docs/pm/README.md",
-    "pm_qa_playbook": "docs/pm/pm-heartbeat-qa.md",
-    "pm_status": "docs/pm/pm-status.md",
+    "pm_charter": "docs/ai-collaboration/PM_HEARTBEAT.md",
+    "pm_readme": "docs/ai-collaboration/pm/README.md",
+    "pm_qa_playbook": "docs/ai-collaboration/pm/pm-heartbeat-qa.md",
+    "pm_status": "docs/ai-collaboration/pm/pm-status.md",
     "pm_validator": "scripts/pm_heartbeat_check.py",
     "pm_validator_test": "tests/test_pm_heartbeat_contract.py",
-    "engineering_heartbeat": "HEARTBEAT.md",
-    "engineering_harness": "docs/harness/README.md",
+    "engineering_heartbeat": "docs/ai-collaboration/HEARTBEAT.md",
+    "engineering_harness": "docs/ai-collaboration/harness/README.md",
     "high_conviction_topk_api_consistency_probe": "scripts/high_conviction_topk_api_consistency_probe.py",
     "venue_api_consistency_probe": "scripts/venue_dry_run_api_consistency_probe.py",
     "customer_safe_alternative_proof": "data/customer_safe_alternative_proof.json",
@@ -21,23 +21,23 @@
   },
   "required_docs": [
     {
-      "path": "PM_HEARTBEAT.md",
+      "path": "docs/ai-collaboration/PM_HEARTBEAT.md",
       "role": "PM heartbeat operating procedure"
     },
     {
-      "path": "docs/pm/README.md",
+      "path": "docs/ai-collaboration/pm/README.md",
       "role": "PM harness map"
     },
     {
-      "path": "docs/pm/pm-heartbeat-qa.md",
+      "path": "docs/ai-collaboration/pm/pm-heartbeat-qa.md",
       "role": "PM question-answer gates"
     },
     {
-      "path": "docs/pm/pm-status.md",
+      "path": "docs/ai-collaboration/pm/pm-status.md",
       "role": "current PM status only"
     },
     {
-      "path": "HEARTBEAT.md",
+      "path": "docs/ai-collaboration/HEARTBEAT.md",
       "role": "engineering heartbeat operating procedure"
     },
     {
@@ -53,7 +53,7 @@
       "role": "current engineering ORID"
     },
     {
-      "path": "docs/harness/README.md",
+      "path": "docs/ai-collaboration/harness/README.md",
       "role": "engineering harness map"
     }
   ],
@@ -63,9 +63,9 @@
       "question": "Do I have the minimal map of PM, engineering, and runtime truth?",
       "required_evidence": [
         "git status",
-        "PM_HEARTBEAT.md",
-        "docs/pm/README.md",
-        "HEARTBEAT.md"
+        "docs/ai-collaboration/PM_HEARTBEAT.md",
+        "docs/ai-collaboration/pm/README.md",
+        "docs/ai-collaboration/HEARTBEAT.md"
       ]
     },
     {
@@ -263,23 +263,23 @@
     {
       "name": "pm_current_state",
       "paths": [
-        "docs/pm/pm-status.md"
+        "docs/ai-collaboration/pm/pm-status.md"
       ],
       "purpose": "current PM classification, customer-usable lanes, engineering ask, next gate"
     },
     {
       "name": "pm_anti_equilibrium_state",
       "paths": [
-        "PM_HEARTBEAT.md",
-        "docs/pm/pm-heartbeat-qa.md",
-        "docs/pm/pm-status.md"
+        "docs/ai-collaboration/PM_HEARTBEAT.md",
+        "docs/ai-collaboration/pm/pm-heartbeat-qa.md",
+        "docs/ai-collaboration/pm/pm-status.md"
       ],
       "purpose": "customer-value delta, anti-repeat detection, cost-of-delay, hypothesis inversion, option portfolio, and red-team PM pressure"
     },
     {
       "name": "pm_forced_execution_pivot",
       "paths": [
-        "docs/pm/pm-status.md",
+        "docs/ai-collaboration/pm/pm-status.md",
         "docs/plans/2026-05-23-live-canary-structural-pivot.md",
         "data/live_canary_structural_pivot.json",
         "execution/execution_service.py",
@@ -341,7 +341,7 @@
   "verification_commands": [
     "python scripts/pm_heartbeat_check.py --format text",
     "python -m pytest tests/test_pm_heartbeat_contract.py -q",
-    "git diff --check -- PM_HEARTBEAT.md docs/pm scripts/pm_heartbeat_check.py tests/test_pm_heartbeat_contract.py AGENTS.md README.md ARCHITECTURE.md",
+    "git diff --check -- docs/ai-collaboration/PM_HEARTBEAT.md docs/ai-collaboration/pm scripts/pm_heartbeat_check.py tests/test_pm_heartbeat_contract.py AGENTS.md README.md ARCHITECTURE.md",
     "python -m pytest tests/test_execution_service.py -k live_canary -q"
   ],
   "customer_advocacy_policy": {

@@ -22,10 +22,10 @@
 | 檔案 / 指令 | 角色 |
 |---|---|
 | `AGENTS.md` | 最短 repo 入口地圖；只放導航，不放百科全書 |
-| `AI_AGENT_ROLE.md` | 代理身份、硬邊界、自主執行紀律 |
-| `HEARTBEAT.md` | heartbeat 操作流程規範；不是 run log |
-| `docs/harness/heartbeat-qa.md` | 每輪 heartbeat 的一問一答 gate |
-| `docs/harness/heartbeat-harness-contract.json` | machine-readable harness 契約 |
+| `docs/ai-collaboration/AI_AGENT_ROLE.md` | 代理身份、硬邊界、自主執行紀律 |
+| `docs/ai-collaboration/HEARTBEAT.md` | heartbeat 操作流程規範；不是 run log |
+| `docs/ai-collaboration/harness/heartbeat-qa.md` | 每輪 heartbeat 的一問一答 gate |
+| `docs/ai-collaboration/harness/heartbeat-harness-contract.json` | machine-readable harness 契約 |
 | `scripts/heartbeat_harness_check.py` | 機械檢查：檔案、連結、Q&A gate、doc references |
 | `scripts/active_backend_health_probe.py` | 驗證 active `/health` 是 current-head、startup continuity 可用；stale backend 要先重啟，不能拿舊 API payload 當 operator truth |
 | `scripts/high_conviction_topk_api_consistency_probe.py` | 驗證 `/api/models/leaderboard.high_conviction_topk` 與 `data/high_conviction_topk_oos_matrix.json` 的 counts、nearest candidate、support rows、breaker release math、fail-closed gate、secret-safe 欄位同源 |
@@ -33,12 +33,13 @@
 | `scripts/paper_shadow_outcome_reconciliation.py` | 重算並持久化 `data/paper_shadow_outcome_reconciliation.json`；schema v2 提供 top-level / `quick_read` pending、ETA、resolved、label-replay 與 fail-closed flags；pending 期間禁止重複 worker poll，24h 後轉 resolved 或 label replay，且 strict gate 保持 fail-closed |
 | `scripts/paper_shadow_outcome_api_consistency_probe.py` | 驗證 `/api/execution/overview.paper_shadow_outcome_reconciliation` 與 `data/paper_shadow_outcome_reconciliation.json` 的 schema-v2 quick-read、pending guard、fail-closed flags、secret-safe 欄位同源 |
 | `scripts/customer_safe_alternative_api_consistency_probe.py` | 驗證 `/api/execution/overview.customer_safe_alternative_proof` 與 `data/customer_safe_alternative_proof.json` 的 alternative aliases、counts、summary mirror、fail-closed flags、secret-safe 欄位同源 |
-| `scripts/repo_cleanroom_audit.py` | 盤點 / 清理 repo 本地 generated noise；只刪 root scratch scripts、per-run heartbeat logs、cache、frontend build output 與 CatBoost scratch，保留 venv、DB、model、current-state artifacts |
+| `docs/README.md` / `scripts/doc_topology_check.py` | 文件分類與 root/docs/data 邊界檢查；Markdown report companion 放 `docs/analysis/`，machine truth 留 `data/*.json` |
+| `scripts/repo_cleanroom_audit.py` | 盤點 / 清理 repo 本地 generated noise；只刪 root scratch scripts、per-run heartbeat logs、runtime logs、generated scan scratch、cache、frontend build output 與 CatBoost scratch，保留 venv、DB、model、current-state artifacts，並列出大型 protected artifacts 供人工決策 |
 | `ISSUES.md` / `ROADMAP.md` / `ORID_DECISIONS.md` | current-state only，由 heartbeat overwrite sync |
 | `scripts/hb_parallel_runner.py` | heartbeat runner 主入口；序列 lane 會先跑 active backend health strict probe，失敗會進 summary / final status |
 | `scripts/auto_propose_fixes.py` | blocker 自動提出 / 更新 / resolve |
 
-> 原則：`AGENTS.md` 是地圖，不是手冊；詳細規則放到 `HEARTBEAT.md`、`docs/harness/*` 與可測腳本。
+> 原則：`AGENTS.md` 是地圖，不是手冊；詳細規則放到 `docs/ai-collaboration/HEARTBEAT.md`、`docs/ai-collaboration/harness/*` 與可測腳本。
 
 ---
 
@@ -47,7 +48,7 @@
 | OpenAI harness principle | Poly-Trader 落地 |
 |---|---|
 | Human steers, agents execute | 使用者定方向；heartbeat 代理負責收集、patch、驗證、同步 docs、push |
-| Maps over manuals | `AGENTS.md` 只導向 `HEARTBEAT.md` / `docs/harness/*` / graphify |
+| Maps over manuals | `AGENTS.md` 只導向 `docs/ai-collaboration/HEARTBEAT.md` / `docs/ai-collaboration/harness/*` / graphify |
 | Agent-readable app signals | `data/*.json`、`issues.json`、API payload、frontend contract tests、browser QA |
 | First-class docs / plans | current-state docs overwrite；`docs/plans/` 與 `docs/analysis/` 保持可追溯 |
 | Mechanical constraints | pytest、repo hygiene、harness checker、API/frontend contract tests |
@@ -83,14 +84,14 @@ python -m pytest tests/test_heartbeat_harness_contract.py -q
 ```
 
 `heartbeat_harness_check.py` 只檢查 harness 結構，不會修改任何 runtime artifact。若它失敗，優先修入口地圖、Q&A gate 或 contract，而不是繞過檢查。
-`repo_cleanroom_audit.py --clean` 只清本地 generated noise；不要用 `git clean -fdX` 取代它，因為後者會刪 venv / DB / model / current-state artifacts。
+`repo_cleanroom_audit.py --clean` 只清本地 generated noise（runtime logs / generated scan scratch / caches 等）；不要用 `git clean -fdX` 取代它，因為後者會刪 venv / DB / model / current-state artifacts。
 
 ---
 
 ## 6. 維護規則
 
 1. 新增 heartbeat 能力時，同步更新 `heartbeat-harness-contract.json` 與 `heartbeat-qa.md`。
-2. 不把 per-run summary 追加進 `HEARTBEAT.md` 或 `docs/harness/*`；歷史交給 git history / ignored artifacts。
+2. 不把 per-run summary 追加進 `docs/ai-collaboration/HEARTBEAT.md` 或 `docs/ai-collaboration/harness/*`；歷史交給 git history / ignored artifacts。
 3. 若代理連續兩輪只能回報同一問題，下一輪必須問：**缺少哪個 harness 能力讓我無法前進？**
 4. 若 `support_progress.delta_vs_previous=0` 且 same semantic signature 重複，下一輪必須執行 `HQ9_anti_equilibrium_execution`，並更新 current-state docs 的 forced branch。
 5. 若 UI/API/runtime truth 不能被腳本或 browser QA 讀到，就不是完整 harness。

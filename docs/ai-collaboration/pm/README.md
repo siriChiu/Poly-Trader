@@ -24,13 +24,13 @@ The PM heartbeat is a repo-native harness for product management:
 
 | File / command | Role |
 |---|---|
-| `PM_HEARTBEAT.md` | PM operating procedure and escalation rules |
-| `docs/pm/pm-heartbeat-qa.md` | PM Q&A gates for every hourly run |
-| `docs/pm/pm-heartbeat-contract.json` | Machine-readable PM contract |
-| `docs/pm/pm-status.md` | Current PM interpretation only |
+| `docs/ai-collaboration/PM_HEARTBEAT.md` | PM operating procedure and escalation rules |
+| `docs/ai-collaboration/pm/pm-heartbeat-qa.md` | PM Q&A gates for every hourly run |
+| `docs/ai-collaboration/pm/pm-heartbeat-contract.json` | Machine-readable PM contract |
+| `docs/ai-collaboration/pm/pm-status.md` | Current PM interpretation only |
 | `scripts/pm_heartbeat_check.py --format text` | Mechanical PM harness check |
 | `tests/test_pm_heartbeat_contract.py` | Pytest contract for PM harness |
-| `HEARTBEAT.md` / `docs/harness/*` | Engineering heartbeat harness |
+| `docs/ai-collaboration/HEARTBEAT.md` / `docs/ai-collaboration/harness/*` | Engineering heartbeat harness |
 | `ISSUES.md` / `ROADMAP.md` / `ORID_DECISIONS.md` | Current engineering truth |
 | `data/live_predict_probe.json` | Current live blocker / signal / support truth |
 | `data/high_conviction_topk_oos_matrix.json` | Research-to-deployment candidate truth |
@@ -119,14 +119,14 @@ When PM harness files change:
 
 ```bash
 python -m pytest tests/test_pm_heartbeat_contract.py -q
-git diff --check -- PM_HEARTBEAT.md docs/pm scripts/pm_heartbeat_check.py tests/test_pm_heartbeat_contract.py AGENTS.md README.md ARCHITECTURE.md
+git diff --check -- docs/ai-collaboration/PM_HEARTBEAT.md docs/ai-collaboration/pm scripts/pm_heartbeat_check.py tests/test_pm_heartbeat_contract.py AGENTS.md README.md ARCHITECTURE.md
 ```
 
 ---
 
 ## 7. Current-state policy
 
-`docs/pm/pm-status.md` is current-state only. Do not append hourly history. Update it only when one of these changes:
+`docs/ai-collaboration/pm/pm-status.md` is current-state only. Do not append hourly history. Update it only when one of these changes:
 
 - PM classification: GREEN / YELLOW / ORANGE / RED;
 - live blocker interpretation;

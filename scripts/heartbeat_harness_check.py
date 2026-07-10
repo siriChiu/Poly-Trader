@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CONTRACT_PATH = PROJECT_ROOT / "docs" / "harness" / "heartbeat-harness-contract.json"
-QA_PATH = PROJECT_ROOT / "docs" / "harness" / "heartbeat-qa.md"
+CONTRACT_PATH = PROJECT_ROOT / "docs" / "ai-collaboration" / "harness" / "heartbeat-harness-contract.json"
+QA_PATH = PROJECT_ROOT / "docs" / "ai-collaboration" / "harness" / "heartbeat-qa.md"
 
 REQUIRED_GATE_IDS = [
     "HQ0_context_map",
@@ -33,19 +33,19 @@ REQUIRED_GATE_IDS = [
 ]
 
 REQUIRED_DOC_REFERENCES = {
-    "AGENTS.md": ["HEARTBEAT.md", "docs/harness/README.md"],
-    "AI_AGENT_ROLE.md": ["HEARTBEAT.md", "docs/harness/heartbeat-qa.md", "反平衡", "bounded live-canary"],
-    "HEARTBEAT.md": [
-        "docs/harness/README.md",
-        "docs/harness/heartbeat-qa.md",
+    "AGENTS.md": ["docs/ai-collaboration/HEARTBEAT.md", "docs/ai-collaboration/harness/README.md"],
+    "docs/ai-collaboration/AI_AGENT_ROLE.md": ["docs/ai-collaboration/HEARTBEAT.md", "docs/ai-collaboration/harness/heartbeat-qa.md", "反平衡", "bounded live-canary"],
+    "docs/ai-collaboration/HEARTBEAT.md": [
+        "docs/ai-collaboration/harness/README.md",
+        "docs/ai-collaboration/harness/heartbeat-qa.md",
         "PM heartbeat",
         "scripts/heartbeat_harness_check.py",
         "anti-equilibrium",
         "bounded live-canary",
         "observation-only",
     ],
-    "ARCHITECTURE.md": ["docs/harness", "scripts/heartbeat_harness_check.py"],
-    "README.md": ["docs/harness/README.md", "scripts/heartbeat_harness_check.py"],
+    "ARCHITECTURE.md": ["docs/ai-collaboration/harness", "scripts/heartbeat_harness_check.py"],
+    "README.md": ["docs/ai-collaboration/harness/README.md", "scripts/heartbeat_harness_check.py"],
 }
 
 
@@ -186,8 +186,8 @@ def _check_question_gates(contract: dict[str, Any]) -> list[CheckResult]:
 
 def _check_pm_handoff_contract(contract: dict[str, Any]) -> list[CheckResult]:
     qa_text = QA_PATH.read_text(encoding="utf-8") if QA_PATH.exists() else ""
-    heartbeat_text = (PROJECT_ROOT / "HEARTBEAT.md").read_text(encoding="utf-8")
-    readme_text = (PROJECT_ROOT / "docs" / "harness" / "README.md").read_text(encoding="utf-8")
+    heartbeat_text = (PROJECT_ROOT / "docs/ai-collaboration/HEARTBEAT.md").read_text(encoding="utf-8")
+    readme_text = (PROJECT_ROOT / "docs" / "ai-collaboration" / "harness" / "README.md").read_text(encoding="utf-8")
     signals = contract.get("agent_readable_signals", [])
     signal_names = {
         item.get("name")
@@ -195,9 +195,9 @@ def _check_pm_handoff_contract(contract: dict[str, Any]) -> list[CheckResult]:
         if isinstance(item, dict) and isinstance(item.get("name"), str)
     }
     snippets = [
-        ("HEARTBEAT.md", heartbeat_text, "上一輪 PM heartbeat"),
-        ("docs/harness/heartbeat-qa.md", qa_text, "上一輪 PM heartbeat"),
-        ("docs/harness/README.md", readme_text, "PM handoff"),
+        ("docs/ai-collaboration/HEARTBEAT.md", heartbeat_text, "上一輪 PM heartbeat"),
+        ("docs/ai-collaboration/harness/heartbeat-qa.md", qa_text, "上一輪 PM heartbeat"),
+        ("docs/ai-collaboration/harness/README.md", readme_text, "PM handoff"),
     ]
     missing = [path for path, text, snippet in snippets if snippet not in text]
     if "previous_pm_heartbeat_handoff" not in signal_names:

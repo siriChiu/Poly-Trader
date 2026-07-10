@@ -10662,7 +10662,7 @@ def main(argv=None):
             }
         )
         if pm_status_result.returncode == 0:
-            print("📝 PM status：已 sync docs/pm/pm-status.md")
+            print("📝 PM status：已 sync docs/ai-collaboration/pm/pm-status.md")
         else:
             print(
                 "⚠️  PM status sync failed："

@@ -146,18 +146,23 @@ def test_repo_cleanroom_audit_preserves_operational_state() -> None:
         "data/q15_",
         "data/high_conviction_",
         "data/customer_safe_",
-        "data/execution_metadata_",
     )
     for candidate in payload["cleanup_candidates"]:
-        assert not candidate["path"].startswith(forbidden_prefixes)
+        path = candidate["path"]
+        assert not path.startswith(forbidden_prefixes)
+        if path.startswith("data/execution_metadata_"):
+            assert path.endswith(".log")
+
+    protected_paths = list(payload["protected_policy"]["heavy_protected_artifacts"])
+    assert "poly_trader.db" in protected_paths
 
 
 def test_cleanroom_entrypoint_is_documented() -> None:
     docs = [
         (PROJECT_ROOT / "README.md").read_text(encoding="utf-8"),
         (PROJECT_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8"),
-        (PROJECT_ROOT / "HEARTBEAT.md").read_text(encoding="utf-8"),
-        (PROJECT_ROOT / "docs/harness/README.md").read_text(encoding="utf-8"),
+        (PROJECT_ROOT / "docs/ai-collaboration/HEARTBEAT.md").read_text(encoding="utf-8"),
+        (PROJECT_ROOT / "docs/ai-collaboration/harness/README.md").read_text(encoding="utf-8"),
     ]
 
     for text in docs:

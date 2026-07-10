@@ -42,8 +42,8 @@ Poly-Trader 是一套面向 **BTC/USDT 多特徵研究、策略驗證、即時�
 - **多特徵成熟度分級**：區分 `core / research / blocked`，避免稀疏來源污染主決策
 - **快取與增量刷新**：圖表優先從本地還原，再只補缺的 K 線尾段
 - **Heartbeat 閉環**：用固定治理流程推進 patch、驗證、文件同步與下一輪 gate
-- **Harness engineering**：`docs/harness/README.md` + Q&A gate + `scripts/heartbeat_harness_check.py`，讓 heartbeat 代理可導航、可自問自答、可機械驗證
-- **PM heartbeat governance**：`PM_HEARTBEAT.md` + `docs/pm/README.md` + `scripts/pm_heartbeat_check.py`，把客戶「現在要能用」與工程 fail-closed 安全邊界轉成可交付的產品梯度
+- **Harness engineering**：`docs/ai-collaboration/harness/README.md` + Q&A gate + `scripts/heartbeat_harness_check.py`，讓 heartbeat 代理可導航、可自問自答、可機械驗證
+- **PM heartbeat governance**：`docs/ai-collaboration/PM_HEARTBEAT.md` + `docs/ai-collaboration/pm/README.md` + `scripts/pm_heartbeat_check.py`，把客戶「現在要能用」與工程 fail-closed 安全邊界轉成可交付的產品梯度
 
 ---
 
@@ -387,11 +387,10 @@ Poly-Trader/
 │   └── legacy_checks/         # 歷史一次性診斷腳本（不作正式入口）
 ├── tests/                     # pytest contract / regression tests
 ├── docs/
-│   ├── harness/               # heartbeat harness engineering map / Q&A / contract
-│   ├── pm/                    # PM heartbeat current-state contract / generated PM status
+│   ├── README.md              # 文件地圖：分類、資料夾關聯、data/docs 邊界
+│   ├── ai-collaboration/      # AI agent / heartbeat / PM heartbeat / harness 集中區
 │   ├── plans/                 # 實作計畫
 │   └── analysis/              # 可重跑分析摘要與 sweep 結果
-├── HEARTBEAT.md               # 心跳流程規範（不是每輪 log）
 ├── ARCHITECTURE.md            # 目前有效架構與操作契約
 ├── ISSUES.md                  # current-state issue view
 ├── PRD.md
@@ -407,10 +406,12 @@ Poly-Trader/
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 目前有效架構與核心 contract；不保留 heartbeat 流水帳 |
 | [ROADMAP.md](ROADMAP.md) | Current plan only，由 heartbeat overwrite sync |
 | [ISSUES.md](ISSUES.md) | Current issues only，由 heartbeat overwrite sync |
-| [HEARTBEAT.md](HEARTBEAT.md) | heartbeat 執行流程規範；每輪 `data/heartbeat_*` log 不進 git |
-| [docs/harness/README.md](docs/harness/README.md) | heartbeat harness engineering map、Q&A gate 與 checker 入口；可用 `scripts/heartbeat_harness_check.py` 驗證 |
-| [docs/pm/pm-status.md](docs/pm/pm-status.md) | PM current-state status，由 `scripts/sync_pm_status.py` 從 artifacts 生成；可用 `scripts/pm_heartbeat_check.py` 驗證 |
-| `scripts/repo_cleanroom_audit.py` | 本地 cleanroom audit / safe cleanup；保留 venv、DB、model、current-state artifacts，不用 `git clean -fdX` |
+| [docs/ai-collaboration/README.md](docs/ai-collaboration/README.md) | AI 協作文件總索引；集中 agent role / heartbeat / PM heartbeat / harness / Q&A / contract |
+| [docs/ai-collaboration/HEARTBEAT.md](docs/ai-collaboration/HEARTBEAT.md) | heartbeat 執行流程規範；每輪 `data/heartbeat_*` log 不進 git |
+| [docs/README.md](docs/README.md) | 文件地圖與資料夾關聯；規定 `data/*.json` ↔ `docs/analysis/*.md` companion 邊界；可用 `scripts/doc_topology_check.py` 驗證 |
+| [docs/ai-collaboration/harness/README.md](docs/ai-collaboration/harness/README.md) | heartbeat harness engineering map、Q&A gate 與 checker 入口；可用 `scripts/heartbeat_harness_check.py` 驗證 |
+| [docs/ai-collaboration/pm/pm-status.md](docs/ai-collaboration/pm/pm-status.md) | PM current-state status，由 `scripts/sync_pm_status.py` 從 artifacts 生成；可用 `scripts/pm_heartbeat_check.py` 驗證 |
+| `scripts/repo_cleanroom_audit.py` | 本地 cleanroom audit / safe cleanup；清 runtime logs / generated scan scratch / caches，保留 venv、DB、model、current-state artifacts，不用 `git clean -fdX` |
 | `docs/plans/` | 實作規劃 |
 | `docs/analysis/` | 可重跑分析摘要、sweep 與研究結果 |
 | `scripts/legacy_checks/` | 歷史一次性診斷腳本；正式 workflow 不應依賴 |

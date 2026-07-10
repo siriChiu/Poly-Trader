@@ -1,4 +1,4 @@
-# PM_HEARTBEAT.md — Poly-Trader Product PM Heartbeat
+# docs/ai-collaboration/PM_HEARTBEAT.md — Poly-Trader Product PM Heartbeat
 
 > This file is an evergreen PM operating procedure, not a per-run log. It exists to keep customer expectations, engineering evidence, live-trading safety, and shippable product progress in the same closed loop. The PM stance is explicitly customer-side: protect the customer's outcome, time, and capital by turning blockers into usable progress instead of passively repeating framework constraints.
 
@@ -18,11 +18,11 @@ Canonical PM files:
 
 | File | Role |
 |---|---|
-| `PM_HEARTBEAT.md` | PM heartbeat operating procedure |
-| `docs/pm/README.md` | PM harness map |
-| `docs/pm/pm-heartbeat-qa.md` | PM Q&A gates |
-| `docs/pm/pm-heartbeat-contract.json` | Machine-readable PM contract |
-| `docs/pm/pm-status.md` | Current PM status only |
+| `docs/ai-collaboration/PM_HEARTBEAT.md` | PM heartbeat operating procedure |
+| `docs/ai-collaboration/pm/README.md` | PM harness map |
+| `docs/ai-collaboration/pm/pm-heartbeat-qa.md` | PM Q&A gates |
+| `docs/ai-collaboration/pm/pm-heartbeat-contract.json` | Machine-readable PM contract |
+| `docs/ai-collaboration/pm/pm-status.md` | Current PM status only |
 | `scripts/pm_heartbeat_check.py` | Stdlib PM harness checker |
 | `tests/test_pm_heartbeat_contract.py` | Mechanical contract tests |
 
@@ -74,11 +74,11 @@ blocked live trading
 ## 3. Required read order per hourly run
 
 1. `AGENTS.md`
-2. `PM_HEARTBEAT.md`
-3. `docs/pm/README.md`
-4. `docs/pm/pm-heartbeat-qa.md`
-5. `docs/pm/pm-status.md`
-6. `HEARTBEAT.md`
+2. `docs/ai-collaboration/PM_HEARTBEAT.md`
+3. `docs/ai-collaboration/pm/README.md`
+4. `docs/ai-collaboration/pm/pm-heartbeat-qa.md`
+5. `docs/ai-collaboration/pm/pm-status.md`
+6. `docs/ai-collaboration/HEARTBEAT.md`
 7. `ISSUES.md`
 8. `ROADMAP.md`
 9. `ORID_DECISIONS.md`
@@ -104,7 +104,7 @@ When touching PM harness files, also run:
 
 ```bash
 python -m pytest tests/test_pm_heartbeat_contract.py -q
-git diff --check -- PM_HEARTBEAT.md docs/pm scripts/pm_heartbeat_check.py tests/test_pm_heartbeat_contract.py AGENTS.md README.md ARCHITECTURE.md
+git diff --check -- docs/ai-collaboration/PM_HEARTBEAT.md docs/ai-collaboration/pm scripts/pm_heartbeat_check.py tests/test_pm_heartbeat_contract.py AGENTS.md README.md ARCHITECTURE.md
 ```
 
 ---
@@ -204,7 +204,7 @@ bounded live-canary is the only acceptable live buy/add pilot path: `execution.m
 
 A PM heartbeat is not complete unless it leaves one of:
 
-- an updated `docs/pm/pm-status.md` current-state summary;
+- an updated `docs/ai-collaboration/pm/pm-status.md` current-state summary;
 - a specific action request to the engineering heartbeat;
 - a customer-facing “what you can use now / what is blocked / what proves release” explanation;
 - a PM escalation when the same deadlock repeats;
@@ -212,7 +212,7 @@ A PM heartbeat is not complete unless it leaves one of:
 - a customer-value delta, `anti-repeat` result, cost-of-delay estimate, option portfolio, and red-team PM challenge when the run risks repeating a prior status;
 - a framework-capture correction when custom skills/docs/rules prevent customer-side progress.
 
-Do not update `docs/pm/pm-status.md` for timestamp-only churn. Update it only when the product state, blocker interpretation, delivery ask, or PM risk classification changes.
+Do not update `docs/ai-collaboration/pm/pm-status.md` for timestamp-only churn. Update it only when the product state, blocker interpretation, delivery ask, or PM risk classification changes.
 
 ### 4.8 Verification and git hygiene
 

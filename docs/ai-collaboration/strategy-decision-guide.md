@@ -172,21 +172,21 @@ mia 追問或複雜度高？
 - C 關鍵洞察：非顯而易見的重要觀察（表面 vs 根本）
 - D 效益前提再驗證：mia 補充新資訊後重新驗算前提
 
-詳細格式見：strategy-decision-guide.md
+詳細格式見：docs/ai-collaboration/strategy-decision-guide.md
 ```
 
 ---
 
 ## 與 HEARTBEAT 心跳閉環的銜接
 
-當這份指南被用在 Poly-Trader 的心跳流程時，建議放在 **HEARTBEAT.md 的 Step 6.5 之前**：
+當這份指南被用在 Poly-Trader 的心跳流程時，建議放在 **docs/ai-collaboration/HEARTBEAT.md 的 Step 6.5 之前**：
 
 1. 先用本指南把「要不要修、先修哪個、採哪個方案」轉成策略後果表與前提驗證。
 2. 再進入 HEARTBEAT 的六帽會議 + ORID 收斂。
 3. 收斂出的 P0 / P1 事項，回寫到 ISSUES.md、ROADMAP.md、ARCHITECTURE.md。
 4. 若本輪沒有任何可驗證 patch，只做觀察與報告，視為閉環不完整。
 
-> 核心原則：**strategy-decision-guide.md 負責決策前置，HEARTBEAT.md 負責執行與閉環。**
+> 核心原則：**docs/ai-collaboration/strategy-decision-guide.md 負責決策前置，docs/ai-collaboration/HEARTBEAT.md 負責執行與閉環。**
 
 ---
 

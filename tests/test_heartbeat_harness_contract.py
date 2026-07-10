@@ -6,8 +6,8 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CONTRACT_PATH = PROJECT_ROOT / "docs" / "harness" / "heartbeat-harness-contract.json"
-QA_PATH = PROJECT_ROOT / "docs" / "harness" / "heartbeat-qa.md"
+CONTRACT_PATH = PROJECT_ROOT / "docs" / "ai-collaboration" / "harness" / "heartbeat-harness-contract.json"
+QA_PATH = PROJECT_ROOT / "docs" / "ai-collaboration" / "harness" / "heartbeat-qa.md"
 
 REQUIRED_GATE_IDS = [
     "HQ0_context_map",
@@ -118,7 +118,7 @@ def test_heartbeat_harness_checker_passes() -> None:
         "qa_gates_complete",
         "pm_handoff_required",
         "AGENTS.md:references",
-        "HEARTBEAT.md:references",
+        "docs/ai-collaboration/HEARTBEAT.md:references",
         "README.md:references",
     }
 

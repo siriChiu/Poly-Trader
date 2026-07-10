@@ -1,4 +1,4 @@
-# HEARTBEAT.md — Poly-Trader 心跳流程
+# docs/ai-collaboration/HEARTBEAT.md — Poly-Trader 心跳流程
 
 > 本文件是 heartbeat 執行規範，不是單輪更新 log。每輪產出的 `data/heartbeat_*` summary/progress/report 預設為 generated artifact，不應提交到 git；current state 只落在 `ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md` 與 machine-readable artifacts。
 
@@ -23,9 +23,9 @@ Heartbeat 的目的不是「回報狀態」，而是讓專案閉環前進：
 
 Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 記憶，而是靠可導航文件、可機械驗證的 Q&A gate、agent-readable artifacts 與回饋迴圈推進。
 
-- 入口地圖：`docs/harness/README.md`
-- 每輪問答 gate：`docs/harness/heartbeat-qa.md`
-- machine-readable 契約：`docs/harness/heartbeat-harness-contract.json`
+- 入口地圖：`docs/ai-collaboration/harness/README.md`
+- 每輪問答 gate：`docs/ai-collaboration/harness/heartbeat-qa.md`
+- machine-readable 契約：`docs/ai-collaboration/harness/heartbeat-harness-contract.json`
 - 結構檢查：`python scripts/heartbeat_harness_check.py --format text`
 
 若 heartbeat 卡在同一 blocker 超過兩輪，下一輪必須先回答：缺的是 Map / Tool / Signal / Constraint / Review 哪一種 harness 能力，而不是只重寫敘事。
@@ -105,7 +105,7 @@ Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 
 | `ROADMAP.md` | 只保留目前計畫、完成項與下一步 |
 | `ORID_DECISIONS.md` | 只保留當前 ORID 判斷 |
 | `ARCHITECTURE.md` | 只保留穩定架構與操作契約 |
-| `HEARTBEAT.md` | 只保留本流程規範 |
+| `docs/ai-collaboration/HEARTBEAT.md` | 只保留本流程規範 |
 
 禁止把每輪 heartbeat summary 持續 append 到這些文件。若需要歷史，使用 git history 或本機 ignored artifacts。
 

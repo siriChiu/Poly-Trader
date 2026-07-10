@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — Poly-Trader 系統架構
 
-> 本文件只保留「目前有效」的架構與操作契約；歷史 heartbeat 更新流水帳不放在架構文檔內。當前問題追蹤見 [ISSUES.md](ISSUES.md)，近期計畫見 [ROADMAP.md](ROADMAP.md)，心跳流程見 [HEARTBEAT.md](HEARTBEAT.md)。
+> 本文件只保留「目前有效」的架構與操作契約；歷史 heartbeat 更新流水帳不放在架構文檔內。當前問題追蹤見 [ISSUES.md](ISSUES.md)，近期計畫見 [ROADMAP.md](ROADMAP.md)，心跳流程見 [docs/ai-collaboration/HEARTBEAT.md](docs/ai-collaboration/HEARTBEAT.md)。
 
 ---
 
@@ -44,13 +44,12 @@ Poly-Trader/
 │   └── legacy_checks/     # 舊一次性診斷腳本；不得作為正式 workflow 入口
 ├── tests/                 # pytest contract/regression tests
 ├── docs/
-│   ├── harness/           # heartbeat harness engineering map、Q&A gate、machine-readable contract
-│   ├── pm/                # PM heartbeat map、stakeholder conflict Q&A gate、current PM status
+│   ├── README.md          # 文件分類與 root/docs/data/AI 協作邊界
+│   ├── ai-collaboration/  # AI agent role、heartbeat、PM heartbeat、harness、Q&A、contracts
 │   ├── analysis/          # 可重跑分析 artifact 的人類可讀摘要
 │   └── plans/             # 實作計畫與設計藍圖
 ├── README.md              # 專案入口與使用說明
-├── HEARTBEAT.md           # 心跳流程規範，不是每輪更新 log
-├── PM_HEARTBEAT.md        # 產品 PM 心跳流程，協調客戶期待與工程安全邊界
+├── ARCHITECTURE.md        # 目前有效架構與操作契約
 ├── ISSUES.md              # current-state issue view（由 runner overwrite）
 ├── ROADMAP.md             # current-state plan view（由 runner overwrite）
 └── ORID_DECISIONS.md      # current ORID view（由 runner overwrite）
@@ -58,9 +57,10 @@ Poly-Trader/
 
 ### Source vs generated
 
-- **Source / contract**：Python/TypeScript 程式、pytest、README/ARCHITECTURE/HEARTBEAT、`docs/harness/*`、current-state docs。
-- **Generated runtime artifacts**：`data/*.json`、`model/*.json`、`model/*.pkl`、`docs/analysis/*_audit.md` 類檔案由 heartbeat/probe 重建；若已被追蹤，只能在有驗證價值時提交。
+- **Source / contract**：Python/TypeScript 程式、pytest、README/ARCHITECTURE、`docs/README.md`、`docs/ai-collaboration/*`、current-state docs。
+- **Generated runtime artifacts**：`data/*.json`、`model/*.json`、`model/*.pkl`；人讀 Markdown companion 放 `docs/analysis/*.md`，不得再放 `data/*.md`。
 - **Heartbeat run logs**：`data/heartbeat_*`、`HEARTBEAT_*_SUMMARY.md` 不再追蹤；需要追溯時看 git history 或本機 ignored artifacts。
+- **文件拓撲檢查**：`python scripts/doc_topology_check.py --format text` 驗證 root/docs/data 邊界。
 
 ---
 
@@ -192,9 +192,9 @@ UI 原則：
 ## 10. Heartbeat 與文件治理
 
 - `scripts/hb_parallel_runner.py` 是 heartbeat runner 主入口。
-- `HEARTBEAT.md` 是 evergreen 流程規範，不再承載單輪 summary。
-- `docs/harness/README.md` 與 `docs/harness/heartbeat-qa.md` 是 heartbeat harness engineering 的入口地圖與一問一答 gate；`scripts/heartbeat_harness_check.py` 以機械檢查確保這些入口沒有腐爛。
-- `PM_HEARTBEAT.md` 與 `docs/pm/README.md` / `docs/pm/pm-heartbeat-qa.md` 是產品 PM 心跳入口；`scripts/pm_heartbeat_check.py` 檢查 PM harness、客戶期待、工程證據與 deadlock escalation 契約沒有腐爛。
+- `docs/ai-collaboration/HEARTBEAT.md` 是 evergreen 流程規範，不再承載單輪 summary。
+- `docs/ai-collaboration/harness/README.md` 與 `docs/ai-collaboration/harness/heartbeat-qa.md` 是 heartbeat harness engineering 的入口地圖與一問一答 gate；`scripts/heartbeat_harness_check.py` 以機械檢查確保這些入口沒有腐爛。
+- `docs/ai-collaboration/PM_HEARTBEAT.md` 與 `docs/ai-collaboration/pm/README.md` / `docs/ai-collaboration/pm/pm-heartbeat-qa.md` 是產品 PM 心跳入口；`scripts/pm_heartbeat_check.py` 檢查 PM harness、客戶期待、工程證據與 deadlock escalation 契約沒有腐爛。
 - `ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md` 只保留 current state，由 runner overwrite sync。
 - 每輪 heartbeat 可以產出 `data/heartbeat_*`，但這些 run logs 預設 ignored，不應污染 git diff。
 - 若 current-state docs 與 machine-readable artifacts 不一致，應修 runner/doc sync，而不是追加新的歷史段落。
@@ -222,7 +222,7 @@ python -m pytest tests/test_frontend_decision_contract.py -q
 cd web && npm run build
 ```
 
-`repo_cleanroom_audit.py --clean` 是唯一建議的本地 cleanroom 入口；它只刪 root scratch scripts、per-run heartbeat logs、cache、frontend build output 與 CatBoost scratch，保留 venv、DB、model、current-state artifacts。不要用 `git clean -fdX` 當替代品。
+`repo_cleanroom_audit.py --clean` 是唯一建議的本地 cleanroom 入口；它只刪 root scratch scripts、per-run heartbeat logs、runtime logs、generated scan scratch、cache、frontend build output 與 CatBoost scratch，保留 venv、DB、model、current-state artifacts；大型 protected artifacts 只列出不自動刪。不要用 `git clean -fdX` 當替代品。
 
 ---
 

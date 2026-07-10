@@ -10,9 +10,11 @@ Rules:
 
 ## Poly-Trader harness map
 
-Keep this file as a short map, not a manual. For heartbeat work:
-- Read `HEARTBEAT.md`, `AI_AGENT_ROLE.md`, `ISSUES.md`, `ROADMAP.md`, and `ORID_DECISIONS.md` before acting.
-- For harness-engineering/Q&A gates, read `docs/harness/README.md` and `docs/harness/heartbeat-qa.md`.
+Keep this file as a short root discovery map, not a manual. Detailed AI collaboration docs live under `docs/ai-collaboration/`.
+
+For heartbeat work:
+- Read `docs/ai-collaboration/README.md`, `docs/ai-collaboration/HEARTBEAT.md`, `docs/ai-collaboration/AI_AGENT_ROLE.md`, `ISSUES.md`, `ROADMAP.md`, and `ORID_DECISIONS.md` before acting.
+- For harness-engineering/Q&A gates, read `docs/ai-collaboration/harness/README.md` and `docs/ai-collaboration/harness/heartbeat-qa.md`.
 - Run `python scripts/heartbeat_harness_check.py --format text` when touching heartbeat governance, docs, or agent workflow contracts.
-- For product-PM arbitration heartbeat work, read `PM_HEARTBEAT.md`, `docs/pm/README.md`, `docs/pm/pm-heartbeat-qa.md`, and `docs/pm/pm-status.md`.
+- For product-PM arbitration heartbeat work, read `docs/ai-collaboration/PM_HEARTBEAT.md`, `docs/ai-collaboration/pm/README.md`, `docs/ai-collaboration/pm/pm-heartbeat-qa.md`, and `docs/ai-collaboration/pm/pm-status.md`.
 - Run `python scripts/pm_heartbeat_check.py --format text` when touching PM heartbeat governance, PM status, or delivery-conflict contracts.

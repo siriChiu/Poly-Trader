@@ -8,9 +8,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CONTRACT_PATH = PROJECT_ROOT / "docs" / "pm" / "pm-heartbeat-contract.json"
-QA_PATH = PROJECT_ROOT / "docs" / "pm" / "pm-heartbeat-qa.md"
-STATUS_PATH = PROJECT_ROOT / "docs" / "pm" / "pm-status.md"
+CONTRACT_PATH = PROJECT_ROOT / "docs" / "ai-collaboration" / "pm" / "pm-heartbeat-contract.json"
+QA_PATH = PROJECT_ROOT / "docs" / "ai-collaboration" / "pm" / "pm-heartbeat-qa.md"
+STATUS_PATH = PROJECT_ROOT / "docs" / "ai-collaboration" / "pm" / "pm-status.md"
 TOPK_STALE_AFTER_MINUTES = 60.0
 TOPK_LIVE_SUPPORT_STALE_AFTER_MINUTES = 30.0
 PM_CHECK_PATH = PROJECT_ROOT / "scripts" / "pm_heartbeat_check.py"
@@ -184,7 +184,7 @@ def test_pm_heartbeat_checker_passes() -> None:
         "pm_entrypoints_exist",
         "pm_qa_gates_complete",
         "AGENTS.md:pm_references",
-        "PM_HEARTBEAT.md:pm_references",
+        "docs/ai-collaboration/PM_HEARTBEAT.md:pm_references",
         "README.md:pm_references",
         "ARCHITECTURE.md:pm_references",
         "pm_status_current_state_fields",
