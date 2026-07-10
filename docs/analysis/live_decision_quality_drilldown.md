@@ -1,45 +1,45 @@
 # Live Decision-Quality Drilldown
 
-- generated_at: **2026-06-05T03:46:22.921229Z**
-- feature_timestamp: **2026-06-05 03:00:00**
-- live_probe_generated_at: **2026-06-05T03:46:21.654036Z**
+- generated_at: **2026-07-10T10:37:48.620087Z**
+- feature_timestamp: **2026-07-10 10:30:23.755547**
+- live_probe_generated_at: **2026-07-10T10:37:48.592124Z**
 - target: `simulated_pyramid_win`
-- live path: **熊市 / 阻塞 / C**
-- signal: **觀望** @ confidence **0.5949**
+- live path: **牛市 / 觀察 / D**
+- signal: **觀望** @ confidence **0.4444**
 - layers: **0 → 0**
-- allowed_layers_raw_reason: 市場閘門阻塞
-- allowed_layers_reason: 決策品質低於交易門檻; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade
-- execution_guardrail_reason: 決策品質低於交易門檻; exact_live_lane_toxic_sub_bucket_current_bucket_blocks_trade
+- allowed_layers_raw_reason: 進場品質低於交易門檻
+- allowed_layers_reason: 精準樣本尚未建立
+- execution_guardrail_reason: 精準樣本尚未建立
 - runtime_blocker: None | reason: None
-- deployment_blocker: exact_live_lane_toxic_sub_bucket_current_bucket | reason: 精準即時路徑 current bucket `阻塞｜bias200_below_min｜q00` 已被標記為 toxic sub-bucket (筆=131, win_rate=0.3053, 品質=-0.082)
-- support blocker summary: **精準樣本 131/50（缺口 0） 已達可部署樣本門檻；是否放行仍以即時部署阻塞與執行層數為準。**
-- support next action: 不要把樣本達標誤讀成部署已放行；繼續檢查執行層數、訊號與場館證據。
-- current-bucket root cause: verdict=同路徑鄰近分桶更穩健 / patch=structure_component_scoring / feature=feat_4h_bb_pct_b / exact_support=131/50 / gap=0 / neighbor=阻塞｜bear_bias200_hard_block｜q00
-- 精準樣本修補: **未啟用** | 支持路徑 **精準樣本已就緒** | 跨越門檻 **floor_already_crossed_and_support_ready**
-- runtime closure summary: **當前即時分桶 阻塞｜bias200_below_min｜q00 已具精準樣本，但執行期仍被 exact_live_lane_toxic_sub_bucket_current_bucket 擋住；精準即時路徑 current bucket `阻塞｜bias200_below_min｜q00` 已被標記為 toxic sub-bucket (筆=131, win_rate=0.3053, 品質=-0.082)。目前保持僅觀察，不可把支持樣本閉環誤讀成部署閉環。 精準路徑與外溢對照：同品質寬範圍出現 盤整｜觀察 外溢，6 筆 / 勝率 0.0% / 品質 -0.433，明顯劣於 精準即時路徑 勝率 44.3% / 品質 0.039。**
+- deployment_blocker: 精準樣本尚未建立 | reason: 當前即時結構分桶 `觀察｜結構品質觀察｜q35` 的精準支持樣本仍停在 0/50（缺 50），支持路徑=精準樣本尚未建立，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 D / 品質分數 0.0509；目前維持不可部署治理。
+- support blocker summary: **精準樣本 0/50（缺口 50） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 建議修補方案 core_plus_macro_plus_all_4h 目前為僅供治理參考，適用範圍 牛市｜觀察、來源 牛市 4H 口袋消融 / 牛市崩落 q35；只能作治理參考，不是目前即時可部署修補。**
+- support next action: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 保留建議修補方案可見但標示為僅參考；適用範圍與來源對齊、且精準樣本達標前不可放行。
+- current-bucket root cause: verdict=None / patch=None / feature=None / exact_support=None/None / gap=None / neighbor=None
+- 精準樣本修補: **未啟用** | 支持路徑 **精準樣本尚未建立** | 跨越門檻 **None**
+- runtime closure summary: **當前即時分桶 觀察｜結構品質觀察｜q35 的精準樣本仍未就緒（0/50，路徑=精準樣本尚未建立 / 治理=no_support_proxy）；較寬範圍 / 近似樣本 與建議修補方案 目前都只屬僅供治理參考，不可視為部署閉環。 建議修補方案=core_plus_macro_plus_all_4h (精準樣本就緒前僅供治理參考). 阻塞點=當前即時結構分桶 `觀察｜結構品質觀察｜q35` 的精準支持樣本仍停在 0/50（缺 50），支持路徑=精準樣本尚未建立，不可把舊範圍的支持閉環誤讀成部署閉環；決策品質仍為 D / 品質分數 0.0509；目前維持不可部署治理。 精準路徑與外溢對照：同品質寬範圍出現 牛市｜放行 外溢，114 筆 / 勝率 37.5% / 品質 0.041，明顯劣於 精準即時路徑 勝率 — / 品質 —。**
 - q35 scaling audit: overall=None / redesign=None / runtime_gap=None / mode=None / next_patch=None
 - q35 runtime truth: redesign_entry_quality=None / redesign_layers_after=None / runtime_layers=None / blocker=None / exact_support=None/None / support_gap=None
 - q35 audit action: None
 - q15 patch machine-read: support_ready=None / entry_quality_ge_0_55=None / allowed_layers_gt_0=None / preserves_positive_discrimination_status=None
-- 建議修補方案: **None** — 狀態：None；精準樣本缺口 `None`；適用範圍 None；來源 None
-- 建議修補特徵: None
-- 建議修補說明: 精準樣本 131/50（缺口 0） 已達可部署樣本門檻；是否放行仍以即時部署阻塞與執行層數為準。
-- 下一步: 不要把樣本達標誤讀成部署已放行；繼續檢查執行層數、訊號與場館證據。
+- 建議修補方案: **core_plus_macro_plus_all_4h** — 狀態：精準樣本就緒前僅供治理參考；精準樣本缺口 `50`；適用範圍 牛市｜觀察；來源 牛市 4H 口袋消融 / 牛市崩落 q35
+- 建議修補特徵: feat_4h_dist_swing_low, feat_4h_dist_bb_lower, feat_4h_bb_pct_b
+- 建議修補說明: 精準樣本 0/50（缺口 50） 未達目前即時精準樣本門檻；較寬範圍或近似樣本只可作治理參考。 建議修補方案 core_plus_macro_plus_all_4h 目前為僅供治理參考，適用範圍 牛市｜觀察、來源 牛市 4H 口袋消融 / 牛市崩落 q35；只能作治理參考，不是目前即時可部署修補。
+- 下一步: 保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 保留建議修補方案可見但標示為僅參考；適用範圍與來源對齊、且精準樣本達標前不可放行。
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5788** / trade_floor **0.55** / gap **0.0288**
-- 基礎品質: **0.752** × 權重 **0.75**
-- 結構品質: **0.0593** × 權重 **0.25**
-- base components: feat_4h_bias50=1.0 (w=0.4, contrib=0.4), feat_nose=0.6667 (w=0.18, contrib=0.12), feat_pulse=0.3595 (w=0.27, contrib=0.0971), feat_ear=0.8994 (w=0.15, contrib=0.1349)
-- structure components: feat_4h_bb_pct_b=0.0 (w=0.34, contrib=0.0), feat_4h_dist_bb_lower=0.0 (w=0.33, contrib=0.0), feat_4h_dist_swing_low=0.1796 (w=0.33, contrib=0.0593)
+- final entry_quality: **0.3804** / trade_floor **0.55** / gap **-0.1696**
+- 基礎品質: **0.3102** × 權重 **0.75**
+- 結構品質: **0.591** × 權重 **0.25**
+- base components: feat_4h_bias50=0.0 (w=0.4, contrib=0.0), feat_nose=0.0544 (w=0.18, contrib=0.0098), feat_pulse=0.6538 (w=0.27, contrib=0.1765), feat_ear=0.8258 (w=0.15, contrib=0.1239)
+- structure components: feat_4h_bb_pct_b=1.0 (w=0.34, contrib=0.34), feat_4h_dist_bb_lower=0.3161 (w=0.33, contrib=0.1043), feat_4h_dist_swing_low=0.4445 (w=0.33, contrib=0.1467)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
-- remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.186** | structure_group_max_entry_gain: **0.2352**
-- best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
-- single-component floor crossers: None
+- remaining_gap_to_floor: **0.1696**
+- base_group_max_entry_gain: **0.5174** | structure_group_max_entry_gain: **0.1022**
+- best_single_component: **feat_4h_bias50**（group=base, Δscore≈0.5653, max_gain≈0.3）
+- single-component floor crossers: feat_4h_bias50 (Δscore≈0.5653)
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
 - unavailable_reason: `None`
 
@@ -47,21 +47,21 @@
 
 | scope | rows | win_rate | quality | dd | tuw | live bucket rows | pathology |
 |---|---:|---:|---:|---:|---:|---:|---|
-| chosen `regime_label+regime_gate+entry_quality_label` | 183 | 0.4426 | 0.0388 | 0.2831 | 0.5108 | 131 | True |
-| exact `regime_label+regime_gate+entry_quality_label` | 183 | 0.4426 | 0.0388 | 0.2831 | 0.5108 | 131 | True |
-| narrow `regime_label+entry_quality_label` | 183 | 0.4426 | 0.0388 | 0.2831 | 0.5108 | 131 | True |
-| broad `regime_gate+entry_quality_label` | 183 | 0.4426 | 0.0388 | 0.2831 | 0.5108 | 131 | True |
+| chosen `regime_label+entry_quality_label` | 40 | 0.375 | 0.0406 | 0.2612 | 0.7575 | 0 | False |
+| exact `regime_label+regime_gate+entry_quality_label` | 0 | None | None | None | None | 0 | False |
+| narrow `regime_label+entry_quality_label` | 40 | 0.375 | 0.0406 | 0.2612 | 0.7575 | 0 | False |
+| broad `regime_gate+entry_quality_label` | 56 | 0.9821 | 0.5458 | 0.0862 | 0.219 | 0 | False |
 
 ## Exact live-lane bucket diagnostic
 
-- verdict: **toxic sub bucket identified** | bucket_count: **3**
-- reason: 精準即時路徑 的 current bucket `阻塞｜bias200_below_min｜q00` 本身就是最差子 bucket，應直接升級成 執行期 veto / rejection 規則。
-- toxic_bucket: 阻塞｜bias200_below_min｜q00
+- verdict: **no exact lane 筆** | bucket_count: **0**
+- reason: 精準即時路徑 沒有 筆，無法做子 bucket 診斷。
+- toxic_bucket: None
 
 ## Shared shifts
 
-- feat_4h_dist_swing_low (x4), feat_4h_dist_bb_lower (x4), feat_4h_bb_pct_b (x4)
-- worst_pathology_scope: **entry_quality_label** rows=189 win_rate=0.4286 quality=0.0239
+- None
+- worst_pathology_scope: **None** rows=None win_rate=None quality=None
 
 ## Interpretation
 
