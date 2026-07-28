@@ -607,6 +607,14 @@ interface StrategyResult {
   equity_curve?: EquityPoint[];
   trades?: StrategyTrade[];
   score_series?: ScoreSeriesPoint[];
+  score_series_context?: {
+    evaluation_mode?: "rule_based_no_model_split" | "in_sample_full_fit" | "walk_forward_oos" | string;
+    is_oos?: boolean;
+    training_start?: string | null;
+    training_end?: string | null;
+    oos_start?: string | null;
+    operator_label?: string | null;
+  };
   chart_context?: ChartContext;
   backtest_range?: BacktestRangeMeta;
   run_at?: string;
@@ -1011,7 +1019,6 @@ const AUTO_STRATEGY_PREFIX = "Auto Leaderboard · ";
 const MANUAL_COPY_STRATEGY_PREFIX = "Manual Copy · ";
 const LEADERBOARD_BACKTEST_WINDOW_MONTHS = 24;
 const LEADERBOARD_BACKTEST_WINDOW_DAYS = 730;
-const LEADERBOARD_BACKTEST_POLICY_LABEL = "排行榜回測固定使用最近兩年";
 const WORKSPACE_BACKTEST_WINDOW_HINT = `工作區預設沿用 ${LEADERBOARD_BACKTEST_WINDOW_DAYS} 天固定視窗；切換其他快速區間後，需重新執行回測才會刷新 ROI / 交易數。`;
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
@@ -1635,7 +1642,9 @@ const toMillis = (value?: string | null) => {
   return Number.isFinite(ms) ? ms : null;
 };
 
-const STRATEGY_LAB_CACHE_KEY = "polytrader.strategylab.cache.v1";
+// v2 invalidates session entries that were saved while score_series was
+// tail-truncated to 300 points.
+const STRATEGY_LAB_CACHE_KEY = "polytrader.strategylab.cache.v2";
 const STRATEGY_LAB_MEMORY_CACHE: {
   strategies?: StrategyEntry[];
   strategyMeta?: StrategyLeaderboardMeta;
@@ -1659,7 +1668,6 @@ const loadStrategyLabCache = () => {
 };
 
 const STRATEGY_LAB_CACHE_EQUITY_LIMIT = 1000;
-const STRATEGY_LAB_CACHE_SCORE_LIMIT = 300;
 
 const downsampleCachedSeries = <T extends { timestamp?: string | null }>(points: T[] | undefined, limit: number): T[] => {
   if (!Array.isArray(points)) return [];
@@ -1688,7 +1696,7 @@ const compactStrategyLabCacheEntry = (strategy?: StrategyEntry | null): Strategy
         ? downsampleCachedSeries(lastResults.equity_curve, STRATEGY_LAB_CACHE_EQUITY_LIMIT)
         : lastResults.equity_curve,
       score_series: Array.isArray(lastResults.score_series)
-        ? lastResults.score_series.slice(-STRATEGY_LAB_CACHE_SCORE_LIMIT)
+        ? [...lastResults.score_series]
         : lastResults.score_series,
     },
   };
@@ -1713,7 +1721,7 @@ const extractStrategyLeaderboardList = (payload: any): StrategyEntry[] => {
   return Array.isArray(payload) ? payload : [];
 };
 
-const STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS = 2500;
+const STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS = 20_000;
 
 const fetchStrategyLabEndpointJson = async (endpoint: string) => {
   await prewarmActiveApiBase();
@@ -1769,6 +1777,8 @@ export default function StrategyLab() {
   const [modelSortDirection, setModelSortDirection] = useState<"asc" | "desc">("desc");
   const [modelStats, setModelStats] = useState<ModelStatsResponse | null>(null);
   const [running, setRunning] = useState(false);
+  const [paperShadowActivating, setPaperShadowActivating] = useState(false);
+  const [paperShadowStatus, setPaperShadowStatus] = useState<{ tone: "success" | "error"; message: string; runId?: string | null } | null>(null);
   const [loadingStrategyName, setLoadingStrategyName] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [backgroundStage, setBackgroundStage] = useState<BackgroundStage | null>(null);
@@ -2773,6 +2783,44 @@ export default function StrategyLab() {
     }
   };
 
+  const handleStartPaperShadow = async () => {
+    const strategyName = String(selectedStrategy?.name || "").trim();
+    if (!strategyName) {
+      setPaperShadowStatus({ tone: "error", message: "請先完成回測並從排行榜選擇一個已儲存策略。" });
+      return;
+    }
+    if (selectedStrategyIsSystemGenerated) {
+      setPaperShadowStatus({ tone: "error", message: "系統策略不能直接啟動；請先另存成可編輯策略。" });
+      return;
+    }
+    setPaperShadowActivating(true);
+    setPaperShadowStatus(null);
+    try {
+      const payload = await fetchApi(`/api/strategies/${encodeURIComponent(strategyName)}/paper-shadow`, {
+        method: "POST",
+      }) as any;
+      const processedRuns = Number(payload?.worker?.summary?.processed_runs ?? 0);
+      const parityBlocked = Number(payload?.worker?.summary?.parity_blocked_runs ?? 0);
+      const runId = payload?.run?.run_id || null;
+      const exactRuntimeCompleted = payload?.strategy_runtime?.status === "exact_strategy_cycle_completed";
+      setPaperShadowStatus({
+        tone: parityBlocked > 0 ? "error" : "success",
+        runId,
+        message: parityBlocked > 0
+          ? "策略快照已建立，但 bundle parity 未通過；請到 Bot 營運查看具體修復項。"
+          : exactRuntimeCompleted
+          ? processedRuns > 0
+            ? `已用回測時的 exact fitted model 完成安全 cycle，並寫入 ${processedRuns} 筆可追溯 worker proposal；不送出實單。`
+            : "已用回測時的 exact fitted model 完成安全 cycle；既有 lineage 保留，24h outcome 視窗進行中時不重複建立 proposal，也不送出實單。"
+          : `已啟動規則策略 Paper/Shadow 並完成 ${processedRuns} 次安全 worker tick；不送出實單。`,
+      });
+    } catch (err: any) {
+      setPaperShadowStatus({ tone: "error", message: err?.message || "Paper/Shadow 啟動失敗" });
+    } finally {
+      setPaperShadowActivating(false);
+    }
+  };
+
   const activeModuleDetails = EDITOR_MODULES.filter((module) => activeModules.includes(module.id));
   const moduleCategoryMeta = {
     core: { label: "主模組", description: "先選主要進出場骨架" },
@@ -2788,12 +2836,6 @@ export default function StrategyLab() {
   const compositeModuleLabel = activeModuleDetails.length > 1
     ? `複合策略：${activeModuleDetails.map((module) => module.label).join(" ＋ ")}`
     : `單一策略：${activeModuleDetails[0]?.label || "未選擇"}`;
-  const dynamicHighlights = [
-    `${strategyType === "hybrid" ? "混合策略" : "規則策略"} · ${strategyType === "hybrid" ? selectedModelName : "rule_based"}`,
-    capitalMode === "reserve_90" ? `10/90 後守 ${baseEntryFractionPct}%` : `層數 ${layer1}/${layer2}/${layer3}`,
-    `信心 ${confidenceMin}% · 品質 ${entryQualityMin}%`,
-    investmentHorizonLabels[investmentHorizon],
-  ];
   const capitalDeploymentHint = capitalMode === "reserve_90"
     ? `不是一鍵 all-in；目前是 10 / 90 後守，先用 ${baseEntryFractionPct}% 試單，其餘資金等回撤觸發後才啟用。`
     : "不是一鍵 all-in；經典金字塔會按 25 / 25 / 50 逐層投入，三層都成交才會接近滿倉。";
@@ -2831,7 +2873,7 @@ export default function StrategyLab() {
   const activeDecisionContract = activeResult ?? selectedStrategy?.decision_contract ?? null;
   const loadingStrategy = Boolean(loadingStrategyName);
   const modelFreshnessProgress = toModelFreshnessProgress(modelMeta.cache_age_sec);
-  const workspaceBusy = running || loadingStrategy || initialLoading;
+  const workspaceBusy = running || paperShadowActivating || loadingStrategy || initialLoading;
   const actionProgressStage = running || loadingStrategy || initialLoading ? backgroundStage : null;
   const modelProgressStage = modelMeta.refreshing
     ? {
@@ -3212,9 +3254,9 @@ export default function StrategyLab() {
       <div className="app-page-header">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="app-page-kicker">策略工作區</div>
-            <h2 className="app-page-title">🧪 策略實驗室</h2>
-            <span className="text-sm text-slate-400">點排行榜可快速載入</span>
+            <div className="app-page-kicker">回測 → 安全演練</div>
+            <h2 className="app-page-title">策略工作區</h2>
+            <span className="text-sm text-slate-400">選候選、看關鍵結果、啟動 Paper/Shadow</span>
           </div>
           <div className="app-segmented-control text-sm">
             <button
@@ -3233,9 +3275,9 @@ export default function StrategyLab() {
             </button>
           </div>
         </div>
-        <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/8 px-4 py-3 text-sm leading-6 text-cyan-50/90">
-          <span className="font-semibold text-cyan-100">{LEADERBOARD_BACKTEST_POLICY_LABEL}</span>
-          <span className="ml-2 text-cyan-100/80"> · 固定視窗 730 天（約 24 個月），降低短窗策略過擬合。</span>
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-cyan-100/80">
+          <span className="app-chip">統一 730 天比較窗</span>
+          <span>避免短窗過擬合</span>
         </div>
       </div>
 
@@ -3317,6 +3359,11 @@ export default function StrategyLab() {
                 </div>
               )}
 
+              <details className="rounded-xl border border-white/8 bg-slate-950/25">
+                <summary className="cursor-pointer list-none px-3 py-3 text-xs font-semibold text-slate-200">
+                  進階：調整策略模組 <span className="ml-2 font-normal text-slate-500">{compositeModuleLabel}</span>
+                </summary>
+                <div className="space-y-4 border-t border-white/8 p-3">
               <div className="rounded-xl border border-cyan-700/30 bg-cyan-950/10 px-3 py-3 text-[11px] leading-5 text-cyan-100 space-y-3">
                 <div>
                   <div className="font-medium">策略模組選擇</div>
@@ -3384,36 +3431,48 @@ export default function StrategyLab() {
                   </div>
                 ))}
               </div>
+                </div>
+              </details>
 
-              <div className="app-surface-muted px-3 py-3 text-xs text-slate-300 space-y-3">
+              <div className="app-surface-muted flex flex-wrap items-center justify-between gap-3 px-3 py-3 text-xs">
                 <div>
-                  <div className="text-slate-500">目前組合</div>
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">目前組合</div>
                   <div className="mt-1 font-semibold text-slate-100">{compositeModuleLabel}</div>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {dynamicHighlights.map((item) => (
-                    <div key={item} className="rounded-lg border border-slate-700/40 bg-slate-900/40 px-3 py-2 text-slate-200">
-                      {item}
-                    </div>
-                  ))}
+                <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
+                  <span className="app-chip">{strategyType === "hybrid" ? selectedModelName : "規則"}</span>
+                  <span className="app-chip">{activeModules.includes("fib_layers") ? "23/38/39" : "25/25/50"}</span>
+                  {activeModules.includes("storm_unwind") && <span className="app-chip text-amber-200">風暴斬倉</span>}
                 </div>
-                {activeModuleDetails.length > 1 && (
-                  <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 px-3 py-2 text-cyan-100">
-                    <div className="font-medium">模組已合成</div>
-                    <div className="mt-1 leading-5">{activeModuleDetails.map((module) => module.label).join(" ＋ ")}</div>
-                  </div>
-                )}
-                {activeModules.includes("storm_unwind") && (
-                  <div className="rounded-lg border border-amber-700/30 bg-amber-950/10 px-3 py-2 text-amber-100">
-                    <div className="font-medium">風暴斬倉已啟用</div>
-                    <div className="mt-1 leading-5">低位盈利會優先拿來釋放高位套牢倉。</div>
-                  </div>
-                )}
               </div>
 
               <button onClick={handleRun} disabled={workspaceBusy} className={`${workspaceBusy ? "app-button-secondary text-slate-400" : "app-button-primary"} w-full font-semibold text-sm`}>
                 {running ? "⏳ 回測中..." : loadingStrategy ? "⏳ 載入策略中..." : initialLoading ? "⏳ 初始化中..." : "▶ 執行回測"}
               </button>
+
+              <div className="rounded-2xl border border-violet-500/25 bg-violet-500/8 p-3 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-violet-100">把回測策略投入演練</div>
+                    <div className="mt-1 text-[11px] leading-5 text-violet-100/70">凍結目前已儲存策略；Hybrid 必須帶回測時的 exact fitted model，完成一次真實推論 cycle 後才開始累積 24h outcome。全程不送實單。</div>
+                  </div>
+                  <span className="app-chip border-violet-400/25 bg-violet-400/10 text-violet-100">安全橋接</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStartPaperShadow}
+                  disabled={workspaceBusy || !selectedStrategy || selectedStrategyIsSystemGenerated}
+                  className="app-button-secondary w-full border-violet-400/30 text-violet-100 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  {paperShadowActivating ? "正在建立演練…" : "啟動目前策略的 Paper/Shadow"}
+                </button>
+                {paperShadowStatus && (
+                  <div className={`rounded-xl border px-3 py-2 text-[11px] leading-5 ${paperShadowStatus.tone === "success" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100" : "border-amber-500/30 bg-amber-500/10 text-amber-100"}`}>
+                    <div>{paperShadowStatus.message}</div>
+                    <a href="/execution" className="mt-1 inline-flex font-semibold underline underline-offset-2">前往 Bot 營運查看 run →</a>
+                  </div>
+                )}
+              </div>
               {runStrategyProgressCard && (
                 <div className="rounded-xl border border-cyan-700/30 bg-cyan-950/10 p-3 text-xs text-cyan-50 space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3467,7 +3526,23 @@ export default function StrategyLab() {
           {error && <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-4 text-red-400 text-sm">{error}</div>}
 
           <div className={activeTab === "workspace" ? "space-y-4" : "hidden"}>
-            {workspaceHeadlineMetrics}
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              {[
+                ["ROI", formatPct(activeResult?.roi, 1, true)],
+                ["最大回撤", formatPct(activeResult?.max_drawdown)],
+                ["PF", formatDecimal(activeResult?.profit_factor)],
+                ["交易數", String(activeResult?.total_trades ?? "—")],
+              ].map(([label, value]) => (
+                <div key={label} className="app-surface-muted px-3 py-3">
+                  <div className="text-[10px] text-slate-500">{label}</div>
+                  <div className="mt-1 text-lg font-semibold text-slate-100">{value}</div>
+                </div>
+              ))}
+            </div>
+            <details className="app-surface-card">
+              <summary className="cursor-pointer list-none text-sm font-semibold text-slate-200">查看完整模型、決策品質與 Canary 指標</summary>
+              <div className="mt-4">{workspaceHeadlineMetrics}</div>
+            </details>
 
             <div className="app-surface-card space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3">
@@ -3517,7 +3592,9 @@ export default function StrategyLab() {
                         {strategyDataSyncing ? "同步中..." : "立即同步"}
                       </button>
                     </div>
-                    <div className="mt-3 grid gap-2 text-slate-300 md:grid-cols-3">
+                    <details className="mt-3 rounded-lg border border-white/8 bg-slate-950/25">
+                      <summary className="cursor-pointer list-none px-3 py-2 font-medium text-slate-300">查看 Raw / Features / Labels 明細</summary>
+                    <div className="grid gap-2 border-t border-white/8 p-3 text-slate-300 md:grid-cols-3">
                       <div className="rounded-md border border-slate-700/50 bg-slate-950/40 px-2 py-2">
                         <div className="text-slate-500">Raw 最新</div>
                         <div className="font-medium text-slate-100">{formatSyncTimestamp(strategyDataSync?.raw?.end)}</div>
@@ -3542,6 +3619,7 @@ export default function StrategyLab() {
                           ? `缺少約 ${Math.round(activeResult.backtest_range.missing_start_days || 0)} 天較早資料，需先回填。`
                           : "資料不足時會直接標示，不會用短資料假裝跑完。"}
                     </div>
+                    </details>
                   </div>
                   {strategyResultStale && (
                     <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-[11px] leading-5 text-amber-100 space-y-1">
@@ -3558,7 +3636,14 @@ export default function StrategyLab() {
                   </div>
                   <div className="rounded-lg border border-cyan-700/30 bg-cyan-950/10 px-3 py-2 text-cyan-100">
                     <div className="font-medium">圖表提示</div>
-                    <div>上圖看價格與訊號，下圖看權益與持倉；hover 會同步。</div>
+                    <div>綠線＝策略分數，藍色虛線＝進場品質；兩者使用左側 0–100 刻度。</div>
+                    <div className={activeResult?.score_series_context?.is_oos ? "text-emerald-200" : "text-amber-200"}>
+                      {activeResult?.score_series_context?.operator_label
+                        || (selectedStrategy?.definition?.type === "hybrid" ? "全資料擬合分數（非 OOS）" : "規則策略分數（無模型切分）")}
+                    </div>
+                    {!activeResult?.score_series_context?.is_oos && selectedStrategy?.definition?.type === "hybrid" && (
+                      <div className="text-amber-200/80">此圖沒有可畫的訓練／OOS 分界；OOS 證據請看 walk-forward / Top-K。</div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3731,7 +3816,14 @@ export default function StrategyLab() {
                   </div>
                   <div className="text-[11px] text-slate-500">{modelMeta.updated_at ? `更新 ${new Date(modelMeta.updated_at).toLocaleString("zh-TW")}` : "尚未建立快取"}</div>
                 </div>
-                <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="app-surface-muted px-2 py-3"><div className="text-slate-500">可比較模型</div><div className="mt-1 text-lg font-semibold text-white">{modelMeta.comparable_count ?? modelLeaderboard.length}</div></div>
+                  <div className="app-surface-muted px-2 py-3"><div className="text-slate-500">OOS 過門檻</div><div className="mt-1 text-lg font-semibold text-violet-200">{formatDecimal(highConvictionRiskQualifiedCount, 0)}</div></div>
+                  <div className="app-surface-muted px-2 py-3"><div className="text-slate-500">Live 可部署</div><div className="mt-1 text-lg font-semibold text-amber-200">{formatDecimal(highConvictionDeployableCount, 0)}</div></div>
+                </div>
+                <details className="rounded-xl border border-white/8 bg-slate-950/25">
+                  <summary className="cursor-pointer list-none px-3 py-3 text-sm font-semibold text-slate-200">查看模型治理、Top-K 與完整排名</summary>
+                  <div className="space-y-3 border-t border-white/8 p-3">
                   {modelMeta.warning && (
                     <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
                       {modelMeta.warning}
@@ -4091,7 +4183,8 @@ export default function StrategyLab() {
                       </table>
                     </div>
                   )}
-                </div>
+                  </div>
+                </details>
               </div>
             </div>
 

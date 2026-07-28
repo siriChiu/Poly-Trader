@@ -15,6 +15,7 @@ import concurrent.futures
 import json
 import os
 import re
+import signal
 import sqlite3
 import subprocess
 import sys
@@ -25,10 +26,16 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Optional, Tuple
 
-PROJECT_ROOT = '/home/kazuha/Poly-Trader'
+PROJECT_ROOT = str(Path(__file__).resolve().parents[1])
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+
+def _doc_mapping(value: Any) -> Dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+from database.runtime import configured_database_path
 from feature_engine.feature_history_policy import (
     build_source_blocker_summary,
     compute_sqlite_feature_coverage,
@@ -37,7 +44,7 @@ from scripts.hb_collect import summarize_label_horizons
 from scripts.issues import IssueTracker, normalize_verify_steps
 
 PYTHON = os.path.join(PROJECT_ROOT, 'venv', 'bin', 'python')
-DB_PATH = os.path.join(PROJECT_ROOT, 'poly_trader.db')
+DB_PATH = str(configured_database_path())
 _CURRENT_HEARTBEAT_RUN_LABEL: str | None = None
 _CURRENT_HEARTBEAT_FAST_MODE = False
 FAST_SERIAL_TIMEOUTS = {
@@ -466,6 +473,7 @@ def collect_current_state_docs_sync_status() -> Dict[str, Any]:
         ("data/leaderboard_feature_profile_probe.json", root / "data" / "leaderboard_feature_profile_probe.json"),
         ("data/high_conviction_topk_oos_matrix.json", root / "data" / "high_conviction_topk_oos_matrix.json"),
         ("data/live_canary_structural_pivot.json", root / "data" / "live_canary_structural_pivot.json"),
+        ("data/microstructure_contract.json", root / "data" / "microstructure_contract.json"),
     ]
 
     reference_mtimes = {
@@ -542,8 +550,23 @@ def collect_historical_coverage_confirmation(
 
     try:
         covers_two_years = True
+        table_errors: list[str] = []
         for table_name, query in table_specs.items():
-            row = conn.execute(query, (symbol,)).fetchone() or (None, None, 0)
+            try:
+                row = conn.execute(query, (symbol,)).fetchone() or (None, None, 0)
+            except sqlite3.OperationalError as exc:
+                table_errors.append(f"{table_name}: {exc}")
+                summary["tables"][table_name] = {
+                    "available": False,
+                    "start": None,
+                    "end": None,
+                    "count": 0,
+                    "span_days": None,
+                    "older_than_two_year_cutoff": False,
+                    "error": str(exc),
+                }
+                covers_two_years = False
+                continue
             start_dt = _safe_parse_datetime(row[0])
             end_dt = _safe_parse_datetime(row[1])
             count = int(row[2] or 0)
@@ -562,7 +585,9 @@ def collect_historical_coverage_confirmation(
                 covers_two_years = False
         summary["cutoff_timestamp"] = cutoff_dt.isoformat()
         summary["covers_two_years"] = covers_two_years
-        summary["ok"] = True
+        summary["ok"] = not table_errors
+        if table_errors:
+            summary["error"] = "; ".join(table_errors)
         return summary
     finally:
         conn.close()
@@ -2889,6 +2914,10 @@ def _venue_dry_run_docs_context(payload: Dict[str, Any] | None = None) -> Dict[s
             "cancel_status": "blocked_missing_runtime_backed_proof",
             "fill_status": "blocked_missing_runtime_backed_proof",
             "reconciliation_status": "blocked_missing_runtime_backed_proof",
+            "local_rehearsal_status": "artifact_missing_or_unparseable",
+            "local_rehearsal_scope": "local_contract_rehearsal_not_exchange_proof",
+            "local_rehearsal_runtime_backed": False,
+            "local_rehearsal_live_adapter_called": False,
             "venues": [],
         }
 
@@ -2913,6 +2942,13 @@ def _venue_dry_run_docs_context(payload: Dict[str, Any] | None = None) -> Dict[s
         stage = payload.get(key) if isinstance(payload.get(key), dict) else {}
         return str(stage.get("status") or "—")
 
+    raw_local_rehearsal = payload.get("local_lifecycle_rehearsal")
+    local_rehearsal: Dict[str, Any] = (
+        raw_local_rehearsal if isinstance(raw_local_rehearsal, dict) else {}
+    )
+    raw_local_checks = local_rehearsal.get("checks")
+    local_checks: Dict[str, Any] = raw_local_checks if isinstance(raw_local_checks, dict) else {}
+
     return {
         "available": True,
         "generated_at": payload.get("generated_at") or "—",
@@ -2927,6 +2963,10 @@ def _venue_dry_run_docs_context(payload: Dict[str, Any] | None = None) -> Dict[s
         "cancel_status": _stage_status("cancel_simulation"),
         "fill_status": _stage_status("fill_simulation"),
         "reconciliation_status": _stage_status("reconciliation_check"),
+        "local_rehearsal_status": local_rehearsal.get("status") or "—",
+        "local_rehearsal_scope": local_rehearsal.get("scope") or "—",
+        "local_rehearsal_runtime_backed": local_rehearsal.get("runtime_backed"),
+        "local_rehearsal_live_adapter_called": local_checks.get("live_adapter_called"),
         "venues": venues,
     }
 
@@ -2946,7 +2986,11 @@ def _venue_dry_run_summary_doc_line(context: Dict[str, Any] | None = None) -> st
         f"`ack={context.get('ack_status') or '—'}` / "
         f"`cancel={context.get('cancel_status') or '—'}` / "
         f"`fill={context.get('fill_status') or '—'}` / "
-        f"`reconciliation={context.get('reconciliation_status') or '—'}`"
+        f"`reconciliation={context.get('reconciliation_status') or '—'}` / "
+        f"`local_rehearsal={context.get('local_rehearsal_status') or '—'}` / "
+        f"`local_scope={context.get('local_rehearsal_scope') or '—'}` / "
+        f"`local_runtime_backed={_format_bool_for_docs(context.get('local_rehearsal_runtime_backed'))}` / "
+        f"`local_live_adapter_called={_format_bool_for_docs(context.get('local_rehearsal_live_adapter_called'))}`"
     )
     venues = context.get("venues") if isinstance(context.get("venues"), list) else []
     if not venues:
@@ -4496,6 +4540,34 @@ def overwrite_current_state_docs(
             f"`next_validation_artifact={_pivot_quick_read_value('next_validation_artifact', live_canary_pivot_decision.get('next_validation_artifact'))}`"
         )
     no_trade_lane_replay = _read_json_file(Path(PROJECT_ROOT) / "data" / "no_trade_lane_replay.json")
+    microstructure_contract = _read_json_file(Path(PROJECT_ROOT) / "data" / "microstructure_contract.json")
+    microstructure_source = _doc_mapping(microstructure_contract.get("source"))
+    microstructure_freshness = _doc_mapping(microstructure_contract.get("freshness"))
+    microstructure_coverage = _doc_mapping(microstructure_contract.get("coverage"))
+    microstructure_forecast = _doc_mapping(microstructure_contract.get("forecast"))
+    microstructure_decision = _doc_mapping(microstructure_contract.get("decision_contract"))
+    microstructure_doc_line = (
+        f"`artifact=data/microstructure_contract.json` / `status={microstructure_contract.get('status', '—')}` / "
+        f"`source_configured={_doc_bool(microstructure_source.get('configured'))}` / `source_available={_doc_bool(microstructure_source.get('available'))}` / "
+        f"`source_freshness={microstructure_source.get('freshness_status', '—')}` / `artifact_freshness={microstructure_freshness.get('artifact_status', '—')}` / "
+        f"`coverage={microstructure_coverage.get('covered_events', '—')}/{microstructure_coverage.get('observed_events', '—')}` / "
+        f"`forecast_edge_bps={microstructure_contract.get('forecast_edge_bps')}` / `forecast_source={microstructure_forecast.get('source', '—')}` / "
+        f"`decision_status={microstructure_decision.get('status', '—')}` / `paper_shadow_risk_on_allowed={_doc_bool(microstructure_decision.get('paper_shadow_risk_on_allowed'))}` / "
+        f"`live_risk_on_allowed={_doc_bool(microstructure_contract.get('decision_contract', {}).get('live_risk_on_allowed'))}`；缺source或forecast calibration時維持 observation-only，不把OOS/Top-K proxy當dynamic edge。"
+    )
+    microstructure_doc_lines = [
+        "- **LOB/order-flow minimum contract 已納入 current-state docs**",
+        f"  - {microstructure_doc_line}",
+    ]
+    microstructure_roadmap_lines = [
+        "- **LOB/order-flow minimum contract 已落地；下一輪接source-backed artifact**",
+        f"  - {microstructure_doc_line}",
+    ]
+    microstructure_orid_lines = [f"- microstructure contract：{microstructure_doc_line}"]
+    microstructure_next_gate_lines = [
+        "- **LOB/order-flow next gate：接入可驗證的source-backed artifact（不先接live risk）**",
+        "  - 驗證：required feature具source、observed_at/freshness、coverage與source-backed forecast_edge_bps；缺資料維持observation-only與live_risk_on_allowed=false。",
+    ]
     no_trade_replay_decision = (
         no_trade_lane_replay.get("replay_decision")
         if isinstance(no_trade_lane_replay.get("replay_decision"), dict)
@@ -4798,16 +4870,16 @@ def overwrite_current_state_docs(
     m5_readiness_fact_lines = [
         "- **M5 實戰準備度總卡已產品化**",
         "  - 模型 gate / 即時支持 gate / 熔斷 gate / 場館 gate / live-canary policy gate / 影子觀察 gate 一次顯示；credential present 只顯示布林 / 狀態，不輸出 secret；影子觀察與減風險可前進，買入 / 加倉仍鎖住。",
-        "  - `/api/status` 會載入 `data/venue_dry_run_proof.json` 並在 `execution_surface_contract.live_canary_policy_gate` 顯示本地 bounded-canary policy gate；Dashboard / Execution Status / Strategy Lab status-only summaries 也會顯示同一 gate 與繁中 blocker copy；`/api/execution/overview` artifact-first 輸出 `execution_readiness / shadow_trade_ledger / venue_dry_run_proof / customer_safe_alternative_proof / canary_gap_answers`，且可用 `scripts/venue_dry_run_api_consistency_probe.py --strict` 驗證 status / overview / artifact 同源、fail-closed、secret-safe，並可用 `scripts/customer_safe_alternative_api_consistency_probe.py --strict` 驗證 customer-safe overview / artifact aliases、counts、selected next artifact、fail-closed、secret-safe 同源；`data/customer_safe_alternative_proof.json` / `docs/analysis/customer_safe_alternative_proof.md` 會把 PM alternative-solution handoff 濃縮成 customer-safe proof。",
+        "  - `/api/status` 會載入 `data/venue_dry_run_proof.json` 並在 `execution_surface_contract.live_canary_policy_gate` 顯示本地 bounded-canary policy gate；Dashboard / Execution Status / Strategy Lab status-only summaries 也會顯示同一 gate 與繁中 blocker copy；`/api/execution/overview` artifact-first 輸出 `execution_readiness / shadow_trade_ledger / venue_dry_run_proof / customer_safe_alternative_proof / canary_gap_answers`，且可用 `scripts/venue_dry_run_api_consistency_probe.py --strict` 驗證 status / overview / artifact 同源、fail-closed、secret-safe；strict verifier 也會獨立拒絕缺失、非有限或不可能的本地生命週期數量關係（filled / remaining / canceled 算術），避免同源錯誤自我認證。另可用 `scripts/customer_safe_alternative_api_consistency_probe.py --strict` 驗證 customer-safe overview / artifact aliases、counts、selected next artifact、fail-closed、secret-safe 同源；`data/customer_safe_alternative_proof.json` / `docs/analysis/customer_safe_alternative_proof.md` 會把 PM alternative-solution handoff 濃縮成 customer-safe proof。",
     ]
     m5_readiness_roadmap_lines = [
         "- **M5 實戰準備度總卡已產品化：Shadow Trade Ledger + Venue dry-run proof + canary gap 答案**",
         "  - Shadow Trade Ledger 記錄訊號時間、candidate model、confidence、當時 regime、假想 entry、之後 24h 結果與是否符合 pyramid win；只做影子帳本，不送單。",
-        "  - Venue dry-run proof 由 `data/venue_dry_run_proof.json` 進入 `/api/status`，`/api/status.execution_surface_contract.live_canary_policy_gate` 與 `/api/execution/overview.execution_readiness.gates[]` 都會顯示 `live_canary_policy_gate`；Dashboard / Execution Status / Strategy Lab status-only summaries 也顯示同一 gate 與繁中 blocker copy；`/api/execution/overview` artifact-first 顯示 credential present、order preview、ack simulation、cancel simulation、fill simulation、reconciliation check；credential present 只顯示布林 / 狀態，不輸出 secret；route/API consistency 可用 `scripts/venue_dry_run_api_consistency_probe.py --strict` 驗證。",
+        "  - Venue dry-run proof 由 `data/venue_dry_run_proof.json` 進入 `/api/status`，`/api/status.execution_surface_contract.live_canary_policy_gate` 與 `/api/execution/overview.execution_readiness.gates[]` 都會顯示 `live_canary_policy_gate`；Dashboard / Execution Status / Strategy Lab status-only summaries 也顯示同一 gate 與繁中 blocker copy；`/api/execution/overview` artifact-first 顯示 credential present、order preview、ack simulation、cancel simulation、fill simulation、reconciliation check；credential present 只顯示布林 / 狀態，不輸出 secret；route/API consistency 可用 `scripts/venue_dry_run_api_consistency_probe.py --strict` 驗證，且 strict verifier 會獨立拒絕缺失、非有限或不可能的本地生命週期數量關係（filled / remaining / canceled 算術），避免同源錯誤自我認證。",
         "  - UI 直接回答：目前距離 canary 還差什麼、今天可以演練什麼、哪一個 gate 卡住、如果 gate 全過，第一筆 canary 如何執行。",
     ]
     m5_readiness_orid_lines = [
-        "- M5 實戰準備度：Execution Console 已把實戰準備度、Shadow Trade Ledger、Venue dry-run proof、live-canary policy gate 與 canary gap 答案產品化；`/api/status.execution_surface_contract.live_canary_policy_gate` 與 `/api/execution/overview.execution_readiness.gates[]` 同步顯示本地 bounded-canary policy gate；Dashboard / Execution Status / Strategy Lab status-only summaries 也顯示同一 gate 與繁中 blocker copy；`/api/status` / `/api/execution/overview` 以 `data/venue_dry_run_proof.json` 為 artifact-first 來源，並可用 `scripts/venue_dry_run_api_consistency_probe.py --strict` 驗證 status / overview / artifact 同源、fail-closed、secret-safe；credential present 只顯示布林 / 狀態，不輸出 secret；影子觀察 / 減風險可做，買入 / 加倉仍鎖住。"
+        "- M5 實戰準備度：Execution Console 已把實戰準備度、Shadow Trade Ledger、Venue dry-run proof、live-canary policy gate 與 canary gap 答案產品化；`/api/status.execution_surface_contract.live_canary_policy_gate` 與 `/api/execution/overview.execution_readiness.gates[]` 同步顯示本地 bounded-canary policy gate；Dashboard / Execution Status / Strategy Lab status-only summaries 也顯示同一 gate 與繁中 blocker copy；`/api/status` / `/api/execution/overview` 以 `data/venue_dry_run_proof.json` 為 artifact-first 來源，並可用 `scripts/venue_dry_run_api_consistency_probe.py --strict` 驗證 status / overview / artifact 同源、fail-closed、secret-safe；strict verifier 會獨立拒絕缺失、非有限或不可能的本地生命週期數量關係（filled / remaining / canceled 算術），避免同源錯誤自我認證；credential present 只顯示布林 / 狀態，不輸出 secret；影子觀察 / 減風險可做，買入 / 加倉仍鎖住。"
     ]
     live_predictor_docs_context = live_predictor_diagnostics
     persisted_live_probe_for_docs = _read_json_file(Path(PROJECT_ROOT) / "data" / "live_predict_probe.json")
@@ -5211,6 +5283,7 @@ def overwrite_current_state_docs(
         *drift_rebaseline_doc_lines,
         *map_signal_doc_lines,
         *customer_safe_doc_lines,
+        *microstructure_doc_lines,
         "- **anti-equilibrium forced execution governor 已啟用**",
         f"  - {anti_equilibrium_context['state_line']}",
         "  - forced branches：Venue lifecycle proof / Model shadow to decision / Strategy micro-canary readiness / Map-Signal redesign / hard no-go single failed gate。",
@@ -5379,6 +5452,7 @@ def overwrite_current_state_docs(
         *drift_rebaseline_roadmap_lines,
         *map_signal_roadmap_lines,
         *customer_safe_roadmap_lines,
+        *microstructure_roadmap_lines,
         "- **反平衡強制執行 contract**",
         f"  - {anti_equilibrium_context['contract_line']}",
         *parallel_failure_roadmap_lines,
@@ -5445,6 +5519,7 @@ def overwrite_current_state_docs(
         next_gate_line1,
         "   - 驗證：browser `/`、browser `/execution`（含初次同步時買入 / 啟用自動模式暫停、等待 / 觀望與減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python -m pytest tests/test_server_startup.py -k api_trade -q`",
         next_gate_line1_blocker,
+        *microstructure_next_gate_lines,
         "2. **持續鑽 recent canonical pathological slice，而不是 generic 化 root cause**",
         "   - 驗證：`python scripts/recent_drift_report.py`、`python scripts/hb_predict_probe.py`",
         "   - 升級 blocker：若 drift artifact 再失去 target-path / adverse-streak / top-shift 證據",
@@ -5533,6 +5608,7 @@ def overwrite_current_state_docs(
         *drift_rebaseline_orid_lines,
         *map_signal_orid_lines,
         *customer_safe_orid_lines,
+        *microstructure_orid_lines,
         f"- latest recent-window diagnostics：{pathology_line}。",
         *([f"- current blocking pathological pocket：{blocking_pathology_line}。"] if blocking_pathology_line else []),
         f"- leaderboard / governance：{leaderboard_line}。",
@@ -5564,7 +5640,7 @@ def overwrite_current_state_docs(
         orid_action_line.rstrip("。") + "；`/execution` 操作入口在同步中 / 已阻塞時只對買入 / 加倉與啟用自動模式 fail-closed，等待 / 觀望與減碼保留；直接 API 買入 / 加倉也必須 409 暫停，等待 / 觀望與減倉 / 賣出保留風險降低路徑。",
         *high_conviction_orid_action_lines,
         "- **反平衡 forced-execution gate**：若 72h 內不能執行 bounded micro-canary，必須寫明唯一失敗 gate（breaker / support / venue / policy / model shadow outcome）與下一個驗證 artifact；不得再輸出 observation-only heartbeat。",
-        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/q15_support_fill_feasibility.json`、`data/q15_exact_bucket_row_harvest_proof.json`、`data/q15_drift_rebaseline_backtest.json`、`data/q15_map_signal_redesign_proof.json`、`docs/analysis/q15_exact_bucket_row_harvest_proof.md`、`docs/analysis/q15_drift_rebaseline_backtest.md`、`docs/analysis/q15_map_signal_redesign_proof.md`、`data/no_trade_lane_replay.json`、`data/paper_shadow_outcome_reconciliation.json`、`docs/analysis/no_trade_lane_replay.md`、`docs/analysis/q15_support_fill_feasibility.md`、`data/leaderboard_feature_profile_probe.json`、`data/high_conviction_topk_oos_matrix.json`、`data/execution_metadata_smoke.json`、`data/venue_dry_run_proof.json`、`docs/analysis/venue_dry_run_proof.md`、`docs/plans/2026-05-23-live-canary-structural-pivot.md`、`data/live_canary_structural_pivot.json`。",
+        "- **Artifacts**：`ISSUES.md`、`ROADMAP.md`、`ORID_DECISIONS.md`、`data/live_predict_probe.json`、`data/live_decision_quality_drilldown.json`、`data/recent_drift_report.json`、`data/q15_support_fill_feasibility.json`、`data/q15_exact_bucket_row_harvest_proof.json`、`data/q15_drift_rebaseline_backtest.json`、`data/q15_map_signal_redesign_proof.json`、`docs/analysis/q15_exact_bucket_row_harvest_proof.md`、`docs/analysis/q15_drift_rebaseline_backtest.md`、`docs/analysis/q15_map_signal_redesign_proof.md`、`data/no_trade_lane_replay.json`、`data/paper_shadow_outcome_reconciliation.json`、`docs/analysis/no_trade_lane_replay.md`、`docs/analysis/q15_support_fill_feasibility.md`、`data/leaderboard_feature_profile_probe.json`、`data/high_conviction_topk_oos_matrix.json`、`data/execution_metadata_smoke.json`、`data/venue_dry_run_proof.json`、`docs/analysis/venue_dry_run_proof.md`、`docs/plans/2026-05-23-live-canary-structural-pivot.md`、`data/live_canary_structural_pivot.json`、`data/microstructure_contract.json`。",
         "- **Verify**：browser `/`、browser `/execution`（買入 / 啟用自動模式 fail-closed、等待 / 觀望與減碼可用）、browser `/execution/status`、browser `/lab`、`python scripts/hb_predict_probe.py`、`python scripts/live_decision_quality_drilldown.py`、`python scripts/recent_drift_report.py`、`python scripts/no_trade_lane_replay.py`、`python scripts/q15_support_fill_feasibility_scan.py`、`python scripts/q15_exact_bucket_row_harvest_proof.py`、`python scripts/q15_drift_rebaseline_backtest.py`、`python scripts/q15_map_signal_redesign_proof.py`、`python scripts/execution_metadata_smoke.py --symbol BTCUSDT --venues okx binance`、`python scripts/venue_dry_run_proof.py`、`python -m pytest tests/test_server_startup.py -k api_trade -q`、`python -m pytest tests/test_topk_walkforward_precision.py -q`、`python -m pytest tests/test_execution_service.py -k live_canary -q`。",
         orid_fail_line,
         "",
@@ -6464,6 +6540,31 @@ class _StreamCollector(threading.Thread):
                 pass
 
 
+def _kill_watchdog_process_group(process: subprocess.Popen[Any]) -> None:
+    """Kill a timed-out command and every subprocess it spawned.
+
+    Candidate refresh scripts can launch CPU-heavy model workers. Killing only
+    the immediate parent leaves those workers orphaned, which can saturate the
+    machine and make the active backend time out after the heartbeat returns.
+    Every watchdog command starts a fresh session, so the child PID is also the
+    process-group ID and can be terminated without touching the heartbeat.
+    """
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    except (OSError, AttributeError):
+        try:
+            process.kill()
+        except ProcessLookupError:
+            pass
+
+    try:
+        process.wait(timeout=5)
+    except (subprocess.TimeoutExpired, ChildProcessError):
+        pass
+
+
 def _run_command_with_watchdog(
     cmd: list[str],
     *,
@@ -6493,6 +6594,7 @@ def _run_command_with_watchdog(
         text=True,
         env=env,
         bufsize=1,
+        start_new_session=True,
     )
     stdout_thread = _StreamCollector(process.stdout, stdout_lines)
     stderr_thread = _StreamCollector(process.stderr, stderr_lines)
@@ -6511,7 +6613,7 @@ def _run_command_with_watchdog(
             if returncode is not None:
                 break
             if elapsed >= timeout:
-                process.kill()
+                _kill_watchdog_process_group(process)
                 stdout_thread.join(timeout=1)
                 stderr_thread.join(timeout=1)
                 stdout = "".join(stdout_lines).strip()

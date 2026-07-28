@@ -16,7 +16,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from config import load_config
 from server.dependencies import get_db, init_dependencies, set_runtime_status
+from server.security import configured_allowed_origins
 from server.routes.api import (
     router as api_router,
     run_execution_metadata_smoke_background_governance,
@@ -351,13 +353,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS 中間件 — 允許前端 dev server 連接
+# CORS 中間件 — 只允許明確設定的本機 dashboard/dev origins。
+_CORS_ALLOWED_ORIGINS = configured_allowed_origins(load_config())
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=list(_CORS_ALLOWED_ORIGINS),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
 # 掛載路由

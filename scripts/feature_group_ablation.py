@@ -28,9 +28,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from database.models import FeaturesNormalized, Labels, init_db
+from database.runtime import configured_database_url
 from model import train as train_module
 
-DB_URL = f"sqlite:///{PROJECT_ROOT / 'poly_trader.db'}"
+DB_URL = configured_database_url()
 OUT_JSON = PROJECT_ROOT / "data" / "feature_group_ablation.json"
 OUT_MD = PROJECT_ROOT / "docs" / "analysis" / "feature_group_ablation.md"
 TARGET_COL = "simulated_pyramid_win"

@@ -865,6 +865,17 @@ def test_load_venue_dry_run_proof_summary_is_secret_safe(monkeypatch, tmp_path):
                     "secret_token": "should_not_leak",
                 },
                 "fill_simulation": {"status": "blocked_missing_credentials", "runtime_backed": False},
+                "local_lifecycle_rehearsal": {
+                    "status": "passed_local_state_machine_runtime_unverified",
+                    "scope": "local_contract_rehearsal_not_exchange_proof",
+                    "runtime_backed": False,
+                    "dry_run_only": True,
+                    "order_submission_enabled": False,
+                    "risk_on_order_enabled": False,
+                    "live_order_submitted": False,
+                    "events": [{"sequence": 1, "state": "previewed"}],
+                    "checks": {"live_adapter_called": False},
+                },
             }
         ),
         encoding="utf-8",
@@ -883,6 +894,9 @@ def test_load_venue_dry_run_proof_summary_is_secret_safe(monkeypatch, tmp_path):
     assert payload["dry_run_only"] is True
     assert payload["runtime_ready"] is False
     assert payload["fill_simulation"]["status"] == "blocked_missing_credentials"
+    assert payload["local_lifecycle_rehearsal"]["status"] == "passed_local_state_machine_runtime_unverified"
+    assert payload["local_lifecycle_rehearsal"]["runtime_backed"] is False
+    assert payload["local_lifecycle_rehearsal"]["checks"]["live_adapter_called"] is False
     assert payload["blockers"] == ["runtime-backed fill proof missing"]
     assert "api_key" not in str(payload).lower()
     assert "password" not in str(payload).lower()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -591,6 +592,42 @@ def build_execution_strategy_source_snapshot() -> Dict[str, Any]:
     }
 
 
+def execution_strategy_binding_for_name(strategy_name: str) -> Dict[str, Any]:
+    """Resolve one exact user-saved Strategy Lab record for a paper/shadow run.
+
+    Automatic routing normally recommends the highest-ranked strategy per sleeve.
+    This resolver preserves the exact Strategy Lab selection and its frozen hash,
+    without changing any live execution gate.
+    """
+
+    wanted = str(strategy_name or "").strip()
+    if not wanted:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "strategy_name_required", "message": "請先選擇一個已儲存策略。"},
+        )
+    snapshot = build_execution_strategy_source_snapshot()
+    for binding in _as_list(snapshot.get("strategies")):
+        if isinstance(binding, dict) and str(binding.get("strategy_name") or "").strip() == wanted:
+            sleeve_key = str(binding.get("primary_sleeve_key") or "").strip()
+            if sleeve_key not in PRIMARY_SLEEVE_ORDER:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "strategy_sleeve_not_routable",
+                        "message": "這個策略尚未對應到可執行 sleeve；請先在 Strategy Lab 儲存完整策略設定。",
+                        "context": {"strategy_name": wanted, "primary_sleeve_key": sleeve_key or None},
+                    },
+                )
+            return dict(binding)
+    raise HTTPException(
+        status_code=404,
+        detail={
+            "code": "strategy_not_found",
+            "message": f"找不到已儲存策略「{wanted}」；請先完成回測並儲存結果。",
+        },
+    )
+
 
 def _as_dict(value: Any) -> Dict[str, Any]:
     return value if isinstance(value, dict) else {}
@@ -1093,16 +1130,84 @@ def _serialize_event(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 
+def _process_is_alive(value: Any) -> tuple[Optional[int], Optional[bool]]:
+    if isinstance(value, bool):
+        return None, False
+    try:
+        pid = int(value)
+    except (TypeError, ValueError):
+        return None, False
+    if pid <= 0:
+        return None, False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return pid, False
+    except PermissionError:
+        return pid, True
+    except OSError:
+        return pid, False
+    return pid, True
+
+
 def _worker_control_contract(row: Dict[str, Any], current_state: str) -> Dict[str, Any]:
     stored = _json_loads(row.get("worker_control_json"))
     stored = stored if isinstance(stored, dict) else {}
     status = str(row.get("worker_status") or stored.get("status") or "backend_worker_not_bound").strip() or "backend_worker_not_bound"
+    legacy_backend_worker_bound = bool(stored.get("backend_worker_bound", False))
+    continuous_worker = stored.get("continuous_worker") is True
+    backend_worker_pid, pid_alive = _process_is_alive(stored.get("backend_worker_pid")) if continuous_worker else (None, None)
+
+    now = datetime.now(timezone.utc)
+    lease_owner = str(stored.get("lease_owner") or "").strip()
+    lease_epoch = str(stored.get("lease_epoch") or "").strip()
+    lease_expires_at = _parse_datetime(stored.get("lease_expires_at"))
+    if not continuous_worker:
+        lease_status = "not_implemented"
+    elif not lease_owner or not lease_epoch or lease_expires_at is None:
+        lease_status = "missing"
+    elif lease_expires_at <= now:
+        lease_status = "expired"
+    else:
+        lease_status = "active"
+
+    heartbeat_at = _parse_datetime(stored.get("heartbeat_at"))
+    if not continuous_worker:
+        heartbeat_status = "not_implemented"
+    elif heartbeat_at is None:
+        heartbeat_status = "missing"
+    else:
+        heartbeat_age_seconds = (now - heartbeat_at).total_seconds()
+        heartbeat_status = "fresh" if -30.0 <= heartbeat_age_seconds <= 120.0 else "stale"
+
+    worker_healthy = bool(
+        current_state == "running"
+        and continuous_worker
+        and backend_worker_pid is not None
+        and pid_alive is True
+        and lease_status == "active"
+        and heartbeat_status == "fresh"
+    )
+    poll_handler_available = stored.get("poll_handler_available") is True
+    runtime_liveness = {
+        "status": "healthy" if worker_healthy else "unhealthy" if continuous_worker else "not_continuously_running",
+        "healthy": worker_healthy,
+        "pid": backend_worker_pid,
+        "pid_alive": pid_alive,
+        "lease_status": lease_status,
+        "heartbeat_status": heartbeat_status,
+        "last_poll_at": stored.get("last_poll_at"),
+    }
     return {
         "status": status,
         "state": current_state,
-        "backend_worker_bound": bool(stored.get("backend_worker_bound", False)),
+        "backend_worker_bound": bool(legacy_backend_worker_bound and worker_healthy),
+        "legacy_backend_worker_bound": legacy_backend_worker_bound,
+        "poll_handler_available": poll_handler_available,
+        "continuous_worker": continuous_worker,
+        "runtime_liveness": runtime_liveness,
         "worker_kind": stored.get("worker_kind"),
-        "backend_worker_pid": stored.get("backend_worker_pid"),
+        "backend_worker_pid": backend_worker_pid,
         "order_submission_enabled": False,
         "risk_on_order_enabled": False,
         "bundle_hash_match": stored.get("bundle_hash_match"),
@@ -1220,6 +1325,41 @@ def _build_worker_order_proposal(row: Dict[str, Any], status_payload: Optional[D
 
 
 
+def _build_exact_worker_order_proposal(row: Dict[str, Any], runtime_cycle: Dict[str, Any], now: str) -> Dict[str, Any]:
+    decision = _as_dict(runtime_cycle.get("decision"))
+    return {
+        "proposal_schema_version": 2,
+        "proposal_source": "exact_strategy_runtime",
+        "generated_at": now,
+        "run_id": row.get("id"),
+        "managed_run_id": runtime_cycle.get("managed_run_id"),
+        "profile_id": row.get("profile_id"),
+        "strategy_name": runtime_cycle.get("strategy_name") or row.get("strategy_name"),
+        "strategy_hash": runtime_cycle.get("strategy_hash"),
+        "model_name": runtime_cycle.get("model_name"),
+        "model_sha256": runtime_cycle.get("model_sha256"),
+        "training_data_sha256": runtime_cycle.get("training_data_sha256"),
+        "feature_schema_sha256": runtime_cycle.get("feature_schema_sha256"),
+        "symbol": decision.get("symbol") or row.get("symbol"),
+        "venue": decision.get("venue") or row.get("venue"),
+        "mode": "paper_shadow",
+        "feature_timestamp": decision.get("feature_timestamp"),
+        "price": decision.get("price"),
+        "signal": decision.get("signal") or "HOLD",
+        "action": decision.get("action") or "HOLD",
+        "side": decision.get("side"),
+        "qty": decision.get("qty"),
+        "model_confidence": decision.get("model_confidence"),
+        "entry_quality": decision.get("entry_quality"),
+        "allowed_layers": decision.get("allowed_layers"),
+        "runtime_reason": decision.get("reason"),
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "live_order_submitted": False,
+        "operator_action": "已用回測時 exact fitted model 完成一次受控 Paper/Shadow cycle；只記錄決策與 outcome lineage，不送實單。",
+    }
+
+
 def _pending_worker_proposal_gate(db, run_id: str, *, now: datetime) -> Optional[Dict[str, Any]]:
     row = _one(
         db,
@@ -1265,6 +1405,7 @@ def poll_execution_paper_shadow_workers(
     status_payload: Optional[Dict[str, Any]] = None,
     *,
     limit: int = 20,
+    exact_runtime_cycles: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     ensure_execution_control_plane_schema(db)
     now_dt = datetime.now(timezone.utc)
@@ -1285,6 +1426,7 @@ def poll_execution_paper_shadow_workers(
     pending_outcome_blocked_run_ids: List[str] = []
     pending_outcome_gates: List[Dict[str, Any]] = []
     poll_event_count = 0
+    exact_runtime_cycles = exact_runtime_cycles if isinstance(exact_runtime_cycles, dict) else {}
 
     for row in run_rows:
         run_id = str(row.get("id") or "")
@@ -1299,21 +1441,34 @@ def poll_execution_paper_shadow_workers(
             continue
         bundle_gate = _load_strategy_bundle_gate(row)
         bundle_hash_match = bool(bundle_gate.get("bundle_hash_match"))
-        proposal = _build_worker_order_proposal(row, status_payload, now) if bundle_hash_match else None
+        exact_cycle = _as_dict(exact_runtime_cycles.get(run_id))
+        exact_cycle_used = bool(bundle_hash_match and exact_cycle.get("status") == "exact_strategy_cycle_completed")
+        proposal = (
+            _build_exact_worker_order_proposal(row, exact_cycle, now)
+            if exact_cycle_used
+            else _build_worker_order_proposal(row, status_payload, now)
+            if bundle_hash_match
+            else None
+        )
         poll_count = int(worker_control.get("poll_count") or 0) + 1
         event_type = WORKER_POLL_EVENT_TYPE if bundle_hash_match else WORKER_PARITY_BLOCKED_EVENT_TYPE
         level = "info" if bundle_hash_match else "warning"
         message = (
-            "backend paper/shadow worker 已完成 state poll；bundle hash match，已寫入演練 proposal；不送單、不加倉。"
+            "exact fitted-model Paper/Shadow cycle 已完成並寫入可追溯 proposal；不送單、不加倉。"
+            if exact_cycle_used
+            else "backend paper/shadow worker 已完成 state poll；bundle hash match，已寫入演練 proposal；不送單、不加倉。"
             if bundle_hash_match
             else "backend paper/shadow worker 已拒絕產生 proposal：strategy bundle parity gate 未通過。"
         )
         worker_control.update(
             {
-                "status": "paper_shadow_worker_polled" if bundle_hash_match else "worker_bundle_parity_blocked",
+                "status": "exact_strategy_cycle_recorded" if exact_cycle_used else "paper_shadow_worker_polled" if bundle_hash_match else "worker_bundle_parity_blocked",
                 "state": "running",
-                "backend_worker_bound": bundle_hash_match,
-                "worker_kind": "backend_managed_state_poller",
+                "backend_worker_bound": False,
+                "poll_handler_available": bundle_hash_match,
+                "continuous_worker": False,
+                "runtime_cycle_recorded": exact_cycle_used,
+                "worker_kind": "exact_strategy_runtime_cycle" if exact_cycle_used else "backend_managed_state_poller",
                 "order_submission_enabled": False,
                 "risk_on_order_enabled": False,
                 "bundle_hash_match": bundle_hash_match,
@@ -1325,7 +1480,9 @@ def poll_execution_paper_shadow_workers(
                 "last_blocker": None if bundle_hash_match else bundle_gate.get("status"),
                 "last_error": bundle_gate.get("error"),
                 "operator_action": (
-                    "backend state poller 已記錄 paper/shadow proposal；run 暫停 / 停止後下一輪 poll 不會再產生事件。"
+                    "exact fitted model 已完成受控 cycle；接下來只累積 24h outcome 與 replay parity，Live gate 不變。"
+                    if exact_cycle_used
+                    else "backend state poller 已記錄 paper/shadow proposal；run 暫停 / 停止後下一輪 poll 不會再產生事件。"
                     if bundle_hash_match
                     else "請先修復 strategy bundle hash/path parity；worker 在 parity gate 通過前不產生演練 proposal。"
                 ),
@@ -2080,7 +2237,6 @@ def build_paper_shadow_outcome_reconciliation(
     artifact_path: Optional[Path] = None,
     limit: int = 100,
 ) -> Dict[str, Any]:
-    ensure_execution_control_plane_schema(db)
     now = datetime.now(timezone.utc)
     limit = max(1, min(int(limit or 100), 500))
     rows = _rows(
@@ -2314,6 +2470,50 @@ def build_paper_shadow_outcome_reconciliation(
 
 
 
+def _promotion_status_for_run(row: Dict[str, Any], worker_control: Dict[str, Any]) -> Dict[str, Any]:
+    proposal = _as_dict(worker_control.get("latest_order_proposal"))
+    exact_runtime = proposal.get("proposal_source") == "exact_strategy_runtime"
+    bundle_complete = str(row.get("strategy_bundle_status") or "") == "persisted"
+    paper_complete = bool(exact_runtime and proposal)
+    progress = int(bundle_complete) + int(exact_runtime) + int(paper_complete)
+    if exact_runtime:
+        state = "paper_shadow_evidence_recorded"
+        next_action = {
+            "route": "/execution",
+            "label": "執行 24h outcome reconciliation；Promotion 自動化尚未實作",
+            "action": "reconcile_outcome",
+        }
+        operator_fix = None
+    else:
+        state = "runtime_binding_required"
+        next_action = {"route": "/lab", "label": "重新回測並固化 exact fitted model", "action": "rerun_backtest"}
+        operator_fix = "回到 Strategy Lab 重新執行 Hybrid 回測；系統會保存 fitted model、training-data、feature-schema checksums。"
+    return {
+        "state": state,
+        "journey_contract_status": "partial_not_promotable",
+        "journey_complete": False,
+        "progress_current": progress,
+        "progress_target": None,
+        "declared_stage_count": 5,
+        "progress_is_release_metric": False,
+        "stages": [
+            {"key": "bundle", "label": "策略 Bundle", "status": "complete" if bundle_complete else "blocked"},
+            {"key": "exact_runtime", "label": "Exact Model Runtime", "status": "complete" if exact_runtime else "blocked"},
+            {"key": "paper_shadow", "label": "Paper / Shadow", "status": "evidence_recorded" if paper_complete else "blocked"},
+            {"key": "outcome_24h", "label": "24h Outcome", "status": "reconciliation_required" if paper_complete else "blocked"},
+            {"key": "live_candidate", "label": "Live Candidate", "status": "not_implemented"},
+        ],
+        "next_action": next_action,
+        "operator_fix": operator_fix,
+        "blocking_reason": "Promotion journey 尚未具備可執行閉環；仍需真實 outcome reconciliation、current exact-bucket、venue lifecycle、bounded-canary gates 與明確 operator promotion action。",
+        "safety": {
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "live_order_submitted": False,
+        },
+    }
+
+
 def _serialize_run(
     row: Dict[str, Any],
     events: Optional[List[Dict[str, Any]]] = None,
@@ -2328,6 +2528,15 @@ def _serialize_run(
     if not isinstance(strategy_binding, dict):
         strategy_binding = None
     worker_control = _worker_control_contract(row, current_state)
+    runtime_liveness = _as_dict(worker_control.get("runtime_liveness"))
+    manual_poll_running = current_state == "running" and not bool(worker_control.get("continuous_worker"))
+    state_truth = (
+        "configured_manual_poll_not_continuous_worker"
+        if manual_poll_running
+        else "continuous_worker_healthy"
+        if current_state == "running" and runtime_liveness.get("healthy")
+        else current_state
+    )
     return {
         "run_id": row.get("id"),
         "profile_id": row.get("profile_id"),
@@ -2336,7 +2545,9 @@ def _serialize_run(
         "venue": row.get("venue"),
         "mode": row.get("mode"),
         "state": current_state,
-        "state_label": _STATE_LABELS.get(current_state, current_state or "unknown"),
+        "state_truth": state_truth,
+        "state_label": "已啟用（手動輪詢，非長駐 worker）" if manual_poll_running else _STATE_LABELS.get(current_state, current_state or "unknown"),
+        "runtime_liveness": runtime_liveness,
         "control_mode": row.get("control_mode") or CONTROL_MODE,
         "runtime_binding_status": row.get("runtime_binding_status") or RUNTIME_BINDING_STATUS,
         "budget_amount": row.get("budget_amount"),
@@ -2359,6 +2570,7 @@ def _serialize_run(
         "strategy_bundle_status": row.get("strategy_bundle_status"),
         "worker_status": row.get("worker_status") or worker_control.get("status"),
         "worker_control": worker_control,
+        "promotion_status": _promotion_status_for_run(row, worker_control),
         "action_contract": {
             "can_pause": current_state == "running",
             "can_resume": current_state == "paused",
@@ -2622,22 +2834,7 @@ def _load_run_events(db, run_ids: Iterable[str], limit_per_run: int = 5) -> Dict
 
 
 def build_execution_control_plane_snapshot(db, status_payload: Dict[str, Any], overview_payload: Dict[str, Any]) -> Dict[str, Any]:
-    sync_execution_profiles(db, status_payload, overview_payload)
-
-    profile_rows = _rows(
-        db,
-        """
-        SELECT *
-        FROM execution_profiles
-        ORDER BY CASE id
-            WHEN 'trend' THEN 0
-            WHEN 'pullback' THEN 1
-            WHEN 'rebound' THEN 2
-            WHEN 'selective' THEN 3
-            ELSE 99
-        END, updated_at DESC
-        """,
-    )
+    profile_rows = _build_profile_rows(status_payload, overview_payload)
     run_rows = _rows(db, "SELECT * FROM execution_runs ORDER BY updated_at DESC, created_at DESC")
     events_by_run = _load_run_events(db, [str(row.get("id") or "") for row in run_rows])
     selected_runs_raw = _active_or_latest_run_by_profile(run_rows)
@@ -2648,12 +2845,22 @@ def build_execution_control_plane_snapshot(db, status_payload: Dict[str, Any], o
     profiles = [_serialize_profile(row, selected_runs.get(str(row.get("id") or ""))) for row in profile_rows]
     runs = [_serialize_run(row, events_by_run.get(str(row.get("id") or ""), []), status_payload=status_payload) for row in run_rows]
 
+    configured_running_rows = sum(1 for row in run_rows if str(row.get("state") or "") == "running")
+    manual_poll_running_rows = sum(
+        1 for run in runs if run.get("state_truth") == "configured_manual_poll_not_continuous_worker"
+    )
+    healthy_continuous_workers = sum(
+        1 for run in runs if _as_dict(run.get("runtime_liveness")).get("healthy") is True
+    )
     summary = {
         "total_profiles": len(profiles),
         "active_profiles": sum(1 for row in profile_rows if str(row.get("activation_status") or "") == "active"),
         "blocked_profiles": sum(1 for row in profile_rows if "blocked" in str(row.get("lifecycle_status") or "")),
         "standby_profiles": sum(1 for row in profile_rows if str(row.get("lifecycle_status") or "") == "standby"),
-        "running_runs": sum(1 for row in run_rows if str(row.get("state") or "") == "running"),
+        "running_runs": configured_running_rows,
+        "configured_running_rows": configured_running_rows,
+        "manual_poll_running_rows": manual_poll_running_rows,
+        "healthy_continuous_workers": healthy_continuous_workers,
         "paused_runs": sum(1 for row in run_rows if str(row.get("state") or "") == "paused"),
         "stopped_runs": sum(1 for row in run_rows if str(row.get("state") or "") == "stopped"),
         "total_runs": len(run_rows),
@@ -2703,7 +2910,11 @@ def start_execution_profile_run(
     status_payload: Dict[str, Any],
     overview_payload: Dict[str, Any],
     config: Optional[Dict[str, Any]] = None,
+    *,
+    strategy_binding_override: Optional[Dict[str, Any]] = None,
+    force_paper_shadow: bool = False,
 ) -> Dict[str, Any]:
+    sync_execution_profiles(db, status_payload, overview_payload)
     snapshot = build_execution_control_plane_snapshot(db, status_payload, overview_payload)
     profile_row = _require_profile_row(db, profile_id)
     profile_snapshot = _json_loads(profile_row.get("snapshot_json")) or {}
@@ -2711,11 +2922,23 @@ def start_execution_profile_run(
     control_contract = control_contract if isinstance(control_contract, dict) else {}
     strategy_binding = profile_snapshot.get("strategy_binding") if isinstance(profile_snapshot, dict) else None
     strategy_binding = strategy_binding if isinstance(strategy_binding, dict) else None
+    if strategy_binding_override is not None:
+        override_sleeve = str(strategy_binding_override.get("primary_sleeve_key") or "").strip()
+        if override_sleeve != profile_id:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "strategy_profile_mismatch",
+                    "message": "所選策略與 execution sleeve 不一致，已拒絕建立錯誤綁定。",
+                    "context": {"profile_id": profile_id, "strategy_sleeve": override_sleeve or None},
+                },
+            )
+        strategy_binding = dict(strategy_binding_override)
     start_status = str(control_contract.get("start_status") or "")
-    shadow_only = bool(control_contract.get("shadow_only") and start_status == "shadow_start_available")
-    shadow_mode = str(control_contract.get("shadow_mode") or "paper_shadow")
+    shadow_only = bool(force_paper_shadow or (control_contract.get("shadow_only") and start_status == "shadow_start_available"))
+    shadow_mode = "paper_shadow" if force_paper_shadow else str(control_contract.get("shadow_mode") or "paper_shadow")
     high_conviction_topk = _as_dict(control_contract.get("high_conviction_topk"))
-    if start_status.startswith("blocked") or start_status.startswith("inactive"):
+    if not force_paper_shadow and (start_status.startswith("blocked") or start_status.startswith("inactive")):
         raise HTTPException(
             status_code=409,
             detail={
@@ -2735,7 +2958,7 @@ def start_execution_profile_run(
         "shadow_start_available",
         "already_running",
     }
-    if start_status not in allowed_start_statuses:
+    if not force_paper_shadow and start_status not in allowed_start_statuses:
         raise HTTPException(
             status_code=409,
             detail={
@@ -2749,7 +2972,7 @@ def start_execution_profile_run(
             },
         )
 
-    if shadow_only and (
+    if shadow_only and not force_paper_shadow and (
         profile_id != "selective"
         or shadow_mode != "paper_shadow"
         or control_contract.get("risk_on_order_enabled") is not False
@@ -2769,20 +2992,58 @@ def start_execution_profile_run(
             },
         )
 
-    if shadow_only and (not strategy_binding or strategy_binding.get("status") == "missing_saved_strategy"):
+    if shadow_only and not force_paper_shadow and (not strategy_binding or strategy_binding.get("status") == "missing_saved_strategy"):
         strategy_binding = _shadow_strategy_binding_from_control_contract(profile_id, control_contract)
+
+    if force_paper_shadow and not strategy_binding:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "paper_shadow_strategy_required", "message": "Paper/Shadow 啟動需要一份已儲存策略快照。"},
+        )
 
     existing = _current_run_for_profile(db, profile_id)
     now = _utcnow_iso()
     if existing and str(existing.get("state") or "") == "running":
+        existing_strategy_name = str(existing.get("strategy_name") or "").strip()
+        requested_strategy_name = str((strategy_binding or {}).get("strategy_name") or "").strip()
+        if force_paper_shadow and requested_strategy_name and existing_strategy_name != requested_strategy_name:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "profile_run_conflict",
+                    "message": f"{profile_id} sleeve 已在執行「{existing_strategy_name or '另一個策略'}」；請先停止該 run 再切換。",
+                    "context": {
+                        "profile_id": profile_id,
+                        "running_strategy_name": existing_strategy_name or None,
+                        "requested_strategy_name": requested_strategy_name,
+                        "run_id": existing.get("id"),
+                    },
+                },
+            )
+        existing_worker = _worker_control_contract(existing, "running")
+        existing_worker_healthy = bool(
+            _as_dict(existing_worker.get("runtime_liveness")).get("healthy")
+        )
+        if existing_worker_healthy:
+            duplicate_event_type = "start_requested_while_running"
+            duplicate_level = "info"
+            duplicate_message = "此 run 的長駐 worker 已驗證健康；忽略重複 start。"
+            duplicate_result = "noop_already_running"
+            duplicate_operator_message = "此 bot run 的長駐 worker 已驗證健康；保留原狀。"
+        else:
+            duplicate_event_type = "start_requested_without_healthy_worker"
+            duplicate_level = "warning"
+            duplicate_message = "此 run 僅有 configured running state，未驗證到健康長駐 worker。"
+            duplicate_result = "configured_running_without_healthy_worker"
+            duplicate_operator_message = "已保留 configured running state；請執行 worker poll 或由 supervisor 重啟長駐 worker。"
         _insert_event(
             db,
             run_id=str(existing.get("id")),
             profile_id=profile_id,
-            event_type="start_requested_while_running",
-            level="info",
-            message="此 run 已在運行中；忽略重複 start。",
-            payload={"action_result": "noop_already_running"},
+            event_type=duplicate_event_type,
+            level=duplicate_level,
+            message=duplicate_message,
+            payload={"action_result": duplicate_result},
             created_at=now,
         )
         db.execute(
@@ -2798,8 +3059,8 @@ def start_execution_profile_run(
             ),
             {
                 "run_id": existing.get("id"),
-                "last_event_type": "start_requested_while_running",
-                "last_event_message": "此 run 已在運行中；忽略重複 start。",
+                "last_event_type": duplicate_event_type,
+                "last_event_message": duplicate_message,
                 "last_event_at": now,
                 "updated_at": now,
             },
@@ -2807,13 +3068,29 @@ def start_execution_profile_run(
         db.commit()
         return {
             "action": "start",
-            "action_result": "noop_already_running",
-            "operator_message": "此 bot run 已在運行中；保留原狀。",
+            "action_result": duplicate_result,
+            "operator_message": duplicate_operator_message,
             "snapshot": build_execution_control_plane_snapshot(db, status_payload, overview_payload),
             "run": get_execution_run_detail(db, str(existing.get("id")), status_payload=status_payload),
         }
 
     if existing and str(existing.get("state") or "") == "paused":
+        existing_strategy_name = str(existing.get("strategy_name") or "").strip()
+        requested_strategy_name = str((strategy_binding or {}).get("strategy_name") or "").strip()
+        if force_paper_shadow and requested_strategy_name and existing_strategy_name != requested_strategy_name:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "profile_run_conflict",
+                    "message": f"{profile_id} sleeve 已暫停「{existing_strategy_name or '另一個策略'}」；請先停止該 run 再切換。",
+                    "context": {
+                        "profile_id": profile_id,
+                        "running_strategy_name": existing_strategy_name or None,
+                        "requested_strategy_name": requested_strategy_name,
+                        "run_id": existing.get("id"),
+                    },
+                },
+            )
         resume_worker_control = _worker_control_contract(existing, "paused")
         resume_worker_control.update(
             {
@@ -2886,14 +3163,23 @@ def start_execution_profile_run(
     ) or "USDT"
     run_mode = shadow_mode if shadow_only else profile_row.get("mode")
     runtime_binding_status = SHADOW_RUNTIME_BINDING_STATUS if shadow_only else RUNTIME_BINDING_STATUS
+    selected_shadow_strategy_name = str((strategy_binding or {}).get("strategy_name") or "所選策略")
     message = (
-        "高信念精選影子觀察已建立；目前只收集即時決策、事件紀錄與同商品共享預覽，不送單、不加倉。"
+        f"「{selected_shadow_strategy_name}」Paper/Shadow 演練已建立；目前只收集決策、事件與 24h outcome，不送單、不加倉。"
+        if shadow_only and force_paper_shadow
+        else "高信念精選影子觀察已建立；目前只收集即時決策、事件紀錄與同商品共享預覽，不送單、不加倉。"
         if shadow_only
         else "Execution run 已建立；目前是 stateful control-plane beta，尚未綁定真實 per-bot capital / order ledger。"
     )
     event_type = "shadow_started" if shadow_only else "started"
     action_result = "shadow_started" if shadow_only else "started"
-    operator_message = "高信念精選影子觀察已啟動；不送單、不加倉。" if shadow_only else "已建立新的 execution run。"
+    operator_message = (
+        f"已把「{selected_shadow_strategy_name}」送入 Paper/Shadow 演練；不送單、不加倉。"
+        if shadow_only and force_paper_shadow
+        else "高信念精選影子觀察已啟動；不送單、不加倉。"
+        if shadow_only
+        else "已建立新的 execution run。"
+    )
     worker_control = _initial_worker_control(run_id, profile_id, shadow_only=shadow_only)
     bundle_freeze = _freeze_strategy_bundle_for_run(
         strategy_binding,
@@ -3156,7 +3442,6 @@ def stop_execution_run(db, run_id: str, status_payload: Optional[Dict[str, Any]]
 
 
 def get_execution_run_detail(db, run_id: str, status_payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    ensure_execution_control_plane_schema(db)
     run_row = _require_run_row(db, run_id)
     events = _load_run_events(db, [run_id], limit_per_run=20).get(run_id, [])
     return _serialize_run(run_row, events, status_payload=status_payload)

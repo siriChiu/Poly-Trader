@@ -219,10 +219,44 @@ def _predictor_feature_contract(db_path: Optional[str]) -> Dict[str, Any]:
     return payload
 
 
-def _model_artifact_contract(strategy_type: Optional[str], model_name: Optional[str]) -> Dict[str, Any]:
+def _model_artifact_contract(
+    strategy_type: Optional[str],
+    model_name: Optional[str],
+    *,
+    last_results: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     normalized_model = str(model_name or "rule_baseline").strip().lower() or "rule_baseline"
     normalized_type = str(strategy_type or "rule_based").strip().lower() or "rule_based"
     requires_model = normalized_type in {"hybrid", "ml_model"} and normalized_model not in {"rule_baseline", "rule_based"}
+    results = last_results if isinstance(last_results, dict) else {}
+    exact = results.get("fitted_model_artifact") if isinstance(results.get("fitted_model_artifact"), dict) else {}
+    if requires_model and exact:
+        exact_path = Path(str(exact.get("model_path") or "")).expanduser()
+        expected_sha = str(exact.get("model_sha256") or exact.get("model_hash") or "")
+        actual_sha = _sha256_file(exact_path) if exact_path.is_file() else None
+        exact_model_name = str(exact.get("model_name") or "").strip().lower()
+        exact_valid = bool(
+            exact.get("source") == "strategy_lab_backtest"
+            and exact_model_name == normalized_model
+            and expected_sha
+            and actual_sha == expected_sha
+        )
+        return {
+            "strategy_type": normalized_type,
+            "model_name": normalized_model,
+            "requires_model_artifact": True,
+            "status": "exact_backtest_artifact_available" if exact_valid else "exact_backtest_artifact_invalid",
+            "source": exact.get("source"),
+            "artifacts": [{"path": str(exact_path), "sha256": actual_sha, "size_bytes": exact_path.stat().st_size if exact_path.is_file() else None}],
+            "training_data_sha256": exact.get("training_data_sha256"),
+            "feature_schema_sha256": exact.get("feature_schema_sha256"),
+            "expected_model_sha256": expected_sha or None,
+            "operator_note": (
+                "已綁定 Strategy Lab 回測時實際評估的 fitted model。"
+                if exact_valid
+                else "回測 fitted model 的檔案、模型名稱或 checksum 不一致；必須重新回測並固化。"
+            ),
+        }
 
     candidate_paths: List[Path] = []
     if normalized_model in {"xgb", "xgboost"}:
@@ -248,7 +282,7 @@ def _model_artifact_contract(strategy_type: Optional[str], model_name: Optional[
 
     status = "not_required_for_rule_based"
     if requires_model and artifacts:
-        status = "artifact_available"
+        status = "non_backtest_artifact_available"
     elif requires_model:
         status = "missing_model_artifact_for_hybrid_strategy"
 
@@ -409,14 +443,16 @@ def build_strategy_bundle(
     freeze_status = "paper_shadow_topk_bundle_frozen" if strategy_source == "high_conviction_topk_shadow" else "strategy_lab_saved_bundle_frozen"
 
     feature_contract = _predictor_feature_contract(db_path)
-    model_contract = _model_artifact_contract(strategy_type, model_name)
+    model_contract = _model_artifact_contract(strategy_type, model_name, last_results=last_results)
     guardrails = _guardrail_contract(config, status_payload)
     backtest = _backtest_contract(last_results)
     project_source = _safe_project_source_contract()
 
     parity_blockers: List[str] = []
-    if model_contract.get("status") == "missing_model_artifact_for_hybrid_strategy":
-        parity_blockers.append(f"hybrid model artifact 尚未 freeze/export：{model_contract.get('model_name')}")
+    if model_contract.get("requires_model_artifact") and model_contract.get("status") != "exact_backtest_artifact_available":
+        parity_blockers.append(
+            f"尚未綁定 Strategy Lab 回測時的 exact fitted model：{model_contract.get('model_name')} ({model_contract.get('status')})"
+        )
     if not backtest.get("backtest_range"):
         parity_blockers.append("缺少 backtest_range，binary parity 無法對齊測試窗口")
     if feature_contract.get("status") not in {"available", "fallback_import_error"}:
@@ -473,7 +509,11 @@ def build_strategy_bundle(
         "bundle_artifact_name": f"{_slug(entry.get('slug') or entry.get('name'))}-{bundle_hash[:12]}.json",
         "deployability_status": deployability_status,
         "operator_action": (
-            "Strategy bundle 已固化；可透過 backend paper/shadow state poller 產生 parity event，live buy/add 仍依 guardrails fail-closed。"
+            "Strategy bundle 與回測時 exact fitted model 已固化；backend 可執行受控 Paper/Shadow 推論 cycle，live buy/add 仍依 outcome、venue 與 canary guardrails fail-closed。"
+            if model_contract.get("status") == "exact_backtest_artifact_available"
+            else "Strategy bundle 已固化，但 Hybrid 尚缺回測時 exact fitted model；請重新回測後再啟動 Paper/Shadow。"
+            if model_contract.get("requires_model_artifact")
+            else "規則策略 bundle 已固化；可透過 backend paper/shadow cycle 產生演練 event，live buy/add 仍依 guardrails fail-closed。"
             if guardrails.get("live_buy_add_status") == "fail_closed_live_buy_add"
             else "Strategy bundle 與 live-canary guardrails 已具備候選條件；仍需先完成 paper/shadow outcome reconciliation。"
         ),

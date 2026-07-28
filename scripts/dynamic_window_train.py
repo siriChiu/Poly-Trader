@@ -11,9 +11,11 @@ from pathlib import Path
 
 import numpy as np
 
-PROJECT_ROOT = Path('/home/kazuha/Poly-Trader')
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from database.runtime import configured_database_path
 
 try:
     from scipy import stats
@@ -21,7 +23,7 @@ try:
 except ImportError:
     HAS_SCIPY = False
 
-DB_PATH = PROJECT_ROOT / 'poly_trader.db'
+DB_PATH = configured_database_path()
 DRIFT_REPORT_PATH = PROJECT_ROOT / 'data' / 'recent_drift_report.json'
 DW_RESULT_PATH = PROJECT_ROOT / 'data' / 'dw_result.json'
 TARGET_COL = 'simulated_pyramid_win'

@@ -23,7 +23,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 from data_ingestion.labeling import DEFAULT_LONG_MAX_DD_PCT, DEFAULT_LONG_TP_PCT
 from feature_engine.feature_history_policy import FEATURE_KEY_MAP, SOURCE_FEATURE_KEYS
-DB_PATH = PROJECT_ROOT / "poly_trader.db"
+from database.runtime import configured_database_path
+DB_PATH = configured_database_path()
 OUT_PATH = PROJECT_ROOT / "data" / "recent_drift_report.json"
 TAIL_ROOT_CAUSE_OUT_PATH = PROJECT_ROOT / "data" / "canonical_tail_root_cause.json"
 TARGET_COL = "simulated_pyramid_win"

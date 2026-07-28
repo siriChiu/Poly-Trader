@@ -169,7 +169,7 @@ def test_pm_heartbeat_contract_is_machine_readable() -> None:
 
 def test_pm_heartbeat_checker_passes() -> None:
     completed = subprocess.run(
-        [sys.executable, "scripts/pm_heartbeat_check.py", "--format", "json"],
+        [sys.executable, "scripts/pm_heartbeat_check.py", "--contract-only", "--format", "json"],
         cwd=PROJECT_ROOT,
         check=True,
         capture_output=True,
@@ -178,7 +178,8 @@ def test_pm_heartbeat_checker_passes() -> None:
     payload = json.loads(completed.stdout)
 
     assert payload["ok"] is True
-    assert {check["id"] for check in payload["checks"]} >= {
+    check_ids = {check["id"] for check in payload["checks"]}
+    assert check_ids >= {
         "pm_contract_exists",
         "pm_required_docs_exist",
         "pm_entrypoints_exist",
@@ -187,15 +188,15 @@ def test_pm_heartbeat_checker_passes() -> None:
         "docs/ai-collaboration/PM_HEARTBEAT.md:pm_references",
         "README.md:pm_references",
         "ARCHITECTURE.md:pm_references",
-        "pm_status_current_state_fields",
-        "pm_customer_safe_alternative_current_truth",
-        "pm_paper_shadow_rehearsal_fail_closed_truth",
     }
+    assert "pm_status_current_state_fields" not in check_ids
+    assert "pm_customer_safe_alternative_current_truth" not in check_ids
+    assert "pm_live_canary_pivot_current_truth" not in check_ids
 
 
 def test_pm_checker_text_mode_is_question_answer_style() -> None:
     completed = subprocess.run(
-        [sys.executable, "scripts/pm_heartbeat_check.py", "--format", "text"],
+        [sys.executable, "scripts/pm_heartbeat_check.py", "--contract-only", "--format", "text"],
         cwd=PROJECT_ROOT,
         check=True,
         capture_output=True,
@@ -207,157 +208,14 @@ def test_pm_checker_text_mode_is_question_answer_style() -> None:
     assert "RESULT: PASS" in completed.stdout
 
 
-def test_pm_status_preserves_current_delivery_truth() -> None:
+def test_pm_status_is_snapshot_not_release_source_of_truth() -> None:
     text = STATUS_PATH.read_text(encoding="utf-8")
-    probe = json.loads((PROJECT_ROOT / "data/live_predict_probe.json").read_text(encoding="utf-8"))
-    breaker = json.loads((PROJECT_ROOT / "data/circuit_breaker_audit.json").read_text(encoding="utf-8"))
-    topk = json.loads((PROJECT_ROOT / "data/high_conviction_topk_oos_matrix.json").read_text(encoding="utf-8"))
-    execution = json.loads((PROJECT_ROOT / "data/execution_metadata_smoke.json").read_text(encoding="utf-8"))
-    venue_dry_run = json.loads((PROJECT_ROOT / "data/venue_dry_run_proof.json").read_text(encoding="utf-8"))
-    q15_support = json.loads((PROJECT_ROOT / "data/q15_support_audit.json").read_text(encoding="utf-8"))
-    paper_shadow = json.loads((PROJECT_ROOT / "data/paper_shadow_outcome_reconciliation.json").read_text(encoding="utf-8"))
 
-    details = probe.get("deployment_blocker_details") or {}
-    rows = _first_present(probe.get("current_live_structure_bucket_rows"), details.get("current_live_structure_bucket_rows"))
-    minimum = _first_present(probe.get("minimum_support_rows"), details.get("minimum_support_rows"))
-    gap = _first_present(probe.get("current_live_structure_bucket_gap_to_minimum"), details.get("current_live_structure_bucket_gap_to_minimum"))
-    support_route = _first_present(probe.get("support_route_verdict"), details.get("support_route_verdict"))
-    support_governance_route = _first_present(probe.get("support_governance_route"), details.get("support_governance_route"))
-    progress = probe.get("support_progress") if isinstance(probe.get("support_progress"), dict) else {}
-    details_progress = details.get("support_progress") if isinstance(details.get("support_progress"), dict) else {}
-    if not progress:
-        progress = details_progress
-    semantic_progress = progress.get("semantic_signature_progress") if isinstance(progress.get("semantic_signature_progress"), dict) else {}
-    semantic_delta = _first_present(progress.get("semantic_signature_delta_vs_previous"), semantic_progress.get("delta_vs_previous"))
-    semantic_stagnant = _first_present(progress.get("semantic_signature_stagnant_run_count"), semantic_progress.get("stagnant_run_count"))
-    semantic_stalled = _first_present(
-        progress.get("semantic_signature_stalled_support_accumulation"),
-        semantic_progress.get("stalled_support_accumulation"),
-    )
-    release = breaker["release_condition"]
-    matrix_rows = topk.get("rows") if isinstance(topk.get("rows"), list) else []
-    runtime_blocked_rows = [
-        row
-        for row in matrix_rows
-        if row.get("deployment_candidate_tier") == "runtime_blocked_oos_pass"
-    ]
-
-    assert "YELLOW_shadow_or_paper_usable" in text
-    assert str(probe["deployment_blocker"]) in text
-    assert str(probe["allowed_layers_reason"]) in text
-    assert str(probe["current_live_structure_bucket"]) in text
-    assert str(support_route) in text
-    assert str(support_governance_route) in text
-    assert f"{rows}/{minimum}" in text
-    assert f"gap={gap}" in text
-    assert f"allowed_layers_raw={probe['allowed_layers_raw']}" in text
-    assert f"allowed_layers={probe['allowed_layers']}" in text
-    decision_quality_score = _num_text(probe.get("decision_quality_score"))
-    if decision_quality_score is not None:
-        assert f"decision_quality_score={decision_quality_score}" in text
-    if progress.get("delta_vs_previous") is not None:
-        assert f"delta_vs_previous={progress['delta_vs_previous']}" in text
-    if progress.get("stagnant_run_count") is not None:
-        assert f"stagnant_run_count={progress['stagnant_run_count']}" in text
-    if semantic_delta is not None:
-        assert f"semantic_signature_delta_vs_previous={semantic_delta}" in text
-    if semantic_stagnant is not None:
-        assert f"semantic_signature_stagnant_run_count={semantic_stagnant}" in text
-    if isinstance(semantic_stalled, bool):
-        assert f"semantic_signature_stalled_support_accumulation={str(semantic_stalled).lower()}" in text
-    assert str(breaker["verdict"]) in text
-    assert f"release_ready={str(release['release_ready']).lower()}" in text
-    assert f"{release['current_recent_window_wins']}/{release['recent_window']}" in text
-    assert f"additional_recent_window_wins_needed={release['additional_recent_window_wins_needed']}" in text
-    assert "Top-K" in text
-    assert f"artifact_freshness_status={_topk_freshness_status(topk['generated_at'])}" in text
-    assert f"support_context_freshness_status={_topk_live_support_freshness_status(probe['generated_at'])}" in text
-    assert f"samples={topk['samples']}" in text
-    assert f"row_count={len(matrix_rows)}" in text
-    assert f"runtime_blocked_candidate_rows={len(runtime_blocked_rows)}" in text
-    assert f"runtime_ready={str(execution['runtime_ready']).lower()}" in text
-    assert f"runtime_ready_count={execution['runtime_ready_count']}" in text
-    assert f"venues_checked={execution['venues_checked']}" in text
-    assert f"venue_dry_run_status={venue_dry_run['status']}" in text
-    assert f"order_submission_enabled={str(venue_dry_run['order_submission_enabled']).lower()}" in text
-    assert f"risk_on_order_enabled={str(venue_dry_run['risk_on_order_enabled']).lower()}" in text
-    assert f"dry_run_only={str(venue_dry_run['dry_run_only']).lower()}" in text
-    paper_shadow_summary = paper_shadow.get("summary") or {}
-    paper_shadow_proof = paper_shadow.get("rehearsal_proof") or {}
-    assert "Paper/shadow worker parity" in text
-    assert f"status={paper_shadow['status']}" in text
-    assert f"worker_poll_events={paper_shadow_summary['worker_poll_events']}" in text
-    assert f"pending_outcomes={paper_shadow_summary['pending_outcomes']}" in text
-    assert f"resolved_outcomes={paper_shadow_summary['resolved_outcomes']}" in text
-    assert f"awaiting_label_replay={paper_shadow_summary['awaiting_label_replay']}" in text
-    assert f"live_order_submitted={str(paper_shadow_summary['live_order_submitted']).lower()}" in text
-    assert f"status={paper_shadow_proof['status']}" in text
-    assert f"can_poll_workers={str(paper_shadow_proof['can_poll_workers']).lower()}" in text
-    assert f"poll_blocked_by_pending_outcome={str(paper_shadow_proof['poll_blocked_by_pending_outcome']).lower()}" in text
-    assert f"order_submission_enabled={str(paper_shadow_proof['order_submission_enabled']).lower()}" in text
-    assert f"risk_on_order_enabled={str(paper_shadow_proof['risk_on_order_enabled']).lower()}" in text
-    assert f"live_order_submitted={str(paper_shadow_proof['live_order_submitted']).lower()}" in text
-    assert "current_pending_hours_remaining_hours=" in text
-    assert f"artifact_pending_hours_remaining_hours={paper_shadow_proof['pending_hours_remaining_min']}" in text
-    assert "pending_hours_remaining_min=" not in text
-    q15_equilibrium = q15_support.get("equilibrium_deadlock") or {}
-    q15_forced_artifact = q15_equilibrium.get("forced_research_action_artifact") or {}
-    q15_forced_branch = (
-        q15_support.get("forced_branch_decision")
-        or (q15_support.get("active_repair_plan") or {}).get("forced_branch_decision")
-        or {}
-    )
-    if q15_equilibrium.get("verdict"):
-        assert f"equilibrium_deadlock={q15_equilibrium['verdict']}" in text
-    if q15_equilibrium.get("confirmed") is not None:
-        assert f"equilibrium_deadlock_confirmed={str(q15_equilibrium['confirmed']).lower()}" in text
-    if q15_forced_artifact.get("required") is not None:
-        assert f"forced_research_action_required={str(q15_forced_artifact['required']).lower()}" in text
-    if q15_forced_branch.get("status"):
-        assert f"forced_branch_status={q15_forced_branch['status']}" in text
-    if q15_forced_branch.get("selected_branch"):
-        assert f"selected_branch={q15_forced_branch['selected_branch']}" in text
-    if q15_forced_branch.get("single_failed_gate"):
-        assert f"single_failed_gate={q15_forced_branch['single_failed_gate']}" in text
-    if q15_forced_branch.get("next_validation_artifact"):
-        assert f"next_validation_artifact={q15_forced_branch['next_validation_artifact']}" in text
-    assert "/api/status.execution_surface_contract.live_canary_policy_gate" in text
-    assert "Dashboard / Execution Status / Strategy Lab status-only summaries" in text
-    for rel_path in pm_heartbeat_check.PM_CURRENT_ARTIFACT_FRESHNESS_PATHS:
-        assert f"{rel_path} freshness_status=fresh" in text
-    assert "Strategy Lab" in text
-    assert "Execution Console" in text
-    assert "客戶成功" in text
-    assert "framework-capture" in text
-    assert "ORANGE_framework_capture_risk" in text
-    assert "ORANGE_alternative_solution_required" in text
-    assert "alternative-solution" in text
-    assert "time-to-evidence" in text
-    assert "anti-equilibrium" in text
-    assert "customer-value delta" in text
-    assert "anti-repeat" in text
-    assert "cost-of-delay" in text
-    assert "hypothesis inversion" in text
-    assert "option portfolio" in text
-    assert "red-team PM" in text
-    assert "forced-execution" in text
-    assert "bounded live-canary" in text
-    assert "72h" in text
-    assert "Venue lifecycle proof" in text
-    assert "Model shadow to decision" in text
-    assert "Strategy micro-canary" in text
-    assert "live buy/add" in text or "真實買入 / 加倉" in text
-    if probe.get("deployment_blocker") == "circuit_breaker_active" or breaker.get("verdict") == "canonical_breaker_active":
-        assert "breaker_clear" not in text
-        assert "breaker math can be clear" not in text
-        assert "熔斷仍 active" in text
-    if _support_ready(rows, minimum, gap, support_route):
-        assert "尚未建立同一 support identity 的精準樣本" not in text
-        assert "current exact support 已達" in text
-        assert "單一 support/governance gate" in text
-        if support_governance_route == "exact_live_bucket_supported":
-            assert "只能當治理 / proxy reference" not in text
-            assert "是 exact-support evidence" in text
+    assert "this file is not a release source of truth" in text
+    assert "python scripts/pm_heartbeat_check.py --format text" in text
+    assert "--contract-only" in text
+    assert "must never authorize Promotion, Live, order submission, or risk-on behavior" in text
+    assert "must remain fail-closed" in text
 
 
 def test_pm_checker_flags_stale_current_artifacts(monkeypatch) -> None:

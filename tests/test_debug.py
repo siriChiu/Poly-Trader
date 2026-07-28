@@ -1,15 +1,27 @@
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.resolve()))
+from __future__ import annotations
 
-from config import load_config
-from database.models import init_db, RawMarketData
+from datetime import datetime, timezone
 
-cfg = load_config()
-session = init_db(cfg["database"]["url"])
-row = session.query(RawMarketData).first()
-print(f"has eye_dist: {hasattr(row, 'eye_dist')}")
-print(f"eye_dist = {row.eye_dist}")
-print(f"ear_prob = {row.ear_prob}")
-print(f"stablecoin_mcap = {row.stablecoin_mcap}")
-session.close()
+from database.models import RawMarketData, init_db
+
+
+def test_raw_market_debug_fields_round_trip_in_isolated_database(tmp_path) -> None:
+    session = init_db(f"sqlite:///{tmp_path / 'raw_market_debug.db'}")
+    try:
+        row = RawMarketData(
+            timestamp=datetime(2026, 7, 16, tzinfo=timezone.utc),
+            symbol="BTC-USDT-SWAP",
+            eye_dist=0.25,
+            ear_prob=0.75,
+            stablecoin_mcap=123_456.0,
+        )
+        session.add(row)
+        session.commit()
+        session.expire_all()
+
+        stored = session.query(RawMarketData).one()
+        assert getattr(stored, "eye_dist") == 0.25
+        assert getattr(stored, "ear_prob") == 0.75
+        assert getattr(stored, "stablecoin_mcap") == 123_456.0
+    finally:
+        session.close()

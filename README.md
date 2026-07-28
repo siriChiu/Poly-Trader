@@ -311,25 +311,16 @@ Outcome reconciliation 由 `GET /api/execution/workers/outcomes` 讀取；本機
 git clone <repo-url>
 cd Poly-Trader
 
-# 2. 安裝 Python 依賴
-pip install -r requirements.txt
-
-# 3. 初始化資料庫
-python scripts/init_db.py
-
-# 4. 啟動後端
-uvicorn server.main:app --reload --port 8000
-
-# 5. 啟動前端（新終端）
-cd web
-npm install
-npm run dev
+# 2. 一行同時安裝（首次）並啟動後端與前端
+python scripts/dev.py
 ```
 
-開啟：
+啟動器會自動建立／使用專案虛擬環境、安裝缺少的 Python 與前端相依套件、初始化資料庫，並固定使用 API `8000` 與前端 `5173`。它不會對 Ubuntu 系統 Python 執行 `pip install`，因此不需要也不要使用 `--break-system-packages`。前端會明確連到本次啟動的 API；按 `Ctrl+C` 會一起關閉兩個服務。開啟：
 
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8000
+
+若埠被舊服務佔用，啟動器會直接提示，而不會靜默改埠、導致網頁連到舊資料。`npm audit fix` 不是啟動必要步驟，請不要為了啟動而執行它。
 
 ---
 

@@ -37,6 +37,7 @@ PM_CURRENT_ARTIFACT_FRESHNESS_PATHS = (
     "data/live_canary_structural_pivot.json",
     "data/no_trade_lane_replay.json",
     "data/paper_shadow_outcome_reconciliation.json",
+    "data/microstructure_contract.json",
 )
 
 REQUIRED_GATE_IDS = [
@@ -442,6 +443,10 @@ def _pm_status_required_snippets() -> tuple[list[str], list[str]]:
         "hc_support_context_refresh_status",
         "hc_support_context_status",
         "hc_live_truth_freshness_status",
+        "Microstructure / dynamic edge contract",
+        "microstructure_contract",
+        "decision_status=observation_only",
+        "forecast_edge_bps=None",
     ]
     artifact_errors: list[str] = []
     freshness_required, freshness_errors = _pm_current_artifact_freshness_snippets()
@@ -1267,21 +1272,23 @@ def _check_paper_shadow_rehearsal_fail_closed_truth() -> list[CheckResult]:
     ]
 
 
-def run_checks() -> dict[str, Any]:
+def run_checks(*, contract_only: bool = False) -> dict[str, Any]:
     contract, results = _load_contract()
     if contract is not None:
         results.extend(_check_required_docs(contract))
         results.extend(_check_entrypoints(contract))
         results.extend(_check_question_gates(contract))
         results.extend(_check_doc_references())
-        results.extend(_check_pm_status_current_state())
-        results.extend(_check_customer_safe_alternative_current_truth())
-        results.extend(_check_paper_shadow_rehearsal_fail_closed_truth())
-        results.extend(_check_live_canary_pivot_current_truth())
+        if not contract_only:
+            results.extend(_check_pm_status_current_state())
+            results.extend(_check_customer_safe_alternative_current_truth())
+            results.extend(_check_paper_shadow_rehearsal_fail_closed_truth())
+            results.extend(_check_live_canary_pivot_current_truth())
 
     ok = all(result.ok for result in results)
     return {
         "ok": ok,
+        "scope": "contract" if contract_only else "full_runtime",
         "contract_path": str(CONTRACT_PATH.relative_to(PROJECT_ROOT)),
         "checks": [result.as_dict() for result in results],
     }
@@ -1306,9 +1313,14 @@ def main(argv: list[str] | None = None) -> int:
         default="text",
         help="Output format.",
     )
+    parser.add_argument(
+        "--contract-only",
+        action="store_true",
+        help="Validate deterministic PM harness contracts without volatile runtime artifacts.",
+    )
     args = parser.parse_args(argv)
 
-    payload = run_checks()
+    payload = run_checks(contract_only=args.contract_only)
     if args.format == "json":
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     else:

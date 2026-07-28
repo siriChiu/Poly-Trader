@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import pickle
@@ -133,6 +134,82 @@ def sha256_file(path: Path) -> Optional[str]:
         return digest.hexdigest()
     except Exception:
         return None
+
+
+def freeze_fitted_model_artifact(
+    *,
+    strategy: Dict[str, Any],
+    model: Any,
+    model_name: str,
+    feature_columns: List[str],
+    target_col: str,
+    training_frame: pd.DataFrame,
+    root: Path = DEFAULT_LIVE_MODEL_ROOT,
+) -> FrozenModelArtifact:
+    """Persist the exact fitted model evaluated by Strategy Lab.
+
+    The metadata is intentionally self-verifying so a managed paper/shadow
+    worker can reject retrained or schema-drifted substitutes.
+    """
+
+    root = Path(root)
+    root.mkdir(parents=True, exist_ok=True)
+    s_hash = strategy_hash(strategy)
+    slug = str(strategy.get("slug") or strategy_lab._strategy_slug(str(strategy.get("name") or "strategy")))
+    base = root / f"{slug}-{s_hash[:12]}-{model_name}-backtest"
+    model_path = base.with_suffix(".pkl")
+    metadata_path = base.with_suffix(".json")
+    with model_path.open("wb") as handle:
+        pickle.dump(model, handle)
+
+    digest_columns = [column for column in ["timestamp", *feature_columns, target_col] if column in training_frame.columns]
+    digest_frame = training_frame[digest_columns].copy() if digest_columns else training_frame.copy()
+    training_digest = hashlib.sha256(pd.util.hash_pandas_object(digest_frame, index=True).values.tobytes()).hexdigest()
+    feature_schema_digest = sha256_text(canonical_json({"feature_columns": feature_columns, "target_col": target_col}))
+    model_digest = sha256_file(model_path)
+    metadata = {
+        "artifact_schema_version": 2,
+        "source": "strategy_lab_backtest",
+        "created_at": utc_now_iso(),
+        "strategy_name": strategy.get("name"),
+        "strategy_slug": strategy.get("slug"),
+        "strategy_hash": s_hash,
+        "model_name": str(model_name),
+        "target": str(target_col),
+        "target_col": str(target_col),
+        "feature_columns": list(feature_columns),
+        "feature_count": len(feature_columns),
+        "training_rows": int(len(training_frame)),
+        "training_min_timestamp": str(training_frame["timestamp"].min()) if "timestamp" in training_frame.columns and not training_frame.empty else None,
+        "training_max_timestamp": str(training_frame["timestamp"].max()) if "timestamp" in training_frame.columns and not training_frame.empty else None,
+        "training_data_sha256": training_digest,
+        "feature_schema_sha256": feature_schema_digest,
+        "model_path": str(model_path),
+        "metadata_path": str(metadata_path),
+        "model_hash": model_digest,
+        "model_sha256": model_digest,
+    }
+    metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+    return FrozenModelArtifact(model=model, model_path=model_path, metadata_path=metadata_path, metadata=metadata)
+
+
+def _load_exact_backtest_artifact(strategy: Dict[str, Any]) -> Optional[FrozenModelArtifact]:
+    results = strategy.get("last_results") if isinstance(strategy.get("last_results"), dict) else {}
+    metadata = results.get("fitted_model_artifact") if isinstance(results.get("fitted_model_artifact"), dict) else {}
+    if metadata.get("source") != "strategy_lab_backtest":
+        return None
+    model_path = Path(str(metadata.get("model_path") or ""))
+    metadata_path = Path(str(metadata.get("metadata_path") or ""))
+    if not model_path.is_file() or not metadata_path.is_file():
+        return None
+    if metadata.get("strategy_hash") != strategy_hash(strategy):
+        return None
+    expected_sha = str(metadata.get("model_sha256") or metadata.get("model_hash") or "")
+    if not expected_sha or sha256_file(model_path) != expected_sha:
+        return None
+    with model_path.open("rb") as handle:
+        model = pickle.load(handle)
+    return FrozenModelArtifact(model=model, model_path=model_path, metadata_path=metadata_path, metadata=dict(metadata))
 
 
 def strategy_hash(strategy: Dict[str, Any]) -> str:
@@ -365,12 +442,20 @@ def ensure_model_artifact(
     strategy: Dict[str, Any],
     refresh: bool = False,
     root: Path = DEFAULT_LIVE_MODEL_ROOT,
+    require_exact: bool = False,
 ) -> FrozenModelArtifact:
     definition = strategy.get("definition") if isinstance(strategy.get("definition"), dict) else {}
     params = definition.get("params") if isinstance(definition.get("params"), dict) else {}
     model_name = str(params.get("model_name") or "rule_baseline")
     if model_name == "rule_baseline":
         raise RuntimeError("rule_baseline does not need a frozen model artifact")
+
+    if not refresh:
+        exact_artifact = _load_exact_backtest_artifact(strategy)
+        if exact_artifact is not None:
+            return exact_artifact
+    if require_exact:
+        raise RuntimeError("exact Strategy Lab fitted model is missing, stale, or checksum-invalid; rerun the backtest before paper/shadow")
 
     root.mkdir(parents=True, exist_ok=True)
     s_hash = strategy_hash(strategy)
@@ -984,6 +1069,71 @@ class LiveTradingRunner:
             decision.setdefault("order_submitted", False)
 
         return self._record_decision(decision)
+
+
+def run_exact_strategy_paper_shadow_cycle(
+    *,
+    session,
+    strategy_name: str,
+    execution_run_id: str,
+    config: Optional[Dict[str, Any]] = None,
+    trading_root: Path = DEFAULT_LIVE_TRADING_ROOT,
+) -> Dict[str, Any]:
+    """Execute one no-submit cycle using the exact fitted Strategy Lab model."""
+
+    strategy = load_saved_strategy(strategy_name)
+    definition = strategy.get("definition") if isinstance(strategy.get("definition"), dict) else {}
+    strategy_type = str(definition.get("type") or "rule_based")
+    if strategy_type != "hybrid":
+        raise RuntimeError("exact fitted-model paper/shadow cycle currently requires a hybrid Strategy Lab strategy")
+    artifact = ensure_model_artifact(session=session, strategy=strategy, require_exact=True)
+    managed_config = copy.deepcopy(config or {})
+    execution_cfg = managed_config.setdefault("execution", {})
+    execution_cfg.update({"mode": "paper", "enable_live_trading": False})
+    trading_cfg = managed_config.setdefault("trading", {})
+    trading_cfg["dry_run"] = True
+    live_cfg = managed_config.setdefault("live_runner", {})
+    live_cfg.update(
+        {
+            "strategy_name": strategy_name,
+            "shadow_candidate_enabled": False,
+            "force_shadow_candidate": False,
+            "shadow_evidence_mode": False,
+        }
+    )
+    managed_run_id = f"paper-shadow-{execution_run_id}"
+    runner = LiveTradingRunner(
+        managed_config,
+        session,
+        run_id=managed_run_id,
+        model_artifact=artifact,
+        trading_root=Path(trading_root),
+    )
+    started = False
+    try:
+        runner.start_run()
+        started = True
+        decision = runner.run_cycle(collect_market=False, preprocess=False, submit_orders=False)
+        runner.stop_run("paper_shadow_cycle_complete")
+    except Exception:
+        if started:
+            runner.stop_run("paper_shadow_cycle_failed")
+        raise
+    return {
+        "status": "exact_strategy_cycle_completed",
+        "execution_run_id": execution_run_id,
+        "managed_run_id": managed_run_id,
+        "strategy_name": strategy_name,
+        "strategy_hash": strategy_hash(strategy),
+        "model_name": artifact.model_name,
+        "model_sha256": artifact.metadata.get("model_sha256") or artifact.metadata.get("model_hash"),
+        "training_data_sha256": artifact.metadata.get("training_data_sha256"),
+        "feature_schema_sha256": artifact.metadata.get("feature_schema_sha256"),
+        "decision": decision,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "live_order_submitted": False,
+    }
 
 
 def runner_interval_seconds(config: Dict[str, Any], fallback: int = 300) -> int:

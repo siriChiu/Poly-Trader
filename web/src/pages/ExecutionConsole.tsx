@@ -502,6 +502,18 @@ type ExecutionWorkerControl = {
   status?: string | null;
   state?: string | null;
   backend_worker_bound?: boolean | null;
+  legacy_backend_worker_bound?: boolean | null;
+  poll_handler_available?: boolean | null;
+  continuous_worker?: boolean | null;
+  runtime_liveness?: {
+    status?: string | null;
+    healthy?: boolean | null;
+    pid?: number | null;
+    pid_alive?: boolean | null;
+    lease_status?: string | null;
+    heartbeat_status?: string | null;
+    last_poll_at?: string | null;
+  } | null;
   worker_kind?: string | null;
   order_submission_enabled?: boolean | null;
   risk_on_order_enabled?: boolean | null;
@@ -726,6 +738,9 @@ type ExecutionOverviewResponse = {
     standby_profiles?: number;
     monitoring_profiles?: number;
     running_runs?: number;
+    configured_running_rows?: number;
+    manual_poll_running_rows?: number;
+    healthy_continuous_workers?: number;
     paused_runs?: number;
     stopped_runs?: number;
     total_runs?: number;
@@ -861,7 +876,9 @@ type ExecutionRunRecord = {
   profile_id?: string;
   label?: string;
   state?: string;
+  state_truth?: string;
   state_label?: string;
+  runtime_liveness?: ExecutionWorkerControl["runtime_liveness"];
   mode?: string;
   control_mode?: string;
   runtime_binding_status?: string;
@@ -884,6 +901,32 @@ type ExecutionRunRecord = {
   strategy_bundle_status?: string | null;
   worker_status?: string | null;
   worker_control?: ExecutionWorkerControl | null;
+  promotion_status?: {
+    state?: string | null;
+    journey_contract_status?: string | null;
+    journey_complete?: boolean | null;
+    progress_current?: number | null;
+    progress_target?: number | null;
+    declared_stage_count?: number | null;
+    progress_is_release_metric?: boolean | null;
+    stages?: Array<{
+      key?: string | null;
+      label?: string | null;
+      status?: string | null;
+    }> | null;
+    next_action?: {
+      route?: string | null;
+      label?: string | null;
+      action?: string | null;
+    } | null;
+    operator_fix?: string | null;
+    blocking_reason?: string | null;
+    safety?: {
+      order_submission_enabled?: boolean | null;
+      risk_on_order_enabled?: boolean | null;
+      live_order_submitted?: boolean | null;
+    } | null;
+  } | null;
   action_contract?: {
     can_pause?: boolean;
     can_resume?: boolean;
@@ -905,6 +948,9 @@ type ExecutionRunsResponse = {
     blocked_profiles?: number;
     standby_profiles?: number;
     running_runs?: number;
+    configured_running_rows?: number;
+    manual_poll_running_rows?: number;
+    healthy_continuous_workers?: number;
     paused_runs?: number;
     stopped_runs?: number;
     total_runs?: number;
@@ -1356,6 +1402,21 @@ export default function ExecutionConsole() {
   const readinessStatusTone = executionReadiness?.canary_ready ? "ok" : (executionReadiness?.status === "shadow_reduce_only" ? "warning" : "blocked");
   const executionRunsSummary = executionRuns?.summary ?? null;
   const executionRunRecords = Array.isArray(executionRuns?.runs) ? executionRuns.runs : [];
+  const promotionRun = executionRunRecords.find((run) => run.promotion_status?.state === "paper_shadow_evidence_recorded")
+    || executionRunRecords.find((run) => run.state === "running" && run.promotion_status)
+    || executionRunRecords.find((run) => run.promotion_status)
+    || null;
+  const promotionStatus = promotionRun?.promotion_status ?? null;
+  const promotionStages = Array.isArray(promotionStatus?.stages) ? promotionStatus.stages : [];
+  const promotionStrategyName = promotionRun?.strategy_binding?.strategy_name || promotionRun?.label || "尚未選擇策略";
+  const promotionHasReleaseProgress = promotionStatus?.progress_is_release_metric === true
+    && typeof promotionStatus.progress_target === "number"
+    && promotionStatus.progress_target > 0;
+  const promotionProgressLabel = promotionStatus
+    ? promotionHasReleaseProgress
+      ? `${promotionStatus.progress_current ?? 0}/${promotionStatus.progress_target}`
+      : `${promotionStatus.progress_current ?? 0} 個證據階段 · 非發布進度`
+    : "尚未建立證據 journey";
   const workerOutcomeArtifact = workerOutcomes?.artifact ?? null;
   const workerOutcomeSummary = workerOutcomeArtifact?.summary ?? null;
   const workerRehearsalProof = workerOutcomeArtifact?.rehearsal_proof ?? null;
@@ -1490,12 +1551,10 @@ export default function ExecutionConsole() {
   const operatorShortcutBlockedMessage = manualBuyBlockedMessage;
   const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");
   const deploymentStatusDetail = runtimeStatusPending
-    ? "正在向 /api/status 取得目前阻塞點 / 部署閉環摘要。"
-    : humanizeRuntimeDetailText(
-      executionSurfaceContract?.live_ready
-        ? (liveRuntimeTruth?.runtime_closure_summary || executionSurfaceContract?.operator_message || "目前已滿足主要部署條件。")
-        : (liveRuntimeTruth?.runtime_closure_summary || liveRuntimeTruth?.deployment_blocker_reason || primaryBlockedReason)
-    );
+    ? "正在向 /api/status 取得部署狀態。"
+    : executionSurfaceContract?.live_ready
+      ? humanizeRuntimeDetailText(executionSurfaceContract?.operator_message || "目前已滿足主要部署條件。")
+      : primaryBlockedReason;
   const dryRunEnabled = Boolean(runtimeStatus?.dry_run);
   const executionSymbol = runtimeStatus?.symbol || "BTCUSDT";
   const executionModeRaw = executionSummary?.mode || (dryRunEnabled ? "dry_run" : "paper");
@@ -1559,12 +1618,17 @@ export default function ExecutionConsole() {
   const missingSleeveLabels = (executionStrategySummary?.missing_sleeves || [])
     .map((value) => sleeveLabelById.get(value) || humanizeRuntimeDetailText(value) || value)
     .filter((value): value is string => Boolean(value));
-  const runningRunsLabel = runsPending ? "同步中" : String(executionRunsSummary?.running_runs ?? 0);
+  const configuredRunningRows = executionRunsSummary?.configured_running_rows ?? executionRunsSummary?.running_runs ?? 0;
+  const manualPollRunningRows = executionRunsSummary?.manual_poll_running_rows
+    ?? executionRunRecords.filter((run) => run.state_truth === "configured_manual_poll_not_continuous_worker").length;
+  const healthyContinuousWorkers = executionRunsSummary?.healthy_continuous_workers
+    ?? executionRunRecords.filter((run) => run.runtime_liveness?.healthy === true).length;
+  const runningRunsLabel = runsPending ? "同步中" : String(healthyContinuousWorkers);
   const workerOutcomeProofLoading = workerOutcomesLoading && !workerOutcomes && !workerOutcomesError;
   const workerPollPendingGuardActive = Boolean(workerRehearsalProof?.poll_blocked_by_pending_outcome);
   const workerPollAvailable = Boolean(
     workerRehearsalProof?.can_poll_workers
-    ?? (!workerOutcomeProofLoading && !workerPollPendingGuardActive && ((executionRunsSummary?.running_runs ?? 0) > 0))
+    ?? (!workerOutcomeProofLoading && !workerPollPendingGuardActive && configuredRunningRows > 0)
   );
   const workerPollDisabledReason = workerOutcomeProofLoading
     ? "正在同步 paper/shadow outcome proof；同步完成前先不重複 poll。"
@@ -1572,10 +1636,10 @@ export default function ExecutionConsole() {
       ? `24h outcome 觀察窗尚未到期；${workerOutcomeEtaLabel}`
       : workerRehearsalProof?.can_poll_workers === false
         ? workerOutcomeNextActionLabel
-        : ((executionRunsSummary?.running_runs ?? 0) <= 0 ? "目前沒有 running run 可供 worker poll。" : "");
+        : (configuredRunningRows <= 0 ? "目前沒有已啟用控制列可供 worker poll。" : "");
   const runningRunsSummaryLabel = runsPending
     ? "正在向 /api/execution/runs 取得運行控制 / 事件。"
-    : `運行中 ${executionRunsSummary?.running_runs ?? 0} · 獲利中 ${profitableRuns} · 總計 ${executionRunsSummary?.total_runs ?? executionRunRecords.length} · 已配置倉位腿 ${configuredSleeveCount}`;
+    : `健康長駐 ${healthyContinuousWorkers} · 手動輪詢 ${manualPollRunningRows} · 已啟用控制列 ${configuredRunningRows} · 獲利預覽 ${profitableRuns} · 總計 ${executionRunsSummary?.total_runs ?? executionRunRecords.length}`;
   const executionStrategySummaryLabel = overviewPending
     ? "正在向 /api/execution/overview 取得策略 / 倉位腿覆蓋。"
     : `已儲存策略 ${executionStrategySummary?.strategy_count ?? 0} · 已覆蓋倉位腿 ${executionStrategySummary?.covered_sleeves ?? 0}/${executionStrategySummary?.total_sleeves ?? 0} · 缺 ${missingSleeveLabels.join(" / ") || "無"}`;
@@ -1872,8 +1936,9 @@ export default function ExecutionConsole() {
           </div>
         )}
         {rangeChopPlaybookVisible && (
-          <div className="rounded-[24px] border border-cyan-400/25 bg-[linear-gradient(135deg,rgba(34,211,238,0.14),rgba(124,58,237,0.14))] p-4 shadow-[0_18px_40px_rgba(34,211,238,0.10)]">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <details className="rounded-[24px] border border-cyan-400/20 bg-cyan-400/5 px-4 py-3">
+            <summary className="cursor-pointer list-none text-sm font-semibold text-cyan-100">震盪市場安全路徑 · 影子觀察 / 減風險先行</summary>
+            <div className="mt-4 flex flex-col gap-3 border-t border-cyan-300/10 pt-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <div className="text-[11px] font-semibold tracking-[0.22em] text-cyan-200/80">高低震盪實戰拆解</div>
                 <div className="mt-2 text-lg font-semibold text-cyan-50">震盪不是停工，也不是永遠不能實戰</div>
@@ -1892,15 +1957,94 @@ export default function ExecutionConsole() {
               </div>
             </div>
             <div className="mt-3 text-xs text-cyan-100/70">買入 / 加倉仍等即時部署門檻；影子觀察只收集執行期證據，不送單。</div>
-          </div>
+          </details>
         )}
       </ExecutionHero>
+
+      <ExecutionSectionCard
+        title="模型升級證據（非發布進度）"
+        subtitle="目前只呈現已落地證據與缺口；Promotion 自動化尚未形成可執行閉環。"
+        aside={<ExecutionPill className={getStatusTone(promotionStatus?.state === "paper_shadow_evidence_recorded" ? "warning" : "blocked")}>{promotionProgressLabel}</ExecutionPill>}
+      >
+        <div className="rounded-[24px] border border-violet-400/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.16),rgba(34,211,238,0.08))] p-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-200/75">目前策略</div>
+              <div className="mt-1 truncate text-lg font-semibold text-white">{promotionStrategyName}</div>
+              <div className="mt-1 text-sm text-slate-300">
+                {promotionStatus?.state === "paper_shadow_evidence_recorded"
+                  ? "Exact fitted model 已留下單次 Paper/Shadow 證據；24h outcome 仍需獨立對帳，Live 維持 fail-closed。"
+                  : promotionStatus?.operator_fix || "先到策略實驗室選擇候選並重新回測，系統會固化 exact fitted model。"}
+              </div>
+            </div>
+            <a href={promotionStatus?.next_action?.route || "/lab"} className="app-button-primary shrink-0">
+              {promotionStatus?.next_action?.label || "選擇並回測策略"}
+            </a>
+          </div>
+          {promotionHasReleaseProgress ? (
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/8">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-violet-400 to-cyan-300 transition-all"
+                style={{ width: `${Math.min(100, Math.max(0, ((promotionStatus?.progress_current ?? 0) / Math.max(1, promotionStatus?.progress_target ?? 1)) * 100))}%` }}
+              />
+            </div>
+          ) : (
+            <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/8 px-3 py-2 text-xs text-amber-100/85">
+              這些階段只描述證據是否存在，不代表發布完成百分比，也不能授權 Live。
+            </div>
+          )}
+          <div className="mt-4 grid gap-2 sm:grid-cols-5">
+            {(promotionStages.length ? promotionStages : [
+              { key: "bundle", label: "策略 Bundle", status: "blocked" },
+              { key: "exact_runtime", label: "Exact Model", status: "blocked" },
+              { key: "paper_shadow", label: "Paper / Shadow", status: "blocked" },
+              { key: "outcome_24h", label: "24h Outcome", status: "blocked" },
+              { key: "live_candidate", label: "Live Candidate", status: "blocked" },
+            ]).map((stage, index) => {
+              const stageStatus = String(stage.status || "blocked");
+              const complete = stageStatus === "complete";
+              const evidenceRecorded = stageStatus === "evidence_recorded";
+              const active = stageStatus === "reconciliation_required";
+              const implemented = stageStatus !== "not_implemented";
+              return (
+                <div key={stage.key || stage.label || index} className={`rounded-xl border p-3 ${complete ? "border-emerald-400/25 bg-emerald-400/8" : evidenceRecorded || active ? "border-cyan-400/25 bg-cyan-400/8" : "border-white/8 bg-black/15"}`}>
+                  <div className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${complete ? "text-emerald-200" : evidenceRecorded || active ? "text-cyan-200" : "text-slate-500"}`}>Step {index + 1}</div>
+                  <div className="mt-1 text-xs font-semibold text-slate-100">{stage.label || stage.key}</div>
+                  <div className={`mt-1 text-[11px] ${complete ? "text-emerald-200/75" : evidenceRecorded || active ? "text-cyan-200/75" : "text-slate-500"}`}>
+                    {complete ? "已完成" : evidenceRecorded ? "證據已記錄" : active ? "需獨立對帳" : !implemented ? "尚未實作" : stage.key === "live_candidate" ? "安全鎖定" : "待處理"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {promotionStatus?.blocking_reason && (
+            <div className="mt-3 text-xs text-amber-100/75">Live 解鎖條件：{promotionStatus.blocking_reason}</div>
+          )}
+        </div>
+      </ExecutionSectionCard>
 
       <ExecutionSectionCard
         title="實戰準備度"
         subtitle="Shadow / Reduce-only：買入 / 加倉仍鎖住；影子觀察、減風險與 venue proof 今天可以前進。"
         aside={<ExecutionPill className={getStatusTone(readinessStatusTone)}>{readinessStageLabel}</ExecutionPill>}
       >
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/8 p-4">
+            <div className="text-xs font-semibold text-emerald-100">現在可以做</div>
+            <div className="mt-2 text-sm text-emerald-50">{promotionStatus?.next_action?.label || readinessCanDo[0] || "啟動 Paper/Shadow 安全演練"}</div>
+          </div>
+          <div className="rounded-2xl border border-amber-400/20 bg-amber-400/8 p-4">
+            <div className="text-xs font-semibold text-amber-100">主要阻塞</div>
+            <div className="mt-2 line-clamp-2 text-sm text-amber-50">{primaryBlockedReason}</div>
+          </div>
+          <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/8 p-4">
+            <div className="text-xs font-semibold text-cyan-100">安全邊界</div>
+            <div className="mt-2 text-sm text-cyan-50">Paper/Shadow 可執行；Live 買入 / 加倉保持鎖定，不送實單。</div>
+          </div>
+        </div>
+        <details className="mt-3 rounded-2xl border border-white/8 bg-white/[0.02]">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-200">查看 Gate、Shadow Ledger 與 Venue 技術證據</summary>
+          <div className="border-t border-white/8 p-3">
         <div className="grid gap-3 xl:grid-cols-[1.2fr_0.9fr_0.9fr]">
           <div className="space-y-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2079,6 +2223,8 @@ export default function ExecutionConsole() {
             </div>
           </div>
         </div>
+          </div>
+        </details>
       </ExecutionSectionCard>
 
       <section className={`rounded-[24px] border p-4 text-xs ${shadowEvidenceDaemonTone}`}>
@@ -2122,7 +2268,7 @@ export default function ExecutionConsole() {
           detail={deployableCapitalSummaryLabel}
         />
         <ExecutionMetricCard
-          title="運行中 Bot"
+          title="健康長駐 Worker"
           value={runningRunsLabel}
           detail={runningRunsSummaryLabel}
         />
@@ -2140,7 +2286,7 @@ export default function ExecutionConsole() {
               <div>
                 <div className="text-lg font-semibold text-white">我的 Bot</div>
                 <div className="mt-1 text-sm text-slate-400">
-                  已配置倉位腿策略與共享帳戶預覽；是否真的運行請看「運行中 Bot」。
+                  已配置倉位腿策略與共享帳戶預覽；DB 控制列不等於長駐程序，請看「健康長駐 Worker」。
                 </div>
               </div>
               <div className="text-right text-xs text-slate-400">

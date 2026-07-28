@@ -78,7 +78,11 @@ def test_compute_features_from_raw_projects_turning_point_family(monkeypatch):
         }
     )
 
-    monkeypatch.setattr(preprocessor, "_compute_technical_indicators_from_df", lambda _df: {})
+    monkeypatch.setattr(
+        preprocessor,
+        "_compute_technical_indicators_from_df",
+        lambda _df, *, ohlcv_4h=None: {},
+    )
 
     features = preprocessor.compute_features_from_raw(df)
 

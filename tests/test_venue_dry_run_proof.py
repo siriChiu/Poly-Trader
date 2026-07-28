@@ -80,6 +80,58 @@ def test_venue_dry_run_proof_keeps_metadata_only_okx_fail_closed():
     assert "token" not in str(payload).lower()
 
 
+def test_venue_dry_run_proof_records_local_lifecycle_rehearsal_without_runtime_promotion():
+    payload = proof.build_venue_dry_run_proof(
+        {
+            "symbol": "BTC/USDT",
+            "venues": [
+                {
+                    "ok": True,
+                    "venue": "okx",
+                    "adapter_supported": True,
+                    "enabled_in_config": True,
+                    "credentials_configured": False,
+                    "proof_state": "public_metadata_only",
+                    "runtime_ready": False,
+                    "contract": {"symbol": "BTC/USDT", "min_qty": 0.001},
+                }
+            ],
+        },
+        generated_at="2026-07-19T07:15:00Z",
+    )
+
+    rehearsal = payload["local_lifecycle_rehearsal"]
+    assert rehearsal["status"] == "passed_local_state_machine_runtime_unverified"
+    assert rehearsal["scope"] == "local_contract_rehearsal_not_exchange_proof"
+    assert rehearsal["venue"] == "okx"
+    assert rehearsal["runtime_backed"] is False
+    assert rehearsal["dry_run_only"] is True
+    assert rehearsal["order_submission_enabled"] is False
+    assert rehearsal["risk_on_order_enabled"] is False
+    assert rehearsal["live_order_submitted"] is False
+    assert [event["state"] for event in rehearsal["events"]] == [
+        "previewed",
+        "open",
+        "partially_filled",
+        "canceled",
+        "reconciled",
+    ]
+    assert rehearsal["checks"] == {
+        "transition_order_valid": True,
+        "filled_qty_lte_requested_qty": True,
+        "remaining_qty_matches": True,
+        "terminal_state_canceled": True,
+        "ledger_match": True,
+        "live_adapter_called": False,
+    }
+    assert payload["runtime_ready"] is False
+    assert payload["order_submission_enabled"] is False
+    rendered = proof.markdown(payload)
+    assert "local lifecycle rehearsal" in rendered
+    assert "passed_local_state_machine_runtime_unverified" in rendered
+    assert "local_contract_rehearsal_not_exchange_proof" in rendered
+
+
 def test_venue_dry_run_proof_is_fail_closed_when_metadata_artifact_missing():
     payload = proof.build_venue_dry_run_proof({}, generated_at="2026-06-04T04:00:00Z")
 
@@ -89,3 +141,15 @@ def test_venue_dry_run_proof_is_fail_closed_when_metadata_artifact_missing():
     assert payload["venues"][0]["proof_state"] == "artifact_missing_or_unparseable"
     assert payload["order_preview"]["status"] == "blocked_metadata_artifact_missing"
     assert payload["ack_simulation"]["runtime_backed"] is False
+
+
+def test_venue_dry_run_markdown_ends_with_one_newline(tmp_path):
+    payload = proof.build_venue_dry_run_proof({}, generated_at="2026-06-04T04:00:00Z")
+    json_out = tmp_path / "venue_dry_run_proof.json"
+    markdown_out = tmp_path / "venue_dry_run_proof.md"
+
+    proof.write_outputs(payload, json_out, markdown_out)
+
+    markdown = markdown_out.read_text(encoding="utf-8")
+    assert markdown.endswith("\n")
+    assert not markdown.endswith("\n\n")

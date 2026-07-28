@@ -35,9 +35,10 @@
 | `scripts/customer_safe_alternative_api_consistency_probe.py` | 驗證 `/api/execution/overview.customer_safe_alternative_proof` 與 `data/customer_safe_alternative_proof.json` 的 alternative aliases、counts、summary mirror、fail-closed flags、secret-safe 欄位同源 |
 | `docs/README.md` / `scripts/doc_topology_check.py` | 文件分類與 root/docs/data 邊界檢查；Markdown report companion 放 `docs/analysis/`，machine truth 留 `data/*.json` |
 | `scripts/repo_cleanroom_audit.py` | 盤點 / 清理 repo 本地 generated noise；只刪 root scratch scripts、per-run heartbeat logs、runtime logs、generated scan scratch、cache、frontend build output 與 CatBoost scratch，保留 venv、DB、model、current-state artifacts，並列出大型 protected artifacts 供人工決策 |
+| `scripts/auto_propose_fixes.py` | blocker 自動提出 / 更新 / resolve |
+| `scripts/heartbeat_governor.py` | 外部 anti-self-certification governor；計算 semantic signature、repeat count、support stagnation 與 forced branch，不接受 Agent 自評 |
 | `ISSUES.md` / `ROADMAP.md` / `ORID_DECISIONS.md` | current-state only，由 heartbeat overwrite sync |
 | `scripts/hb_parallel_runner.py` | heartbeat runner 主入口；序列 lane 會先跑 active backend health strict probe，失敗會進 summary / final status |
-| `scripts/auto_propose_fixes.py` | blocker 自動提出 / 更新 / resolve |
 
 > 原則：`AGENTS.md` 是地圖，不是手冊；詳細規則放到 `docs/ai-collaboration/HEARTBEAT.md`、`docs/ai-collaboration/harness/*` 與可測腳本。
 

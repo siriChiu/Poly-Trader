@@ -11,6 +11,8 @@ spec.loader.exec_module(auto_propose_fixes)
 
 def test_check_db_uses_canonical_simulated_pyramid_win(tmp_path, monkeypatch):
     monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    monkeypatch.setenv("POLY_TRADER_DATABASE_PATH", str(tmp_path / "poly_trader.db"))
+    monkeypatch.setenv("POLY_TRADER_DATABASE_URL", f"sqlite:///{tmp_path / 'poly_trader.db'}")
     db_path = tmp_path / "poly_trader.db"
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE raw_market_data (timestamp TEXT)")
@@ -39,6 +41,8 @@ def test_is_reference_only_patch_status_accepts_scope_mismatch_variant():
 
 def test_check_db_prefers_canonical_1440m_streak_over_mixed_horizon_tail(tmp_path, monkeypatch):
     monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    monkeypatch.setenv("POLY_TRADER_DATABASE_PATH", str(tmp_path / "poly_trader.db"))
+    monkeypatch.setenv("POLY_TRADER_DATABASE_URL", f"sqlite:///{tmp_path / 'poly_trader.db'}")
     db_path = tmp_path / "poly_trader.db"
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE raw_market_data (timestamp TEXT)")
@@ -69,6 +73,8 @@ def test_check_db_prefers_canonical_1440m_streak_over_mixed_horizon_tail(tmp_pat
 
 def test_check_db_does_not_truncate_canonical_streaks_beyond_200_rows(tmp_path, monkeypatch):
     monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    monkeypatch.setenv("POLY_TRADER_DATABASE_PATH", str(tmp_path / "poly_trader.db"))
+    monkeypatch.setenv("POLY_TRADER_DATABASE_URL", f"sqlite:///{tmp_path / 'poly_trader.db'}")
     db_path = tmp_path / "poly_trader.db"
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE raw_market_data (timestamp TEXT)")
@@ -96,6 +102,8 @@ def test_check_db_does_not_truncate_canonical_streaks_beyond_200_rows(tmp_path, 
 
 def test_check_db_orders_streak_by_timestamp_not_insert_order(tmp_path, monkeypatch):
     monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    monkeypatch.setenv("POLY_TRADER_DATABASE_PATH", str(tmp_path / "poly_trader.db"))
+    monkeypatch.setenv("POLY_TRADER_DATABASE_URL", f"sqlite:///{tmp_path / 'poly_trader.db'}")
     db_path = tmp_path / "poly_trader.db"
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE raw_market_data (timestamp TEXT)")
@@ -174,6 +182,8 @@ def test_upsert_issue_overwrites_summary_on_existing_issue():
 
 def test_load_recent_tw_history_reads_structured_ic_diagnostics(tmp_path, monkeypatch):
     monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    monkeypatch.setenv("POLY_TRADER_DATABASE_PATH", str(tmp_path / "poly_trader.db"))
+    monkeypatch.setenv("POLY_TRADER_DATABASE_URL", f"sqlite:///{tmp_path / 'poly_trader.db'}")
     data_dir = tmp_path / "data"
     data_dir.mkdir()
 
@@ -194,6 +204,8 @@ def test_load_recent_tw_history_reads_structured_ic_diagnostics(tmp_path, monkey
 
 def test_load_recent_tw_history_prefers_numbered_heartbeats_over_fast_alias(tmp_path, monkeypatch):
     monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    monkeypatch.setenv("POLY_TRADER_DATABASE_PATH", str(tmp_path / "poly_trader.db"))
+    monkeypatch.setenv("POLY_TRADER_DATABASE_URL", f"sqlite:///{tmp_path / 'poly_trader.db'}")
     data_dir = tmp_path / "data"
     data_dir.mkdir()
 
@@ -215,6 +227,8 @@ def test_load_recent_tw_history_prefers_numbered_heartbeats_over_fast_alias(tmp_
 
 def test_load_recent_tw_history_prefers_timestamped_cron_runs_over_legacy_numeric_ids(tmp_path, monkeypatch):
     monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    monkeypatch.setenv("POLY_TRADER_DATABASE_PATH", str(tmp_path / "poly_trader.db"))
+    monkeypatch.setenv("POLY_TRADER_DATABASE_URL", f"sqlite:///{tmp_path / 'poly_trader.db'}")
     data_dir = tmp_path / "data"
     data_dir.mkdir()
 
@@ -245,6 +259,8 @@ def test_load_recent_tw_history_prefers_timestamped_cron_runs_over_legacy_numeri
 
 def test_load_recent_tw_history_keeps_numbered_current_run_on_numbered_lineage(tmp_path, monkeypatch):
     monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    monkeypatch.setenv("POLY_TRADER_DATABASE_PATH", str(tmp_path / "poly_trader.db"))
+    monkeypatch.setenv("POLY_TRADER_DATABASE_URL", f"sqlite:///{tmp_path / 'poly_trader.db'}")
     data_dir = tmp_path / "data"
     data_dir.mkdir()
 
@@ -271,6 +287,8 @@ def test_load_recent_tw_history_keeps_numbered_current_run_on_numbered_lineage(t
 
 def test_load_recent_tw_history_treats_productization_suffix_as_numbered_lineage(tmp_path, monkeypatch):
     monkeypatch.setattr(auto_propose_fixes, "ROOT", tmp_path)
+    monkeypatch.setenv("POLY_TRADER_DATABASE_PATH", str(tmp_path / "poly_trader.db"))
+    monkeypatch.setenv("POLY_TRADER_DATABASE_URL", f"sqlite:///{tmp_path / 'poly_trader.db'}")
     data_dir = tmp_path / "data"
     data_dir.mkdir()
 

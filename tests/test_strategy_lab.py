@@ -109,6 +109,7 @@ def test_save_strategy_persists_detail_payload_and_strategy_metadata(isolated_st
             "total_trades": 21,
             "benchmarks": {"buy_hold": {"label": "買入持有", "roi": 0.04}},
             "equity_curve": [{"timestamp": "2026-01-01T00:00:00Z", "equity": 10000.0}],
+            "score_series_context": {"evaluation_mode": "in_sample_full_fit", "is_oos": False},
             "trades": [{"timestamp": "2026-01-02T00:00:00Z", "entry": 100.0, "exit": 110.0, "pnl": 50.0, "reason": "tp_roi"}],
             "chart_context": {"symbol": "BTCUSDT", "interval": "4h", "start": "2026-01-01T00:00:00Z", "end": "2026-01-10T00:00:00Z"},
         },
@@ -119,6 +120,7 @@ def test_save_strategy_persists_detail_payload_and_strategy_metadata(isolated_st
     assert loaded is not None
     assert loaded["last_results"]["benchmarks"]["buy_hold"]["roi"] == pytest.approx(0.04)
     assert loaded["last_results"]["equity_curve"][0]["equity"] == pytest.approx(10000.0)
+    assert loaded["last_results"]["score_series_context"]["evaluation_mode"] == "in_sample_full_fit"
     assert loaded["last_results"]["trades"][0]["entry"] == pytest.approx(100.0)
     assert loaded["last_results"]["chart_context"]["interval"] == "4h"
     assert loaded["metadata"]["title"] == "Pyramid v3 Optimized"
@@ -162,6 +164,30 @@ def test_save_strategy_reconstructs_backtest_range_when_legacy_results_dropped_i
     assert recovered_range["available"]["end"] == "2026-04-19T22:40:00.000Z"
     assert recovered_range["coverage_ok"] is True
     assert recovered_range["backfill_required"] is False
+
+
+def test_save_strategy_persists_interior_gap_diagnostics(isolated_strategies_dir: Path):
+    strategy_lab.save_strategy(
+        "Interior Gap Diagnostics",
+        {"type": "rule_based", "params": {}},
+        {
+            "backtest_range": {
+                "coverage_ok": False,
+                "backfill_required": True,
+                "interior_gap_count": 1,
+                "largest_interior_gap_hours": 36.5,
+                "interior_gaps": [{"start": "2026-06-05T03:00:00Z", "end": "2026-06-06T15:30:00Z", "gap_hours": 36.5}],
+            },
+        },
+    )
+
+    loaded = strategy_lab.load_strategy("Interior Gap Diagnostics")
+
+    assert loaded is not None
+    persisted = loaded["last_results"]["backtest_range"]
+    assert persisted["interior_gap_count"] == 1
+    assert persisted["largest_interior_gap_hours"] == pytest.approx(36.5)
+    assert persisted["interior_gaps"][0]["gap_hours"] == pytest.approx(36.5)
 
 
 def test_save_strategy_backtest_range_does_not_keep_narrow_trade_window_as_available(isolated_strategies_dir: Path):
@@ -494,7 +520,7 @@ def test_select_strategy_chart_payload_downsamples_oversized_equity_curve_withou
     assert payload["equity_curve"][-1]["timestamp"] == equity_curve[-1]["timestamp"]
     assert payload["chart_context"]["start"] == equity_curve[0]["timestamp"]
     assert payload["chart_context"]["end"] == equity_curve[-1]["timestamp"]
-    assert payload["chart_context"]["limit"] == 1000
+    assert payload["chart_context"]["limit"] == len(equity_curve)
 
 
 
@@ -598,6 +624,38 @@ def test_filter_strategy_rows_by_backtest_range_includes_date_only_end():
     assert len(filtered) == 2
     assert meta["backfill_required"] is True
     assert meta["effective"]["end"].startswith("2026-05-28")
+
+
+def test_filter_strategy_rows_by_backtest_range_detects_interior_data_gap():
+    rows = [
+        ("2026-06-05 00:00:00", 100.0),
+        ("2026-06-05 04:00:00", 101.0),
+        ("2026-06-26 00:00:00", 102.0),
+        ("2026-06-26 04:00:00", 103.0),
+    ]
+
+    _, meta = api_module._filter_strategy_rows_by_backtest_range(
+        rows,
+        start="2026-06-05T00:00:00Z",
+        end="2026-06-26T04:00:00Z",
+    )
+
+    assert meta["coverage_ok"] is False
+    assert meta["backfill_required"] is True
+    assert meta["interior_gap_count"] == 1
+    assert meta["largest_interior_gap_hours"] > 400
+    assert meta["interior_gaps"][0]["start"].startswith("2026-06-05T04:00:00")
+
+
+def test_filter_strategy_rows_by_backtest_range_detects_single_missing_4h_bar():
+    _, meta = api_module._filter_strategy_rows_by_backtest_range(
+        [("2026-06-01 00:00:00", 100.0), ("2026-06-01 08:00:00", 102.0)],
+        start="2026-06-01T00:00:00Z",
+        end="2026-06-01T08:00:00Z",
+    )
+
+    assert meta["interior_gap_count"] == 1
+    assert meta["largest_interior_gap_hours"] == 8.0
 
 
 def test_resolve_default_strategy_backtest_range_uses_latest_two_year_window_when_missing():
@@ -992,7 +1050,10 @@ def test_execute_strategy_run_auto_backfills_when_requested_range_exceeds_local_
     assert backfill_calls[0]["target_start"].startswith("2024-04-16")
     assert backfill_calls[0]["target_end"].startswith("2026-04-16")
     assert load_calls["count"] >= 2
-    assert payload["results"]["backtest_range"]["backfill_required"] is False
+    # The fixture intentionally contains only sparse boundary rows after the
+    # mocked backfill, so the new continuity guard must retain the warning.
+    assert payload["results"]["backtest_range"]["backfill_required"] is True
+    assert payload["results"]["backtest_range"]["interior_gap_count"] > 0
     assert payload["results"]["backtest_range"]["effective"]["start"].startswith("2024-04-16")
 
 
@@ -1078,6 +1139,10 @@ def test_execute_strategy_run_hybrid_passes_local_turning_scores(monkeypatch):
     )
 
     assert payload["results"]["roi"] == pytest.approx(0.12)
+    assert payload["results"]["score_series_context"]["evaluation_mode"] == "in_sample_full_fit"
+    assert payload["results"]["score_series_context"]["is_oos"] is False
+    assert payload["results"]["score_series_context"]["oos_start"] is None
+    assert payload["results"]["score_series_context"]["operator_label"] == "全資料擬合分數（非 OOS）"
     assert captured["local_bottom_score"] == [0.66, 0.71]
     assert captured["local_top_score"] == [0.18, 0.24]
 
@@ -1525,7 +1590,7 @@ def test_api_get_strategy_bounds_detail_payload_series_for_workspace(monkeypatch
             "entry_quality": 0.5,
             "model_confidence": 0.5,
         }
-        for idx in range(420)
+        for idx in range(1420)
     ]
     strategy_entry = {
         "name": "Auto Leaderboard · 大型 payload 測試",
@@ -1555,8 +1620,10 @@ def test_api_get_strategy_bounds_detail_payload_series_for_workspace(monkeypatch
     assert len(payload["last_results"]["equity_curve"]) <= 1000
     assert payload["last_results"]["equity_curve"][0]["timestamp"] == equity_curve[0]["timestamp"]
     assert payload["last_results"]["equity_curve"][-1]["timestamp"] == equity_curve[-1]["timestamp"]
-    assert len(payload["last_results"]["score_series"]) == 300
-    assert payload["last_results"]["chart_context"]["limit"] == 1000
+    assert len(payload["last_results"]["score_series"]) == len(score_series)
+    assert payload["last_results"]["score_series"][0]["timestamp"] == score_series[0]["timestamp"]
+    assert payload["last_results"]["score_series"][-1]["timestamp"] == score_series[-1]["timestamp"]
+    assert payload["last_results"]["chart_context"]["limit"] == 5000
     assert payload["last_results"]["trades"][0]["reason"] == "tp_roi"
 
 

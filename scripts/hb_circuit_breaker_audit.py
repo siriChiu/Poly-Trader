@@ -22,6 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from database.runtime import configured_database_path
 from model.predictor import (
     CIRCUIT_BREAKER_HORIZON_MINUTES,
     CIRCUIT_BREAKER_RECENT_WINRATE,
@@ -30,7 +31,7 @@ from model.predictor import (
     DEFAULT_TARGET_COL,
 )
 
-DB_PATH = PROJECT_ROOT / "poly_trader.db"
+DB_PATH = configured_database_path()
 OUT_JSON = PROJECT_ROOT / "data" / "circuit_breaker_audit.json"
 OUT_MD = PROJECT_ROOT / "docs" / "analysis" / "circuit_breaker_audit.md"
 

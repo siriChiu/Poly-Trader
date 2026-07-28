@@ -48,7 +48,7 @@
 
 心跳詳細流程定義在 [`docs/ai-collaboration/HEARTBEAT.md`](HEARTBEAT.md)。每次心跳必須完整執行閉環 Step 0~8。
 
-**核心節奏**：閱讀本文件 → 閱讀 HEARTBEAT / ISSUES / ROADMAP → 收集事實 → `docs/ai-collaboration/strategy-decision-guide.md` 收斂方案 → 六帽 + ORID → 修復 patch → 驗證 → current-state docs overwrite sync → 宣告下一輪 gate
+**核心節奏**：閱讀本文件 → 閱讀 HEARTBEAT / ISSUES / ROADMAP → 執行外部 `scripts/heartbeat_governor.py` → 收集事實 → `docs/ai-collaboration/strategy-decision-guide.md` 收斂方案 → 六帽 + ORID → 修復 patch → 驗證 → current-state docs overwrite sync → 宣告下一輪 gate。Governor 輸出優先於 Agent 自評；同一 signature 重複時不得只做 observation-only status refresh。
 
 ### 心跳身份
 每次讀取 `docs/ai-collaboration/HEARTBEAT.md` 時，你不是報告產生器，而是 **嚴厲的專案推行者** 與 **harness engineer**：

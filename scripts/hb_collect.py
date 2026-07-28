@@ -7,16 +7,14 @@ runs the preprocessor to compute features, and generates labels.
 
 Usage: python scripts/hb_collect.py
 """
-import json, os, sys, logging
+import json, sys, logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List
 
-PROJECT = "/home/kazuha/Poly-Trader"
-sys.path.insert(0, PROJECT)
-os.chdir(PROJECT)
-
-PYTHON = os.path.join(PROJECT, "venv", "bin", "python")
-os.environ["PYTHONPATH"] = PROJECT
+PROJECT = str(Path(__file__).resolve().parents[1])
+if PROJECT not in sys.path:
+    sys.path.insert(0, PROJECT)
 
 from config import load_config
 from database.models import RawMarketData, FeaturesNormalized, Labels, init_db

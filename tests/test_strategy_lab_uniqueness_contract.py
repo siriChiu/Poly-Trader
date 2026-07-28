@@ -216,7 +216,7 @@ def test_api_strategy_leaderboard_dedupes_cross_model_duplicate_auto_strategies(
 def test_strategy_lab_prefers_same_origin_strategy_fetches_for_dev_runtime():
     source = (Path(__file__).resolve().parents[1] / "web/src/pages/StrategyLab.tsx").read_text(encoding="utf-8")
     required_snippets = [
-        "const STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS = 2500;",
+        "const STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS = 20_000;",
         "const fetchStrategyLabEndpointJson = async (endpoint: string) => {",
         "const sameOriginController = new AbortController();",
         "const sameOriginTimeoutId = window.setTimeout(() => sameOriginController.abort(), STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS);",

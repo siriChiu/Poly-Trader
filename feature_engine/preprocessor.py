@@ -741,10 +741,17 @@ def run_preprocessor(
 
 
 def _load_existing_feature_timestamps(session: Session, symbol: str = "BTC/USDT") -> set:
+    """Return timestamps that are usable by Strategy Lab, not merely present.
+
+    A row created before its 4H indicators are available can exist with
+    ``feat_4h_bias50=NULL``.  Treating that as complete leaves an invisible
+    hole in the strategy-data join even though raw data is present.
+    """
     symbol_variants = _symbol_variants(symbol)
     rows = (
         session.query(FeaturesNormalized.timestamp)
         .filter((FeaturesNormalized.symbol.in_(symbol_variants)) | (FeaturesNormalized.symbol.is_(None)))
+        .filter(FeaturesNormalized.feat_4h_bias50.isnot(None))
         .order_by(FeaturesNormalized.timestamp)
         .all()
     )

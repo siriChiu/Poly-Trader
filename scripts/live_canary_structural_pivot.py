@@ -381,12 +381,15 @@ def _lane_actionability_context(live_probe: Mapping[str, Any], support: Mapping[
         )
     )
     if no_trade_block_lane:
+        support_rows = _to_int(support.get("support_rows"), default=0)
+        minimum_support_rows = _to_int(support.get("minimum_support_rows"), default=50)
         return {
             "current_lane_actionability": "no_trade_block_lane",
             "support_evidence_role": "no_trade_decision_validation_not_deployable_support",
             "operator_interpretation": (
-                "當前即時 lane 是 BLOCK / 不交易決策 lane。0/50 exact support 應視為無風險觀望驗證，"
-                "不是可收集來支撐買入 / 加倉部署的 support。"
+                "當前即時 lane 是 BLOCK / 不交易決策 lane。"
+                f"精準支持 {support_rows}/{minimum_support_rows} 只可視為無風險觀望驗證，"
+                "不可視為買入 / 加倉部署 closure。"
             ),
             "map_signal_forced_lane": "no_trade_lane_audit",
             "next_validation_artifact": "data/no_trade_lane_replay.json；驗證觀望 / reduce-only 行為，不把它寫成 risk-on support closure。",

@@ -19,12 +19,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from database.models import init_db
+from database.runtime import configured_database_url
 from execution.control_plane import (
     PAPER_SHADOW_OUTCOME_ARTIFACT_PATH,
     build_paper_shadow_outcome_reconciliation,
 )
 
-DEFAULT_DB_URL = f"sqlite:///{PROJECT_ROOT / 'poly_trader.db'}"
+DEFAULT_DB_URL = configured_database_url()
 
 
 def _mapping(value: Any) -> dict[str, Any]:

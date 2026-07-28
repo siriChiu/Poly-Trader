@@ -21,13 +21,14 @@ from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.isotonic import IsotonicRegression
 
 from database.models import FeaturesNormalized, Labels, RawMarketData
+from database.runtime import configured_database_path
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
 DEFAULT_TARGET_COL = "simulated_pyramid_win"
 MODEL_PATH = "model/xgb_model.pkl"
-DB_PATH = str(Path(__file__).parent.parent / "poly_trader.db")
+DB_PATH = str(configured_database_path())
 PROJECT_ROOT = Path(__file__).parent.parent
 # Heartbeat cron trains the final global model plus bounded rolling-CV folds.
 # Keep CPU parallelism explicit and bounded so the train lane can finish inside
@@ -1037,7 +1038,7 @@ def run_training(
         n_folds = len(cv_scores)
 
         trained_at = datetime.utcnow().isoformat()
-        db = sqlite3.connect('poly_trader.db')
+        db = sqlite3.connect(DB_PATH)
         cur = db.cursor()
         cur.execute("""
             INSERT INTO model_metrics (timestamp, train_accuracy, cv_accuracy, cv_std, n_features, notes)
@@ -1321,7 +1322,7 @@ def main(argv: Optional[list[str]] = None):
     args = parser.parse_args(argv)
 
     sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
-    db_path = str(Path(__file__).parent.parent / "poly_trader.db")
+    db_path = DB_PATH
     db_url = "sqlite:///" + db_path
     print("Loading data from " + db_path)
     session = init_db(db_url)

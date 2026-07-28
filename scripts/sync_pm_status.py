@@ -36,6 +36,7 @@ PM_CURRENT_ARTIFACT_FRESHNESS_PATHS = (
     "data/live_canary_structural_pivot.json",
     "data/no_trade_lane_replay.json",
     "data/paper_shadow_outcome_reconciliation.json",
+    "data/microstructure_contract.json",
 )
 
 
@@ -48,6 +49,10 @@ def _load_json(rel_path: str) -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         return {"__error__": f"{rel_path}: {exc}"}
     return payload if isinstance(payload, dict) else {"__error__": f"{rel_path}: root is not an object"}
+
+
+def _dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
 
 
 def _artifact_freshness_fields(
@@ -309,6 +314,7 @@ def build_pm_status_markdown(now: datetime | None = None) -> str:
     pivot = _load_json("data/live_canary_structural_pivot.json")
     no_trade = _load_json("data/no_trade_lane_replay.json")
     worker_outcome = _load_json("data/paper_shadow_outcome_reconciliation.json")
+    microstructure = _load_json("data/microstructure_contract.json")
 
     local_now = now or datetime.now().astimezone()
     updated_at = local_now.strftime("%Y-%m-%d %H:%M %Z")
@@ -329,6 +335,7 @@ def build_pm_status_markdown(now: datetime | None = None) -> str:
             "data/live_canary_structural_pivot.json": pivot,
             "data/no_trade_lane_replay.json": no_trade,
             "data/paper_shadow_outcome_reconciliation.json": worker_outcome,
+            "data/microstructure_contract.json": microstructure,
         },
         now=local_now,
     )
@@ -385,10 +392,10 @@ def build_pm_status_markdown(now: datetime | None = None) -> str:
     pivot_lane_actionability = pivot_truth.get("current_lane_actionability") or "—"
     pivot_support_evidence_role = pivot_truth.get("support_evidence_role") or "—"
     pivot_operator_interpretation = pivot_truth.get("operator_interpretation") or "—"
-    no_trade_decision = no_trade.get("replay_decision") if isinstance(no_trade.get("replay_decision"), dict) else {}
-    no_trade_truth = no_trade.get("current_truth") if isinstance(no_trade.get("current_truth"), dict) else {}
-    no_trade_checks = no_trade.get("machine_checks") if isinstance(no_trade.get("machine_checks"), dict) else {}
-    no_trade_replay = no_trade.get("replay") if isinstance(no_trade.get("replay"), dict) else {}
+    no_trade_decision = _dict(no_trade.get("replay_decision"))
+    no_trade_truth = _dict(no_trade.get("current_truth"))
+    no_trade_checks = _dict(no_trade.get("machine_checks"))
+    no_trade_replay = _dict(no_trade.get("replay"))
     no_trade_recent_context = (
         no_trade_replay.get("recent_drift_shadow_context")
         if isinstance(no_trade_replay.get("recent_drift_shadow_context"), dict)
@@ -528,6 +535,18 @@ def build_pm_status_markdown(now: datetime | None = None) -> str:
         if topk_live_support_status == "fresh"
         else topk_live_support_freshness.get("support_context_freshness_reason", "artifact_older_than_policy")
     )
+    probe_runtime_freshness = _artifact_freshness_fields(
+        probe.get("generated_at"),
+        stale_after_minutes=30.0,
+        now=local_now,
+    )
+    probe_runtime_status = probe_runtime_freshness.get("artifact_freshness_status", "unavailable")
+    probe_runtime_age = probe_runtime_freshness.get("artifact_age_minutes")
+    runtime_truth_clause = (
+        f"persisted live_predict_probe snapshot is runtime-stale (`status={probe_runtime_status}`, `age_minutes={_num_text(probe_runtime_age, 1)}`); effective `/api/status` / `/api/trade` runtime fallback remains authoritative and may expose a different current bucket"
+        if probe_runtime_status != "fresh"
+        else "live_predict_probe snapshot is runtime-fresh"
+    )
     topk_verdict = (
         "Top-K remains fresh research / paper-shadow evidence. Strategy Lab 可優先顯示 nearest-deployable research rows，但 `deployable_rows=0` means no risk-on live action."
         if topk_freshness_status == "fresh" and topk_live_support_status == "fresh"
@@ -546,6 +565,11 @@ def build_pm_status_markdown(now: datetime | None = None) -> str:
     worker_next_reconcile_at = worker_proof.get("next_reconcile_at", "—")
     worker_artifact_pending_hours = worker_proof.get("pending_hours_remaining_min", "—")
     worker_current_pending_hours = _hours_until(worker_next_reconcile_at, now=local_now)
+    micro_source = _dict(microstructure.get("source"))
+    micro_freshness = _dict(microstructure.get("freshness"))
+    micro_coverage = _dict(microstructure.get("coverage"))
+    micro_forecast = _dict(microstructure.get("forecast"))
+    micro_decision = _dict(microstructure.get("decision_contract"))
     primary_window, primary_summary = _drift_primary(drift)
     venue_rows = execution.get("venues") if isinstance(execution.get("venues"), list) else []
     venue_lines = []
@@ -577,6 +601,8 @@ def build_pm_status_markdown(now: datetime | None = None) -> str:
             f"credentials_configured={_bool_text(venue.get('credentials_configured'))}"
         )
     venue_dry_run_rows_text = "; ".join(venue_dry_run_rows) or "—"
+    venue_local_rehearsal = _dict(venue_dry_run.get("local_lifecycle_rehearsal"))
+    venue_local_checks = _dict(venue_local_rehearsal.get("checks"))
 
     decision_quality_score = _first_present(
         drilldown.get("decision_quality_score"),
@@ -590,6 +616,7 @@ def build_pm_status_markdown(now: datetime | None = None) -> str:
 _最後更新：{updated_at}_
 
 > Current-state PM interpretation. Do not append hourly history here; this file is generated from current runtime artifacts by `scripts/sync_pm_status.py` so PM checks fail on real drift, not stale literals.
+> Snapshot notice: this file is not a release source of truth; the strict full-runtime checker and current artifacts are authoritative. Run `python scripts/pm_heartbeat_check.py --format text` for the release gate. `--contract-only` is for deterministic diagnostics and must never authorize Promotion, Live, order submission, or risk-on behavior; when full runtime evidence fails, release must remain fail-closed.
 
 ---
 
@@ -597,7 +624,7 @@ _最後更新：{updated_at}_
 
 **State：`ORANGE_framework_capture_risk` governance overlay；safe lane remains `YELLOW_shadow_or_paper_usable`；`ORANGE_alternative_solution_required` remains active.**
 
-PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被 customer urgency 推翻。承接上一輪 PM handoff：{support_handoff_clause}、交付 paper/shadow / dry-run / falsification / support-fill proof，且不可降低 live gate。fresh runtime truth 顯示 current-live bucket 是 `{current_bucket}`；PM 決策不變：current exact support 是 `{rows}/{minimum}`、`gap={gap}`、`support_route_verdict={support_route}`，`support_governance_route={governance_route}` {governance_route_interpretation}。pivot lane role 是 `{pivot_lane_actionability}` / `{pivot_support_evidence_role}`：{pivot_operator_interpretation} no-trade replay verdict 是 `{no_trade_decision.get('verdict', '—')}` / `validated={_bool_text(no_trade_decision.get('validated'))}` / `deployable={_bool_text(no_trade_decision.get('deployable'))}` / `buy_add_support_closure_allowed={_bool_text(no_trade_decision.get('buy_add_support_closure_allowed'))}`。
+PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被 customer urgency 推翻。承接上一輪 PM handoff：{support_handoff_clause}、交付 paper/shadow / dry-run / falsification / support-fill proof，且不可降低 live gate。{runtime_truth_clause}；此文件的 persisted snapshot bucket 是 `{current_bucket}`，不可在runtime-stale時冒充API current truth。PM 決策不變：current exact support 是 `{rows}/{minimum}`、`gap={gap}`、`support_route_verdict={support_route}`，`support_governance_route={governance_route}` {governance_route_interpretation}。pivot lane role 是 `{pivot_lane_actionability}` / `{pivot_support_evidence_role}`：{pivot_operator_interpretation} no-trade replay verdict 是 `{no_trade_decision.get('verdict', '—')}` / `validated={_bool_text(no_trade_decision.get('validated'))}` / `deployable={_bool_text(no_trade_decision.get('deployable'))}` / `buy_add_support_closure_allowed={_bool_text(no_trade_decision.get('buy_add_support_closure_allowed'))}`。
 
 安全答案：`signal={probe.get('signal', '—')}` / `should_trade={_bool_text(probe.get('should_trade'))}` / `deployment_blocker={probe.get('deployment_blocker', '—')}` / `runtime_closure_state={probe.get('runtime_closure_state', '—')}` / `allowed_layers_raw={probe.get('allowed_layers_raw')}` / `allowed_layers={probe.get('allowed_layers')}` / `allowed_layers_reason={probe.get('allowed_layers_reason', '—')}` / `execution_guardrail_reason={probe.get('execution_guardrail_reason', '—')}` / `api_trade_guardrail_active={_bool_text(probe.get('api_trade_guardrail_active'))}` / `api_trade_buy_guardrail={probe.get('api_trade_buy_guardrail', '—')}`。客戶可以使用 Dashboard、Strategy Lab、Execution Console、paper/shadow decision-support、Shadow Trade Ledger、venue readiness checklist、range-chop playbook 與 canary rehearsal；Execution API 只允許 `shadow_buy` / `paper_buy` 以強制 dry-run paper/shadow 模式寫入演練證據，不可繞過 current-live guardrail；**真實買入 / 加倉 / live buy/add / 自動送單 / 小額 live canary 仍不可放行**，除非 bounded live-canary policy、current-live gate、support/breaker gate 與 venue lifecycle proof 全部通過。
 
@@ -608,6 +635,14 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 ### PM current-artifact freshness guard
 
 {chr(10).join(pm_freshness_lines)}
+
+### Microstructure / dynamic edge contract
+
+- `data/microstructure_contract.json` generated at `{microstructure.get('generated_at', '—')}`；status=`{microstructure.get('status', '—')}`。
+- Source: `kind={micro_source.get('kind', '—')}`, `name={micro_source.get('name', '—')}`, `configured={_bool_text(micro_source.get('configured'))}`, `available={_bool_text(micro_source.get('available'))}`, `freshness_status={micro_source.get('freshness_status', '—')}`；artifact freshness=`{micro_freshness.get('artifact_status', '—')}` / source status=`{micro_freshness.get('source_status', '—')}`。
+- Coverage: window `{micro_coverage.get('window_minutes', '—')}m`, events `{micro_coverage.get('covered_events', '—')}/{micro_coverage.get('observed_events', '—')}`, ratio `{_num_text(micro_coverage.get('coverage_ratio'))}`；source-backed features are observable, but dynamic edge remains observation-only until forecast lineage is calibrated.
+- Dynamic edge: `forecast_edge_bps={microstructure.get('forecast_edge_bps')}`, `forecast_source={micro_forecast.get('source', '—')}`, `forecast_freshness_status={micro_forecast.get('freshness_status', '—')}`；`decision_status={micro_decision.get('status', '—')}`, `paper_shadow_risk_on_allowed={_bool_text(micro_decision.get('paper_shadow_risk_on_allowed'))}`, `live_risk_on_allowed={_bool_text(micro_decision.get('live_risk_on_allowed'))}`。
+- PM interpretation: missing/stale source or missing forecast calibration is a capability blocker, not a zero-edge claim；keep cost-aware edge observation-only and do not promote OOS ROI proxies into risk-on or live decisions.
 
 ### Current-live blocker
 
@@ -645,6 +680,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 {chr(10).join(venue_lines)}
 - `data/venue_dry_run_proof.json` generated at `{venue_dry_run.get('generated_at', '—')}`；`venue_dry_run_status={venue_dry_run.get('status', '—')}`, `runtime_ready={_bool_text(venue_dry_run.get('runtime_ready'))}`, `runtime_ready_count={venue_dry_run.get('runtime_ready_count', '—')}`, `venues_checked={venue_dry_run.get('venues_checked', '—')}`, `order_submission_enabled={_bool_text(venue_dry_run.get('order_submission_enabled'))}`, `risk_on_order_enabled={_bool_text(venue_dry_run.get('risk_on_order_enabled'))}`, `dry_run_only={_bool_text(venue_dry_run.get('dry_run_only'))}`。
 - Dry-run lifecycle status: `ack={(venue_dry_run.get('ack_simulation') or {}).get('status', '—') if isinstance(venue_dry_run.get('ack_simulation'), dict) else '—'}`, `cancel={(venue_dry_run.get('cancel_simulation') or {}).get('status', '—') if isinstance(venue_dry_run.get('cancel_simulation'), dict) else '—'}`, `fill={(venue_dry_run.get('fill_simulation') or {}).get('status', '—') if isinstance(venue_dry_run.get('fill_simulation'), dict) else '—'}`, `reconciliation={(venue_dry_run.get('reconciliation_check') or {}).get('status', '—') if isinstance(venue_dry_run.get('reconciliation_check'), dict) else '—'}`；venue rows：{venue_dry_run_rows_text}。
+- Local lifecycle rehearsal: `local_rehearsal={venue_local_rehearsal.get('status', '—')}`, `local_scope={venue_local_rehearsal.get('scope', '—')}`, `local_runtime_backed={_bool_text(venue_local_rehearsal.get('runtime_backed'))}`, `local_live_adapter_called={_bool_text(venue_local_checks.get('live_adapter_called'))}`；這只證明本地 preview → ack → partial fill → cancel → reconcile 狀態機與 API 契約，不是 exchange runtime proof，也不提升 live readiness。
 - API source-of-truth: `/api/status` exposes `venue_dry_run_proof`, and `/api/execution/overview` prefers that artifact so UI/API/customer-safe proof use the same fail-closed venue lifecycle status.
 - API consistency verification: save `/api/status` and `/api/execution/overview` JSON, then run `python scripts/venue_dry_run_api_consistency_probe.py --status-file <status.json> --overview-file <overview.json> --artifact-file data/venue_dry_run_proof.json --strict`; expected `strict_ok=true`, `api_consistent=true`, `artifact_consistent=true`, `fail_closed=true`, and `secret_safe=true`.
 - `/api/status.execution_surface_contract.live_canary_policy_gate`, Execution Console readiness gate stack, and Dashboard / Execution Status / Strategy Lab status-only summaries now all expose `live_canary_policy_gate` with operator-safe blocker copy; canary readiness remains false unless mode/live flag/explicit allowed symbol/symbol cap/kill switch all satisfy the local bounded live-canary policy, even if runtime gates later pass.

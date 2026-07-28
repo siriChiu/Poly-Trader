@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Full IC analysis — v5. Global IC, TW-IC (tau=200), extended 15 TI features."""
 import json, os, sys
+from pathlib import Path
 import numpy as np
 
-sys.path.insert(0, '/home/kazuha/Poly-Trader')
-os.chdir('/home/kazuha/Poly-Trader')
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from database.runtime import configured_database_path
 
 try:
     import sqlite3
@@ -14,7 +18,7 @@ except ImportError:
     print("scipy not available, using numpy correlation")
     HAS_SCIPY = False
 
-DB_PATH = '/home/kazuha/Poly-Trader/poly_trader.db'
+DB_PATH = str(configured_database_path())
 TARGET_COL = 'simulated_pyramid_win'
 CANONICAL_HORIZON_MINUTES = 1440
 

@@ -40,7 +40,9 @@ REQUIRED_DOC_REFERENCES = {
         "docs/ai-collaboration/harness/heartbeat-qa.md",
         "PM heartbeat",
         "scripts/heartbeat_harness_check.py",
+        "scripts/heartbeat_governor.py",
         "anti-equilibrium",
+        "ANTI_SELF_CERTIFICATION",
         "bounded live-canary",
         "observation-only",
     ],
@@ -212,6 +214,42 @@ def _check_pm_handoff_contract(contract: dict[str, Any]) -> list[CheckResult]:
     ]
 
 
+def _check_external_governor_contract(contract: dict[str, Any]) -> list[CheckResult]:
+    entrypoints = contract.get("entrypoints", {})
+    signals = contract.get("agent_readable_signals", [])
+    heartbeat_path = PROJECT_ROOT / "docs" / "ai-collaboration" / "HEARTBEAT.md"
+    governor_path = PROJECT_ROOT / "scripts" / "heartbeat_governor.py"
+    heartbeat_text = heartbeat_path.read_text(encoding="utf-8") if heartbeat_path.exists() else ""
+    signal_names = {
+        item.get("name")
+        for item in signals
+        if isinstance(item, dict) and isinstance(item.get("name"), str)
+    }
+    missing: list[str] = []
+    if entrypoints.get("heartbeat_governor") != "scripts/heartbeat_governor.py":
+        missing.append("contract entrypoint heartbeat_governor")
+    if not governor_path.exists():
+        missing.append("scripts/heartbeat_governor.py")
+    if "external_anti_self_certification_truth" not in signal_names:
+        missing.append("contract signal external_anti_self_certification_truth")
+    for snippet in (
+        "scripts/heartbeat_governor.py",
+        "ANTI_SELF_CERTIFICATION",
+        "agent may not self-certify",
+        "forced branch",
+    ):
+        if snippet not in heartbeat_text:
+            missing.append(f"HEARTBEAT.md:{snippet}")
+    return [
+        CheckResult(
+            "external_governor_required",
+            "Heartbeat has an external anti-self-certification governor?",
+            not missing,
+            "ok" if not missing else ", ".join(missing),
+        )
+    ]
+
+
 def _check_doc_references() -> list[CheckResult]:
     results: list[CheckResult] = []
     for rel_path, required_snippets in REQUIRED_DOC_REFERENCES.items():
@@ -246,6 +284,7 @@ def run_checks() -> dict[str, Any]:
         results.extend(_check_entrypoints(contract))
         results.extend(_check_question_gates(contract))
         results.extend(_check_pm_handoff_contract(contract))
+        results.extend(_check_external_governor_contract(contract))
         results.extend(_check_doc_references())
 
     ok = all(result.ok for result in results)

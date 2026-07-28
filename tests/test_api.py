@@ -1,26 +1,37 @@
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-from config import load_config
 from database.models import FeaturesNormalized, init_db
 from server.senses import SensesEngine, normalize_feature
 
 
-@pytest.fixture(scope="module")
-def session():
-    cfg = load_config()
-    db = init_db(cfg["database"]["url"])
+@pytest.fixture
+def session(tmp_path):
+    db = init_db(f"sqlite:///{tmp_path / 'api_senses.db'}")
+    db.add(
+        FeaturesNormalized(
+            timestamp=datetime(2026, 7, 16, tzinfo=timezone.utc),
+            symbol="BTC-USDT-SWAP",
+            feat_eye=1.0,
+            feat_ear=0.01,
+            feat_nose=0.65,
+            feat_tongue=0.4,
+            feat_body=0.3,
+        )
+    )
+    db.commit()
     try:
         yield db
     finally:
         db.close()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def engine(session):
     e = SensesEngine()
     e.set_db(session)

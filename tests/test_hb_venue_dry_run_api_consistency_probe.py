@@ -78,6 +78,44 @@ def _proof(fill_status: str = "blocked_missing_credentials") -> dict:
             "risk_on_order_enabled": False,
             "live_order_submitted": False,
         },
+        "local_lifecycle_rehearsal": {
+            "status": "passed_local_state_machine_runtime_unverified",
+            "scope": "local_contract_rehearsal_not_exchange_proof",
+            "venue": "okx",
+            "runtime_backed": False,
+            "dry_run_only": True,
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "live_order_submitted": False,
+            "events": [
+                {"sequence": 1, "event_type": "order_previewed", "state": "previewed"},
+                {"sequence": 2, "event_type": "ack_recorded", "state": "open"},
+                {
+                    "sequence": 3,
+                    "event_type": "partial_fill_recorded",
+                    "state": "partially_filled",
+                    "requested_units": 100_000,
+                    "filled_units": 25_000,
+                    "remaining_units": 75_000,
+                },
+                {"sequence": 4, "event_type": "cancel_recorded", "state": "canceled"},
+                {
+                    "sequence": 5,
+                    "event_type": "ledger_reconciled",
+                    "state": "reconciled",
+                    "filled_units": 25_000,
+                    "canceled_units": 75_000,
+                },
+            ],
+            "checks": {
+                "transition_order_valid": True,
+                "filled_qty_lte_requested_qty": True,
+                "remaining_qty_matches": True,
+                "terminal_state_canceled": True,
+                "ledger_match": True,
+                "live_adapter_called": False,
+            },
+        },
     }
 
 
@@ -142,6 +180,9 @@ def test_probe_passes_when_status_overview_and_artifact_match(tmp_path: Path) ->
     assert summary["artifact_consistent"] is True
     assert summary["fail_closed"] is True
     assert summary["secret_safe"] is True
+    assert summary["local_lifecycle_rehearsal_valid"] is True
+    assert summary["artifact_generated_at"] == proof["generated_at"]
+    assert len(summary["artifact_payload_sha256"]) == 64
     assert summary["lifecycle_statuses"]["fill_simulation"]["status"] == "blocked_missing_credentials"
 
 
@@ -189,6 +230,26 @@ def test_probe_fails_strict_when_api_payload_contains_secret_like_key() -> None:
     assert "should_not_leak" not in result.stdout
 
 
+def test_probe_fails_strict_when_local_lifecycle_rehearsal_invariants_fail() -> None:
+    proof = _proof()
+    proof["local_lifecycle_rehearsal"]["checks"]["ledger_match"] = False
+
+    result = _run(
+        ["--strict"],
+        input_payload={
+            "status": _status_payload(proof),
+            "execution_overview": _overview_payload(proof),
+            "artifact": _artifact_payload(proof),
+        },
+    )
+
+    assert result.returncode == 1
+    summary = json.loads(result.stdout)
+    assert summary["strict_ok"] is False
+    assert summary["local_lifecycle_rehearsal_valid"] is False
+    assert "ledger_match" in summary["local_lifecycle_rehearsal_failures"]
+
+
 def test_probe_accepts_stdin_bundle_without_artifact_for_api_only_check() -> None:
     proof = _proof()
 
@@ -203,5 +264,65 @@ def test_probe_accepts_stdin_bundle_without_artifact_for_api_only_check() -> Non
     assert result.returncode == 0, result.stderr + result.stdout
     summary = json.loads(result.stdout)
     assert summary["artifact_proof_present"] is False
+    assert summary["artifact_generated_at"] is None
+    assert summary["artifact_payload_sha256"] is None
     assert summary["artifact_consistent"] is True
     assert summary["api_consistent"] is True
+
+
+def test_probe_independently_rejects_impossible_local_lifecycle_quantities() -> None:
+    proof = _proof()
+    partial_fill = proof["local_lifecycle_rehearsal"]["events"][2]
+    partial_fill.update(
+        {
+            "requested_units": 100_000,
+            "filled_units": 125_000,
+            "remaining_units": -25_000,
+        }
+    )
+    reconciliation = proof["local_lifecycle_rehearsal"]["events"][4]
+    reconciliation.update({"filled_units": 125_000, "canceled_units": -25_000})
+
+    result = _run(
+        ["--strict"],
+        input_payload={
+            "status": _status_payload(proof),
+            "execution_overview": _overview_payload(proof),
+            "artifact": _artifact_payload(proof),
+        },
+    )
+
+    assert result.returncode == 1
+    summary = json.loads(result.stdout)
+    assert summary["strict_ok"] is False
+    assert summary["local_lifecycle_rehearsal_valid"] is False
+    assert "filled_qty_lte_requested_qty_recomputed" in summary["local_lifecycle_rehearsal_failures"]
+    assert "remaining_qty_matches_recomputed" in summary["local_lifecycle_rehearsal_failures"]
+
+
+def test_probe_independently_rejects_missing_and_nonfinite_lifecycle_quantities() -> None:
+    variants = []
+
+    missing = _proof()
+    missing["local_lifecycle_rehearsal"]["events"][4].pop("canceled_units")
+    variants.append(missing)
+
+    nonfinite = _proof()
+    nonfinite["local_lifecycle_rehearsal"]["events"][2]["filled_units"] = float("nan")
+    variants.append(nonfinite)
+
+    for proof in variants:
+        result = _run(
+            ["--strict"],
+            input_payload={
+                "status": _status_payload(proof),
+                "execution_overview": _overview_payload(proof),
+                "artifact": _artifact_payload(proof),
+            },
+        )
+
+        assert result.returncode == 1
+        summary = json.loads(result.stdout)
+        assert summary["strict_ok"] is False
+        assert summary["local_lifecycle_rehearsal_valid"] is False
+        assert "quantity_fields_missing_or_invalid" in summary["local_lifecycle_rehearsal_failures"]

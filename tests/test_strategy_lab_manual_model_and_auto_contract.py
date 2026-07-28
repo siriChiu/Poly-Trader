@@ -331,7 +331,7 @@ def test_strategy_lab_frontend_exposes_manual_model_selection_and_protects_syste
         "const runNameError = useMemo(() => {",
         "setSelectedModelName",
         'model_name: strategyType === "hybrid" ? selectedModelName : "rule_based"',
-        '${strategyType === "hybrid" ? "混合策略" : "規則策略"} · ${strategyType === "hybrid" ? selectedModelName : "rule_based"}',
+        'strategyType === "hybrid" ? selectedModelName : "規則"',
         "策略類型",
         "手動選擇模型",
         "MODEL_OPTIONS.map",
@@ -410,17 +410,40 @@ def test_strategy_lab_frontend_compacts_cached_selected_strategy_series_before_s
     source = _read("pages/StrategyLab.tsx")
     required_snippets = [
         'const STRATEGY_LAB_CACHE_EQUITY_LIMIT = 1000;',
-        'const STRATEGY_LAB_CACHE_SCORE_LIMIT = 300;',
         'const downsampleCachedSeries = <T extends { timestamp?: string | null }>(points: T[] | undefined, limit: number): T[] => {',
         'const compactStrategyLabCacheEntry = (strategy?: StrategyEntry | null): StrategyEntry | null => {',
         'equity_curve: Array.isArray(lastResults.equity_curve)',
         'downsampleCachedSeries(lastResults.equity_curve, STRATEGY_LAB_CACHE_EQUITY_LIMIT)',
         'score_series: Array.isArray(lastResults.score_series)',
-        'lastResults.score_series.slice(-STRATEGY_LAB_CACHE_SCORE_LIMIT)',
+        'score_series: Array.isArray(lastResults.score_series)',
+        '? [...lastResults.score_series]',
         'selectedStrategy: compactStrategyLabCacheEntry(payload.selectedStrategy),',
     ]
     for snippet in required_snippets:
         assert snippet in source
+
+
+def test_strategy_lab_frontend_does_not_mislabel_in_sample_scores_as_oos():
+    source = _read("pages/StrategyLab.tsx")
+    required_snippets = [
+        'evaluation_mode?: "rule_based_no_model_split" | "in_sample_full_fit" | "walk_forward_oos" | string;',
+        "綠線＝策略分數，藍色虛線＝進場品質；兩者使用左側 0–100 刻度。",
+        "全資料擬合分數（非 OOS）",
+        "此圖沒有可畫的訓練／OOS 分界；OOS 證據請看 walk-forward / Top-K。",
+    ]
+    for snippet in required_snippets:
+        assert snippet in source
+
+    chart_source = _read("components/CandlestickChart.tsx")
+    chart_snippets = [
+        "matchedEntryQualityTimes = new Set(entryQualityData.map((row) => Number(row.time)))",
+        "candleTimes.every((time) => matchedScoreTimes.has(time) && matchedEntryQualityTimes.has(time))",
+        "coverageComplete ? strategyScoreData : []",
+        "分數資料不完整：目前只對齊",
+        "請重新執行回測產生完整分數序列",
+    ]
+    for snippet in chart_snippets:
+        assert snippet in chart_source
 
 
 

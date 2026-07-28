@@ -19,18 +19,21 @@
   feat_4h_vol_ratio      : 4H 成交量 / 20 期平均量
 """
 import sys
-import os
 import bisect
 import sqlite3
+from pathlib import Path
 
 import numpy as np
 import ccxt
 from datetime import datetime, timedelta
 
-sys.path.insert(0, '/home/kazuha/Poly-Trader')
-os.chdir('/home/kazuha/Poly-Trader')
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-DB_PATH = '/home/kazuha/Poly-Trader/poly_trader.db'
+from database.runtime import configured_database_path
+
+DB_PATH = str(configured_database_path())
 
 
 def _resolve_4h_fetch_start(ts_list, warmup_days=400):

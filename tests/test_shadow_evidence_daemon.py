@@ -1,8 +1,11 @@
 import asyncio
 import json
 from datetime import datetime, timezone
+from types import SimpleNamespace
+from typing import Any, cast
 
 from database.models import init_db
+from execution import control_plane as control_plane_module
 from execution import live_runner as live_runner_module
 from execution.shadow_evidence_daemon import (
     acknowledge_shadow_evidence_operator_review,
@@ -14,6 +17,7 @@ from sqlalchemy import text
 
 
 def _seed_live_runner_shadow_decision(session):
+    control_plane_module.ensure_execution_control_plane_schema(session)
     live_runner_module.ensure_audit_tables(session)
     session.execute(
         text(
@@ -203,7 +207,8 @@ def test_api_execution_shadow_evidence_ack_exposes_no_submit_contract(monkeypatc
         },
     )
 
-    payload = asyncio.run(api_module.api_execution_shadow_evidence_ack())
+    request = cast(Any, SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"), headers={}))
+    payload = asyncio.run(api_module.api_execution_shadow_evidence_ack(request=request))
 
     assert payload["ok"] is True
     assert payload["status"] == "operator_review_acknowledged"

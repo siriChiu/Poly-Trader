@@ -20,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from database.models import init_db
+from database.runtime import configured_database_url
 from model.predictor import load_latest_features, load_predictor, predict
 from model.runtime_closure import (
     build_circuit_breaker_release_surface as shared_circuit_breaker_release_surface,
@@ -30,7 +31,7 @@ from model.runtime_closure import (
 )
 from server.live_pathology_summary import build_live_pathology_scope_surface
 
-DB_URL = f"sqlite:///{PROJECT_ROOT / 'poly_trader.db'}"
+DB_URL = configured_database_url()
 OUT_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 Q15_SUPPORT_AUDIT_PATH = PROJECT_ROOT / "data" / "q15_support_audit.json"
 Q15_BUCKET_ROOT_CAUSE_PATH = PROJECT_ROOT / "data" / "q15_bucket_root_cause.json"

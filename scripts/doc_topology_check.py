@@ -13,9 +13,14 @@ import json
 import re
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+# Hermes stores session-local plans and metadata under this hidden directory.
+# It is not product documentation and must not be classified by the repo's
+# documentation topology contract when it is present as an untracked workspace.
+IGNORED_VISIBLE_PREFIXES = (".hermes/",)
 
 ROOT_MARKDOWN_ALLOWLIST = {
     "AGENTS.md",  # root discovery stub for agent runtimes; detailed AI docs live in docs/ai-collaboration/
@@ -84,13 +89,23 @@ REQUIRED_AI_COLLAB_INDEX_TOKENS = [
 ]
 
 
+def _filter_visible_paths(lines: Iterable[str]) -> list[str]:
+    return sorted(
+        {
+            line
+            for line in lines
+            if line.strip() and not line.startswith(IGNORED_VISIBLE_PREFIXES)
+        }
+    )
+
+
 def _git_visible_files(*patterns: str) -> list[str]:
     output = subprocess.check_output(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard", *patterns],
         cwd=PROJECT_ROOT,
         text=True,
     )
-    return sorted({line for line in output.splitlines() if line.strip()})
+    return _filter_visible_paths(output.splitlines())
 
 
 def _classify_markdown(path: str) -> str:

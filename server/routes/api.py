@@ -18,7 +18,7 @@ from pathlib import Path
 from fastapi import APIRouter, Body, Query, HTTPException, Request
 import pandas as pd
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any, Callable, Tuple
+from typing import Optional, List, Dict, Any, Callable, Tuple, cast
 from datetime import datetime, timedelta, timezone
 
 from server.dependencies import (
@@ -29,6 +29,7 @@ from server.dependencies import (
     set_automation_enabled,
     set_runtime_status,
 )
+from server.security import assert_local_operator_request, configured_allowed_origins
 from server.features_engine import ecdf_normalize, get_engine, normalize_feature
 from server.live_pathology_summary import (
     build_live_pathology_patch_summary as shared_build_live_pathology_patch_summary,
@@ -36,6 +37,7 @@ from server.live_pathology_summary import (
     load_bull_4h_pocket_ablation_summary as shared_load_bull_4h_pocket_ablation_summary,
 )
 from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized, Labels, OrderLifecycleEvent
+from database.runtime import configured_database_path
 from model.runtime_closure import (
     build_circuit_breaker_release_surface,
     build_runtime_closure_state,
@@ -58,6 +60,7 @@ from execution.control_plane import (
     build_paper_shadow_outcome_reconciliation,
     build_execution_control_plane_snapshot,
     build_execution_strategy_source_snapshot,
+    execution_strategy_binding_for_name,
     build_live_runner_overview,
     get_execution_run_detail,
     pause_execution_run,
@@ -67,6 +70,7 @@ from execution.control_plane import (
 )
 from execution.config import resolve_cost_aware_edge_config
 from execution.execution_service import ExecutionRejectError, ExecutionService
+from execution.microstructure import load_microstructure_contract
 from execution.metadata_smoke import run_metadata_smoke
 from execution.range_chop_playbook import build_range_chop_playbook
 from execution.shadow_evidence_daemon import (
@@ -81,7 +85,7 @@ logger = setup_logger(__name__)
 router = APIRouter()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = str(PROJECT_ROOT / "poly_trader.db")
+DB_PATH = str(configured_database_path())
 MODEL_LB_CACHE_PATH = PROJECT_ROOT / "data" / "model_leaderboard_cache.json"
 _LEADERBOARD_GOVERNANCE_PROBE_PATH = PROJECT_ROOT / "data" / "leaderboard_feature_profile_probe.json"
 _LIVE_PREDICT_PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
@@ -253,11 +257,10 @@ def _build_cache_key(*parts: Any) -> str:
 
 
 def _assert_local_operator_request(request: Optional[Request]) -> None:
-    client = getattr(request, "client", None)
-    client_host = getattr(client, "host", None)
-    if client_host in {"127.0.0.1", "::1", "localhost"}:
-        return
-    raise HTTPException(status_code=403, detail="operator write endpoints are restricted to local access")
+    assert_local_operator_request(
+        request,
+        allowed_origins=configured_allowed_origins(get_config()),
+    )
 
 
 STRATEGY_DECISION_TARGET_COL = "simulated_pyramid_win"
@@ -911,6 +914,7 @@ _VENUE_DRY_RUN_PROOF_SAFE_TOP_LEVEL_KEYS = {
     "cancel_simulation",
     "fill_simulation",
     "reconciliation_check",
+    "local_lifecycle_rehearsal",
     "customer_usable_now",
     "not_allowed",
     "operator_next_action",
@@ -3519,6 +3523,18 @@ async def api_status() -> Dict[str, Any]:
     maybe_confidence_payload = get_confidence_prediction()
     confidence_payload = await maybe_confidence_payload if hasattr(maybe_confidence_payload, "__await__") else maybe_confidence_payload
     live_runtime_truth = _build_live_runtime_closure_surface(confidence_payload)
+    microstructure_contract = load_microstructure_contract(config=cfg, symbol=symbol)
+    microstructure_forecast = cast(Dict[str, Any], microstructure_contract.get("forecast") or {})
+    source_backed_forecast = microstructure_contract.get("forecast_edge_bps") if microstructure_forecast.get("available") else None
+    live_runtime_truth["microstructure_contract"] = microstructure_contract
+    # Never promote an OOS/ROI proxy or a stale model field into the dynamic
+    # edge gate.  Only the fresh source-backed microstructure contract may
+    # provide forecast_edge_bps; missing source remains observation-only.
+    live_runtime_truth["forecast_edge_bps"] = source_backed_forecast
+    live_runtime_truth["forecast_edge_source"] = microstructure_forecast.get("source") if source_backed_forecast is not None else None
+    live_runtime_truth["forecast_edge_freshness_status"] = microstructure_forecast.get("freshness_status", "missing")
+    live_runtime_truth["forecast_freshness_status"] = microstructure_forecast.get("freshness_status", "missing")
+    live_runtime_truth["microstructure_contract_status"] = microstructure_contract.get("status", "blocked_missing_source")
     cost_aware_edge_config = resolve_cost_aware_edge_config(cfg)
     cost_components_bps = {
         "fee_bps": cost_aware_edge_config.get("taker_fee_bps"),
@@ -3531,8 +3547,14 @@ async def api_status() -> Dict[str, Any]:
     cost_aware_edge_runtime = {
         "status": "cost_inputs_configured",
         "source": "execution.cost_aware_edge",
+        "forecast_edge_bps": source_backed_forecast,
+        "forecast_source": microstructure_forecast.get("source") if source_backed_forecast is not None else "unavailable",
+        "forecast_freshness_status": microstructure_forecast.get("freshness_status", "missing"),
+        "forecast_gate_status": "available" if source_backed_forecast is not None else "observation_only_missing_microstructure_forecast",
         "required_edge_bps": required_edge_bps,
         "cost_components_bps": cost_components_bps,
+        "passed": False if source_backed_forecast is None else source_backed_forecast > required_edge_bps,
+        "observation_only": source_backed_forecast is None,
         "order_submission_enabled": False,
         "risk_on_order_enabled": False,
     }
@@ -3542,6 +3564,7 @@ async def api_status() -> Dict[str, Any]:
     range_chop_playbook = build_range_chop_playbook(live_runtime_truth, high_conviction_topk)
     execution_summary["live_runtime_truth"] = live_runtime_truth
     execution_summary["cost_aware_edge"] = cost_aware_edge_runtime
+    execution_summary["microstructure_contract"] = microstructure_contract
     execution_summary["recent_canonical_drift"] = recent_canonical_drift
     execution_summary["high_conviction_topk"] = high_conviction_topk
     execution_summary["range_chop_playbook"] = range_chop_playbook
@@ -3577,6 +3600,7 @@ async def api_status() -> Dict[str, Any]:
     )
     execution_surface_contract["live_runtime_truth"] = live_runtime_truth
     execution_surface_contract["cost_aware_edge"] = cost_aware_edge_runtime
+    execution_surface_contract["microstructure_contract"] = microstructure_contract
     execution_surface_contract["recent_canonical_drift"] = recent_canonical_drift
     execution_surface_contract["high_conviction_topk"] = high_conviction_topk
     execution_surface_contract["range_chop_playbook"] = range_chop_playbook
@@ -3606,6 +3630,7 @@ async def api_status() -> Dict[str, Any]:
         "venue_dry_run_proof": venue_dry_run_proof,
         "execution_surface_contract": execution_surface_contract,
         "cost_aware_edge": cost_aware_edge_runtime,
+        "microstructure_contract": microstructure_contract,
         "high_conviction_topk": high_conviction_topk,
         "range_chop_playbook": range_chop_playbook,
         "recent_canonical_drift": recent_canonical_drift,
@@ -3790,7 +3815,8 @@ async def api_execution_shadow_evidence() -> Dict[str, Any]:
 
 
 @router.post("/execution/shadow-evidence/ack")
-async def api_execution_shadow_evidence_ack() -> Dict[str, Any]:
+async def api_execution_shadow_evidence_ack(request: Request) -> Dict[str, Any]:
+    _assert_local_operator_request(request)
     artifact = acknowledge_shadow_evidence_operator_review()
     return {
         "ok": True,
@@ -7192,7 +7218,7 @@ def _build_strategy_chart_context(timestamps: List[str]) -> Dict[str, Any]:
         "interval": "4h",
         "start": _iso_utc_timestamp(timestamps[0]),
         "end": _iso_utc_timestamp(timestamps[-1]),
-        "limit": min(max(len(timestamps), 150), 1000),
+        "limit": min(max(len(timestamps), 150), 5000),
     }
 
 
@@ -7220,7 +7246,7 @@ def _select_strategy_chart_payload(
     full_timestamps = [str(point.get("timestamp")) for point in equity_curve if point.get("timestamp")]
     chart_timestamps = timestamps or full_timestamps
     chart_context = _build_strategy_chart_context(chart_timestamps)
-    chart_limit = int(chart_context.get("limit") or 1000)
+    chart_limit = min(int(chart_context.get("limit") or 1000), 1000)
     return {
         "equity_curve": _downsample_strategy_series_points(equity_curve, limit=chart_limit),
         "chart_context": chart_context,
@@ -7259,7 +7285,24 @@ def _filter_strategy_rows_by_backtest_range(
         missing_start_days = round((available_start - requested_start).total_seconds() / 86400.0, 2)
     if requested_end and available_end and requested_end > available_end:
         missing_end_days = round((requested_end - available_end).total_seconds() / 86400.0, 2)
-    coverage_ok = (missing_start_days <= 0 and missing_end_days <= 0)
+    max_gap_hours = 8.0
+    interior_gaps: List[Dict[str, Any]] = []
+    previous_dt: Optional[datetime] = None
+    for row in filtered_rows:
+        row_dt = _parse_backtest_timestamp(row[0] if row else None)
+        if row_dt is None:
+            continue
+        if previous_dt is not None:
+            gap_hours = (row_dt - previous_dt).total_seconds() / 3600.0
+            if gap_hours >= max_gap_hours:
+                interior_gaps.append({
+                    "start": _iso_utc_timestamp(previous_dt),
+                    "end": _iso_utc_timestamp(row_dt),
+                    "gap_hours": round(gap_hours, 2),
+                })
+        previous_dt = row_dt
+    largest_gap_hours = max((float(item["gap_hours"]) for item in interior_gaps), default=0.0)
+    coverage_ok = (missing_start_days <= 0 and missing_end_days <= 0 and not interior_gaps)
     return filtered_rows, {
         "requested": {
             "start": _iso_utc_timestamp(start),
@@ -7273,6 +7316,9 @@ def _filter_strategy_rows_by_backtest_range(
         "coverage_ok": coverage_ok,
         "missing_start_days": missing_start_days,
         "missing_end_days": missing_end_days,
+        "interior_gaps": interior_gaps[:20],
+        "interior_gap_count": len(interior_gaps),
+        "largest_interior_gap_hours": largest_gap_hours,
         "row_count": len(filtered_rows),
     }
 
@@ -7487,7 +7533,9 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
     from backtesting.strategy_lab import (
         AUTO_STRATEGY_NAME_PREFIX,
         MANUAL_COPY_STRATEGY_PREFIX,
+        STRATEGY_SCHEMA_VERSION,
         _is_auto_leaderboard_strategy,
+        _strategy_slug,
         load_strategy,
         run_hybrid_backtest,
         run_rule_backtest,
@@ -7560,6 +7608,7 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
                     "target_start": requested_start,
                     "target_end": requested_end,
                     "apply_changes": True,
+                    "interior_gap_ranges": range_meta.get("interior_gaps") or [],
                 }
                 symbol = body.get("symbol") or params.get("symbol")
                 if symbol:
@@ -7593,6 +7642,17 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
     local_bottom_score = [float(r[11]) if len(r) > 11 and r[11] is not None else None for r in active_rows]
     local_top_score = [float(r[12]) if len(r) > 12 and r[12] is not None else None for r in active_rows]
     score_series: List[Dict[str, Any]] = []
+    fitted_model: Any = None
+    fitted_model_name: Optional[str] = None
+    fitted_feature_columns: List[str] = []
+    fitted_target_col: Optional[str] = None
+    fitted_training_frame = None
+    score_series_context: Dict[str, Any] = {
+        "evaluation_mode": "rule_based_no_model_split",
+        "is_oos": False,
+        "oos_start": None,
+        "operator_label": "規則策略分數（無模型訓練／測試切分）",
+    }
 
     db = get_db()
     try:
@@ -7647,7 +7707,8 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
             signature = _build_cache_key(model_name, target_col, len(train_df), str(train_df["timestamp"].iloc[-1]))
             with _HYBRID_MODEL_LOCK:
                 cached = _HYBRID_MODEL_CACHE.get(signature)
-            if cached:
+            if cached and cached.get("model") is not None:
+                model = cached["model"]
                 confidence_map = cached["confidence_map"]
             else:
                 _set_strategy_job_progress(job_id, 40, f"Hybrid 模式：正在訓練 {model_name}。", stage_key="train_model")
@@ -7667,9 +7728,23 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
                 }
                 with _HYBRID_MODEL_LOCK:
                     _HYBRID_MODEL_CACHE[signature] = {
+                        "model": model,
                         "confidence_map": confidence_map,
                         "updated_at": time.time(),
                     }
+            fitted_model = model
+            fitted_model_name = model_name
+            fitted_feature_columns = list(feature_cols)
+            fitted_target_col = target_col
+            fitted_training_frame = train_df[["timestamp", *feature_cols, target_col]].copy()
+            score_series_context = {
+                "evaluation_mode": "in_sample_full_fit",
+                "is_oos": False,
+                "training_start": _iso_utc_timestamp(train_df["timestamp"].min()),
+                "training_end": _iso_utc_timestamp(train_df["timestamp"].max()),
+                "oos_start": None,
+                "operator_label": "全資料擬合分數（非 OOS）",
+            }
             conf = [
                 confidence_map.get(_strategy_confidence_lookup_key(ts), max(0.0, min(1.0, 1.0 - b / 20.0)))
                 for ts, b in zip(timestamps, bias50)
@@ -7765,7 +7840,11 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
             "benchmarks": benchmarks,
             "equity_curve": selected_equity_curve,
             "trades": full_trades,
-            "score_series": score_series[-300:] if score_series else [],
+            # A score exists for every evaluated bar. Preserve the complete
+            # sequence: sampling or tail slicing makes missing evaluation bars
+            # indistinguishable from a real strategy-score discontinuity.
+            "score_series": list(score_series),
+            "score_series_context": score_series_context,
             "chart_context": chart_context,
             "run_at": datetime.utcnow().isoformat() + "Z",
             **decision_profile,
@@ -7778,8 +7857,41 @@ def _execute_strategy_run(body: Dict[str, Any], *, job_id: Optional[str] = None)
         for key, value in contract_meta.items():
             results_dict.setdefault(key, value)
 
-        _set_strategy_job_progress(job_id, 92, "正在儲存策略、整理圖表上下文與輸出結果。", stage_key="save_results")
+        _set_strategy_job_progress(job_id, 92, "正在儲存策略、模型快照與圖表結果。", stage_key="save_results")
         normalized_results = _normalize_result_timestamps(results_dict)
+        if stype == "hybrid":
+            if fitted_model is None or fitted_training_frame is None or not fitted_model_name or not fitted_target_col:
+                return {"error": "Hybrid 回測完成，但未取得可固化的 fitted model；已拒絕建立不可驗證的部署候選。"}
+            try:
+                from execution.live_runner import freeze_fitted_model_artifact
+
+                strategy_record = {
+                    "schema_version": STRATEGY_SCHEMA_VERSION,
+                    "name": save_name,
+                    "slug": _strategy_slug(save_name),
+                    "definition": strat_def,
+                }
+                frozen_model = freeze_fitted_model_artifact(
+                    strategy=strategy_record,
+                    model=fitted_model,
+                    model_name=fitted_model_name,
+                    feature_columns=fitted_feature_columns,
+                    target_col=fitted_target_col,
+                    training_frame=fitted_training_frame,
+                )
+                normalized_results["fitted_model_artifact"] = dict(frozen_model.metadata)
+                normalized_results["runtime_candidate_status"] = "exact_backtest_model_frozen"
+            except Exception:
+                logger.exception("Failed to freeze Strategy Lab fitted model")
+                normalized_results["fitted_model_artifact"] = {
+                    "status": "freeze_failed",
+                    "source": "strategy_lab_backtest",
+                    "model_name": fitted_model_name,
+                }
+                normalized_results["runtime_candidate_status"] = "blocked_model_freeze_failed"
+                normalized_results["runtime_candidate_operator_fix"] = "重新執行回測以固化 exact fitted model；固化成功前只能查看回測，不能啟動 Hybrid Paper/Shadow。"
+        else:
+            normalized_results["runtime_candidate_status"] = "rule_strategy_no_model_artifact_required"
         save_strategy(save_name, strat_def, normalized_results)
         response = {
             "strategy": save_name,
@@ -7805,6 +7917,98 @@ async def api_run_strategy(body: Dict[str, Any], request: Request = None):
     """同步執行策略回測。"""
     _assert_local_operator_request(request)
     return _execute_strategy_run(body)
+
+
+@router.post("/strategies/{name}/paper-shadow")
+async def api_start_strategy_paper_shadow(name: str, request: Request = None) -> Dict[str, Any]:
+    """Freeze the exact saved strategy and execute one safe paper/shadow worker tick."""
+
+    _assert_local_operator_request(request)
+    binding = execution_strategy_binding_for_name(name)
+    profile_id = str(binding.get("primary_sleeve_key") or "").strip()
+    cfg = get_config() or {}
+    db = get_db()
+    from execution import live_runner as live_runner_module
+
+    strategy_entry = live_runner_module.load_saved_strategy(str(binding.get("strategy_name") or name))
+    definition = strategy_entry.get("definition") if isinstance(strategy_entry.get("definition"), dict) else {}
+    strategy_type = str(definition.get("type") or "rule_based")
+    if strategy_type == "hybrid":
+        try:
+            live_runner_module.ensure_model_artifact(
+                session=db,
+                strategy=strategy_entry,
+                require_exact=True,
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "exact_backtest_model_required",
+                    "message": "這份舊策略尚未固化回測時的 fitted model；請先重新執行回測，再啟動 Paper/Shadow。",
+                    "context": {"strategy_name": name, "reason": str(exc)[:200]},
+                    "next_action": {"route": "/lab", "label": "重新回測並固化模型"},
+                },
+            ) from exc
+    status_payload = await api_status()
+    base_overview = build_execution_overview(status_payload, config=cfg)
+    started = start_execution_profile_run(
+        db,
+        profile_id,
+        status_payload,
+        base_overview,
+        config=cfg,
+        strategy_binding_override=binding,
+        force_paper_shadow=True,
+    )
+    strategy_runtime = None
+    if strategy_type == "hybrid":
+        run_id = str((started.get("run") or {}).get("run_id") or "")
+        try:
+            strategy_runtime = live_runner_module.run_exact_strategy_paper_shadow_cycle(
+                session=db,
+                strategy_name=str(binding.get("strategy_name") or name),
+                execution_run_id=run_id,
+                config=cfg,
+            )
+        except Exception as exc:
+            if run_id:
+                stop_execution_run(db, run_id, status_payload=status_payload)
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "exact_strategy_runtime_failed",
+                    "message": "exact fitted model 已固化，但安全演練 cycle 執行失敗；run 已停止，未送出實單。",
+                    "context": {"strategy_name": name, "run_id": run_id or None, "reason": str(exc)[:200]},
+                    "next_action": {"route": "/execution", "label": "查看 runtime 診斷"},
+                },
+            ) from exc
+    worker = poll_execution_paper_shadow_workers(
+        db,
+        status_payload=status_payload,
+        exact_runtime_cycles={str((started.get("run") or {}).get("run_id") or ""): strategy_runtime}
+        if strategy_runtime
+        else None,
+    )
+    outcome = build_paper_shadow_outcome_reconciliation(
+        db,
+        status_payload=status_payload,
+        persist=True,
+    )
+    return {
+        "action": "strategy_paper_shadow_start",
+        "strategy_name": binding.get("strategy_name"),
+        "profile_id": profile_id,
+        "mode": "paper_shadow",
+        "operator_message": started.get("operator_message"),
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "live_order_submitted": False,
+        "run": started.get("run"),
+        "strategy_runtime": strategy_runtime,
+        "worker": worker,
+        "outcome_reconciliation": _compact_paper_shadow_outcome_reconciliation(outcome),
+    }
 
 
 @router.post("/strategies/run_async")
@@ -7881,7 +8085,7 @@ _HEAVY_STRATEGY_RESULT_KEYS = {
 }
 
 _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT = 1000
-_STRATEGY_DETAIL_SCORE_SERIES_LIMIT = 300
+_STRATEGY_DETAIL_CHART_CANDLE_LIMIT = 5000
 
 
 def _downsample_strategy_series_points(points: Any, *, limit: int) -> List[Dict[str, Any]]:
@@ -7914,16 +8118,19 @@ def _prepare_strategy_detail_last_results(last_results: Any) -> Dict[str, Any]:
             parsed_limit = int(raw_limit)
         except (TypeError, ValueError):
             parsed_limit = _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT
-        chart_limit = max(2, min(parsed_limit or _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT, _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT))
+        chart_limit = max(2, min(parsed_limit or _STRATEGY_DETAIL_CHART_CANDLE_LIMIT, _STRATEGY_DETAIL_CHART_CANDLE_LIMIT))
         detail["chart_context"] = {
             **chart_context,
             "limit": chart_limit,
         }
 
-    detail["equity_curve"] = _downsample_strategy_series_points(detail.get("equity_curve"), limit=chart_limit)
+    detail["equity_curve"] = _downsample_strategy_series_points(
+        detail.get("equity_curve"),
+        limit=min(chart_limit, _STRATEGY_DETAIL_EQUITY_CURVE_LIMIT),
+    )
     score_series = detail.get("score_series")
     if isinstance(score_series, list):
-        detail["score_series"] = list(score_series[-_STRATEGY_DETAIL_SCORE_SERIES_LIMIT:])
+        detail["score_series"] = list(score_series)
     return detail
 
 

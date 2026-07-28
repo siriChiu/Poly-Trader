@@ -3,17 +3,19 @@ from __future__ import annotations
 import json
 import math
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_DOWN, InvalidOperation
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
-from database.models import OrderLifecycleEvent, TradeHistory
+from database.models import ExecutionPermitConsumption, OrderLifecycleEvent, TradeHistory
 from execution.config import resolve_trading_config
 from execution.exchanges.base import BaseExchangeAdapter, ExchangeOrderResult, OrderRequest
 from execution.exchanges.okx_adapter import OKXAdapter
 from execution.metadata_smoke import _build_contract_summary
+from execution.permit import verify_execution_permit_signature
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -164,6 +166,206 @@ class ExecutionService:
                 "Live canary order quantity exceeds the configured max base quantity cap",
                 context={"symbol": normalized_symbol, "qty": float(request.qty), "max_base_qty": float(max_qty)},
             )
+
+    def _parse_permit_datetime(self, value: Any) -> Optional[datetime]:
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    def _authorize_live_submission(
+        self,
+        adapter: BaseExchangeAdapter,
+        request: OrderRequest,
+        *,
+        execution_permit: Optional[Mapping[str, Any]],
+        run_id: Optional[str],
+        profile_id: Optional[str],
+        strategy_hash: Optional[str],
+        reference_price: Optional[float],
+    ) -> Optional[Dict[str, Any]]:
+        if getattr(adapter, "dry_run", None) is True:
+            return None
+
+        raw_trading_cfg = self.config.get("trading")
+        trading_cfg: Dict[str, Any] = raw_trading_cfg if isinstance(raw_trading_cfg, dict) else {}
+        dual_live_enabled = bool(
+            self.execution_cfg.get("mode") == "live"
+            and self.execution_cfg.get("enable_live_trading") is True
+            and trading_cfg.get("dry_run") is False
+        )
+        if not dual_live_enabled:
+            raise ExecutionRejectError(
+                "live_config_not_enabled",
+                "A non-dry adapter requires execution.mode=live, enable_live_trading=true, and trading.dry_run=false",
+                context={
+                    "mode": self.execution_cfg.get("mode"),
+                    "enable_live_trading": self.execution_cfg.get("enable_live_trading"),
+                    "trading_dry_run": trading_cfg.get("dry_run"),
+                    "adapter_dry_run": getattr(adapter, "dry_run", None),
+                },
+            )
+        if not isinstance(execution_permit, Mapping):
+            raise ExecutionRejectError(
+                "execution_permit_required",
+                "Live execution requires a signed, short-lived, single-use execution permit",
+            )
+        try:
+            signature_valid, claims = verify_execution_permit_signature(execution_permit)
+        except ValueError as exc:
+            raise ExecutionRejectError(
+                "execution_permit_secret_unavailable",
+                "Live execution permit verification secret is unavailable or too short",
+            ) from exc
+        if not signature_valid:
+            raise ExecutionRejectError(
+                "execution_permit_signature_invalid",
+                "Execution permit signature is invalid",
+            )
+
+        now = datetime.now(timezone.utc)
+        issued_at = self._parse_permit_datetime(claims.get("issued_at"))
+        expires_at = self._parse_permit_datetime(claims.get("expires_at"))
+        if expires_at is not None and expires_at <= now:
+            raise ExecutionRejectError("execution_permit_expired", "Execution permit has expired")
+        if (
+            claims.get("version") != 1
+            or issued_at is None
+            or expires_at is None
+            or issued_at > now + timedelta(seconds=30)
+            or expires_at <= issued_at
+            or (expires_at - issued_at).total_seconds() > 300
+        ):
+            raise ExecutionRejectError(
+                "execution_permit_window_invalid",
+                "Execution permit must use version 1 and a valid window no longer than five minutes",
+            )
+
+        normalized_run_id = str(run_id or "").strip()
+        normalized_profile_id = str(profile_id or "").strip()
+        normalized_strategy_hash = str(strategy_hash or "").strip()
+        nonce = str(claims.get("nonce") or "").strip()
+        if not normalized_run_id or not normalized_profile_id or not normalized_strategy_hash:
+            raise ExecutionRejectError(
+                "execution_permit_context_required",
+                "Live execution requires run_id, profile_id, and strategy_hash context",
+            )
+        if len(nonce) < 16 or len(nonce) > 128:
+            raise ExecutionRejectError("execution_permit_nonce_invalid", "Execution permit nonce is missing or invalid")
+
+        expected_scope = {
+            "run_id": normalized_run_id,
+            "profile_id": normalized_profile_id,
+            "strategy_hash": normalized_strategy_hash,
+            "venue": str(adapter.venue or "").strip().lower(),
+            "symbol": self._normalize_symbol(request.symbol).upper(),
+            "side": str(request.side or "").strip().lower(),
+            "order_type": str(request.order_type or "").strip().lower(),
+            "reduce_only": bool(request.reduce_only),
+        }
+        permit_scope = {
+            "run_id": str(claims.get("run_id") or "").strip(),
+            "profile_id": str(claims.get("profile_id") or "").strip(),
+            "strategy_hash": str(claims.get("strategy_hash") or "").strip(),
+            "venue": str(claims.get("venue") or "").strip().lower(),
+            "symbol": self._normalize_symbol(str(claims.get("symbol") or "")).upper(),
+            "side": str(claims.get("side") or "").strip().lower(),
+            "order_type": str(claims.get("order_type") or "").strip().lower(),
+            "reduce_only": claims.get("reduce_only") is True,
+        }
+        mismatches = sorted(key for key, value in expected_scope.items() if permit_scope.get(key) != value)
+        if mismatches:
+            raise ExecutionRejectError(
+                "execution_permit_scope_mismatch",
+                "Execution permit does not match the exact order and strategy scope",
+                context={"mismatched_fields": mismatches},
+            )
+
+        try:
+            max_qty_value = claims.get("max_qty")
+            max_notional_value = claims.get("max_notional")
+            price_value = request.price if request.price is not None else reference_price
+            if max_qty_value is None or max_notional_value is None or price_value is None:
+                raise TypeError("missing permit limit")
+            max_qty = float(max_qty_value)
+            max_notional = float(max_notional_value)
+            effective_price = float(price_value)
+        except (TypeError, ValueError):
+            raise ExecutionRejectError(
+                "execution_permit_limits_invalid",
+                "Execution permit requires numeric max_qty/max_notional and a positive order/reference price",
+            )
+        notional = float(request.qty) * effective_price
+        if max_qty <= 0 or max_notional <= 0 or effective_price <= 0:
+            raise ExecutionRejectError(
+                "execution_permit_limits_invalid",
+                "Execution permit limits and order/reference price must be positive",
+            )
+        if float(request.qty) > max_qty + 1e-12 or notional > max_notional + 1e-9:
+            raise ExecutionRejectError(
+                "execution_permit_limit_exceeded",
+                "Order exceeds the execution permit quantity or notional limit",
+                context={
+                    "qty": float(request.qty),
+                    "max_qty": max_qty,
+                    "notional": notional,
+                    "max_notional": max_notional,
+                },
+            )
+
+        authorized = dict(claims)
+        authorized.update(
+            {
+                "nonce": nonce,
+                "signature": str(execution_permit.get("signature") or ""),
+                "expires_at_parsed": expires_at,
+                "effective_notional": notional,
+            }
+        )
+        return authorized
+
+    def _consume_execution_permit(self, claims: Mapping[str, Any]) -> None:
+        if self.db_session is None or not hasattr(self.db_session, "add"):
+            raise ExecutionRejectError(
+                "execution_permit_store_unavailable",
+                "A durable database session is required to consume a live execution permit",
+            )
+        try:
+            self.db_session.add(
+                ExecutionPermitConsumption(
+                    nonce=str(claims["nonce"]),
+                    signature=str(claims["signature"]),
+                    run_id=str(claims["run_id"]),
+                    profile_id=str(claims["profile_id"]),
+                    strategy_hash=str(claims["strategy_hash"]),
+                    venue=str(claims["venue"]),
+                    symbol=self._normalize_symbol(str(claims["symbol"])),
+                    side=str(claims["side"]),
+                    max_qty=float(claims["max_qty"]),
+                    max_notional=float(claims["max_notional"]),
+                    expires_at=claims["expires_at_parsed"].replace(tzinfo=None),
+                )
+            )
+            self.db_session.commit()
+        except IntegrityError as exc:
+            self.db_session.rollback()
+            raise ExecutionRejectError(
+                "execution_permit_replayed",
+                "Execution permit nonce has already been consumed",
+            ) from exc
+        except ExecutionRejectError:
+            raise
+        except Exception as exc:
+            self.db_session.rollback()
+            raise ExecutionRejectError(
+                "execution_permit_store_unavailable",
+                "Execution permit could not be durably consumed",
+            ) from exc
 
     def venue_default_type(self, venue: Optional[str] = None) -> str:
         venue_key = self._venue_key(venue)
@@ -460,6 +662,11 @@ class ExecutionService:
         model_confidence: float = 0.0,
         client_order_id: Optional[str] = None,
         params: Optional[Dict[str, Any]] = None,
+        reference_price: Optional[float] = None,
+        run_id: Optional[str] = None,
+        profile_id: Optional[str] = None,
+        strategy_hash: Optional[str] = None,
+        execution_permit: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         adapter = self.get_adapter(venue)
         request = OrderRequest(
@@ -473,14 +680,35 @@ class ExecutionService:
             params=params or {},
         )
         normalization: Optional[Dict[str, Any]] = None
+        authorized_permit: Optional[Dict[str, Any]] = None
         try:
             validated_request, rules = self._validate_order_request(adapter, request)
             self._enforce_live_canary_policy(validated_request)
+            authorized_permit = self._authorize_live_submission(
+                adapter,
+                validated_request,
+                execution_permit=execution_permit,
+                run_id=run_id,
+                profile_id=profile_id,
+                strategy_hash=strategy_hash,
+                reference_price=reference_price,
+            )
             normalization = self._build_normalization_summary(
                 request=request,
                 validated_request=validated_request,
                 rules=rules,
             )
+            if authorized_permit is not None:
+                self._consume_execution_permit(authorized_permit)
+                normalization["execution_permit"] = {
+                    "nonce": authorized_permit["nonce"],
+                    "run_id": authorized_permit["run_id"],
+                    "profile_id": authorized_permit["profile_id"],
+                    "strategy_hash": authorized_permit["strategy_hash"],
+                    "expires_at": authorized_permit["expires_at"],
+                    "effective_notional": authorized_permit["effective_notional"],
+                    "consumed": True,
+                }
             self._record_lifecycle_event(
                 exchange=adapter.venue,
                 symbol=validated_request.symbol,

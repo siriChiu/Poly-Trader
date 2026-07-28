@@ -10,6 +10,32 @@
 - 不需要把完整問答貼進最終回覆；但內部決策必須能對應到下列 gate。
 - 若任何 gate 答案是「不知道」或「無 evidence」，不要硬做大 patch；先補可觀測性、契約或文件地圖。
 
+## Phase -1 — External governor / anti-self-certification
+
+每輪在 Agent 決策前先執行：
+
+```bash
+python scripts/heartbeat_governor.py --format text
+```
+
+Governor 是外部 machine brief，不是 Agent 自評。它會計算 semantic signature、same-signature repeat count、support delta、artifact freshness，並選出唯一 forced branch。
+
+**強制規則：**
+
+- `ANTI_SELF_CERTIFICATION=ACTIVE`；agent may not self-certify。
+- checker `PASS` 不是產品完成證明。
+- 沒有新 artifact + 獨立 verifier，不得宣稱 blocker resolved。
+- `forced_execution_required=true` 時，不得產出 observation-only status refresh。
+- 無法取得 evidence 時，結果必須是 hard no-go，而不是樂觀推測。
+
+---
+
+## Phase 0.5 — Six Hats + ORID
+
+在 HQ1–HQ4 之間，回答六色帽：白帽 facts、紅帽 user impact、黑帽 risks、黃帽 customer-safe opportunity、綠帽 alternative、藍帽唯一 action/gate。再用 ORID 收斂：Objective、Reflective、Interpretive、Decisional。
+
+六帽與 ORID 必須導出一個可驗證的 artifact / verifier；否則本輪 incomplete。
+
 ---
 
 ## Phase 0 — Context map

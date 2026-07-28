@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { beginGlobalProgress, endGlobalProgress, updateGlobalProgress } from "./useGlobalProgress";
 
-const RAW_BASE = (import.meta as any)?.env?.VITE_API_BASE?.trim?.() || "";
+const RAW_BASE = (import.meta.env.VITE_API_BASE || "").trim();
 export const API_BASE = RAW_BASE.replace(/\/$/, "");
 const ACTIVE_API_BASE_STORAGE_KEY = "poly_trader.active_api_base";
 const DEV_LOCAL_API_CANDIDATE_PORTS = [8000, 8001, 9123] as const;
@@ -12,7 +12,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 const CHART_REQUEST_TIMEOUT_MS = 15000;
 const LEADERBOARD_REQUEST_TIMEOUT_MS = 20000;
 const STATUS_REQUEST_TIMEOUT_MS = 20000;
-const EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS = 20000;
+const EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS = 30000;
 const DEV_API_DISCOVERY_TIMEOUT_MS = 1200;
 const DEV_API_STATUS_DISCOVERY_TIMEOUT_MS = 2000;
 const DEV_API_FAILED_BASE_COOLDOWN_MS = 30000;

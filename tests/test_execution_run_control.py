@@ -2,6 +2,7 @@ import asyncio
 import json
 from copy import deepcopy
 from types import SimpleNamespace
+from typing import Any
 
 from backtesting import strategy_lab
 from database.models import init_db
@@ -12,7 +13,7 @@ from server.routes import api as api_module
 from sqlalchemy import text
 
 
-def _local_request():
+def _local_request() -> Any:
     return SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"))
 
 
@@ -282,6 +283,18 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     monkeypatch.setattr(api_module, "get_db", lambda: session)
     monkeypatch.setattr(api_module, "api_status", _fake_status)
 
+    control_plane_module.ensure_execution_control_plane_schema(session)
+    before_get_counts = tuple(
+        session.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar_one()
+        for table in ("execution_profiles", "execution_runs", "execution_run_events")
+    )
+    asyncio.run(api_module.api_execution_overview())
+    after_get_counts = tuple(
+        session.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar_one()
+        for table in ("execution_profiles", "execution_runs", "execution_run_events")
+    )
+    assert after_get_counts == before_get_counts
+
     empty_outcomes = asyncio.run(api_module.api_execution_worker_outcomes())
     empty_proof = empty_outcomes["artifact"]["rehearsal_proof"]
     assert empty_outcomes["artifact"]["status"] == "no_worker_events"
@@ -317,6 +330,13 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert start_payload["run"]["runtime_binding_snapshot"]["reconciliation"]["status"] == "attention"
     assert start_payload["run"]["runtime_binding_snapshot"]["guardrails"]["last_order"]["order_id"] == "ord-123"
     assert start_payload["snapshot"]["summary"]["running_runs"] == 1
+    assert start_payload["snapshot"]["summary"]["configured_running_rows"] == 1
+    assert start_payload["snapshot"]["summary"]["manual_poll_running_rows"] == 1
+    assert start_payload["snapshot"]["summary"]["healthy_continuous_workers"] == 0
+
+    duplicate_start = asyncio.run(api_module.api_execution_start_run("trend", request=_local_request()))
+    assert duplicate_start["action_result"] == "configured_running_without_healthy_worker"
+    assert duplicate_start["run"]["runtime_liveness"]["healthy"] is False
 
     pre_poll_outcomes = asyncio.run(api_module.api_execution_worker_outcomes())
     pre_poll_proof = pre_poll_outcomes["artifact"]["rehearsal_proof"]
@@ -335,7 +355,12 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert poll_payload["summary"]["order_submission_enabled"] is False
     assert polled_run["run_id"] == run_id
     assert polled_run["worker_status"] == "paper_shadow_worker_polled"
-    assert polled_run["worker_control"]["backend_worker_bound"] is True
+    assert polled_run["worker_control"]["backend_worker_bound"] is False
+    assert polled_run["worker_control"]["legacy_backend_worker_bound"] is False
+    assert polled_run["worker_control"]["poll_handler_available"] is True
+    assert polled_run["worker_control"]["continuous_worker"] is False
+    assert polled_run["worker_control"]["runtime_liveness"]["status"] == "not_continuously_running"
+    assert polled_run["worker_control"]["runtime_liveness"]["healthy"] is False
     assert polled_run["worker_control"]["bundle_hash_match"] is True
     assert polled_run["worker_control"]["latest_order_proposal"]["live_order_submitted"] is False
     assert polled_run["latest_event"]["event_type"] == "paper_shadow_worker_poll"
@@ -517,6 +542,7 @@ def test_selective_high_conviction_shadow_run_can_start_under_current_live_block
         return _blocked_high_conviction_status_payload()
 
     session = init_db(f"sqlite:///{tmp_path / 'execution_runs_shadow.db'}")
+    control_plane_module.ensure_execution_control_plane_schema(session)
     monkeypatch.setattr(strategy_bundle_module, "STRATEGY_BUNDLE_ROOT", tmp_path / "strategy_bundles")
     monkeypatch.setattr(control_plane_module, "PAPER_SHADOW_OUTCOME_ARTIFACT_PATH", tmp_path / "paper_shadow_outcomes.json")
     monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"max_position_ratio": 0.10}})
@@ -615,3 +641,78 @@ def test_execution_run_start_rejects_inactive_profile(monkeypatch, tmp_path):
         assert detail["context"]["start_status"] == "inactive_preview"
     else:
         raise AssertionError("inactive profile should not start")
+
+
+def test_selected_strategy_can_start_exact_paper_shadow_run_while_live_is_blocked(monkeypatch, tmp_path):
+    async def _fake_status():
+        return _blocked_high_conviction_status_payload()
+
+    _seed_execution_strategy_catalog(tmp_path, monkeypatch)
+    monkeypatch.setattr(strategy_bundle_module, "STRATEGY_BUNDLE_ROOT", tmp_path / "strategy_bundles_exact")
+    monkeypatch.setattr(control_plane_module, "PAPER_SHADOW_OUTCOME_ARTIFACT_PATH", tmp_path / "paper_shadow_exact.json")
+    session = init_db(f"sqlite:///{tmp_path / 'execution_runs_exact_shadow.db'}")
+    monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"max_position_ratio": 0.10}})
+    monkeypatch.setattr(api_module, "get_db", lambda: session)
+    monkeypatch.setattr(api_module, "api_status", _fake_status)
+    exact_cycle_calls = []
+    monkeypatch.setattr(
+        live_runner_module,
+        "ensure_model_artifact",
+        lambda **kwargs: SimpleNamespace(metadata={"source": "strategy_lab_backtest", "model_sha256": "model-sha"}),
+    )
+
+    def _fake_exact_cycle(**kwargs):
+        exact_cycle_calls.append(kwargs)
+        return {
+            "status": "exact_strategy_cycle_completed",
+            "execution_run_id": kwargs["execution_run_id"],
+            "strategy_name": kwargs["strategy_name"],
+            "model_sha256": "model-sha",
+            "decision": {"signal": "HOLD", "action": "HOLD", "order_submitted": 0},
+            "order_submission_enabled": False,
+            "risk_on_order_enabled": False,
+            "live_order_submitted": False,
+        }
+
+    monkeypatch.setattr(live_runner_module, "run_exact_strategy_paper_shadow_cycle", _fake_exact_cycle)
+
+    payload = asyncio.run(
+        api_module.api_start_strategy_paper_shadow("Trend QA Strategy", request=_local_request())
+    )
+
+    assert payload["action"] == "strategy_paper_shadow_start"
+    assert payload["strategy_name"] == "Trend QA Strategy"
+    assert payload["profile_id"] == "trend"
+    assert payload["mode"] == "paper_shadow"
+    assert payload["order_submission_enabled"] is False
+    assert payload["risk_on_order_enabled"] is False
+    assert payload["live_order_submitted"] is False
+    assert payload["run"]["strategy_binding"]["strategy_name"] == "Trend QA Strategy"
+    assert payload["run"]["strategy_binding"]["model_name"] == "random_forest"
+    assert payload["run"]["runtime_binding_status"] == "paper_shadow_runtime_blocked"
+    assert payload["worker"]["summary"]["processed_runs"] == 1
+    assert payload["worker"]["summary"]["order_submission_enabled"] is False
+    assert payload["worker"]["runs"][0]["worker_control"]["bundle_hash_match"] is True
+    proposal = payload["worker"]["runs"][0]["worker_control"]["latest_order_proposal"]
+    assert proposal["proposal_source"] == "exact_strategy_runtime"
+    assert proposal["strategy_name"] == "Trend QA Strategy"
+    assert proposal["model_sha256"] == "model-sha"
+    promotion = payload["worker"]["runs"][0]["promotion_status"]
+    assert promotion["state"] == "paper_shadow_evidence_recorded"
+    assert promotion["journey_contract_status"] == "partial_not_promotable"
+    assert promotion["journey_complete"] is False
+    assert promotion["progress_current"] == 3
+    assert promotion["progress_target"] is None
+    assert promotion["declared_stage_count"] == 5
+    assert promotion["progress_is_release_metric"] is False
+    assert promotion["stages"][1]["key"] == "exact_runtime"
+    assert promotion["stages"][1]["status"] == "complete"
+    assert promotion["stages"][2]["status"] == "evidence_recorded"
+    assert promotion["stages"][3]["status"] == "reconciliation_required"
+    assert promotion["stages"][4]["status"] == "not_implemented"
+    assert promotion["next_action"]["route"] == "/execution"
+    assert payload["strategy_runtime"]["status"] == "exact_strategy_cycle_completed"
+    assert payload["strategy_runtime"]["model_sha256"] == "model-sha"
+    assert payload["strategy_runtime"]["decision"]["order_submitted"] == 0
+    assert exact_cycle_calls[0]["strategy_name"] == "Trend QA Strategy"
+    assert exact_cycle_calls[0]["execution_run_id"] == payload["run"]["run_id"]

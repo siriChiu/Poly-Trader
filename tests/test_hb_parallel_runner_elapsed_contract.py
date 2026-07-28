@@ -116,6 +116,16 @@ def test_main_parallel_progress_elapsed_never_moves_backwards(tmp_path, monkeypa
     monkeypatch.setattr(hb_parallel_runner, "run_collect_step", lambda skip=False: {"attempted": False, "success": True, "returncode": 0, "stdout": "", "stderr": ""})
     monkeypatch.setattr(
         hb_parallel_runner,
+        "run_strategy_data_sync_maintenance",
+        lambda skip_collect: {
+            "attempted": False,
+            "success": True,
+            "reason": "isolated_elapsed_contract",
+            "decision": {"needed": False, "reason": "isolated_elapsed_contract"},
+        },
+    )
+    monkeypatch.setattr(
+        hb_parallel_runner,
         "quick_counts",
         lambda: {
             "raw_market_data": 1,
@@ -154,6 +164,14 @@ def test_main_parallel_progress_elapsed_never_moves_backwards(tmp_path, monkeypa
     monkeypatch.setattr(hb_parallel_runner, "run_auto_propose", lambda run_label=None: _ok())
     monkeypatch.setattr(hb_parallel_runner, "overwrite_current_state_docs", lambda *args, **kwargs: {"success": True, "written_docs": [], "errors": []})
     monkeypatch.setattr(hb_parallel_runner, "collect_current_state_docs_sync_status", lambda: {"ok": True, "stale_docs": [], "reference_artifacts": []})
+    summary_path = tmp_path / "summary.json"
+    summary_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        hb_parallel_runner,
+        "save_summary",
+        lambda *args, **kwargs: ({"mode": "fast", "stats": {}}, summary_path),
+    )
+    monkeypatch.setattr(hb_parallel_runner, "refresh_summary_runtime_progress", lambda *args, **kwargs: {})
 
     hb_parallel_runner.main(["--fast", "--hb", "elapsed-monotonic"])
 

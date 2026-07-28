@@ -19,7 +19,6 @@ from statistics import mean
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = PROJECT_ROOT / "poly_trader.db"
 PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 OUT_JSON = PROJECT_ROOT / "data" / "q35_scaling_audit.json"
 OUT_MD = PROJECT_ROOT / "docs" / "analysis" / "q35_scaling_audit.md"
@@ -28,6 +27,8 @@ import sys
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from database.runtime import configured_database_path
+DB_PATH = configured_database_path()
 from model import predictor as live_predictor
 from model.q35_bias50_calibration import compute_piecewise_bias50_score, legacy_bias50_score
 

@@ -29,7 +29,8 @@ from typing import Any, Iterable
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-DB_PATH = PROJECT_ROOT / "poly_trader.db"
+from database.runtime import configured_database_path
+DB_PATH = configured_database_path()
 PROBE_PATH = PROJECT_ROOT / "data" / "live_predict_probe.json"
 Q15_AUDIT_PATH = PROJECT_ROOT / "data" / "q15_support_audit.json"
 OUT_JSON = PROJECT_ROOT / "data" / "q15_support_fill_feasibility.json"

@@ -22,6 +22,7 @@ from datetime import datetime
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
+from database.runtime import configured_database_path
 from scripts.issues import (
     CURRENT_LIVE_BLOCKER_ISSUE_ID,
     IssueTracker,
@@ -83,7 +84,7 @@ def _latest_zero_streak(
 
 
 def check_db():
-    conn = sqlite3.connect(str(ROOT / "poly_trader.db"))
+    conn = sqlite3.connect(str(configured_database_path()))
     simulated_win = conn.execute(
         "SELECT AVG(simulated_pyramid_win) FROM labels WHERE simulated_pyramid_win IS NOT NULL"
     ).fetchone()[0]

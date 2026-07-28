@@ -1,11 +1,15 @@
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-from database.models import OrderLifecycleEvent, TradeHistory
+import pytest
+
+from database.models import OrderLifecycleEvent, TradeHistory, init_db
 from execution.account_sync import AccountSyncService
 from execution.config import resolve_cost_aware_edge_config, resolve_trading_config
 from execution.execution_service import ExecutionRejectError, ExecutionService
 from execution.exchanges.base import OrderRequest
 from execution.exchanges.okx_adapter import OKXAdapter
+from execution.permit import sign_execution_permit
 
 
 class DummySession:
@@ -268,6 +272,7 @@ def test_standalone_live_policy_cannot_bypass_canary_policy(monkeypatch):
 def test_live_canary_rejects_order_above_symbol_qty_cap(monkeypatch):
     service = ExecutionService(
         {
+            "trading": {"dry_run": False},
             "execution": {
                 "mode": "live",
                 "venue": "okx",
@@ -294,9 +299,10 @@ def test_live_canary_rejects_order_above_symbol_qty_cap(monkeypatch):
         raise AssertionError("live canary should reject orders above the configured cap")
 
 
-def test_live_canary_allows_tiny_buy_after_policy_passes(monkeypatch):
+def test_live_canary_still_requires_execution_permit(monkeypatch):
     service = ExecutionService(
         {
+            "trading": {"dry_run": False},
             "execution": {
                 "mode": "live",
                 "venue": "okx",
@@ -312,12 +318,152 @@ def test_live_canary_allows_tiny_buy_after_policy_passes(monkeypatch):
     )
     monkeypatch.setattr(service, "get_adapter", lambda venue=None: FakeAdapter(dry_run=False))
 
-    payload = service.submit_order(symbol="BTCUSDT", side="buy", order_type="market", qty=0.001)
+    with pytest.raises(ExecutionRejectError, match="permit") as excinfo:
+        service.submit_order(symbol="BTCUSDT", side="buy", order_type="market", qty=0.001)
 
+    assert excinfo.value.code == "execution_permit_required"
+
+
+def _live_canary_config() -> dict:
+    return {
+        "trading": {"dry_run": False},
+        "execution": {
+            "mode": "live",
+            "venue": "okx",
+            "enable_live_trading": True,
+            "live_canary": {
+                "enabled": True,
+                "allowed_symbols": ["BTC/USDT"],
+                "max_base_qty_by_symbol": {"BTC/USDT": 0.001},
+            },
+        },
+    }
+
+
+def _permit_claims(*, expires_delta: timedelta = timedelta(minutes=2), side: str = "buy") -> dict:
+    now = datetime.now(timezone.utc)
+    return {
+        "version": 1,
+        "nonce": f"permit-{now.timestamp()}-{side}",
+        "issued_at": now.isoformat(),
+        "expires_at": (now + expires_delta).isoformat(),
+        "run_id": "run-1",
+        "profile_id": "trend",
+        "strategy_hash": "strategy-sha256",
+        "venue": "okx",
+        "symbol": "BTC/USDT",
+        "side": side,
+        "order_type": "market",
+        "reduce_only": False,
+        "max_qty": 0.001,
+        "max_notional": 100.0,
+    }
+
+
+def test_non_dry_adapter_cannot_bypass_live_config(monkeypatch):
+    calls = []
+
+    class CaptureAdapter(FakeAdapter):
+        def place_order(self, request):
+            calls.append(request)
+            return super().place_order(request)
+
+    service = ExecutionService({"trading": {"dry_run": False}, "execution": {"mode": "paper", "venue": "okx"}})
+    monkeypatch.setattr(service, "get_adapter", lambda venue=None: CaptureAdapter(dry_run=False))
+
+    with pytest.raises(ExecutionRejectError) as excinfo:
+        service.submit_order(symbol="BTC/USDT", side="buy", order_type="market", qty=0.001)
+
+    assert excinfo.value.code == "live_config_not_enabled"
+    assert calls == []
+
+
+def test_valid_execution_permit_is_bound_and_single_use(monkeypatch, tmp_path):
+    secret = "test-only-permit-secret-with-at-least-32-bytes"
+    monkeypatch.setenv("POLY_TRADER_EXECUTION_PERMIT_SECRET", secret)
+    session = init_db(f"sqlite:///{tmp_path / 'permit.db'}")
+    calls = []
+
+    class CaptureAdapter(FakeAdapter):
+        def place_order(self, request):
+            calls.append(request)
+            return super().place_order(request)
+
+    service = ExecutionService(_live_canary_config(), db_session=session)
+    monkeypatch.setattr(service, "get_adapter", lambda venue=None: CaptureAdapter(dry_run=False))
+    permit = sign_execution_permit(_permit_claims(), secret=secret)
+    kwargs = {
+        "symbol": "BTC/USDT",
+        "side": "buy",
+        "order_type": "market",
+        "qty": 0.001,
+        "reference_price": 62000.0,
+        "run_id": "run-1",
+        "profile_id": "trend",
+        "strategy_hash": "strategy-sha256",
+        "execution_permit": permit,
+    }
+
+    payload = service.submit_order(**kwargs)
     assert payload["success"] is True
     assert payload["dry_run"] is False
-    assert payload["order"]["symbol"] == "BTC/USDT"
-    assert payload["order"]["qty"] == 0.001
+    assert len(calls) == 1
+
+    with pytest.raises(ExecutionRejectError) as excinfo:
+        service.submit_order(**kwargs)
+    assert excinfo.value.code == "execution_permit_replayed"
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("claims_update", "expected_code"),
+    [
+        ({"side": "sell"}, "execution_permit_scope_mismatch"),
+        ({"strategy_hash": "other-strategy"}, "execution_permit_scope_mismatch"),
+        ({"max_qty": 0.0005}, "execution_permit_limit_exceeded"),
+        ({"max_notional": 50.0}, "execution_permit_limit_exceeded"),
+    ],
+)
+def test_execution_permit_claim_mismatches_fail_closed(monkeypatch, tmp_path, claims_update, expected_code):
+    secret = "test-only-permit-secret-with-at-least-32-bytes"
+    monkeypatch.setenv("POLY_TRADER_EXECUTION_PERMIT_SECRET", secret)
+    session = init_db(f"sqlite:///{tmp_path / 'permit-mismatch.db'}")
+    service = ExecutionService(_live_canary_config(), db_session=session)
+    monkeypatch.setattr(service, "get_adapter", lambda venue=None: FakeAdapter(dry_run=False))
+    claims = _permit_claims()
+    claims.update(claims_update)
+    permit = sign_execution_permit(claims, secret=secret)
+
+    with pytest.raises(ExecutionRejectError) as excinfo:
+        service.submit_order(
+            symbol="BTC/USDT",
+            side="buy",
+            order_type="market",
+            qty=0.001,
+            reference_price=62000.0,
+            run_id="run-1",
+            profile_id="trend",
+            strategy_hash="strategy-sha256",
+            execution_permit=permit,
+        )
+    assert excinfo.value.code == expected_code
+
+
+def test_expired_execution_permit_fails_closed(monkeypatch, tmp_path):
+    secret = "test-only-permit-secret-with-at-least-32-bytes"
+    monkeypatch.setenv("POLY_TRADER_EXECUTION_PERMIT_SECRET", secret)
+    session = init_db(f"sqlite:///{tmp_path / 'permit-expired.db'}")
+    service = ExecutionService(_live_canary_config(), db_session=session)
+    monkeypatch.setattr(service, "get_adapter", lambda venue=None: FakeAdapter(dry_run=False))
+    permit = sign_execution_permit(_permit_claims(expires_delta=timedelta(seconds=-1)), secret=secret)
+
+    with pytest.raises(ExecutionRejectError) as excinfo:
+        service.submit_order(
+            symbol="BTC/USDT", side="buy", order_type="market", qty=0.001,
+            reference_price=62000.0, run_id="run-1", profile_id="trend",
+            strategy_hash="strategy-sha256", execution_permit=permit,
+        )
+    assert excinfo.value.code == "execution_permit_expired"
 
 
 def test_execution_service_guardrail_summary_includes_last_reject(monkeypatch):

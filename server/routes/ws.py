@@ -5,7 +5,7 @@
 import asyncio
 import json
 from typing import Set, Dict, Any, Optional
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from model.predictor import DummyPredictor
 from utils.logger import setup_logger
 
@@ -59,36 +59,9 @@ class WsManager:
         while True:
             try:
                 if self.clients:
-                    from server.dependencies import get_db, get_config
-                    from data_ingestion.collector import run_collection_and_save
-                    from feature_engine.preprocessor import run_preprocessor
-                    from model.predictor import predict as run_predict
-
-                    db = get_db()
-                    cfg = get_config()
-                    symbol = cfg.get("trading", {}).get("symbol", "BTCUSDT")
-
-                    success = run_collection_and_save(db, symbol)
-                    if success:
-                        raw = self.get_latest_raw()
-                        if raw:
-                            await self.broadcast({"type": "senses_update", "data": raw})
-
-                        features = run_preprocessor(db, symbol)
-                        if features:
-                            result = run_predict(db, predictor=self._predictor)
-                            if result:
-                                await self.broadcast({
-                                    "type": "senses_update",
-                                    "data": {
-                                        "scores": self._features_to_scores(features),
-                                        "recommendation": {
-                                            "confidence": result["confidence"],
-                                            "signal": result["signal"],
-                                            "timestamp": result["timestamp"],
-                                        },
-                                    },
-                                })
+                    raw = self.get_latest_raw()
+                    if raw:
+                        await self.broadcast({"type": "senses_update", "data": raw})
             except Exception as e:
                 logger.error(f"推送循環錯誤: {e}")
 
@@ -132,6 +105,17 @@ ws_manager = WsManager()
 
 @router.websocket("/ws/live")
 async def websocket_live(ws: WebSocket):
+    from server.dependencies import get_config
+    from server.security import assert_local_operator_request, configured_allowed_origins
+
+    try:
+        assert_local_operator_request(
+            ws,
+            allowed_origins=configured_allowed_origins(get_config()),
+        )
+    except HTTPException:
+        await ws.close(code=1008)
+        return
     await ws.accept()
     ws_manager.clients.add(ws)
     logger.info(f"WebSocket 連接，當前: {len(ws_manager.clients)}")

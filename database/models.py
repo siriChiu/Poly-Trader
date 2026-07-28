@@ -208,6 +208,23 @@ class OrderLifecycleEvent(Base):
     is_dry_run = Column(Integer, nullable=True)
 
 
+class ExecutionPermitConsumption(Base):
+    __tablename__ = "execution_permit_consumptions"
+
+    nonce = Column(String, primary_key=True)
+    signature = Column(String, nullable=False)
+    run_id = Column(String, nullable=False, index=True)
+    profile_id = Column(String, nullable=False)
+    strategy_hash = Column(String, nullable=False)
+    venue = Column(String, nullable=False)
+    symbol = Column(String, nullable=False)
+    side = Column(String, nullable=False)
+    max_qty = Column(Float, nullable=False)
+    max_notional = Column(Float, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    consumed_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 class Labels(Base):
     __tablename__ = "labels"
 
@@ -442,6 +459,9 @@ def _configure_sqlite_engine(engine) -> None:
 
 
 def init_db(db_url: str):
+    from database.runtime import assert_database_url_allowed
+
+    db_url = assert_database_url_allowed(db_url)
     engine_kwargs = {"echo": False, "future": True}
     if db_url.startswith("sqlite"):
         engine_kwargs["connect_args"] = {"timeout": 30, "check_same_thread": False}

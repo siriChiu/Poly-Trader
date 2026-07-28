@@ -19,7 +19,7 @@ def test_backfill_missing_feature_rows_only_inserts_missing_timestamps(monkeypat
             for i in range(12)
         ]
         session.add_all(raw_rows)
-        session.add(FeaturesNormalized(timestamp=base + timedelta(hours=9), symbol="BTCUSDT", feat_eye=0.1))
+        session.add(FeaturesNormalized(timestamp=base + timedelta(hours=9), symbol="BTCUSDT", feat_eye=0.1, feat_4h_bias50=0.1))
         session.commit()
 
         def fake_compute(window, **kwargs):
@@ -35,6 +35,7 @@ def test_backfill_missing_feature_rows_only_inserts_missing_timestamps(monkeypat
                 "feat_pulse": 0.66,
                 "feat_aura": 0.77,
                 "feat_mind": 0.88,
+                "feat_4h_bias50": 0.1,
             }
 
         monkeypatch.setattr(preprocessor, "compute_features_from_raw", fake_compute)
@@ -98,6 +99,7 @@ def test_backfill_missing_feature_rows_reuses_4h_payload_and_bounds_compute_wind
                 "feat_pulse": 0.66,
                 "feat_aura": 0.77,
                 "feat_mind": 0.88,
+                "feat_4h_bias50": 0.1,
             }
 
         monkeypatch.setattr(preprocessor, "_fetch_okx_4h_ohlcv", fake_fetch)
@@ -135,7 +137,7 @@ def test_repair_recent_feature_continuity_reports_and_repairs_missing_recent_row
             for i in range(12)
         ]
         session.add_all(raw_rows)
-        session.add(FeaturesNormalized(timestamp=base + timedelta(hours=9), symbol="BTCUSDT", feat_eye=0.1))
+        session.add(FeaturesNormalized(timestamp=base + timedelta(hours=9), symbol="BTCUSDT", feat_eye=0.1, feat_4h_bias50=0.1))
         session.commit()
 
         def fake_compute(window, **kwargs):
@@ -151,6 +153,7 @@ def test_repair_recent_feature_continuity_reports_and_repairs_missing_recent_row
                 "feat_pulse": 0.76,
                 "feat_aura": 0.87,
                 "feat_mind": 0.98,
+                "feat_4h_bias50": 0.1,
             }
 
         monkeypatch.setattr(preprocessor, "compute_features_from_raw", fake_compute)
@@ -185,7 +188,7 @@ def test_repair_recent_feature_continuity_can_defer_startup_backfill(monkeypatch
             for i in range(12)
         ]
         session.add_all(raw_rows)
-        session.add(FeaturesNormalized(timestamp=base + timedelta(hours=9), symbol="BTCUSDT", feat_eye=0.1))
+        session.add(FeaturesNormalized(timestamp=base + timedelta(hours=9), symbol="BTCUSDT", feat_eye=0.1, feat_4h_bias50=0.1))
         session.commit()
 
         def fail_if_called(window, **kwargs):
@@ -233,6 +236,7 @@ def test_repair_recent_feature_continuity_treats_slash_and_compact_symbols_as_sa
                 timestamp=base + timedelta(hours=i),
                 symbol="BTC/USDT",
                 feat_eye=0.1,
+                feat_4h_bias50=0.1,
             )
             for i in range(9, 12)
         ]
@@ -290,5 +294,42 @@ def test_save_features_to_db_updates_existing_slash_symbol_row_instead_of_duplic
         assert len(rows) == 1
         assert rows[0].symbol == "BTCUSDT"
         assert rows[0].feat_eye == 0.42
+    finally:
+        session.close()
+
+
+def test_backfill_missing_feature_rows_recomputes_existing_strategy_unready_row(monkeypatch, tmp_path):
+    db_path = tmp_path / "repair_null_strategy_feature.sqlite"
+    session = init_db(f"sqlite:///{db_path}")
+    try:
+        base = datetime(2026, 6, 27, 0, 0, 0)
+        session.add_all([
+            RawMarketData(timestamp=base + timedelta(hours=i), symbol="BTCUSDT", close_price=100 + i, volume=1000 + i)
+            for i in range(12)
+        ])
+        session.add_all([
+            FeaturesNormalized(timestamp=base + timedelta(hours=9), symbol="BTC/USDT", feat_eye=0.1, feat_4h_bias50=0.1),
+            FeaturesNormalized(timestamp=base + timedelta(hours=10), symbol="BTC/USDT", feat_eye=0.1, feat_4h_bias50=0.1),
+            FeaturesNormalized(timestamp=base + timedelta(hours=11), symbol="BTC/USDT", feat_eye=0.1, feat_4h_bias50=None),
+        ])
+        session.commit()
+
+        monkeypatch.setattr(
+            preprocessor,
+            "compute_features_from_raw",
+            lambda window, **kwargs: {
+                "timestamp": window.iloc[-1]["timestamp"], "symbol": "BTCUSDT",
+                "feat_eye": 0.2, "feat_ear": 0.3, "feat_nose": 0.4, "feat_tongue": 0.5,
+                "feat_body": 0.6, "feat_pulse": 0.7, "feat_aura": 0.8, "feat_mind": 0.9,
+                "feat_4h_bias50": 1.25,
+            },
+        )
+
+        repaired = preprocessor.backfill_missing_feature_rows(session, "BTCUSDT")
+        rows = session.query(FeaturesNormalized).filter(FeaturesNormalized.timestamp == base + timedelta(hours=11)).all()
+
+        assert repaired == 1
+        assert len(rows) == 1
+        assert rows[0].feat_4h_bias50 == 1.25
     finally:
         session.close()

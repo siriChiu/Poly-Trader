@@ -19,13 +19,14 @@ def test_app_redirects_backtest_to_lab_and_keeps_current_nav_items():
         "React.lazy(() => import('./pages/ExecutionStatus'))",
         "<React.Suspense",
         "頁面載入中",
-        "⚡ Bot 營運",
-        "🩺 執行狀態",
-        "🧪 策略實驗室",
+        "總覽",
+        "策略",
+        "營運",
+        "進階",
         '<Route path="/execution" element={<ExecutionConsole />} />',
         '<Route path="/execution/status" element={<ExecutionStatus />} />',
         '<Route path="/backtest" element={<Navigate to="/lab" replace />} />',
-        "📊 儀表板",
+        "完整儀表板",
     ]
     for snippet in required_snippets:
         assert snippet in source
@@ -113,7 +114,7 @@ def test_execution_workspace_endpoints_have_longer_first_load_timeout():
     source = _read("hooks/useApi.ts")
     required_snippets = [
         'const STATUS_REQUEST_TIMEOUT_MS = 20000;',
-        'const EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS = 20000;',
+        'const EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS = 30000;',
         'if (endpoint.startsWith("/api/status")) return STATUS_REQUEST_TIMEOUT_MS;',
         'if (endpoint.startsWith("/api/execution/overview")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;',
         'if (endpoint.startsWith("/api/execution/runs")) return EXECUTION_WORKSPACE_REQUEST_TIMEOUT_MS;',
@@ -143,7 +144,9 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         'const rawPrimaryBlockedReason = liveRuntimeTruth?.deployment_blocker_reason',
         'const blockedReasonSummary = runtimeStatusPending',
         'const deploymentStatusDetail = runtimeStatusPending',
-        'liveRuntimeTruth?.runtime_closure_summary || liveRuntimeTruth?.deployment_blocker_reason || primaryBlockedReason',
+        ': primaryBlockedReason;',
+        '模型升級證據（非發布進度）',
+        'promotion_status',
         'Bot 營運 / 執行工作台',
         '先看我的 Bot、資金使用與盈虧預覽',
         '選策略',
@@ -151,9 +154,9 @@ def test_execution_console_consumes_runtime_status_and_uses_exchange_like_layout
         '共享盈虧預覽',
         '資金使用中',
         '可部署資金',
-        '運行中 Bot',
+        '健康長駐 Worker',
         '我的 Bot',
-        '已配置倉位腿策略與共享帳戶預覽；是否真的運行請看「運行中 Bot」。',
+        'DB 控制列不等於長駐程序，請看「健康長駐 Worker」。',
         '運行中',
         '自然語句操作',
         '部署狀態',
@@ -413,7 +416,7 @@ def test_execution_console_keeps_initial_sync_copy_until_status_overview_and_run
         'const hasBlockedState = !runtimeStatusPending && !executionSurfaceContract?.live_ready;',
         'const primaryBlockedReason = runtimeStatusPending ? "正在同步 /api/status" : humanizeExecutionReason(rawPrimaryBlockedReason);',
         'const deploymentStatusLabel = runtimeStatusPending ? "同步中" : (executionSurfaceContract?.live_ready ? "可部署" : "仍阻塞");',
-        '正在向 /api/status 取得目前阻塞點 / 部署閉環摘要。',
+        '正在向 /api/status 取得部署狀態。',
         'const executionModeLabel = runtimeStatusPending ? "同步中" : humanizeExecutionModeLabel(executionModeRaw);',
         'const executionVenueLabel = runtimeStatusPending ? "同步中" : humanizeExecutionVenueLabel(executionSummary?.venue || "unknown");',
         'const automationStatusLabel = runtimeStatusPending ? "自動交易同步中" : `自動交易 ${automationEnabled ? "開啟" : "關閉"}`;',
@@ -1914,7 +1917,7 @@ def test_strategy_lab_recovers_empty_leaderboard_after_initial_backend_timeout()
     required_snippets = [
         'import { fetchApi, prewarmActiveApiBase, useApi } from "../hooks/useApi";',
         'const extractStrategyLeaderboardList = (payload: any): StrategyEntry[] => {',
-        'const STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS = 2500;',
+        'const STRATEGY_LAB_SAME_ORIGIN_TIMEOUT_MS = 20_000;',
         'const fetchStrategyLabEndpointJson = async (endpoint: string) => {',
         'await prewarmActiveApiBase();',
         'const sameOriginController = new AbortController();',
@@ -2575,16 +2578,13 @@ def test_strategy_lab_surfaces_two_year_leaderboard_backtest_policy():
     required_snippets = [
         'const LEADERBOARD_BACKTEST_WINDOW_MONTHS = 24;',
         'const LEADERBOARD_BACKTEST_WINDOW_DAYS = 730;',
-        'const LEADERBOARD_BACKTEST_POLICY_LABEL = "排行榜回測固定使用最近兩年";',
         'applyBacktestPreset("2y")',
-        ' · 固定視窗 730 天（約 24 個月），降低短窗策略過擬合。',
+        '統一 730 天比較窗',
+        '避免短窗過擬合',
     ]
     for snippet in required_snippets:
         assert snippet in source
-    assert source.count('排行榜回測固定使用最近兩年') == 1
-    assert source.count('{LEADERBOARD_BACKTEST_POLICY_LABEL}') == 1
-    assert '{LEADERBOARD_BACKTEST_POLICY_LABEL} · 固定視窗 {LEADERBOARD_BACKTEST_WINDOW_DAYS} 天。' not in source
-    assert '排行榜回測固定使用最近兩年最近 730 天' not in source
+    assert source.count('統一 730 天比較窗') == 1
 
 
 def test_candlestick_chart_uses_stable_empty_prop_defaults_to_avoid_render_loops():
@@ -2645,8 +2645,12 @@ def test_candlestick_chart_promotes_strategy_score_overlay_over_model_confidence
         'title: "進場品質",',
         'const strategyScoreData = toScoreLine((point) => point.score);',
         'const entryQualityData = toScoreLine((point) => point.entry_quality);',
-        'scoreSeriesRef.current?.setData(strategyScoreData);',
-        'confidenceSeriesRef.current?.setData(entryQualityData);',
+        'const coverageComplete = candleTimes.length > 0',
+        'matchedEntryQualityTimes = new Set(entryQualityData.map((row) => Number(row.time)))',
+        'candleTimes.every((time) => matchedScoreTimes.has(time) && matchedEntryQualityTimes.has(time))',
+        'scoreSeriesRef.current?.setData(coverageComplete ? strategyScoreData : []);',
+        'confidenceSeriesRef.current?.setData(coverageComplete ? entryQualityData : []);',
+        '分數資料不完整：目前只對齊',
         '上圖疊加策略分數與進場品質',
     ]
     for snippet in required_snippets:

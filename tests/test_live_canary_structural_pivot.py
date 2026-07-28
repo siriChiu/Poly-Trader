@@ -318,6 +318,74 @@ def test_live_canary_pivot_marks_block_bucket_as_no_trade_lane_audit():
     assert payload["micro_canary_gate"]["single_failed_gate_for_72h_decision"] == "circuit_breaker_gate"
 
 
+def test_live_canary_no_trade_lane_interpretation_uses_current_nonzero_support_rows():
+    payload = pivot.build_live_canary_structural_pivot(
+        live_predict_probe={
+            "deployment_blocker": "circuit_breaker_active",
+            "signal": "CIRCUIT_BREAKER",
+            "should_trade": False,
+            "regime_gate": "CAUTION",
+            "allowed_layers_raw": 0,
+            "allowed_layers": 0,
+            "current_live_structure_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+            "current_live_structure_bucket_rows": 26,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 24,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+        },
+        circuit_breaker_audit={
+            "release_condition": {
+                "release_ready": False,
+                "recent_window": 50,
+                "current_recent_window_wins": 0,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 15,
+            }
+        },
+        high_conviction_topk_oos_matrix={
+            "risk_qualified_rows": 0,
+            "runtime_blocked_candidate_rows": 0,
+            "deployable_rows": 0,
+        },
+        execution_metadata_smoke={
+            "runtime_ready": False,
+            "venues": [
+                {
+                    "venue": "okx",
+                    "runtime_ready": False,
+                    "credentials_configured": False,
+                }
+            ],
+        },
+        customer_safe_alternative_proof={},
+        q15_support_fill_feasibility={
+            "verdict": {
+                "current_exact_bucket_rows": 26,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 24,
+            }
+        },
+        config_snapshot={
+            "config_path": "config.yaml",
+            "exists": True,
+            "execution_mode": "paper",
+            "enable_live_trading": False,
+            "live_canary_enabled": False,
+            "allowed_symbols_configured": False,
+            "max_base_qty_by_symbol_configured": False,
+            "policy_ready": False,
+            "credential_values_redacted": True,
+        },
+        generated_at="2026-07-23T22:57:00Z",
+    )
+
+    interpretation = payload["current_truth"]["operator_interpretation"]
+    assert "26/50" in interpretation
+    assert "0/50 exact support" not in interpretation
+    assert "不可視為買入 / 加倉部署 closure" in interpretation
+
+
 def test_live_canary_pivot_requires_all_gates_before_order_submission():
     payload = pivot.build_live_canary_structural_pivot(
         live_predict_probe={

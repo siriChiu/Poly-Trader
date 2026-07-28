@@ -60,6 +60,7 @@ def test_run_training_writes_target_specific_last_metrics(tmp_path, monkeypatch)
     conn.execute("CREATE TABLE model_metrics (timestamp TEXT, train_accuracy REAL, cv_accuracy REAL, cv_std REAL, n_features INTEGER, notes TEXT)")
     conn.commit()
     conn.close()
+    monkeypatch.setattr(train_module, "DB_PATH", str(tmp_path / "poly_trader.db"))
 
     X = pd.DataFrame({"feat_a": [0.1] * 80, "feat_b": [0.2] * 80})
     X.attrs["feature_profile"] = "core_plus_macro"

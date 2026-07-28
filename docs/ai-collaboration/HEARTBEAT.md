@@ -47,6 +47,29 @@ Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 
 4. **Bounded live-canary hard gate**：若要準備真實買入 / 加倉，必須走 `execution.live_canary.enabled=true + allowed_symbols + max_base_qty_by_symbol`，否則在 adapter 前拒單。
 5. **Hard no-go**：如果仍不能前進，必須寫明唯一失敗 gate 與下一個能解除該 gate 的 artifact；禁止再產出模糊「繼續觀察」。
 
+### 1.3 外部 governor 與反自我認證
+
+每輪在 Agent 開始分析前，先執行：
+
+```bash
+python scripts/heartbeat_governor.py --format text
+```
+
+`scripts/heartbeat_governor.py` 是外部、可重跑的 machine gate，不接受 Agent 自己判定「這輪做得很好」作為證據。它會從 current artifacts 計算 semantic signature、support delta、runtime freshness、連續重複次數與唯一 forced branch，並寫入：
+
+- `data/heartbeat_governor_state.json`
+- `data/heartbeat_governor_brief.json`
+
+每輪都必須遵守：
+
+- `ANTI_SELF_CERTIFICATION=ACTIVE`；agent may not self-certify。
+- checker `PASS` 只代表機械規則通過，不代表產品 blocker 已解除。
+- 沒有新 artifact、獨立 verifier 或可重現 customer-value delta，不得宣稱 progress / resolved / live-ready。
+- `forced_execution_required=true` 時，不得只做 observation-only status refresh；必須執行 brief 指定的 forced branch，或輸出唯一 hard no-go gate。
+- live buy/add 的 fail-closed 邊界永遠優先於 heartbeat 的「完成」敘事。
+
+若 governor 與 Agent 敘事衝突，以 governor、machine artifacts、獨立驗證結果為準；Agent 必須降低信心，不得替自己補證。
+
 ---
 
 ## 2. 固定順序
@@ -72,6 +95,16 @@ Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 
    - 先分清 current-live blocker、venue blocker、research blocker。
    - 不把 reference-only patch 寫成 deployment closure。
    - 若同一 blocker/support signature 沒有位移，先執行反平衡分支；不得直接進入下一段 status narrative。
+
+3.5. **六色帽 + ORID**
+   - **白帽**：只列 machine-readable facts、freshness、失敗命令與 dirty boundary。
+   - **紅帽**：列出使用者 / 客戶目前的痛點、焦慮與不可接受的體驗，不把情緒當成證據。
+   - **黑帽**：列出最可能的 failure mode、回歸風險、錯誤自我肯定與安全邊界。
+   - **黃帽**：列出本輪能交付的 customer-safe value 與實際效益前提。
+   - **綠帽**：至少提出一個不同於上一輪的替代路徑；同一 blocker 重複時不得只換措辭。
+   - **藍帽**：選出唯一 P0/P1 action、owner、artifact、verifier、成功 gate 與失敗 fallback。
+   - 接著用 ORID 收斂：`O=客觀事實`、`R=反應與風險感受`、`I=根因與意義`、`D=決定與下一步`。
+   - 若六帽與 ORID 沒有產出可執行的 artifact / verifier，該輪視為 incomplete。
 
 4. **Patch**
    - 優先修會影響 operator truth 或 live safety 的問題。

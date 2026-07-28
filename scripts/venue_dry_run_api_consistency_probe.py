@@ -10,7 +10,9 @@ so heartbeat runs can use curl output, saved payloads, or test fixtures.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import math
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -39,14 +41,19 @@ LIFECYCLE_KEYS = (
     "cancel_simulation",
     "fill_simulation",
     "reconciliation_check",
+    "local_lifecycle_rehearsal",
 )
 LIFECYCLE_FIELD_KEYS = (
     "status",
+    "scope",
+    "venue",
     "runtime_backed",
     "order_submission_enabled",
     "risk_on_order_enabled",
     "dry_run_only",
     "live_order_submitted",
+    "events",
+    "checks",
 )
 VENUE_KEYS = (
     "adapter_supported",
@@ -87,6 +94,20 @@ def _load_json(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise SystemExit(f"expected top-level JSON object in {path}")
     return payload
+
+
+def _payload_sha256(payload: Mapping[str, Any]) -> str | None:
+    try:
+        canonical = json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError):
+        return None
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def _load_stdin_bundle() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
@@ -246,6 +267,94 @@ def _fail_closed(proof: Mapping[str, Any]) -> bool:
     return True
 
 
+def _local_lifecycle_rehearsal_failures(proof: Mapping[str, Any]) -> list[str]:
+    rehearsal = _mapping(proof.get("local_lifecycle_rehearsal"))
+    if not rehearsal:
+        return ["local_lifecycle_rehearsal_missing"]
+
+    failures: list[str] = []
+    if rehearsal.get("status") != "passed_local_state_machine_runtime_unverified":
+        failures.append("status")
+    if rehearsal.get("scope") != "local_contract_rehearsal_not_exchange_proof":
+        failures.append("scope")
+    for field, expected in (
+        ("runtime_backed", False),
+        ("dry_run_only", True),
+        ("order_submission_enabled", False),
+        ("risk_on_order_enabled", False),
+        ("live_order_submitted", False),
+    ):
+        if rehearsal.get(field) is not expected:
+            failures.append(field)
+
+    events = _list(rehearsal.get("events"))
+    sequences = [event.get("sequence") for event in events if isinstance(event, dict)]
+    event_types = [event.get("event_type") for event in events if isinstance(event, dict)]
+    states = [event.get("state") for event in events if isinstance(event, dict)]
+    if sequences != [1, 2, 3, 4, 5]:
+        failures.append("event_sequence")
+    if event_types != [
+        "order_previewed",
+        "ack_recorded",
+        "partial_fill_recorded",
+        "cancel_recorded",
+        "ledger_reconciled",
+    ]:
+        failures.append("event_types")
+    if states != ["previewed", "open", "partially_filled", "canceled", "reconciled"]:
+        failures.append("event_states")
+
+    # Recompute quantity invariants from the event payload.  The writer's
+    # boolean ``checks`` are useful diagnostics, but trusting them alone would
+    # let a tampered or divergent API payload self-certify impossible fills.
+    partial_fill = _mapping(events[2]) if len(events) > 2 else {}
+    reconciliation = _mapping(events[4]) if len(events) > 4 else {}
+
+    def _finite_number(value: Any) -> float | None:
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return None
+        number = float(value)
+        return number if math.isfinite(number) else None
+
+    requested = _finite_number(partial_fill.get("requested_units"))
+    filled = _finite_number(partial_fill.get("filled_units"))
+    remaining = _finite_number(partial_fill.get("remaining_units"))
+    reconciled_filled = _finite_number(reconciliation.get("filled_units"))
+    canceled = _finite_number(reconciliation.get("canceled_units"))
+    if any(value is None for value in (requested, filled, remaining, reconciled_filled, canceled)):
+        failures.append("quantity_fields_missing_or_invalid")
+    else:
+        assert requested is not None
+        assert filled is not None
+        assert remaining is not None
+        assert reconciled_filled is not None
+        assert canceled is not None
+        if not (requested > 0 and 0 <= filled <= requested):
+            failures.append("filled_qty_lte_requested_qty_recomputed")
+        if not (remaining >= 0 and remaining == requested - filled):
+            failures.append("remaining_qty_matches_recomputed")
+        if reconciled_filled != filled:
+            failures.append("reconciled_filled_qty_matches_recomputed")
+        if not (canceled >= 0 and canceled == remaining):
+            failures.append("canceled_qty_matches_remaining_recomputed")
+        if reconciled_filled + canceled != requested:
+            failures.append("ledger_match_recomputed")
+
+    checks = _mapping(rehearsal.get("checks"))
+    for field in (
+        "transition_order_valid",
+        "filled_qty_lte_requested_qty",
+        "remaining_qty_matches",
+        "terminal_state_canceled",
+        "ledger_match",
+    ):
+        if checks.get(field) is not True:
+            failures.append(field)
+    if checks.get("live_adapter_called") is not False:
+        failures.append("live_adapter_called")
+    return list(dict.fromkeys(failures))
+
+
 def build_summary(
     status_payload: Mapping[str, Any],
     overview_payload: Mapping[str, Any],
@@ -296,6 +405,16 @@ def build_summary(
     )
     status_fail_closed = bool(status_proof and _fail_closed(status_proof))
     overview_fail_closed = bool(overview_proof and _fail_closed(overview_proof))
+    local_lifecycle_rehearsal_failures = list(
+        dict.fromkeys(
+            [
+                *(_local_lifecycle_rehearsal_failures(status_proof) if status_proof else ["status_proof_missing"]),
+                *(_local_lifecycle_rehearsal_failures(overview_proof) if overview_proof else ["overview_proof_missing"]),
+                *(_local_lifecycle_rehearsal_failures(artifact_proof) if artifact_proof else []),
+            ]
+        )
+    )
+    local_lifecycle_rehearsal_valid = not local_lifecycle_rehearsal_failures
     status_missing = _required_missing(status_proof) if status_proof else ["venue_dry_run_proof"]
     overview_missing = _required_missing(overview_proof) if overview_proof else ["venue_dry_run_proof"]
     secret_safe = bool(
@@ -311,6 +430,7 @@ def build_summary(
         and artifact_consistent
         and fail_closed
         and secret_safe
+        and local_lifecycle_rehearsal_valid
         and not status_missing
         and not overview_missing
     )
@@ -322,6 +442,8 @@ def build_summary(
         "status_proof_present": bool(status_proof),
         "overview_proof_present": bool(overview_proof),
         "artifact_proof_present": bool(artifact_proof),
+        "artifact_generated_at": artifact_proof.get("generated_at") if artifact_proof else None,
+        "artifact_payload_sha256": _payload_sha256(artifact_proof) if artifact_proof else None,
         "status_missing_required_fields": status_missing,
         "overview_missing_required_fields": overview_missing,
         "status_overview_mismatches": status_overview_mismatches,
@@ -332,6 +454,8 @@ def build_summary(
         "fail_closed": fail_closed,
         "secret_safe": secret_safe,
         "secret_like_key_paths": secret_like_key_paths,
+        "local_lifecycle_rehearsal_valid": local_lifecycle_rehearsal_valid,
+        "local_lifecycle_rehearsal_failures": local_lifecycle_rehearsal_failures,
         "status": status_proof.get("status"),
         "overview_status": overview_proof.get("status"),
         "artifact_status": artifact_proof.get("status") if artifact_proof else None,

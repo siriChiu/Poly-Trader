@@ -420,6 +420,12 @@ def _sanitize_backtest_range_meta(value: Any) -> Dict[str, Any]:
         cleaned["missing_start_days"] = _coerce_float(value.get("missing_start_days"))
     if value.get("missing_end_days") is not None:
         cleaned["missing_end_days"] = _coerce_float(value.get("missing_end_days"))
+    if value.get("interior_gaps") is not None:
+        cleaned["interior_gaps"] = _sanitize_json_like(value.get("interior_gaps") or [])
+    if value.get("interior_gap_count") is not None:
+        cleaned["interior_gap_count"] = _coerce_int(value.get("interior_gap_count"), 0)
+    if value.get("largest_interior_gap_hours") is not None:
+        cleaned["largest_interior_gap_hours"] = _coerce_float(value.get("largest_interior_gap_hours"))
     if value.get("row_count") is not None:
         cleaned["row_count"] = _coerce_int(value.get("row_count"), 0)
     if value.get("policy") is not None:
@@ -619,8 +625,12 @@ def _sanitize_results(results: Optional[Dict[str, Any]]) -> Optional[Dict[str, A
     cleaned["equity_curve"] = _sanitize_json_like(results.get("equity_curve") or [])
     cleaned["trades"] = _sanitize_json_like(results.get("trades") or [])
     cleaned["score_series"] = _sanitize_json_like(results.get("score_series") or [])
+    cleaned["score_series_context"] = _sanitize_json_like(results.get("score_series_context") or {})
     cleaned["chart_context"] = _sanitize_json_like(results.get("chart_context") or {})
     cleaned["backtest_range"] = _sanitize_backtest_range_meta(results.get("backtest_range") or {})
+    cleaned["fitted_model_artifact"] = _sanitize_json_like(results.get("fitted_model_artifact") or {})
+    cleaned["runtime_candidate_status"] = str(results.get("runtime_candidate_status") or "") or None
+    cleaned["runtime_candidate_operator_fix"] = str(results.get("runtime_candidate_operator_fix") or "") or None
     return cleaned
 
 

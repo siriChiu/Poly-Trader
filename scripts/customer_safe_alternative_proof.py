@@ -315,11 +315,11 @@ def _breaker_context(live_probe: Mapping[str, Any], circuit_breaker_audit: Mappi
 
     circuit_breaker_audit = circuit_breaker_audit or {}
     details = live_probe.get("deployment_blocker_details") if isinstance(live_probe.get("deployment_blocker_details"), dict) else {}
-    release = details.get("release_condition") if isinstance(details.get("release_condition"), dict) else {}
-    if not release and isinstance(live_probe.get("release_condition"), dict):
-        release = live_probe.get("release_condition") or {}
-    if not release and isinstance(circuit_breaker_audit.get("release_condition"), dict):
-        release = circuit_breaker_audit.get("release_condition") or {}
+    release: dict[str, Any] = (
+        dict(circuit_breaker_audit.get("release_condition") or {})
+        if isinstance(circuit_breaker_audit.get("release_condition"), dict)
+        else {}
+    )
     if not release and isinstance(circuit_breaker_audit.get("canonical_scope"), dict):
         canonical_scope = circuit_breaker_audit.get("canonical_scope") or {}
         release = {
@@ -333,6 +333,10 @@ def _breaker_context(live_probe: Mapping[str, Any], circuit_breaker_audit: Mappi
             )
             if key in canonical_scope
         }
+    if not release and isinstance(details.get("release_condition"), dict):
+        release = details.get("release_condition") or {}
+    if not release and isinstance(live_probe.get("release_condition"), dict):
+        release = live_probe.get("release_condition") or {}
 
     deployment_blocker = live_probe.get("deployment_blocker")
     runtime_closure_state = live_probe.get("runtime_closure_state")

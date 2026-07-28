@@ -180,18 +180,23 @@ const estimateFetchLimit = (interval: string, days: number, since?: number | nul
   };
   const intervalMs = intervalMsMap[interval] || 3_600_000;
   if (since && until && until > since) {
-    return Math.max(80, Math.min(1000, Math.ceil((until - since) / intervalMs) + 20));
+    return Math.max(80, Math.min(5000, Math.ceil((until - since) / intervalMs) + 20));
   }
-  return Math.max(80, Math.min(1000, Math.ceil((days * 24 * 3_600_000) / intervalMs) + 20));
+  return Math.max(80, Math.min(5000, Math.ceil((days * 24 * 3_600_000) / intervalMs) + 20));
 };
 
-const alignToCandleTime = (ts: number | null, candleTimes: number[]) => {
+const alignToCandleTime = (
+  ts: number | null,
+  candleTimes: number[],
+  maxDistanceSeconds = Number.POSITIVE_INFINITY,
+) => {
   if (!ts || candleTimes.length === 0) return null;
   let aligned: number | null = null;
   for (const candleTime of candleTimes) {
     if (candleTime <= ts) aligned = candleTime;
     else break;
   }
+  if (aligned == null || Math.abs(ts - aligned) > maxDistanceSeconds) return null;
   return aligned;
 };
 
@@ -388,6 +393,7 @@ export default function CandlestickChart({
   const [lastCandleTime, setLastCandleTime] = useState<number | null>(null);
   const [windowLabel, setWindowLabel] = useState<string>("—");
   const [hover, setHover] = useState<HoverState | null>(null);
+  const [scoreCoverage, setScoreCoverage] = useState<{ matched: number; total: number; complete: boolean } | null>(null);
   const [equityDisplayMode, setEquityDisplayMode] = useState<EquityDisplayMode>("absolute");
   const equityModeMeta = getEquityModeMeta(equityDisplayMode);
 
@@ -750,10 +756,13 @@ export default function CandlestickChart({
       ma20LookupRef.current = new Map(ma20Data.map((row) => [Number(row.time), row.value]));
       ma60LookupRef.current = new Map(ma60Data.map((row) => [Number(row.time), row.value]));
 
+      const scoreAlignmentTolerance = candleTimes.length > 1
+        ? Math.max(1, candleTimes[1] - candleTimes[0]) * 0.55
+        : Number.POSITIVE_INFINITY;
       const toScoreLine = (selector: (point: ScorePoint) => number | null | undefined) => uniqueByTime(
         scoreSeries
           .map((point) => {
-            const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes);
+            const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes, scoreAlignmentTolerance);
             const value = selector(point);
             if (!ts || typeof value !== "number" || !Number.isFinite(value)) return null;
             return { time: ts as Time, value: value * 100 };
@@ -764,7 +773,7 @@ export default function CandlestickChart({
         uniqueByTime(
           scoreSeries
             .map((point) => {
-              const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes);
+              const ts = alignToCandleTime(toUnix(point.timestamp), candleTimes, scoreAlignmentTolerance);
               const value = selector(point);
               if (!ts || typeof value !== "number" || !Number.isFinite(value)) return null;
               return { time: ts as Time, value };
@@ -774,8 +783,19 @@ export default function CandlestickChart({
       );
       const strategyScoreData = toScoreLine((point) => point.score);
       const entryQualityData = toScoreLine((point) => point.entry_quality);
-      scoreSeriesRef.current?.setData(strategyScoreData);
-      confidenceSeriesRef.current?.setData(entryQualityData);
+      const matchedScoreTimes = new Set(strategyScoreData.map((row) => Number(row.time)));
+      const matchedEntryQualityTimes = new Set(entryQualityData.map((row) => Number(row.time)));
+      const coverageComplete = candleTimes.length > 0
+        && candleTimes.every((time) => matchedScoreTimes.has(time) && matchedEntryQualityTimes.has(time));
+      setScoreCoverage({
+        matched: Math.min(matchedScoreTimes.size, matchedEntryQualityTimes.size),
+        total: candleTimes.length,
+        complete: coverageComplete,
+      });
+      // Legacy results may contain only the last 300 points. Do not draw those
+      // fragments as though they covered the complete backtest window.
+      scoreSeriesRef.current?.setData(coverageComplete ? strategyScoreData : []);
+      confidenceSeriesRef.current?.setData(coverageComplete ? entryQualityData : []);
       scoreRawLookupRef.current = toRawScoreLookup((point) => point.score);
       if (scoreRawLookupRef.current.size === 0) {
         scoreRawLookupRef.current = toRawScoreLookup((point) => point.entry_quality);
@@ -1092,6 +1112,11 @@ export default function CandlestickChart({
           <span>上圖：BTC/USDT 價格、買賣點、策略/進場分數</span>
           <span>{interval}</span>
         </div>
+        {scoreCoverage && !scoreCoverage.complete && (
+          <div className="mb-3 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
+            分數資料不完整：目前只對齊 {scoreCoverage.matched}/{scoreCoverage.total} 根 K 線。為避免把零碎舊資料誤認成完整策略曲線，本次不繪製綠／藍線；請重新執行回測產生完整分數序列。
+          </div>
+        )}
         <div ref={priceContainerRef} className="w-full h-[360px] min-h-[360px]" />
       </div>
 

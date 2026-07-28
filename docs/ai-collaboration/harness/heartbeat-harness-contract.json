@@ -14,6 +14,7 @@
     "qa_playbook": "docs/ai-collaboration/harness/heartbeat-qa.md",
     "validator": "scripts/heartbeat_harness_check.py",
     "validator_test": "tests/test_heartbeat_harness_contract.py",
+    "heartbeat_governor": "scripts/heartbeat_governor.py",
     "active_backend_health_probe": "scripts/active_backend_health_probe.py",
     "high_conviction_topk_api_consistency_probe": "scripts/high_conviction_topk_api_consistency_probe.py",
     "venue_api_consistency_probe": "scripts/venue_dry_run_api_consistency_probe.py",
@@ -270,6 +271,15 @@
         "ORID_DECISIONS.md"
       ],
       "purpose": "forced branch evidence when support delta is zero or the same blocker/signature repeats; prevents observation-only heartbeat loops"
+    },
+    {
+      "name": "external_anti_self_certification_truth",
+      "paths": [
+        "scripts/heartbeat_governor.py",
+        "data/heartbeat_governor_state.json",
+        "data/heartbeat_governor_brief.json"
+      ],
+      "purpose": "machine-derived semantic signature, repeat count, support stagnation, forced branch, and hard rules; the agent cannot self-certify heartbeat success"
     }
   ],
   "mechanical_invariants": [
@@ -302,12 +312,17 @@
       "description": "docs/ai-collaboration/HEARTBEAT.md, QA, contract, checker, and current-state docs require a forced branch when same semantic signature/support delta=0 repeats; observation-only status refresh is incomplete."
     },
     {
+      "id": "external_governor_anti_self_certification",
+      "description": "scripts/heartbeat_governor.py runs before the scheduled agent, persists repeat state, computes the semantic signature, and emits a forced branch; an agent cannot mark a heartbeat successful without independent evidence."
+    },
+    {
       "id": "strategy_data_sync_no_collect_guard",
       "description": "--no-collect heartbeat summaries record strategy_data_sync_maintenance, and the runner triggers bounded strategy data sync when freshness is stale or within the configured stale headroom."
     }
   ],
   "verification_commands": [
     "python scripts/heartbeat_harness_check.py --format text",
+    "python scripts/heartbeat_governor.py --format text",
     "python -m pytest tests/test_heartbeat_harness_contract.py -q",
     "git diff --check -- AGENTS.md docs/ai-collaboration/AI_AGENT_ROLE.md docs/ai-collaboration/HEARTBEAT.md ARCHITECTURE.md README.md docs/ai-collaboration/harness scripts/heartbeat_harness_check.py tests/test_heartbeat_harness_contract.py",
     "python -m pytest tests/test_execution_service.py -k live_canary -q"

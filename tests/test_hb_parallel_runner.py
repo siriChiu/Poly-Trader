@@ -48,6 +48,42 @@ def test_parse_args_allows_fast_without_hb():
     assert hb_parallel_runner.resolve_run_label(args) == "fast"
 
 
+def test_venue_dry_run_docs_surface_local_rehearsal_without_runtime_promotion():
+    payload = {
+        "generated_at": "2026-07-19T07:16:39Z",
+        "status": "blocked_missing_runtime_backed_proof",
+        "runtime_ready": False,
+        "runtime_ready_count": 0,
+        "venues_checked": 1,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "dry_run_only": True,
+        "ack_simulation": {"status": "blocked_missing_credentials"},
+        "cancel_simulation": {"status": "blocked_missing_credentials"},
+        "fill_simulation": {"status": "blocked_missing_credentials"},
+        "reconciliation_check": {"status": "blocked_missing_credentials"},
+        "local_lifecycle_rehearsal": {
+            "status": "passed_local_state_machine_runtime_unverified",
+            "scope": "local_contract_rehearsal_not_exchange_proof",
+            "runtime_backed": False,
+            "checks": {"live_adapter_called": False},
+        },
+        "venues": [],
+    }
+
+    context = hb_parallel_runner._venue_dry_run_docs_context(payload)
+    line = hb_parallel_runner._venue_dry_run_summary_doc_line(context)
+
+    assert context["local_rehearsal_status"] == "passed_local_state_machine_runtime_unverified"
+    assert context["local_rehearsal_scope"] == "local_contract_rehearsal_not_exchange_proof"
+    assert context["local_rehearsal_runtime_backed"] is False
+    assert context["local_rehearsal_live_adapter_called"] is False
+    assert "local_rehearsal=passed_local_state_machine_runtime_unverified" in line
+    assert "local_scope=local_contract_rehearsal_not_exchange_proof" in line
+    assert "local_runtime_backed=false" in line
+    assert "local_live_adapter_called=false" in line
+
+
 def _noop_strategy_data_sync_maintenance(skip_collect=False, **kwargs):
     return {"attempted": False, "success": True, "reason": "test_noop"}
 
@@ -713,6 +749,44 @@ def test_full_heartbeat_train_task_skips_optional_regime_grid_search():
     assert "--skip-regime-models" in train_task["cmd"]
     assert train_task["cmd"][-2:] == ["--max-cv-folds", "2"]
     assert hb_parallel_runner._resolve_parallel_task_timeout("train", fast_mode=False) == 300
+
+
+def test_watchdog_timeout_kills_spawned_descendant_process(tmp_path):
+    child_script = tmp_path / "watchdog_child.py"
+    parent_script = tmp_path / "watchdog_parent.py"
+    child_pid_path = tmp_path / "watchdog_child.pid"
+    child_script.write_text("import time\ntime.sleep(60)\n", encoding="utf-8")
+    parent_script.write_text(
+        "import subprocess\n"
+        "import sys\n"
+        "import time\n"
+        "from pathlib import Path\n"
+        "child = subprocess.Popen([sys.executable, sys.argv[1]])\n"
+        "Path(sys.argv[2]).write_text(str(child.pid), encoding='utf-8')\n"
+        "time.sleep(60)\n",
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner._run_command_with_watchdog(
+        [sys.executable, str(parent_script), str(child_script), str(child_pid_path)],
+        timeout=2,
+    )
+
+    assert result["success"] is False
+    assert result["returncode"] == -1
+    assert "TIMEOUT after 2s" in result["stderr"]
+    assert child_pid_path.exists()
+    child_pid = int(child_pid_path.read_text(encoding="utf-8"))
+    child_stat = Path(f"/proc/{child_pid}/stat")
+    for _ in range(20):
+        if not child_stat.exists():
+            break
+        state = child_stat.read_text(encoding="utf-8").split()[2]
+        if state in {"Z", "X"}:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError(f"watchdog descendant process {child_pid} is still running")
 
 
 def test_feature_group_ablation_has_cron_safe_bounded_refresh_cli():
@@ -3135,6 +3209,8 @@ def test_overwrite_current_state_docs_writes_current_state_markdown(tmp_path, mo
     assert "venue_dry_run_api_consistency_probe.py --strict" in combined_docs
     assert "status / overview / artifact 同源" in combined_docs
     assert "fail-closed、secret-safe" in combined_docs
+    assert "非有限或不可能的本地生命週期數量關係" in combined_docs
+    assert "避免同源錯誤自我認證" in combined_docs
     assert "high_conviction_topk_api_consistency_probe.py --strict" in combined_docs
     assert "counts / nearest candidate / support rows / breaker release math / fail-closed / secret-safe" in combined_docs
     assert "paper_shadow_outcome_api_consistency_probe.py --strict" in combined_docs

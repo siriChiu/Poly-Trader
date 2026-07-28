@@ -172,6 +172,103 @@ def _simulation_block(
     }
 
 
+def _build_local_lifecycle_rehearsal(venues: list[dict[str, Any]]) -> dict[str, Any]:
+    """Exercise the local lifecycle state contract without touching an adapter.
+
+    This rehearsal proves only that the local dry-run state sequence and ledger
+    arithmetic are coherent.  It must never be interpreted as exchange-backed
+    acknowledgement, fill, cancel, reconciliation, or runtime readiness.
+    """
+
+    venue = next(
+        (
+            row
+            for row in venues
+            if row.get("adapter_supported") is True
+            and row.get("metadata_ok") is True
+            and row.get("enabled_in_config") is True
+        ),
+        None,
+    )
+    fail_closed = {
+        "runtime_backed": False,
+        "dry_run_only": True,
+        "order_submission_enabled": False,
+        "risk_on_order_enabled": False,
+        "live_order_submitted": False,
+    }
+    if venue is None:
+        return {
+            "status": "blocked_no_metadata_supported_venue",
+            "scope": "local_contract_rehearsal_not_exchange_proof",
+            "venue": None,
+            **fail_closed,
+            "events": [],
+            "checks": {
+                "transition_order_valid": False,
+                "filled_qty_lte_requested_qty": False,
+                "remaining_qty_matches": False,
+                "terminal_state_canceled": False,
+                "ledger_match": False,
+                "live_adapter_called": False,
+            },
+            "limitations": [
+                "no metadata-supported enabled venue was available",
+                "no exchange adapter was called",
+                "runtime venue lifecycle remains unverified",
+            ],
+        }
+
+    requested_units = 100_000
+    filled_units = 25_000
+    remaining_units = requested_units - filled_units
+    events = [
+        {"sequence": 1, "event_type": "order_previewed", "state": "previewed"},
+        {"sequence": 2, "event_type": "ack_recorded", "state": "open"},
+        {
+            "sequence": 3,
+            "event_type": "partial_fill_recorded",
+            "state": "partially_filled",
+            "requested_units": requested_units,
+            "filled_units": filled_units,
+            "remaining_units": remaining_units,
+        },
+        {"sequence": 4, "event_type": "cancel_recorded", "state": "canceled"},
+        {
+            "sequence": 5,
+            "event_type": "ledger_reconciled",
+            "state": "reconciled",
+            "filled_units": filled_units,
+            "canceled_units": remaining_units,
+        },
+    ]
+    return {
+        "status": "passed_local_state_machine_runtime_unverified",
+        "scope": "local_contract_rehearsal_not_exchange_proof",
+        "venue": venue.get("venue"),
+        **fail_closed,
+        "events": events,
+        "checks": {
+            "transition_order_valid": [event["sequence"] for event in events] == [1, 2, 3, 4, 5],
+            "filled_qty_lte_requested_qty": 0 <= filled_units <= requested_units,
+            "remaining_qty_matches": remaining_units == requested_units - filled_units,
+            "terminal_state_canceled": events[-2]["state"] == "canceled",
+            "ledger_match": filled_units + remaining_units == requested_units,
+            "live_adapter_called": False,
+        },
+        "metadata_contract": {
+            "symbol": (venue.get("order_preview") or {}).get("constraints", {}).get("symbol"),
+            "preview_qty": (venue.get("order_preview") or {}).get("constraints", {}).get("preview_qty"),
+        },
+        "limitations": [
+            "local deterministic rehearsal only",
+            "no exchange adapter was called",
+            "no exchange acknowledgement, fill, cancel, or reconciliation was observed",
+            "runtime venue lifecycle remains unverified",
+        ],
+    }
+
+
 def _normalize_venue(row: Mapping[str, Any], *, symbol: Any) -> dict[str, Any]:
     venue = str(row.get("venue") or row.get("name") or "unknown").strip().lower() or "unknown"
     adapter_supported = row.get("adapter_supported") is not False
@@ -345,6 +442,7 @@ def build_venue_dry_run_proof(
     cancel_simulation = venues[0]["cancel_simulation"] if venues else {}
     fill_simulation = venues[0]["fill_simulation"] if venues else {}
     reconciliation_check = venues[0]["reconciliation_check"] if venues else {}
+    local_lifecycle_rehearsal = _build_local_lifecycle_rehearsal(venues)
 
     return {
         "generated_at": generated_at or _now_iso(),
@@ -375,6 +473,7 @@ def build_venue_dry_run_proof(
         "cancel_simulation": cancel_simulation,
         "fill_simulation": fill_simulation,
         "reconciliation_check": reconciliation_check,
+        "local_lifecycle_rehearsal": local_lifecycle_rehearsal,
         "customer_usable_now": [
             "venue readiness checklist",
             "dry-run order preview with would_submit=false",
@@ -392,6 +491,12 @@ def build_venue_dry_run_proof(
 
 
 def markdown(payload: Mapping[str, Any]) -> str:
+    raw_local_rehearsal = payload.get("local_lifecycle_rehearsal")
+    local_rehearsal: Mapping[str, Any] = (
+        raw_local_rehearsal if isinstance(raw_local_rehearsal, dict) else {}
+    )
+    raw_local_checks = local_rehearsal.get("checks")
+    local_checks: Mapping[str, Any] = raw_local_checks if isinstance(raw_local_checks, dict) else {}
     lines = [
         "# Venue dry-run proof",
         "",
@@ -429,6 +534,13 @@ def markdown(payload: Mapping[str, Any]) -> str:
         f"- fill: `{(payload.get('fill_simulation') or {}).get('status')}` / runtime_backed=`{(payload.get('fill_simulation') or {}).get('runtime_backed')}`",
         f"- reconciliation: `{(payload.get('reconciliation_check') or {}).get('status')}` / runtime_backed=`{(payload.get('reconciliation_check') or {}).get('runtime_backed')}`",
         "",
+        "## Local contract rehearsal (not exchange proof)",
+        f"- local lifecycle rehearsal: `{local_rehearsal.get('status')}`",
+        f"- scope: `{local_rehearsal.get('scope')}`",
+        f"- venue: `{local_rehearsal.get('venue')}`",
+        f"- runtime_backed: `{local_rehearsal.get('runtime_backed')}`",
+        f"- live_adapter_called: `{local_checks.get('live_adapter_called')}`",
+        "- interpretation: local state-machine/ledger proof only; exchange ack/fill/cancel/reconciliation remain unverified.",
     ]
     return "\n".join(lines)
 

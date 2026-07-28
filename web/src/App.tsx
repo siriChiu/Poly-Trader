@@ -2,6 +2,7 @@ import React from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import GlobalTopProgress from './components/GlobalTopProgress'
 
+const CommandCenter = React.lazy(() => import('./pages/CommandCenter'))
 const Dashboard = React.lazy(() => import('./pages/Dashboard'))
 const Senses = React.lazy(() => import('./pages/Senses'))
 const StrategyLab = React.lazy(() => import('./pages/StrategyLab'))
@@ -9,11 +10,9 @@ const ExecutionConsole = React.lazy(() => import('./pages/ExecutionConsole'))
 const ExecutionStatus = React.lazy(() => import('./pages/ExecutionStatus'))
 
 const NAV_ITEMS = [
-  { to: '/', label: '📊 儀表板', end: true },
-  { to: '/execution', label: '⚡ Bot 營運', end: true },
-  { to: '/execution/status', label: '🩺 執行狀態' },
-  { to: '/senses', label: '🎛️ 特徵管理' },
-  { to: '/lab', label: '🧪 策略實驗室' },
+  { to: '/', label: '總覽', end: true },
+  { to: '/lab', label: '策略', end: true },
+  { to: '/execution', label: '營運', end: true },
 ]
 
 export default function App() {
@@ -39,6 +38,14 @@ export default function App() {
                     {item.label}
                   </NavLink>
                 ))}
+                <details className="relative">
+                  <summary className="app-nav-link cursor-pointer list-none">進階</summary>
+                  <div className="absolute right-0 top-[calc(100%+8px)] z-50 grid min-w-44 gap-1 rounded-2xl border border-white/10 bg-slate-950/95 p-2 shadow-2xl backdrop-blur-xl">
+                    <NavLink to="/diagnostics" className="rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white">完整儀表板</NavLink>
+                    <NavLink to="/execution/status" className="rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white">執行診斷</NavLink>
+                    <NavLink to="/senses" className="rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white">特徵管理</NavLink>
+                  </div>
+                </details>
               </div>
             </div>
           </div>
@@ -48,7 +55,8 @@ export default function App() {
         <main className="w-full px-4 py-6 sm:px-6 lg:px-8">
           <React.Suspense fallback={<div className="app-surface-card text-sm text-dark-300">頁面載入中…</div>}>
             <Routes>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<CommandCenter />} />
+              <Route path="/diagnostics" element={<Dashboard />} />
               <Route path="/execution" element={<ExecutionConsole />} />
               <Route path="/execution/status" element={<ExecutionStatus />} />
               <Route path="/backtest" element={<Navigate to="/lab" replace />} />

@@ -2,11 +2,11 @@
 依賴注入：DB Session、Config、OrderManager、SensesEngine 等共用實例
 """
 
-import yaml
 from pathlib import Path
 from typing import Optional, Dict
 
 from sqlalchemy.orm import Session as SASession
+from config import load_config
 from database.models import init_db
 from utils.logger import setup_logger
 
@@ -25,8 +25,7 @@ _runtime_status: Dict[str, Dict] = {}
 def load_app_config(config_path: str = None) -> Dict:
     global _config
     path = Path(config_path) if config_path else PROJECT_ROOT / "config.yaml"
-    with open(path, "r", encoding="utf-8") as f:
-        _config = yaml.safe_load(f)
+    _config = load_config(str(path))
     return _config
 
 
@@ -55,6 +54,9 @@ def init_dependencies():
     db_url = _resolve_db_url(raw_url)
     logger.info(f"DB URL resolved: {db_url}")
     _db_session = init_db(db_url)
+    from execution.control_plane import ensure_execution_control_plane_schema
+
+    ensure_execution_control_plane_schema(_db_session)
 
     # 注入 DB 到 SensesEngine
     from server.features_engine import get_engine

@@ -3,6 +3,7 @@ import asyncio
 from backtesting import strategy_lab
 from database.models import init_db
 from execution.console_overview import attach_live_runner_shadow_gate_to_readiness, build_execution_overview
+from execution.control_plane import ensure_execution_control_plane_schema
 from server.routes import api as api_module
 
 
@@ -295,6 +296,18 @@ def test_build_execution_overview_exposes_m5_execution_readiness_shadow_ledger_a
     assert milestone["preferred_entrypoint"]["endpoint"] == "/api/trade"
     assert milestone["preferred_entrypoint"]["payload"] == {"side": "shadow_buy", "symbol": "BTC-USDT", "qty": 0.00001}
     assert milestone["preferred_entrypoint"]["live_order_submitted"] is False
+
+    action_state = payload["user_action_state"]
+    assert action_state["state"] == "paper_shadow_active"
+    assert action_state["cta"]["id"] == "advance_safe_lane"
+    assert action_state["cta"]["payload"]["side"] == "shadow_buy"
+    assert action_state["deadline"]["status"] == "indeterminate_stalled_support"
+    assert action_state["alternative_lane"]["required"] is True
+    assert action_state["alternative_lane"]["auto_adjustment_applied"] is True
+    assert action_state["operator_fix"]["required"] is True
+    assert action_state["safety"]["order_submission_enabled"] is False
+    assert action_state["safety"]["risk_on_order_enabled"] is False
+    assert action_state["safety"]["live_order_submitted"] is False
 
     ledger = payload["shadow_trade_ledger"]
     assert ledger["status"] == "recording_ready"
@@ -1023,6 +1036,7 @@ def test_api_execution_overview_wraps_status_payload_and_registers_execution_con
 
     _seed_execution_strategy_catalog(tmp_path, monkeypatch)
     session = init_db(f"sqlite:///{tmp_path / 'execution_console.db'}")
+    ensure_execution_control_plane_schema(session)
     monkeypatch.setattr(api_module, "get_config", lambda: {"trading": {"max_position_ratio": 0.10}})
     monkeypatch.setattr(api_module, "get_db", lambda: session)
     monkeypatch.setattr(api_module, "api_status", _fake_status)

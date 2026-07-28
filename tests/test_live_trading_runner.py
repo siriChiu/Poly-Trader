@@ -18,8 +18,10 @@ from execution.live_runner import (
     FrozenModelArtifact,
     LiveTradingRunner,
     ensure_model_artifact,
+    freeze_fitted_model_artifact,
     load_latest_strategy_row,
     load_saved_strategy,
+    run_exact_strategy_paper_shadow_cycle,
 )
 
 STRATEGY_NAME = "Auto Leaderboard · 重掃 random_forest Hybrid #01"
@@ -242,6 +244,125 @@ def test_live_model_artifact_freezes_random_forest_from_db(tmp_path: Path, isola
     assert artifact.metadata["target"] == "simulated_pyramid_win"
     assert artifact.metadata["model_hash"]
     assert loaded.metadata["strategy_hash"] == artifact.metadata["strategy_hash"]
+    session.close()
+
+
+def test_fitted_backtest_artifact_is_reused_without_retraining(tmp_path: Path, isolated_strategies_dir: Path, monkeypatch):
+    session = _session(tmp_path)
+    strategy = _save_target_strategy()
+    training_frame = live_runner_module.pd.DataFrame(
+        {
+            "timestamp": ["2026-01-01 00:00:00", "2026-01-02 00:00:00"],
+            "feat_nose": [0.2, 0.8],
+            "feat_pulse": [0.1, 0.9],
+            "simulated_pyramid_win": [0, 1],
+        }
+    )
+    artifact = freeze_fitted_model_artifact(
+        strategy=strategy,
+        model=FixedConfidenceModel(0.83),
+        model_name="random_forest",
+        feature_columns=["feat_nose", "feat_pulse"],
+        target_col="simulated_pyramid_win",
+        training_frame=training_frame,
+        root=tmp_path / "backtest_models",
+    )
+    strategy["last_results"] = {"fitted_model_artifact": artifact.metadata}
+
+    monkeypatch.setattr(
+        live_runner_module.ModelLeaderboard,
+        "_train_model",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("exact backtest artifact must be reused")),
+    )
+    loaded = ensure_model_artifact(session=session, strategy=strategy, root=tmp_path / "runtime_models")
+
+    assert loaded.model_path == artifact.model_path
+    assert loaded.metadata["source"] == "strategy_lab_backtest"
+    assert loaded.metadata["training_data_sha256"]
+    assert loaded.metadata["feature_schema_sha256"]
+    assert loaded.metadata["model_sha256"] == artifact.metadata["model_sha256"]
+    assert loaded.confidence_for_row({"feat_nose": 0.4, "feat_pulse": 0.6}) == pytest.approx(0.83)
+    session.close()
+
+
+def test_exact_strategy_paper_shadow_cycle_uses_backtest_model_and_never_submits(tmp_path: Path, isolated_strategies_dir: Path):
+    session = _session(tmp_path)
+    strategy = _save_target_strategy()
+    feature_ts = datetime(2026, 2, 1, 0, 0)
+    _seed_feature_row(session, feature_ts)
+    training_frame = live_runner_module.pd.DataFrame(
+        {
+            "timestamp": ["2026-01-01 00:00:00", "2026-01-02 00:00:00"],
+            "feat_nose": [0.2, 0.8],
+            "feat_pulse": [0.1, 0.9],
+            "simulated_pyramid_win": [0, 1],
+        }
+    )
+    artifact = freeze_fitted_model_artifact(
+        strategy=strategy,
+        model=FixedConfidenceModel(0.83),
+        model_name="random_forest",
+        feature_columns=["feat_nose", "feat_pulse"],
+        target_col="simulated_pyramid_win",
+        training_frame=training_frame,
+        root=tmp_path / "backtest_models",
+    )
+    strategy_lab.save_strategy(
+        STRATEGY_NAME,
+        strategy["definition"],
+        {
+            "backtest_range": {"effective": {"start": "2026-01-01", "end": "2026-02-01"}},
+            "fitted_model_artifact": artifact.metadata,
+            "runtime_candidate_status": "exact_backtest_model_frozen",
+        },
+    )
+    db_url = f"sqlite:///{tmp_path / 'live_runner.db'}"
+
+    payload = run_exact_strategy_paper_shadow_cycle(
+        session=session,
+        strategy_name=STRATEGY_NAME,
+        execution_run_id="execution-run-1",
+        config=_base_config(db_url),
+        trading_root=tmp_path / "managed_cycles",
+    )
+
+    assert payload["status"] == "exact_strategy_cycle_completed"
+    assert payload["execution_run_id"] == "execution-run-1"
+    assert payload["strategy_name"] == STRATEGY_NAME
+    assert payload["model_sha256"] == artifact.metadata["model_sha256"]
+    assert payload["decision"]["model_confidence"] == pytest.approx(0.83)
+    assert payload["decision"]["order_submitted"] == 0
+    assert payload["order_submission_enabled"] is False
+    stored = session.execute(
+        text("SELECT mode, status FROM live_runner_runs WHERE id=:id"),
+        {"id": payload["managed_run_id"]},
+    ).mappings().one()
+    assert stored["mode"] == "paper"
+    assert stored["status"] == "paper_shadow_cycle_complete"
+    session.close()
+
+
+def test_exact_artifact_requirement_rejects_runtime_retraining(tmp_path: Path, isolated_strategies_dir: Path, monkeypatch):
+    session = _session(tmp_path)
+    strategy = _save_target_strategy()
+    _seed_training_frame(session)
+    retrain_called = False
+
+    def _unexpected_train(*args, **kwargs):
+        nonlocal retrain_called
+        retrain_called = True
+        return FixedConfidenceModel(0.5)
+
+    monkeypatch.setattr(live_runner_module.ModelLeaderboard, "_train_model", _unexpected_train)
+    with pytest.raises(RuntimeError, match="exact Strategy Lab fitted model"):
+        ensure_model_artifact(
+            session=session,
+            strategy=strategy,
+            root=tmp_path / "runtime_models",
+            require_exact=True,
+        )
+
+    assert retrain_called is False
     session.close()
 
 

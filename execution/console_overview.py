@@ -498,6 +498,7 @@ def attach_live_runner_shadow_gate_to_readiness(
             first_plan["stop_conditions"] = stop_conditions
             answers["first_canary_plan_if_all_gates_pass"] = first_plan
         result["canary_gap_answers"] = answers
+    result["user_action_state"] = _build_user_action_state(result, result.get("timestamp"))
     return result
 
 
@@ -1976,6 +1977,79 @@ def build_execution_readiness_bundle(
         "canary_gap_answers": canary_gap_answers,
     }
 
+def _build_user_action_state(readiness_bundle: Dict[str, Any], timestamp: Any) -> Dict[str, Any]:
+    """Collapse execution governance into one actionable, safety-preserving product contract."""
+
+    bundle = _as_dict(readiness_bundle)
+    readiness = _as_dict(bundle.get("execution_readiness"))
+    gap_answers = _as_dict(bundle.get("canary_gap_answers"))
+    time_to_evidence = _as_dict(gap_answers.get("time_to_evidence"))
+    alternative_review = _as_dict(gap_answers.get("alternative_solution_review"))
+    milestone = _as_dict(readiness.get("milestone_progression"))
+    gates = [item for item in _as_list(readiness.get("gates")) if isinstance(item, dict)]
+    blocking_key = str(readiness.get("blocking_gate_key") or gap_answers.get("blocked_gate_key") or "")
+    blocking_gate = next((item for item in gates if str(item.get("key") or "") == blocking_key), {})
+    live_ready = bool(readiness.get("live_ready") or readiness.get("canary_ready"))
+    current = blocking_gate.get("current")
+    required = blocking_gate.get("required")
+    preferred = _as_dict(milestone.get("preferred_entrypoint"))
+    alternative_required = bool(time_to_evidence.get("alternative_solution_required") or alternative_review.get("status") == "required")
+
+    if live_ready:
+        state = "bounded_canary_ready"
+        next_action = "以明確數量上限執行最小 canary，任何 gate 回退立即停止。"
+        cta_label = "檢查 bounded canary 設定"
+    elif milestone.get("active_lane") == "paper_shadow_buy":
+        state = "paper_shadow_active"
+        next_action = "立即執行 Paper/Shadow worker，持續累積 24h outcome；不必等待 Live gate。"
+        cta_label = "執行下一次安全演練"
+    else:
+        state = "safe_lane_active"
+        next_action = str(alternative_review.get("operator_message") or readiness.get("operator_message") or "保持 no-order 並執行下一個安全證據步驟。")
+        cta_label = "執行安全替代路線"
+
+    return {
+        "state": state,
+        "progress_current": current,
+        "progress_target": required,
+        "freshness": {"as_of": timestamp, "status": "current_snapshot"},
+        "blocking_reason": blocking_gate.get("summary") or gap_answers.get("blocked_gate_summary"),
+        "next_action": next_action,
+        "cta": {
+            "id": "advance_safe_lane",
+            "label": cta_label,
+            "endpoint": preferred.get("endpoint"),
+            "method": preferred.get("method"),
+            "payload": preferred.get("payload"),
+            "command": preferred.get("command"),
+            "live_order_submitted": False if not live_ready else "only_after_adapter_guardrails_pass",
+        },
+        "deadline": {
+            "status": time_to_evidence.get("status") or "unknown",
+            "estimated_heartbeats": time_to_evidence.get("estimated_heartbeats_to_support"),
+            "estimated_hours": time_to_evidence.get("estimated_hours_at_hourly_heartbeat"),
+            "estimated_days": time_to_evidence.get("estimated_days_at_hourly_heartbeat"),
+            "summary": time_to_evidence.get("summary") or "尚無可靠完成時間。",
+        },
+        "alternative_lane": {
+            "required": alternative_required,
+            "key": milestone.get("active_lane") or alternative_review.get("primary_alternative"),
+            "label": milestone.get("active_lane_label") or alternative_review.get("primary_alternative"),
+            "auto_adjustment_applied": bool(milestone.get("auto_adjustment_applied")),
+            "live_exposure_allowed": False if not live_ready else True,
+        },
+        "operator_fix": {
+            "required": alternative_required,
+            "trigger": alternative_review.get("trigger"),
+            "next_review_trigger": alternative_review.get("next_review_trigger"),
+            "label": "改走可執行的 Paper/Shadow、場館 dry-run 與 drift/rebaseline 評估；不可只顯示等待。" if alternative_required else None,
+        },
+        "safety": {
+            "order_submission_enabled": bool(readiness.get("order_submission_enabled")) if live_ready else False,
+            "risk_on_order_enabled": bool(readiness.get("risk_on_order_enabled")) if live_ready else False,
+            "live_order_submitted": False,
+        },
+    }
 
 
 def build_execution_overview(
@@ -2247,6 +2321,7 @@ def build_execution_overview(
         "profile_cards": cards,
         "range_chop_playbook": range_chop_playbook,
         **readiness_bundle,
+        "user_action_state": _build_user_action_state(readiness_bundle, timestamp),
         "live_ready": bool(execution_surface_contract.get("live_ready", False)),
         "live_ready_blockers": _as_list(execution_surface_contract.get("live_ready_blockers")),
     }

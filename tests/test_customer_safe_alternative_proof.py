@@ -364,6 +364,56 @@ def test_customer_safe_proof_falls_back_to_circuit_breaker_audit_release_math():
     assert "wins `None/None`" not in md
 
 
+def test_customer_safe_proof_prefers_canonical_breaker_audit_over_stale_live_probe_release_math():
+    payload = proof.build_customer_safe_alternative_proof(
+        live_predict_probe={
+            "deployment_blocker": "unsupported_exact_live_structure_bucket",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 50,
+            "support_route_verdict": "exact_bucket_missing_proxy_reference_only",
+            "deployment_blocker_details": {
+                "release_condition": {
+                    "release_ready": True,
+                    "recent_window": 50,
+                    "current_recent_window_wins": 34,
+                    "required_recent_window_wins": 15,
+                    "additional_recent_window_wins_needed": 0,
+                }
+            },
+        },
+        circuit_breaker_audit={
+            "release_condition": {
+                "release_ready": True,
+                "recent_window": 50,
+                "current_recent_window_wins": 50,
+                "required_recent_window_wins": 15,
+                "additional_recent_window_wins_needed": 0,
+            }
+        },
+        q15_support_fill_feasibility={
+            "verdict": {
+                "current_exact_bucket_rows": 0,
+                "minimum_support_rows": 50,
+                "gap_to_minimum": 50,
+            }
+        },
+        high_conviction_topk_oos_matrix={
+            "risk_qualified_rows": 0,
+            "runtime_blocked_candidate_rows": 0,
+            "deployable_rows": 0,
+        },
+        execution_metadata_smoke={"runtime_ready": False},
+        recent_drift_report={},
+        generated_at="2026-07-26T13:20:00Z",
+    )
+
+    breaker = payload["circuit_breaker_gate"]
+    assert breaker["current_recent_window_wins"] == 50
+    assert payload["summary"]["current_recent_window_wins"] == 50
+
+
 def test_customer_safe_proof_reads_nested_recent_shadow_falsification_without_deploying():
     payload = proof.build_customer_safe_alternative_proof(
         live_predict_probe={
