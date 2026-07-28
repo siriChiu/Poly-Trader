@@ -1586,7 +1586,14 @@ def _label_outcome_for_proposal(
     symbol: Any,
     proposal_time: datetime,
 ) -> Optional[Dict[str, Any]]:
-    symbol_key = _normalize_symbol_key(symbol)
+    symbol_key = _normalize_symbol_key(symbol) or ""
+    tolerance = timedelta(hours=PAPER_SHADOW_LABEL_MATCH_TOLERANCE_HOURS)
+    # Use date-prefix bounds so both canonical SQLite DateTime strings
+    # (``YYYY-MM-DD HH:MM:SS``) and legacy ISO strings containing ``T``/``Z``
+    # remain comparable while the composite horizon/timestamp index can still
+    # bound the scan. The exact ± tolerance is enforced below in Python.
+    window_start_date = (proposal_time - tolerance).date().isoformat()
+    window_end_exclusive = ((proposal_time + tolerance).date() + timedelta(days=1)).isoformat()
     rows = _rows(
         db,
         """
@@ -1594,9 +1601,21 @@ def _label_outcome_for_proposal(
         FROM labels
         WHERE horizon_minutes = 1440
           AND simulated_pyramid_win IS NOT NULL
+          AND timestamp >= :window_start_date
+          AND timestamp < :window_end_exclusive
+          AND (
+              :symbol_key = ''
+              OR UPPER(
+                  REPLACE(REPLACE(REPLACE(COALESCE(symbol, ''), '/', ''), '-', ''), '_', '')
+              ) = :symbol_key
+          )
         ORDER BY timestamp DESC
-        LIMIT 20000
         """,
+        {
+            "window_start_date": window_start_date,
+            "window_end_exclusive": window_end_exclusive,
+            "symbol_key": symbol_key,
+        },
     )
     nearest: Optional[Dict[str, Any]] = None
     nearest_delta: Optional[float] = None

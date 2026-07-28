@@ -1,6 +1,7 @@
 import asyncio
 import json
 from copy import deepcopy
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 
@@ -15,6 +16,63 @@ from sqlalchemy import text
 
 def _local_request() -> Any:
     return SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"))
+
+
+def test_label_outcome_query_is_symbol_and_time_bounded(tmp_path, monkeypatch):
+    session = init_db(f"sqlite:///{tmp_path / 'bounded_label_lookup.db'}")
+    rows = [
+        ("2026-04-17 11:45:00", "BTC/USDT", 0),
+        ("2026-04-17 12:10:00", "BTC_USDT", 1),
+        ("2026-04-17 12:00:00", "ETHUSDT", 0),
+        ("2026-04-20 12:00:00", "BTCUSDT", 0),
+    ]
+    for timestamp, symbol, pyramid_win in rows:
+        session.execute(
+            text(
+                """
+                INSERT INTO labels (
+                    timestamp, symbol, horizon_minutes,
+                    simulated_pyramid_win, simulated_pyramid_pnl, simulated_pyramid_quality
+                ) VALUES (
+                    :timestamp, :symbol, 1440,
+                    :pyramid_win, 0.01, 0.40
+                )
+                """
+            ),
+            {"timestamp": timestamp, "symbol": symbol, "pyramid_win": pyramid_win},
+        )
+    session.commit()
+
+    captured = {}
+    original_rows = control_plane_module._rows
+
+    def _capture_rows(db, query, params=None):
+        if "FROM labels" in query:
+            captured["query"] = query
+            captured["params"] = dict(params or {})
+        return original_rows(db, query, params)
+
+    monkeypatch.setattr(control_plane_module, "_rows", _capture_rows)
+    proposal_time = datetime(2026, 4, 17, 12, 0, tzinfo=timezone.utc)
+
+    for symbol in ("BTCUSDT", "BTC/USDT", "BTC-USDT", "BTC_USDT"):
+        outcome = control_plane_module._label_outcome_for_proposal(
+            session,
+            symbol=symbol,
+            proposal_time=proposal_time,
+        )
+        assert outcome["status"] == "resolved_from_1440m_label"
+        assert outcome["simulated_pyramid_win"] == 1
+        assert outcome["match_delta_minutes"] == 10.0
+
+    assert "timestamp >= :window_start_date" in captured["query"]
+    assert "timestamp < :window_end_exclusive" in captured["query"]
+    assert "LIMIT 20000" not in captured["query"]
+    assert captured["params"] == {
+        "window_start_date": "2026-04-17",
+        "window_end_exclusive": "2026-04-18",
+        "symbol_key": "BTCUSDT",
+    }
 
 
 def _status_payload():
@@ -438,6 +496,17 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     def _duplicate_live_runner_scan_forbidden(*_args, **_kwargs):
         raise AssertionError("execution overview must reuse reconciliation live-runner evidence")
 
+    original_reconciliation = api_module.build_paper_shadow_outcome_reconciliation
+
+    def _full_window_reconciliation_required(*args, **kwargs):
+        assert kwargs.get("limit", 100) == 100
+        return original_reconciliation(*args, **kwargs)
+
+    monkeypatch.setattr(
+        api_module,
+        "build_paper_shadow_outcome_reconciliation",
+        _full_window_reconciliation_required,
+    )
     monkeypatch.setattr(api_module, "build_live_runner_overview", _duplicate_live_runner_scan_forbidden)
     overview_payload = asyncio.run(api_module.api_execution_overview())
     trend_card = next(card for card in overview_payload["profile_cards"] if card["key"] == "trend")
