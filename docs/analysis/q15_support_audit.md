@@ -1,6 +1,6 @@
 # q15 Support Audit
 
-- generated_at: **2026-07-28T18:43:37.337442Z**
+- generated_at: **2026-07-28T19:03:44.438345Z**
 - feature_timestamp: **2026-07-28 18:41:44.247652**
 - target_col: **simulated_pyramid_win**
 - artifact_context_freshness: **current_context** (`[]`)
@@ -68,7 +68,7 @@
 
 ## Exact bucket row harvest proof
 - artifact: **q15_exact_bucket_row_harvest_proof**
-- generated_at: **2026-07-28T18:28:37.675880Z**
+- generated_at: **2026-07-28T19:03:40.184153Z**
 - verdict: **exact_bucket_row_harvest_stalled_under_minimum**
 - current_exact_bucket_rows / minimum: **10 / 50**
 - previous_rows: **10**
@@ -79,7 +79,7 @@
 
 ## Map/Signal redesign proof
 - artifact: **q15_map_signal_redesign_proof**
-- generated_at: **2026-07-28T18:28:48.584829Z**
+- generated_at: **2026-07-28T19:03:44.139101Z**
 - verdict: **map_signal_redesign_no_current_window_deployable_candidate**
 - selected_candidate_id: **dominant_neighbor_exact_lane**
 - selected_target_bucket: **CAUTION|base_caution_regime_or_bias|q15**
@@ -90,7 +90,7 @@
 
 ## Drift rebaseline backtest
 - artifact: **q15_drift_rebaseline_backtest**
-- generated_at: **2026-07-28T18:28:43.745304Z**
+- generated_at: **2026-07-28T19:03:42.152018Z**
 - verdict: **reference_candidate_found_but_current_window_unproven**
 - selected_candidate_id: **semantic_entry_quality_family**
 - selected_current_window_rows / all_history_rows: **43 / 57**

@@ -1,6 +1,6 @@
 # q15 Map/Signal redesign proof
 
-- generated_at: `2026-07-28T18:28:48.584829Z`
+- generated_at: `2026-07-28T19:03:44.139101Z`
 - verdict: **map_signal_redesign_no_current_window_deployable_candidate**
 - decision: Map/signal candidates were evaluated but none passed current-window support and metric gates.
 - selected_candidate_id: `dominant_neighbor_exact_lane`
@@ -19,7 +19,7 @@
 - candidate_patch_feature: `None`
 - dominant_neighbor_bucket: `CAUTION|base_caution_regime_or_bias|q15`
 - dominant_neighbor_rows: `38`
-- near_boundary_rows: `50`
+- near_boundary_rows: `52`
 
 ## Candidate matrix
 

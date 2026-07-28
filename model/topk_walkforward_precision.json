@@ -1,11 +1,11 @@
 {
   "generated_at": "2026-07-28T17:43:31.002822+00:00",
-  "artifact_freshness_status": "fresh",
-  "artifact_freshness_reason": "artifact_within_policy",
-  "artifact_age_minutes": 46.00003876666666,
+  "artifact_freshness_status": "stale",
+  "artifact_freshness_reason": "artifact_older_than_policy",
+  "artifact_age_minutes": 80.93433526666666,
   "artifact_stale_after_minutes": 60.0,
-  "artifact_deployment_blocking": false,
-  "artifact_freshness_checked_at": "2026-07-28T18:29:31.005148+00:00",
+  "artifact_deployment_blocking": true,
+  "artifact_freshness_checked_at": "2026-07-28T19:04:27.062938+00:00",
   "target_col": "simulated_pyramid_win",
   "samples": 29310,
   "top_k_grid": [
@@ -111,7 +111,7 @@
     "stagnant_run_count": 2,
     "stalled_support_accumulation": false,
     "escalate_to_blocker": true,
-    "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+    "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
     "live_truth_source_artifact": "data/live_predict_probe.json",
     "support_context_refresh": {
       "attempted": false,
@@ -347,7 +347,7 @@
             "status": "delivered_no_current_window_deployable",
             "success_condition": "提出新版 support identity / semantic bucket map，重跑 replay/backtest，且不把 proxy/reference rows 包裝成 deployable exact support。",
             "next_artifact": "data/q15_map_signal_redesign_proof.json",
-            "artifact_generated_at": "2026-07-28T18:16:58.093108Z",
+            "artifact_generated_at": "2026-07-28T18:28:48.584829Z",
             "artifact_verdict": "map_signal_redesign_no_current_window_deployable_candidate",
             "selected_candidate_id": "dominant_neighbor_exact_lane",
             "selected_target_bucket": "CAUTION|base_caution_regime_or_bias|q15",
@@ -360,20 +360,20 @@
           },
           {
             "id": "exact_bucket_row_harvest_proof",
-            "status": "delivered_under_minimum_progress_unproven",
+            "status": "blocked_no_positive_delta",
             "success_condition": "交付 current support_identity 完全一致的新 exact rows，證明 support_rows 有正 delta；若仍無位移，記錄 hard no-go。",
             "next_artifact": "data/q15_exact_bucket_row_harvest_proof.json",
-            "artifact_generated_at": "2026-07-28T18:16:52.117672Z",
-            "artifact_verdict": "exact_bucket_row_harvest_under_minimum_progress_unproven",
+            "artifact_generated_at": "2026-07-28T18:28:37.675880Z",
+            "artifact_verdict": "exact_bucket_row_harvest_stalled_under_minimum",
             "current_rows": 10,
-            "previous_rows": null,
+            "previous_rows": 10,
             "minimum_support_rows": 50,
             "rows_needed": 40,
-            "delta_vs_previous": null,
-            "semantic_signature_delta_vs_previous": 10,
-            "semantic_signature_stagnant_run_count": 0,
+            "delta_vs_previous": 0,
+            "semantic_signature_delta_vs_previous": 0,
+            "semantic_signature_stagnant_run_count": 2,
             "support_gate_ready": false,
-            "primary_failed_gate": "current_live_support_gate",
+            "primary_failed_gate": "support_accumulation_stalled",
             "live_exposure_allowed": false
           },
           {
@@ -381,7 +381,7 @@
             "status": "delivered_reference_only",
             "success_condition": "用 fresh window / walk-forward / drift-aware rebaseline 檢查 current bucket 是否已失效，並輸出 go/no-go。",
             "next_artifact": "data/q15_drift_rebaseline_backtest.json",
-            "artifact_generated_at": "2026-07-28T18:16:55.133694Z",
+            "artifact_generated_at": "2026-07-28T18:28:43.745304Z",
             "artifact_verdict": "reference_candidate_found_but_current_window_unproven",
             "selected_candidate_id": "semantic_entry_quality_family",
             "selected_current_window_rows": 43,
@@ -492,7 +492,7 @@
       "semantic_signature_map_signal_redesign_or_row_harvest",
       "equilibrium_deadlock_research_action"
     ],
-    "support_context_current_as_of": "2026-07-28T18:28:22.623339Z"
+    "support_context_current_as_of": "2026-07-28T19:03:34.231725Z"
   },
   "artifact": "data/high_conviction_topk_oos_matrix.json",
   "rows": [
@@ -560,7 +560,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -741,7 +741,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -918,7 +918,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -1095,7 +1095,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -1272,7 +1272,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -1453,7 +1453,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -1630,7 +1630,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -1807,7 +1807,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -1984,7 +1984,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -2169,7 +2169,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -2350,7 +2350,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -2531,7 +2531,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -2712,7 +2712,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -2897,7 +2897,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -3078,7 +3078,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -3259,7 +3259,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -3440,7 +3440,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -3622,7 +3622,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -3799,7 +3799,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -3976,7 +3976,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -4153,7 +4153,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -4330,7 +4330,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -4507,7 +4507,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -4684,7 +4684,7 @@
       "support_delta_vs_previous": 0,
       "support_previous_rows": 10,
       "support_rows_needed": 40,
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json",
       "support_context_status": "fresh_live_probe_overlay",
       "support_context_freshness": {
@@ -6767,7 +6767,7 @@
   "support_delta_vs_previous": 0,
   "support_previous_rows": 10,
   "support_rows_needed": 40,
-  "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+  "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
   "live_truth_source_artifact": "data/live_predict_probe.json",
   "support_context_status": "fresh_live_probe_overlay",
   "support_context_freshness": {
@@ -6894,8 +6894,8 @@
       "semantic_signature_map_signal_redesign_or_row_harvest",
       "equilibrium_deadlock_research_action"
     ],
-    "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
-    "support_context_current_as_of": "2026-07-28T18:28:22.623339Z",
+    "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
+    "support_context_current_as_of": "2026-07-28T19:03:34.231725Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "nearest_deployable_rows": [
@@ -7012,7 +7012,7 @@
         "semantic_signature_map_signal_redesign_or_row_harvest",
         "equilibrium_deadlock_research_action"
       ],
-      "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+      "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
       "live_truth_source_artifact": "data/live_predict_probe.json"
     }
   ],
@@ -7129,7 +7129,7 @@
       "semantic_signature_map_signal_redesign_or_row_harvest",
       "equilibrium_deadlock_research_action"
     ],
-    "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+    "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "best_not_deployable": {
@@ -7245,7 +7245,7 @@
       "semantic_signature_map_signal_redesign_or_row_harvest",
       "equilibrium_deadlock_research_action"
     ],
-    "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+    "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "highest_roi_not_deployable": {
@@ -7356,11 +7356,11 @@
       "semantic_signature_map_signal_redesign_or_row_harvest",
       "equilibrium_deadlock_research_action"
     ],
-    "source_live_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+    "source_live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
     "live_truth_source_artifact": "data/live_predict_probe.json"
   },
   "support_context_source": "latest_live_predict_probe",
-  "support_context_current_as_of": "2026-07-28T18:28:22.623339Z",
+  "support_context_current_as_of": "2026-07-28T19:03:34.231725Z",
   "active_repair_phase": "semantic_evidence_backfill_or_exact_accumulation",
   "active_repair_component_verify_ready": false,
   "active_repair_live_exposure_allowed": false,

@@ -1,6 +1,6 @@
 # PM Status — Poly-Trader Current Delivery State Only
 
-_最後更新：2026-07-29 02:29 CST_
+_最後更新：2026-07-29 03:04 CST_
 
 > Current-state PM interpretation. Do not append hourly history here; this file is generated from current runtime artifacts by `scripts/sync_pm_status.py` so PM checks fail on real drift, not stale literals.
 > Snapshot notice: this file is not a release source of truth; the strict full-runtime checker and current artifacts are authoritative. Run `python scripts/pm_heartbeat_check.py --format text` for the release gate. `--contract-only` is for deterministic diagnostics and must never authorize Promotion, Live, order submission, or risk-on behavior; when full runtime evidence fails, release must remain fail-closed.
@@ -21,22 +21,22 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### PM current-artifact freshness guard
 
-- `data/live_predict_probe.json freshness_status=fresh` / `artifact_age_minutes=1.14` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/live_decision_quality_drilldown.json freshness_status=fresh` / `artifact_age_minutes=1.12` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/circuit_breaker_audit.json freshness_status=fresh` / `artifact_age_minutes=1.38` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/recent_drift_report.json freshness_status=fresh` / `artifact_age_minutes=1.59` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/live_predict_probe.json freshness_status=fresh` / `artifact_age_minutes=0.88` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/live_decision_quality_drilldown.json freshness_status=fresh` / `artifact_age_minutes=0.86` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/circuit_breaker_audit.json freshness_status=fresh` / `artifact_age_minutes=0.99` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/recent_drift_report.json freshness_status=fresh` / `artifact_age_minutes=1.10` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
 - `data/execution_metadata_smoke.json freshness_status=fresh` / `artifact_age_minutes=0.56` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/venue_dry_run_proof.json freshness_status=fresh` / `artifact_age_minutes=0.54` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/q15_support_audit.json freshness_status=fresh` / `artifact_age_minutes=0.69` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/q15_support_fill_feasibility.json freshness_status=fresh` / `artifact_age_minutes=1.05` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/q15_exact_bucket_row_harvest_proof.json freshness_status=fresh` / `artifact_age_minutes=0.89` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/q15_drift_rebaseline_backtest.json freshness_status=fresh` / `artifact_age_minutes=0.79` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/venue_dry_run_proof.json freshness_status=fresh` / `artifact_age_minutes=0.55` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/q15_support_audit.json freshness_status=fresh` / `artifact_age_minutes=0.71` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/q15_support_fill_feasibility.json freshness_status=fresh` / `artifact_age_minutes=0.81` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/q15_exact_bucket_row_harvest_proof.json freshness_status=fresh` / `artifact_age_minutes=0.78` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/q15_drift_rebaseline_backtest.json freshness_status=fresh` / `artifact_age_minutes=0.75` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
 - `data/q15_map_signal_redesign_proof.json freshness_status=fresh` / `artifact_age_minutes=0.71` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/customer_safe_alternative_proof.json freshness_status=fresh` / `artifact_age_minutes=0.17` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/live_canary_structural_pivot.json freshness_status=fresh` / `artifact_age_minutes=0.05` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/no_trade_lane_replay.json freshness_status=fresh` / `artifact_age_minutes=0.03` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/paper_shadow_outcome_reconciliation.json freshness_status=fresh` / `artifact_age_minutes=0.52` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
-- `data/microstructure_contract.json freshness_status=fresh` / `artifact_age_minutes=222.03` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/customer_safe_alternative_proof.json freshness_status=fresh` / `artifact_age_minutes=0.31` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/live_canary_structural_pivot.json freshness_status=fresh` / `artifact_age_minutes=0.11` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/no_trade_lane_replay.json freshness_status=fresh` / `artifact_age_minutes=0.10` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/paper_shadow_outcome_reconciliation.json freshness_status=fresh` / `artifact_age_minutes=0.51` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
+- `data/microstructure_contract.json freshness_status=fresh` / `artifact_age_minutes=256.96` / `artifact_stale_after_minutes=1440` / `freshness_reason=artifact_within_policy`。
 
 ### Microstructure / dynamic edge contract
 
@@ -48,7 +48,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Current-live blocker
 
-- `data/live_predict_probe.json` generated at `2026-07-28T18:28:22.623339Z`；canonical target is `simulated_pyramid_win`。
+- `data/live_predict_probe.json` generated at `2026-07-28T19:03:34.231725Z`；canonical target is `simulated_pyramid_win`。
 - Runtime signal: `signal=CIRCUIT_BREAKER` / `should_trade=false` / confidence `0.500000`；`regime_label=bear` / `regime_gate=CAUTION` / `entry_quality_label=C` / `decision_quality_score=0.2639`。
 - Primary blocker: `deployment_blocker=circuit_breaker_active` / `runtime_closure_state=circuit_breaker_active`。
 - Guardrail truth: `allowed_layers_raw=1` but `allowed_layers=0`；`allowed_layers_reason=decision_quality_below_trade_floor; circuit_breaker_active`；`execution_guardrail_reason=decision_quality_below_trade_floor; circuit_breaker_active`。
@@ -61,27 +61,27 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Circuit breaker
 
-- Latest artifact `data/circuit_breaker_audit.json` generated at `2026-07-28T18:28:07.908060Z`；verdict `canonical_breaker_active`。
+- Latest artifact `data/circuit_breaker_audit.json` generated at `2026-07-28T19:03:27.669665Z`；verdict `canonical_breaker_active`。
 - Release context: `release_ready=false`, recent-window wins `13/50`, required wins `15/50`, `additional_recent_window_wins_needed=2`。
 - PM interpretation: breaker is currently active; even after it clears, support evidence, Top-K deployability, and venue runtime proof must all remain verified before live exposure.
 
 ### Research-to-delivery candidates / Top-K
 
-- `data/high_conviction_topk_oos_matrix.json` generated at `2026-07-28T17:43:31.002822+00:00`；`artifact_freshness_status=fresh`, `artifact_deployment_blocking=false`, `artifact_age_minutes=46.00`, `artifact_stale_after_minutes=60`, `samples=29310`, `row_count=24`, `runtime_blocked_candidate_rows=0`。
-- Top-K live support overlay freshness：`support_context_status=fresh_live_probe_overlay`, `support_context_freshness_status=fresh`, `support_context_freshness_reason=artifact_within_policy`, `support_context_deployment_blocking=false`, `support_context_age_minutes=1.14`, `support_context_stale_after_minutes=30`, `support_context_refresh_status=skipped_fresh_probe`, `support_context_refresh_attempted=false`, `support_context_refresh_error=—`, `live_truth_overlay_blocker=—`；freshness is recalculated from `data/live_predict_probe.json.generated_at`; if stale, Top-K remains reference-only until refreshed.
+- `data/high_conviction_topk_oos_matrix.json` generated at `2026-07-28T17:43:31.002822+00:00`；`artifact_freshness_status=stale`, `artifact_deployment_blocking=true`, `artifact_age_minutes=80.93`, `artifact_stale_after_minutes=60`, `samples=29310`, `row_count=24`, `runtime_blocked_candidate_rows=0`。
+- Top-K live support overlay freshness：`support_context_status=fresh_live_probe_overlay`, `support_context_freshness_status=fresh`, `support_context_freshness_reason=artifact_within_policy`, `support_context_deployment_blocking=false`, `support_context_age_minutes=0.88`, `support_context_stale_after_minutes=30`, `support_context_refresh_status=skipped_fresh_probe`, `support_context_refresh_attempted=false`, `support_context_refresh_error=—`, `live_truth_overlay_blocker=—`；freshness is recalculated from `data/live_predict_probe.json.generated_at`; if stale, Top-K remains reference-only until refreshed.
 - Runtime API overlay：`/api/models/leaderboard` must overlay request-time runtime truth for Strategy Lab, accept Strategy Lab's `?refresh=true` alias as a force-refresh request, auto-queue stale Top-K matrix refresh, refreshes stale live support probe before matrix build, and serialize request-time ML cold-load before background model leaderboard refresh; compact probe fields `hc_support_context_status / hc_support_context_freshness_status / hc_live_truth_freshness_status / hc_support_context_refresh_status / hc_refreshing / hc_refresh_reason` are the current endpoint truth. Fresh runtime overlay can clear persisted-probe staleness, but it does not clear live gates unless support, breaker, model, and venue proof all pass.
 - Matrix payload: `deployable_rows=0`, `risk_qualified_rows=0`, `support_route=exact_bucket_present_but_below_minimum`, `deployment_blocker=circuit_breaker_active`, `current_live_structure_bucket=CAUTION|structure_quality_caution|q15`, bucket rows `10/50`, `gap=40`。
 - Nearest research candidate: `model=logistic_regression`, `feature_profile=current_full`, `top_k=top_1pct`, `oos_roi=0.2465`, `win_rate=0.6897`, `profit_factor=4.3797`, `max_drawdown=0.0478`, `worst_fold=0.0994`, `trade_count=29`, `deployment_candidate_tier=owner_approved_personal_use`, `deployable_verdict=not_live_deployable`。
 
-**PM verdict：Top-K remains fresh research / paper-shadow evidence. Strategy Lab 可優先顯示 nearest-deployable research rows，但 `deployable_rows=0` means no risk-on live action.**
+**PM verdict：Top-K matrix 目前已 stale/reference-only；Strategy Lab / leaderboard 必須標示 stale 或 shadow-only，重跑 matrix 前不可把候選包裝成 risk-on live action。**
 
 ### Venue readiness
 
-- `data/execution_metadata_smoke.json` generated at `2026-07-28T18:28:57.430784Z`。
+- `data/execution_metadata_smoke.json` generated at `2026-07-28T19:03:53.561993Z`。
 - Summary: `runtime_ready=false`, `runtime_ready_count=0`, `venues_checked=2`, `ok_count=1`, `readiness_state=blocked_until_runtime_lifecycle_proof`。
 - okx: adapter_supported=true, enabled_in_config=true, credentials_configured=false, proof_state=public_metadata_only, runtime_ready=false, blockers=live exchange credential 尚未驗證, order ack lifecycle 尚未驗證, fill lifecycle 尚未驗證。
 - binance: adapter_supported=false, enabled_in_config=false, credentials_configured=false, proof_state=adapter_unsupported, runtime_ready=false, blockers=場館 adapter 尚未接入, 元資料契約尚未通過, 場館設定停用, live exchange credential 尚未驗證, order ack lifecycle 尚未驗證, fill lifecycle 尚未驗證。
-- `data/venue_dry_run_proof.json` generated at `2026-07-28T18:28:58.259919Z`；`venue_dry_run_status=blocked_missing_runtime_backed_proof`, `runtime_ready=false`, `runtime_ready_count=0`, `venues_checked=2`, `order_submission_enabled=false`, `risk_on_order_enabled=false`, `dry_run_only=true`。
+- `data/venue_dry_run_proof.json` generated at `2026-07-28T19:03:54.037393Z`；`venue_dry_run_status=blocked_missing_runtime_backed_proof`, `runtime_ready=false`, `runtime_ready_count=0`, `venues_checked=2`, `order_submission_enabled=false`, `risk_on_order_enabled=false`, `dry_run_only=true`。
 - Dry-run lifecycle status: `ack=blocked_missing_credentials`, `cancel=blocked_missing_credentials`, `fill=blocked_missing_credentials`, `reconciliation=blocked_missing_credentials`；venue rows：okx: preview=blocked_missing_credentials, runtime_ready=false, credentials_configured=false; binance: preview=blocked_adapter_unsupported, runtime_ready=false, credentials_configured=false。
 - Local lifecycle rehearsal: `local_rehearsal=passed_local_state_machine_runtime_unverified`, `local_scope=local_contract_rehearsal_not_exchange_proof`, `local_runtime_backed=false`, `local_live_adapter_called=false`；這只證明本地 preview → ack → partial fill → cancel → reconcile 狀態機與 API 契約，不是 exchange runtime proof，也不提升 live readiness。
 - API source-of-truth: `/api/status` exposes `venue_dry_run_proof`, and `/api/execution/overview` prefers that artifact so UI/API/customer-safe proof use the same fail-closed venue lifecycle status.
@@ -91,7 +91,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Recent market/model risk
 
-- `data/recent_drift_report.json` generated at `2026-07-28T18:27:55.671449+00:00`。
+- `data/recent_drift_report.json` generated at `2026-07-28T19:03:21.143142+00:00`。
 - Full sample rows `29213`。
 - Recent canonical window `250`: win_rate `50.8%`, dominant regime `chop(82.8%)`, alerts `regime_shift`。
 
@@ -99,33 +99,33 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 ### Support-fill feasibility / alternative-solution pressure
 
-- `data/q15_support_fill_feasibility.json` generated at `2026-07-28T18:28:27.877149+00:00`；scanned current support identity bucket is `CAUTION|structure_quality_caution|q15`。
+- `data/q15_support_fill_feasibility.json` generated at `2026-07-28T19:03:38.232501+00:00`；scanned current support identity bucket is `CAUTION|structure_quality_caution|q15`。
 - Verdict: `classification=true_support_under_minimum`, current calibration window `200`, current exact bucket rows `10/50`, identity rows before bucket filter `10`, non-current-bucket identity rows `0`, `gap=40`, `time_to_evidence_bucket=within_week_if_exact_identity_keeps_accumulating`, `missing_capability_class=Signal/Support`, `alternative_solution_required=true`。
 - Reference-only evidence: `best_reference_window=5000`, `best_reference_exact_bucket_rows=22`, `best_reference_evidence_role=reference_only_calibration_window_mismatch`；reference rows cannot be counted as deployable support unless support identity is deliberately rebaselined and fully reverified.
 - Selected next safe artifact: `data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy`。
 
 ### Exact row-harvest proof
 
-- `data/q15_exact_bucket_row_harvest_proof.json` generated at `2026-07-28T18:28:37.675880Z`。
+- `data/q15_exact_bucket_row_harvest_proof.json` generated at `2026-07-28T19:03:40.184153Z`。
 - Verdict: `status=exact_bucket_row_harvest_stalled_under_minimum`, current exact rows `10/50`, previous rows `10`, `delta_vs_previous=0`, `gap=40`, `rows_needed=40`, `time_to_evidence_bucket=within_week_if_exact_identity_keeps_accumulating`, `primary_failed_gate=support_accumulation_stalled`。
 - Safety interpretation: `support_gate_ready=false`, `live_exposure_allowed=false`, `order_submission_enabled=false`；row movement is support evidence only, not live deployment clearance.
 
 ### Drift-aware rebaseline backtest
 
-- `data/q15_drift_rebaseline_backtest.json` generated at `2026-07-28T18:28:43.745304Z`。
+- `data/q15_drift_rebaseline_backtest.json` generated at `2026-07-28T19:03:42.152018Z`。
 - Verdict: `status=reference_candidate_found_but_current_window_unproven`, `decision=A historical semantic candidate exists, but current calibration-window evidence is empty or under-minimum; it is reference-only and cannot release live buy/add.`, `selected_candidate=semantic_entry_quality_family`, `selected_candidate_status=reference_candidate_current_window_under_minimum`, current-window rows `43/50`, all-history rows `57`, current exact bucket rows `10/50`, `gap=40`, `primary_failed_gate=current_live_support_gate`。
 - Safety interpretation: `live_exposure_allowed=false`, `order_submission_enabled=false`；historical or semantic rebaseline candidates are OOS replay/redesign evidence only, not current-live deployment clearance.
 
 ### Map/Signal redesign proof
 
-- `data/q15_map_signal_redesign_proof.json` generated at `2026-07-28T18:28:48.584829Z`。
+- `data/q15_map_signal_redesign_proof.json` generated at `2026-07-28T19:03:44.139101Z`。
 - Verdict: `status=map_signal_redesign_no_current_window_deployable_candidate`, `decision=Map/signal candidates were evaluated but none passed current-window support and metric gates.`, `selected_candidate=dominant_neighbor_exact_lane`, `selected_candidate_status=insufficient_rows`, `target_bucket=CAUTION|base_caution_regime_or_bias|q15`, current-window rows `0/50`, all-history rows `38`, `best_reference=semantic_entry_quality_family:57`, `primary_failed_gate=current_live_support_gate`。
 - Root-cause link: `root_cause=runtime_blocker_preempts_bucket_root_cause`, `candidate_patch_type=None`, `candidate_patch_feature=None`。
 - Safety interpretation: `live_exposure_allowed=false`, `order_submission_enabled=false`；neighbor/q35/reference rows are replay/redesign inputs only, not current exact support closure.
 
 ### Customer-safe alternative proof
 
-- `data/customer_safe_alternative_proof.json` generated at `2026-07-28T18:29:20.868787Z`。
+- `data/customer_safe_alternative_proof.json` generated at `2026-07-28T19:04:08.096104Z`。
 - Live gate: `canary_ready=false`, `live_exposure_allowed=false`, `order_submission_enabled=false`, `risk_on_order_enabled=false`, `support_ready=false`, `topk_deployable=false`, `venue_runtime_ready=false`。
 - Allowed today: paper/shadow decision-support, API `shadow_buy` / `paper_buy` dry-run rehearsal, Shadow Trade Ledger, venue dry-run checklist, reduce-only / wait modes. Not allowed: buy/add live exposure, automatic live order submission, canary live order without exact support and runtime venue proof.
 
@@ -140,14 +140,14 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 - `forced-execution` trigger is active when same semantic signature repeats, support `delta_vs_previous=0`, `stagnant_run_count` rises, or the customer flags equilibrium/repetition.
 - Forced lanes: **Venue lifecycle proof**, **Model shadow to decision**, **Strategy micro-canary readiness**, **Map-Signal redesign**, or **hard no-go single failed gate**；observation-only status refresh is not accepted.
-- Current q15/current-support audit: `data/q15_support_audit.json` generated at `2026-07-28T18:28:49.250968Z`；`scope=current_live_q15_lane_active`, `equilibrium_deadlock=equilibrium_deadlock_watch`, `equilibrium_deadlock_confirmed=false`, `forced_research_action_required=true`, `forced_branch_status=hard_no_go_recorded`, `selected_branch=hard_no_go_single_failed_gate`, `single_failed_gate=circuit_breaker_gate`, `next_validation_artifact=data/circuit_breaker_audit.json`, `decision_clock=72h_micro_canary_or_single_failed_gate`, `live_exposure_allowed=false`, `shadow_or_paper_allowed=true`。若此列是 `hard_no_go_recorded`，PM 視為本輪已留下 single failed gate artifact，而不是 observation-only refresh。
-- Exact row-harvest proof: `data/q15_exact_bucket_row_harvest_proof.json` generated at `2026-07-28T18:28:37.675880Z`；`status=exact_bucket_row_harvest_stalled_under_minimum`, `current_rows=10/50`, `previous_rows=10`, `delta_vs_previous=0`, `rows_needed=40`, `primary_failed_gate=support_accumulation_stalled`, `live_exposure_allowed=false`；PM treats positive row movement as evidence, not live clearance.
-- Drift rebaseline proof: `data/q15_drift_rebaseline_backtest.json` generated at `2026-07-28T18:28:43.745304Z`；`status=reference_candidate_found_but_current_window_unproven`, `selected_candidate=semantic_entry_quality_family`, `current_window_rows=43/50`, `all_history_rows=57`, `primary_failed_gate=current_live_support_gate`, `live_exposure_allowed=false`；PM treats this as forced-branch evidence, not live clearance.
-- Map/Signal redesign proof: `data/q15_map_signal_redesign_proof.json` generated at `2026-07-28T18:28:48.584829Z`；`status=map_signal_redesign_no_current_window_deployable_candidate`, `selected_candidate=dominant_neighbor_exact_lane`, `target_bucket=CAUTION|base_caution_regime_or_bias|q15`, `current_window_rows=0/50`, `all_history_rows=38`, `best_reference=semantic_entry_quality_family:57`, `primary_failed_gate=current_live_support_gate`, `live_exposure_allowed=false`；PM treats this as forced-branch evidence, not live clearance.
+- Current q15/current-support audit: `data/q15_support_audit.json` generated at `2026-07-28T19:03:44.438345Z`；`scope=current_live_q15_lane_active`, `equilibrium_deadlock=equilibrium_deadlock_watch`, `equilibrium_deadlock_confirmed=false`, `forced_research_action_required=true`, `forced_branch_status=hard_no_go_recorded`, `selected_branch=hard_no_go_single_failed_gate`, `single_failed_gate=circuit_breaker_gate`, `next_validation_artifact=data/circuit_breaker_audit.json`, `decision_clock=72h_micro_canary_or_single_failed_gate`, `live_exposure_allowed=false`, `shadow_or_paper_allowed=true`。若此列是 `hard_no_go_recorded`，PM 視為本輪已留下 single failed gate artifact，而不是 observation-only refresh。
+- Exact row-harvest proof: `data/q15_exact_bucket_row_harvest_proof.json` generated at `2026-07-28T19:03:40.184153Z`；`status=exact_bucket_row_harvest_stalled_under_minimum`, `current_rows=10/50`, `previous_rows=10`, `delta_vs_previous=0`, `rows_needed=40`, `primary_failed_gate=support_accumulation_stalled`, `live_exposure_allowed=false`；PM treats positive row movement as evidence, not live clearance.
+- Drift rebaseline proof: `data/q15_drift_rebaseline_backtest.json` generated at `2026-07-28T19:03:42.152018Z`；`status=reference_candidate_found_but_current_window_unproven`, `selected_candidate=semantic_entry_quality_family`, `current_window_rows=43/50`, `all_history_rows=57`, `primary_failed_gate=current_live_support_gate`, `live_exposure_allowed=false`；PM treats this as forced-branch evidence, not live clearance.
+- Map/Signal redesign proof: `data/q15_map_signal_redesign_proof.json` generated at `2026-07-28T19:03:44.139101Z`；`status=map_signal_redesign_no_current_window_deployable_candidate`, `selected_candidate=dominant_neighbor_exact_lane`, `target_bucket=CAUTION|base_caution_regime_or_bias|q15`, `current_window_rows=0/50`, `all_history_rows=38`, `best_reference=semantic_entry_quality_family:57`, `primary_failed_gate=current_live_support_gate`, `live_exposure_allowed=false`；PM treats this as forced-branch evidence, not live clearance.
 - Structural pivot reference: `docs/plans/2026-05-23-live-canary-structural-pivot.md` and `data/live_canary_structural_pivot.json`；implementation guard is `execution.live_canary` in `execution/execution_service.py` with tests `tests/test_execution_service.py -k live_canary`.
-- Structural pivot current truth: generated_at `2026-07-28T18:29:27.871978Z`；bucket `CAUTION|structure_quality_caution|q15`；support `10/50` gap `40`；release_ready `false`；recent wins `13/50`；Top-K deployable `0`；venue_runtime_ready `false`；live_canary_policy_ready `false`。
+- Structural pivot current truth: generated_at `2026-07-28T19:04:20.184778Z`；bucket `CAUTION|structure_quality_caution|q15`；support `10/50` gap `40`；release_ready `false`；recent wins `13/50`；Top-K deployable `0`；venue_runtime_ready `false`；live_canary_policy_ready `false`。
 - Structural pivot Map/Signal lane: `current_lane_actionability=risk_on_candidate_lane` / `support_evidence_role=deployment_support_identity_required` / `map_signal_forced_lane=support_identity_redesign`；next artifact `data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|structure_quality_caution|q15 after Map/Signal redesign or exact-bucket row harvest`。
-- No-trade lane replay: `data/no_trade_lane_replay.json` generated at `2026-07-28T18:29:28.867935Z`；`verdict=not_applicable_or_incomplete_no_trade_replay` / `validated=false` / `deployable=false` / `risk_on_order_enabled=false` / `order_submission_enabled=false` / `buy_add_support_closure_allowed=false` / `checks_all_passed=false`；recent replay gate `dominant_regime_shadow_gate` stayed shadow-only with kept win rate `100.0%`。這是 no-trade / reduce-only / paper-shadow proof，不是 live buy/add support closure。
+- No-trade lane replay: `data/no_trade_lane_replay.json` generated at `2026-07-28T19:04:21.168497Z`；`verdict=not_applicable_or_incomplete_no_trade_replay` / `validated=false` / `deployable=false` / `risk_on_order_enabled=false` / `order_submission_enabled=false` / `buy_add_support_closure_allowed=false` / `checks_all_passed=false`；recent replay gate `dominant_regime_shadow_gate` stayed shadow-only with kept win rate `100.0%`。這是 no-trade / reduce-only / paper-shadow proof，不是 live buy/add support closure。
 - Structural pivot 72h hard gate: `single_failed_gate_for_72h_decision=circuit_breaker_gate`；`next_validation_artifact=data/circuit_breaker_audit.json after 24h canonical tail outcomes improve`；`micro_canary_ready=false`；`order_submission_enabled=false`；config mode `paper`。
 - bounded live-canary policy is required for any live buy/add pilot: `execution.mode=live`, `enable_live_trading=true`, `execution.live_canary.enabled=true`, explicit `allowed_symbols`, symbol-specific `max_base_qty_by_symbol`, and adapter-pre cap enforcement. Missing policy is `live_canary_policy_required`; over-cap is `live_canary_qty_cap_exceeded`.
 - **72h decision clock:** either verify a bounded micro-canary under policy after all live gates pass, or name the single failed gate and next artifact. “Continue observing” is forbidden as fallback.
@@ -160,7 +160,7 @@ PM 結論：客戶成功仍是北極星，但 live buy/add safety gate 不可被
 
 Customer-usable lanes now:
 1. **Dashboard**：看 current-live blocker、breaker release context、4H context、decision quality、feature/source blockers；主阻塞是 `circuit_breaker_active`，support 邊界是 `CAUTION|structure_quality_caution|q15` `10/50 gap=40`。
-2. **Strategy Lab**：看 Top-K / leaderboard 研究候選、OOS ROI、win rate、drawdown、profit factor、worst fold 與 runtime-blocked 原因；`deployable_rows=0`、`artifact_freshness_status=fresh`、`support_context_freshness_status=fresh` 時只能作 research / paper-shadow evidence。
+2. **Strategy Lab**：看 Top-K / leaderboard 研究候選、OOS ROI、win rate、drawdown、profit factor、worst fold 與 runtime-blocked 原因；`deployable_rows=0`、`artifact_freshness_status=stale`、`support_context_freshness_status=fresh` 時只能作 research / paper-shadow evidence。
 3. **Execution Console**：使用 paper/shadow selective sleeve、API `shadow_buy` / `paper_buy` dry-run rehearsal、`/api/execution/workers/poll` worker parity event、worker outcome reconciliation `rehearsal_proof`、Shadow Trade Ledger、dry-run readiness、`live_canary_policy_gate`、等待 / 觀望、減風險；不可做真實買入 / 加倉。
 4. **Venue readiness checklist**：追 OKX/Binance 還差哪些 proof；credential 只顯示布林 / proof-state，不洩漏 secret。
 
@@ -168,7 +168,7 @@ Customer-usable lanes now:
 
 ## 4. framework-capture / alternative-solution / anti-equilibrium guard
 
-本輪維持 **`ORANGE_framework_capture_risk` governance overlay** 與 **`ORANGE_alternative_solution_required`**，不是因為安全 gate 可被推翻，而是避免 PM 被工程 blocker 敘事捕獲。`customer-value delta`：PM status 已承認最新 bucket `CAUTION|structure_quality_caution|q15`、exact support `10/50 gap=40`、breaker `release_ready=false` / `13/50`、Top-K `artifact_freshness_status=fresh` / `support_context_freshness_status=fresh` / `samples=29310`，並保留 Execution Console / Strategy Lab 的 paper-shadow lane；但 no live exposure。
+本輪維持 **`ORANGE_framework_capture_risk` governance overlay** 與 **`ORANGE_alternative_solution_required`**，不是因為安全 gate 可被推翻，而是避免 PM 被工程 blocker 敘事捕獲。`customer-value delta`：PM status 已承認最新 bucket `CAUTION|structure_quality_caution|q15`、exact support `10/50 gap=40`、breaker `release_ready=false` / `13/50`、Top-K `artifact_freshness_status=stale` / `support_context_freshness_status=fresh` / `samples=29310`，並保留 Execution Console / Strategy Lab 的 paper-shadow lane；但 no live exposure。
 
 **time-to-evidence：** `within_week_if_exact_identity_keeps_accumulating` for exact support movement；`same_day` for venue dry-run metadata proof if credentials/config are supplied；`within_week_or_unknown` for true venue lifecycle proof without credentials。PM 不把「治理參考」包裝成 deploy-ready；下輪必須產出 exact-row accumulation proof、missing-capability proof、recent-tail no-new-risk artifact、venue dry-run proof，或一個可驗證的 alternative-solution artifact。
 

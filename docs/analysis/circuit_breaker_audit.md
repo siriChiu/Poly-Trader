@@ -1,5 +1,5 @@
 # Circuit Breaker Audit（Heartbeat #fast）
-_generated_at: 2026-07-28T18:28:07.908060Z_
+_generated_at: 2026-07-28T19:03:27.669665Z_
 
 ## 結論
 - verdict: **canonical_breaker_active**

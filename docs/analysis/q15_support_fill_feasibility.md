@@ -1,8 +1,8 @@
 # current support-fill feasibility scan (q15/q35 compatibility)
 
-- generated_at: `2026-07-28T18:28:27.877149+00:00`
-- source live probe generated_at: `2026-07-28T18:28:22.623339Z`
-- source q15 audit generated_at: `2026-07-28T18:28:22.609544Z`
+- generated_at: `2026-07-28T19:03:38.232501+00:00`
+- source live probe generated_at: `2026-07-28T19:03:34.231725Z`
+- source q15 audit generated_at: `2026-07-28T19:03:34.227090Z`
 - classification: **true_support_under_minimum**
 - reason: current identity is missing support and full history also remains under minimum; collect forward exact rows or redesign the bucket.
 - current exact bucket rows (deployable support candidate): **10/50**
@@ -31,9 +31,9 @@ This section is the current support identity captured by the source artifacts ab
 - symbol join policy: `timestamp_plus_canonical_symbol_latest_feature_and_label_id`
 - canonical symbol recovered rows: **2019** (strict=27133, canonical=2019)
 - symbol alignment evidence role: data cleanup only; live exposure remains fail-closed until all live gates pass.
-- features_normalized: count=29364, range=`2024-04-14 07:00:00.000000` → `2026-07-28 18:09:30.410367`
+- features_normalized: count=29365, range=`2024-04-14 07:00:00.000000` → `2026-07-28 18:41:44.247652`
 - labels: count=76425, range=`2024-04-14 07:00:00.000000` → `2026-07-28 11:29:42.581059`
-- raw_market_data: count=38689, range=`2024-04-13 22:00:00.000000` → `2026-07-28 18:09:30.410367`
+- raw_market_data: count=38690, range=`2024-04-13 22:00:00.000000` → `2026-07-28 18:41:44.247652`
 
 ## PM delivery pressure
 

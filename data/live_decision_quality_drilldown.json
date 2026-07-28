@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-07-28T18:43:37.291447Z",
+  "generated_at": "2026-07-28T19:03:35.381669Z",
   "feature_timestamp": "2026-07-28 18:41:44.247652",
-  "live_probe_generated_at": "2026-07-28T18:43:37.278118Z",
+  "live_probe_generated_at": "2026-07-28T19:03:34.231725Z",
   "target_col": "simulated_pyramid_win",
   "signal": "CIRCUIT_BREAKER",
   "confidence": 0.5,
@@ -199,7 +199,7 @@
       "entry_if_bias50_fully_relaxed": null,
       "layers_if_bias50_fully_relaxed": 0,
       "required_bias50_cap_for_floor": null,
-      "current_bias50_value": -1.97
+      "current_bias50_value": -1.9839
     }
   },
   "runtime_blocker": {
@@ -610,9 +610,9 @@
           "allowed_layers_gt_0": false,
           "preserves_positive_discrimination": null,
           "preserves_positive_discrimination_status": "not_measured_runtime_blocked",
-          "current_entry_quality": 0.5705,
+          "current_entry_quality": 0.5709,
           "trade_floor": 0.55,
-          "current_trade_floor_gap": 0.0205,
+          "current_trade_floor_gap": 0.0209,
           "current_entry_quality_ge_0_55": true,
           "current_entry_quality_ge_trade_floor": true
         },
@@ -734,7 +734,7 @@
           "history": [
             {
               "heartbeat": "current",
-              "timestamp": "2026-07-28T18:28:49.201070+00:00",
+              "timestamp": "2026-07-28T19:03:34.195304+00:00",
               "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
               "live_current_structure_bucket_rows": 10,
               "minimum_support_rows": 50,
@@ -753,7 +753,7 @@
             },
             {
               "heartbeat": "fast",
-              "timestamp": "2026-07-28T18:17:51.312276+00:00",
+              "timestamp": "2026-07-28T18:29:30.956310+00:00",
               "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
               "live_current_structure_bucket_rows": 10,
               "minimum_support_rows": 50,
@@ -890,7 +890,7 @@
         "history": [
           {
             "heartbeat": "current",
-            "timestamp": "2026-07-28T18:28:49.201070+00:00",
+            "timestamp": "2026-07-28T19:03:34.195304+00:00",
             "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
             "live_current_structure_bucket_rows": 10,
             "minimum_support_rows": 50,
@@ -909,7 +909,7 @@
           },
           {
             "heartbeat": "fast",
-            "timestamp": "2026-07-28T18:17:51.312276+00:00",
+            "timestamp": "2026-07-28T18:29:30.956310+00:00",
             "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
             "live_current_structure_bucket_rows": 10,
             "minimum_support_rows": 50,
@@ -1065,10 +1065,10 @@
       "artifact_context_freshness": {
         "verdict": "current_context",
         "mismatched_fields": [],
-        "latest_live_probe_feature_timestamp": "2026-07-28 18:09:30.410367",
-        "drilldown_generated_at": "2026-07-28T18:28:23.602871Z",
-        "drilldown_feature_timestamp": "2026-07-28 18:09:30.410367",
-        "artifact_feature_timestamp": "2026-07-28 18:09:30.410367",
+        "latest_live_probe_feature_timestamp": "2026-07-28 18:41:44.247652",
+        "drilldown_generated_at": "2026-07-28T19:03:26.328234Z",
+        "drilldown_feature_timestamp": "2026-07-28 18:41:44.247652",
+        "artifact_feature_timestamp": "2026-07-28 18:41:44.247652",
         "probe_current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
         "artifact_current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
         "support_identity": {
@@ -1096,7 +1096,7 @@
       },
       "statistical_gate_blocking": false,
       "q15_bucket_root_cause": {
-        "generated_at": "2026-07-28T18:28:12.691968Z",
+        "generated_at": "2026-07-28T19:03:32.104551Z",
         "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
         "bucket_scope_label": "current-live q15 bucket",
         "verdict": "runtime_blocker_preempts_bucket_root_cause",
@@ -1104,7 +1104,7 @@
         "candidate_patch_feature": null,
         "reason": "目前 live runtime 已先被 circuit breaker 擋下；current-live q15 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。",
         "verify_next": "先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。",
-        "structure_quality": 0.1738,
+        "structure_quality": 0.1712,
         "q15_threshold": 0.15,
         "q35_threshold": 0.35,
         "support_status": "semantic_rebaseline_under_minimum",
@@ -1112,13 +1112,13 @@
         "support_current_rows": 10,
         "support_minimum_rows": 50,
         "support_gap_to_minimum": 40,
-        "gap_to_q35_boundary": 0.1762,
+        "gap_to_q35_boundary": 0.1788,
         "dominant_neighbor_bucket": "CAUTION|base_caution_regime_or_bias|q15",
         "dominant_neighbor_rows": 38,
-        "near_boundary_rows": 50,
+        "near_boundary_rows": 52,
         "candidate_patch": null,
         "trade_floor": 0.55,
-        "entry_quality": 0.5705,
+        "entry_quality": 0.5709,
         "remaining_gap_to_floor": 0.0,
         "best_single_component": null,
         "single_component_floor_crossers": [],
@@ -1131,7 +1131,7 @@
         "reference_artifact_warning": "bull_4h_pocket_ablation live_context is stale/reference-only; root-cause used fresh live_predict_probe support truth."
       },
       "current_bucket_root_cause": {
-        "generated_at": "2026-07-28T18:28:12.691968Z",
+        "generated_at": "2026-07-28T19:03:32.104551Z",
         "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
         "bucket_scope_label": "current-live q15 bucket",
         "verdict": "runtime_blocker_preempts_bucket_root_cause",
@@ -1139,7 +1139,7 @@
         "candidate_patch_feature": null,
         "reason": "目前 live runtime 已先被 circuit breaker 擋下；current-live q15 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。",
         "verify_next": "先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。",
-        "structure_quality": 0.1738,
+        "structure_quality": 0.1712,
         "q15_threshold": 0.15,
         "q35_threshold": 0.35,
         "support_status": "semantic_rebaseline_under_minimum",
@@ -1147,13 +1147,13 @@
         "support_current_rows": 10,
         "support_minimum_rows": 50,
         "support_gap_to_minimum": 40,
-        "gap_to_q35_boundary": 0.1762,
+        "gap_to_q35_boundary": 0.1788,
         "dominant_neighbor_bucket": "CAUTION|base_caution_regime_or_bias|q15",
         "dominant_neighbor_rows": 38,
-        "near_boundary_rows": 50,
+        "near_boundary_rows": 52,
         "candidate_patch": null,
         "trade_floor": 0.55,
-        "entry_quality": 0.5705,
+        "entry_quality": 0.5709,
         "remaining_gap_to_floor": 0.0,
         "best_single_component": null,
         "single_component_floor_crossers": [],
@@ -1225,7 +1225,7 @@
     "operator_next_action": "保持禁止部署；先累積或回放同一目前即時結構分桶的精準路徑樣本，不可用較寬範圍或近似樣本放行。 先以目前支持語義累積或回放精準樣本；舊版參考不可作為放行依據。"
   },
   "current_bucket_root_cause": {
-    "generated_at": "2026-07-28T18:28:12.691968Z",
+    "generated_at": "2026-07-28T19:03:32.104551Z",
     "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
     "bucket_scope_label": "current-live q15 bucket",
     "verdict": "runtime_blocker_preempts_bucket_root_cause",
@@ -1233,7 +1233,7 @@
     "candidate_patch_feature": null,
     "reason": "目前 live runtime 已先被 circuit breaker 擋下；current-live q15 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。",
     "verify_next": "先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。",
-    "structure_quality": 0.1738,
+    "structure_quality": 0.1712,
     "q15_threshold": 0.15,
     "q35_threshold": 0.35,
     "support_status": "semantic_rebaseline_under_minimum",
@@ -1241,13 +1241,13 @@
     "support_current_rows": 10,
     "support_minimum_rows": 50,
     "support_gap_to_minimum": 40,
-    "gap_to_q35_boundary": 0.1762,
+    "gap_to_q35_boundary": 0.1788,
     "dominant_neighbor_bucket": "CAUTION|base_caution_regime_or_bias|q15",
     "dominant_neighbor_rows": 38,
-    "near_boundary_rows": 50,
+    "near_boundary_rows": 52,
     "candidate_patch": null,
     "trade_floor": 0.55,
-    "entry_quality": 0.5705,
+    "entry_quality": 0.5709,
     "remaining_gap_to_floor": 0.0,
     "best_single_component": null,
     "single_component_floor_crossers": [],
@@ -1260,7 +1260,7 @@
     "reference_artifact_warning": "bull_4h_pocket_ablation live_context is stale/reference-only; root-cause used fresh live_predict_probe support truth."
   },
   "q15_bucket_root_cause": {
-    "generated_at": "2026-07-28T18:28:12.691968Z",
+    "generated_at": "2026-07-28T19:03:32.104551Z",
     "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
     "bucket_scope_label": "current-live q15 bucket",
     "verdict": "runtime_blocker_preempts_bucket_root_cause",
@@ -1268,7 +1268,7 @@
     "candidate_patch_feature": null,
     "reason": "目前 live runtime 已先被 circuit breaker 擋下；current-live q15 bucket root-cause 只能視為背景治理，不能誤報成 structure_quality / projection 問題。",
     "verify_next": "先讓 canonical breaker release condition 接近解除，再重跑 hb_predict_probe.py 與 current-live bucket root-cause artifact。",
-    "structure_quality": 0.1738,
+    "structure_quality": 0.1712,
     "q15_threshold": 0.15,
     "q35_threshold": 0.35,
     "support_status": "semantic_rebaseline_under_minimum",
@@ -1276,13 +1276,13 @@
     "support_current_rows": 10,
     "support_minimum_rows": 50,
     "support_gap_to_minimum": 40,
-    "gap_to_q35_boundary": 0.1762,
+    "gap_to_q35_boundary": 0.1788,
     "dominant_neighbor_bucket": "CAUTION|base_caution_regime_or_bias|q15",
     "dominant_neighbor_rows": 38,
-    "near_boundary_rows": 50,
+    "near_boundary_rows": 52,
     "candidate_patch": null,
     "trade_floor": 0.55,
-    "entry_quality": 0.5705,
+    "entry_quality": 0.5709,
     "remaining_gap_to_floor": 0.0,
     "best_single_component": null,
     "single_component_floor_crossers": [],
@@ -1407,7 +1407,7 @@
       "history": [
         {
           "heartbeat": "current",
-          "timestamp": "2026-07-28T18:28:49.201070+00:00",
+          "timestamp": "2026-07-28T19:03:34.195304+00:00",
           "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
           "live_current_structure_bucket_rows": 10,
           "minimum_support_rows": 50,
@@ -1426,7 +1426,7 @@
         },
         {
           "heartbeat": "fast",
-          "timestamp": "2026-07-28T18:17:51.312276+00:00",
+          "timestamp": "2026-07-28T18:29:30.956310+00:00",
           "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
           "live_current_structure_bucket_rows": 10,
           "minimum_support_rows": 50,
@@ -1563,7 +1563,7 @@
     "history": [
       {
         "heartbeat": "current",
-        "timestamp": "2026-07-28T18:28:49.201070+00:00",
+        "timestamp": "2026-07-28T19:03:34.195304+00:00",
         "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
         "live_current_structure_bucket_rows": 10,
         "minimum_support_rows": 50,
@@ -1582,7 +1582,7 @@
       },
       {
         "heartbeat": "fast",
-        "timestamp": "2026-07-28T18:17:51.312276+00:00",
+        "timestamp": "2026-07-28T18:29:30.956310+00:00",
         "live_current_structure_bucket": "CAUTION|structure_quality_caution|q15",
         "live_current_structure_bucket_rows": 10,
         "minimum_support_rows": 50,

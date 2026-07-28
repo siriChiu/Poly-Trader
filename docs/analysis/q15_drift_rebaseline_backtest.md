@@ -1,6 +1,6 @@
 # q15 drift-aware rebaseline backtest
 
-- generated_at: `2026-07-28T18:28:43.745304Z`
+- generated_at: `2026-07-28T19:03:42.152018Z`
 - verdict: **reference_candidate_found_but_current_window_unproven**
 - decision: A historical semantic candidate exists, but current calibration-window evidence is empty or under-minimum; it is reference-only and cannot release live buy/add.
 - selected_candidate_id: `semantic_entry_quality_family`
@@ -12,7 +12,7 @@
 
 ## Recent drift context
 
-- source_generated_at: `2026-07-28T18:27:55.671449+00:00`
+- source_generated_at: `2026-07-28T19:03:21.143142+00:00`
 - window: `100`
 - win_rate: `0.63`
 - dominant_regime: `chop` / share `0.57`

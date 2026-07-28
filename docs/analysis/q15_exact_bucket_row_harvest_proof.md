@@ -1,6 +1,6 @@
 # q15 Exact Bucket Row Harvest Proof
 
-- generated_at: `2026-07-28T18:28:37.675880Z`
+- generated_at: `2026-07-28T19:03:40.184153Z`
 - artifact: **q15_exact_bucket_row_harvest_proof**
 - verdict: **exact_bucket_row_harvest_stalled_under_minimum**
 - decision: Current exact support is still under minimum and has no positive delta; anti-equilibrium forced execution must not fall back to observation-only.
