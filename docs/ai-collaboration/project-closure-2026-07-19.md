@@ -94,6 +94,34 @@ commercial_certification_claimed = false
 
 這些是防程式錯誤，不是重新建立商業級審批流程。
 
+### 2026-07-20 implementation addendum
+
+上述 release 決策已從文件狀態落實為 machine-readable policy；歷史上「本次文件工作沒有修改 execution code/config」仍描述 2026-07-19 的收尾動作，**不再代表目前程式狀態**。
+
+目前：
+
+```text
+strategy_release_status = owner_approved_personal_use
+strategy_release_ready = true
+statistical_gate_blocking = false
+evidence_tier = caution
+recommended_max_layers = 1
+runtime_binding_verified = false
+deployment_blocker = owner_approved_strategy_binding_required
+```
+
+實作範圍：
+
+- `config.yaml` 保存 selector、decision ID、owner 與部位政策。
+- Top-K artifact／API／Strategy Lab 分別顯示統計警示、hard-risk failure 與 technical execution blocker。
+- heartbeat current-state 生成器不得再把「補到固定 50 筆」寫成唯一主線。
+- owner approval 不會關閉 signed permit、bounded canary、stale quote、防重複下單、曝險上限或 kill switch。
+- exact Logistic Regression fitted artifact 尚未綁定，因此 live 買入／加倉仍 fail-closed；這是可操作的 technical binding 工作，不是被動等待樣本。
+
+最新重建 `data/high_conviction_topk_oos_matrix.json`：`samples=28,765`、`owner_approved_rows=1`、`strategy_release_ready_rows=1`。詳見 `docs/ai-collaboration/personal-release-policy.md`。
+
+本 follow-up 沒有送出真實訂單、沒有保存憑證值，也沒有啟動 live trading 程序。
+
 ---
 
 ## 5. 維護模式範圍

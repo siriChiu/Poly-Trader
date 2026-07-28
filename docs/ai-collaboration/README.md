@@ -11,6 +11,8 @@
 | `docs/ai-collaboration/AI_AGENT_ROLE.md` | AI agent 身分、硬邊界、自主執行紀律 |
 | `docs/ai-collaboration/HEARTBEAT.md` | Engineering heartbeat evergreen 操作流程 |
 | `docs/ai-collaboration/strategy-decision-guide.md` | heartbeat 決策前置與策略收斂指南 |
+| `docs/ai-collaboration/personal-release-policy.md` | owner-approved 個人策略、evidence tier、部位上限與不可覆寫 execution safety 契約 |
+| `docs/ai-collaboration/project-closure-2026-07-19.md` | Poly-Trader Maintenance / 非 Major 與個人策略放行決策紀錄 |
 | `docs/ai-collaboration/harness/README.md` | Engineering harness map |
 | `docs/ai-collaboration/harness/heartbeat-qa.md` | Engineering heartbeat Q&A gates |
 | `docs/ai-collaboration/harness/heartbeat-harness-contract.json` | Engineering machine-readable contract |

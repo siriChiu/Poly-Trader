@@ -47,7 +47,19 @@ Heartbeat 也要符合 repo-native harness engineering：不是靠單次 prompt 
 4. **Bounded live-canary hard gate**：若要準備真實買入 / 加倉，必須走 `execution.live_canary.enabled=true + allowed_symbols + max_base_qty_by_symbol`，否則在 adapter 前拒單。
 5. **Hard no-go**：如果仍不能前進，必須寫明唯一失敗 gate 與下一個能解除該 gate 的 artifact；禁止再產出模糊「繼續觀察」。
 
-### 1.3 外部 governor 與反自我認證
+### 1.3 owner-approved 個人策略放行
+
+當 `config.yaml > strategy_release.mode=owner_approved_personal_use` 且 selector 與 candidate 完全一致時：
+
+- `strategy_release_status=owner_approved_personal_use` 是持久策略決策；不得因 sliding-window support 或 trade-count 波動而默默撤銷。
+- min-trades／exact-support 轉為 `statistical_warnings`，並以 `evidence_tier`、`evidence_score`、`recommended_max_layers` 承接不確定性。
+- current-state 主線不得再寫成「被動補到固定 50 筆」；下一步必須是 model／feature／bucket／validation redesign，或 exact fitted model／schema／checksum runtime binding。
+- owner approval 只覆寫 statistical release policy，不得覆寫 execution safety。signed permit、bounded canary、stale quote、防重複下單、曝險上限與 kill switch 一律 fail-closed。
+- 策略 release 與 live execution readiness 必須分開顯示；`strategy_release_ready=true` 不等於 `deployment_ready=true`。
+
+詳見 `docs/ai-collaboration/personal-release-policy.md`。
+
+### 1.4 外部 governor 與反自我認證
 
 每輪在 Agent 開始分析前，先執行：
 
