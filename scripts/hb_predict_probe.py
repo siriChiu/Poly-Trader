@@ -1205,8 +1205,29 @@ def _build_probe_payload(
                 "blocking": False,
             }
             deployment_blocker_details["statistical_gate_blocking"] = False
+            support_evidence_ratio = round(
+                max(0.0, min(1.0, progress_rows_value / progress_minimum_value)),
+                4,
+            )
+            raw_model_evidence_ratio = runtime_result.get("model_evidence_ratio")
+            try:
+                model_evidence_ratio = float(raw_model_evidence_ratio)
+            except (TypeError, ValueError):
+                model_evidence_ratio = 0.0
+            model_evidence_ratio = round(max(0.0, min(1.0, model_evidence_ratio)), 4)
+            evidence_score = round((support_evidence_ratio + model_evidence_ratio) / 2.0, 4)
+            if support_evidence_ratio >= 1.0 and model_evidence_ratio >= 1.0:
+                evidence_tier = "full"
+            elif support_evidence_ratio >= 0.5 and evidence_score >= 0.5:
+                evidence_tier = "caution"
+            else:
+                evidence_tier = "limited"
             runtime_result["statistical_warnings"] = warnings
             runtime_result["statistical_gate_blocking"] = False
+            runtime_result["support_evidence_ratio"] = support_evidence_ratio
+            runtime_result["model_evidence_ratio"] = model_evidence_ratio
+            runtime_result["evidence_score"] = evidence_score
+            runtime_result["evidence_tier"] = evidence_tier
             runtime_result["support_evidence_advisory"] = True
             runtime_result["deployment_blocker_details"] = deployment_blocker_details
         else:

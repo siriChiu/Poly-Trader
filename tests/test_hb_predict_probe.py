@@ -182,16 +182,16 @@ def test_build_probe_payload_promotes_circuit_breaker_release_math_to_top_level(
         target_col="simulated_pyramid_win",
         used_model="regime_bear_ensemble",
         current_live_structure_bucket="CIRCUIT_BREAKER",
-        current_live_structure_bucket_rows=0,
+        current_live_structure_bucket_rows=10,
         q15_support_audit={
             "support_route": {
                 "verdict": "exact_bucket_unsupported_block",
                 "deployable": False,
                 "support_progress": {
                     "status": "stalled_under_minimum",
-                    "current_rows": 0,
+                    "current_rows": 10,
                     "minimum_support_rows": 50,
-                    "gap_to_minimum": 50,
+                    "gap_to_minimum": 40,
                 },
             }
         },
@@ -210,8 +210,12 @@ def test_build_probe_payload_promotes_circuit_breaker_release_math_to_top_level(
     assert "至少還差 11 勝" in payload["runtime_closure_summary"]
     assert payload["deployment_blocker"] == "circuit_breaker_active"
     assert payload["statistical_gate_blocking"] is False
-    assert payload["statistical_warnings"] == ["unsupported_exact_live_structure_bucket"]
+    assert payload["statistical_warnings"] == ["under_minimum_exact_live_structure_bucket"]
     assert payload["technical_execution_blockers"] == ["circuit_breaker_active"]
+    assert payload["support_evidence_ratio"] == 0.2
+    assert payload["model_evidence_ratio"] == 0.0
+    assert payload["evidence_score"] == 0.1
+    assert payload["evidence_tier"] == "limited"
 
 
 def test_build_probe_payload_uses_circuit_breaker_audit_release_fallback(monkeypatch, tmp_path):
