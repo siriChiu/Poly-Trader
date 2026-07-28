@@ -1,22 +1,22 @@
 {
-  "generated_at": "2026-07-28T14:46:19.392264Z",
+  "generated_at": "2026-07-28T18:28:43.745304Z",
   "artifact": "q15_drift_rebaseline_backtest",
   "source_artifacts": {
     "live_predict_probe_path": "data/live_predict_probe.json",
-    "live_predict_probe_generated_at": "2026-07-28T14:46:12.500752Z",
+    "live_predict_probe_generated_at": "2026-07-28T18:28:22.623339Z",
     "q15_support_audit_path": "data/q15_support_audit.json",
-    "q15_support_audit_generated_at": "2026-07-28T14:46:12.496718Z",
+    "q15_support_audit_generated_at": "2026-07-28T18:28:22.609544Z",
     "q15_support_fill_feasibility_path": "data/q15_support_fill_feasibility.json",
-    "q15_support_fill_feasibility_generated_at": "2026-07-28T14:46:15.408949+00:00",
+    "q15_support_fill_feasibility_generated_at": "2026-07-28T18:28:27.877149+00:00",
     "recent_drift_report_path": "data/recent_drift_report.json",
-    "recent_drift_report_generated_at": "2026-07-28T14:46:02.116873+00:00"
+    "recent_drift_report_generated_at": "2026-07-28T18:27:55.671449+00:00"
   },
   "support_identity": {
     "target_col": "simulated_pyramid_win",
     "horizon_minutes": 1440,
-    "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
     "regime_label": "bear",
-    "regime_gate": "BLOCK",
+    "regime_gate": "CAUTION",
     "entry_quality_label": "C",
     "calibration_window": 200,
     "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
@@ -25,9 +25,9 @@
     "joined_labeled_rows": 29152,
     "db_meta": {
       "features_normalized": {
-        "count": 29357,
+        "count": 29364,
         "min_ts": "2024-04-14 07:00:00.000000",
-        "max_ts": "2026-07-28 14:33:27.381993"
+        "max_ts": "2026-07-28 18:09:30.410367"
       },
       "labels": {
         "count": 76425,
@@ -35,9 +35,9 @@
         "max_ts": "2026-07-28 11:29:42.581059"
       },
       "raw_market_data": {
-        "count": 38682,
+        "count": 38689,
         "min_ts": "2024-04-13 22:00:00.000000",
-        "max_ts": "2026-07-28 14:33:27.381993"
+        "max_ts": "2026-07-28 18:09:30.410367"
       }
     }
   },
@@ -48,7 +48,7 @@
     "decision_clock": "72h_micro_canary_or_single_failed_gate"
   },
   "recent_drift_context": {
-    "source_generated_at": "2026-07-28T14:46:02.116873+00:00",
+    "source_generated_at": "2026-07-28T18:27:55.671449+00:00",
     "window": 100,
     "win_rate": 0.63,
     "dominant_regime": "chop",
@@ -59,17 +59,17 @@
     "alerts": []
   },
   "verdict": {
-    "status": "no_rebaseline_candidate_found",
-    "decision": "No semantic/rebaseline candidate has enough evidence; keep exact-row harvest or hard no-go as the forced branch.",
-    "selected_candidate_id": null,
-    "selected_candidate_status": null,
-    "selected_candidate_evidence_role": null,
-    "selected_all_history_rows": null,
-    "selected_current_window_rows": null,
+    "status": "reference_candidate_found_but_current_window_unproven",
+    "decision": "A historical semantic candidate exists, but current calibration-window evidence is empty or under-minimum; it is reference-only and cannot release live buy/add.",
+    "selected_candidate_id": "semantic_entry_quality_family",
+    "selected_candidate_status": "reference_candidate_current_window_under_minimum",
+    "selected_candidate_evidence_role": "research_candidate_semantic_adapter_required",
+    "selected_all_history_rows": 57,
+    "selected_current_window_rows": 43,
     "selected_current_window_key": "200",
-    "current_exact_bucket_rows": 0,
+    "current_exact_bucket_rows": 10,
     "minimum_support_rows": 50,
-    "gap_to_minimum": 50,
+    "gap_to_minimum": 40,
     "deployable": false,
     "live_exposure_allowed": false,
     "order_submission_enabled": false,
@@ -91,7 +91,7 @@
         "current_live_structure_bucket"
       ],
       "relaxed_fields": [],
-      "source_compression_rows": 0,
+      "source_compression_rows": 10,
       "source_metric_gate_candidate": false,
       "status": "baseline_current_identity",
       "deployable_support": false,
@@ -100,141 +100,152 @@
         "100": {
           "window": 100,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 10,
+          "rows_needed_to_minimum": 40,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 10,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 10
+            },
+            "avg_pnl": 0.0126,
+            "avg_quality": 0.5907,
+            "avg_drawdown_penalty": 0.0272,
+            "avg_time_underwater": 0.1125
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-07-26 01:55:17.731478"
         },
         "200": {
           "window": 200,
           "same_as_current_calibration_window": true,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 10,
+          "rows_needed_to_minimum": 40,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 10,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 10
+            },
+            "avg_pnl": 0.0126,
+            "avg_quality": 0.5907,
+            "avg_drawdown_penalty": 0.0272,
+            "avg_time_underwater": 0.1125
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-07-26 01:55:17.731478"
         },
         "600": {
           "window": 600,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 10,
+          "rows_needed_to_minimum": 40,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 10,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 10
+            },
+            "avg_pnl": 0.0126,
+            "avg_quality": 0.5907,
+            "avg_drawdown_penalty": 0.0272,
+            "avg_time_underwater": 0.1125
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-07-26 01:55:17.731478"
         },
         "1000": {
           "window": 1000,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 10,
+          "rows_needed_to_minimum": 40,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 10,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 10
+            },
+            "avg_pnl": 0.0126,
+            "avg_quality": 0.5907,
+            "avg_drawdown_penalty": 0.0272,
+            "avg_time_underwater": 0.1125
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-07-26 01:55:17.731478"
         },
         "5000": {
           "window": 5000,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
+          "rows": 22,
+          "rows_needed_to_minimum": 28,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 22,
+            "win_rate": 0.5909,
             "target_counts": {
-              "1": 4
+              "1": 13,
+              "0": 9
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0047,
+            "avg_quality": 0.2452,
+            "avg_drawdown_penalty": 0.1726,
+            "avg_time_underwater": 0.4437
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         },
         "29152": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
+          "rows": 22,
+          "rows_needed_to_minimum": 28,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 22,
+            "win_rate": 0.5909,
             "target_counts": {
-              "1": 4
+              "1": 13,
+              "0": 9
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0047,
+            "avg_quality": 0.2452,
+            "avg_drawdown_penalty": 0.1726,
+            "avg_time_underwater": 0.4437
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         },
         "all": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
+          "rows": 22,
+          "rows_needed_to_minimum": 28,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 22,
+            "win_rate": 0.5909,
             "target_counts": {
-              "1": 4
+              "1": 13,
+              "0": 9
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0047,
+            "avg_quality": 0.2452,
+            "avg_drawdown_penalty": 0.1726,
+            "avg_time_underwater": 0.4437
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         }
       }
     },
@@ -251,7 +262,7 @@
       "relaxed_fields": [
         "calibration_window"
       ],
-      "source_compression_rows": 4,
+      "source_compression_rows": 22,
       "source_metric_gate_candidate": false,
       "status": "insufficient_rows",
       "deployable_support": false,
@@ -260,141 +271,152 @@
         "100": {
           "window": 100,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 10,
+          "rows_needed_to_minimum": 40,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 10,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 10
+            },
+            "avg_pnl": 0.0126,
+            "avg_quality": 0.5907,
+            "avg_drawdown_penalty": 0.0272,
+            "avg_time_underwater": 0.1125
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-07-26 01:55:17.731478"
         },
         "200": {
           "window": 200,
           "same_as_current_calibration_window": true,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 10,
+          "rows_needed_to_minimum": 40,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 10,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 10
+            },
+            "avg_pnl": 0.0126,
+            "avg_quality": 0.5907,
+            "avg_drawdown_penalty": 0.0272,
+            "avg_time_underwater": 0.1125
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-07-26 01:55:17.731478"
         },
         "600": {
           "window": 600,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 10,
+          "rows_needed_to_minimum": 40,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 10,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 10
+            },
+            "avg_pnl": 0.0126,
+            "avg_quality": 0.5907,
+            "avg_drawdown_penalty": 0.0272,
+            "avg_time_underwater": 0.1125
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-07-26 01:55:17.731478"
         },
         "1000": {
           "window": 1000,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 10,
+          "rows_needed_to_minimum": 40,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 10,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 10
+            },
+            "avg_pnl": 0.0126,
+            "avg_quality": 0.5907,
+            "avg_drawdown_penalty": 0.0272,
+            "avg_time_underwater": 0.1125
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-07-26 01:55:17.731478"
         },
         "5000": {
           "window": 5000,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
+          "rows": 22,
+          "rows_needed_to_minimum": 28,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 22,
+            "win_rate": 0.5909,
             "target_counts": {
-              "1": 4
+              "1": 13,
+              "0": 9
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0047,
+            "avg_quality": 0.2452,
+            "avg_drawdown_penalty": 0.1726,
+            "avg_time_underwater": 0.4437
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         },
         "29152": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
+          "rows": 22,
+          "rows_needed_to_minimum": 28,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 22,
+            "win_rate": 0.5909,
             "target_counts": {
-              "1": 4
+              "1": 13,
+              "0": 9
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0047,
+            "avg_quality": 0.2452,
+            "avg_drawdown_penalty": 0.1726,
+            "avg_time_underwater": 0.4437
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         },
         "all": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
+          "rows": 22,
+          "rows_needed_to_minimum": 28,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 22,
+            "win_rate": 0.5909,
             "target_counts": {
-              "1": 4
+              "1": 13,
+              "0": 9
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0047,
+            "avg_quality": 0.2452,
+            "avg_drawdown_penalty": 0.1726,
+            "avg_time_underwater": 0.4437
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         }
       }
     },
@@ -411,150 +433,161 @@
         "calibration_window",
         "entry_quality_label"
       ],
-      "source_compression_rows": 4,
-      "source_metric_gate_candidate": false,
-      "status": "insufficient_rows",
+      "source_compression_rows": 57,
+      "source_metric_gate_candidate": true,
+      "status": "reference_candidate_current_window_under_minimum",
       "deployable_support": false,
       "live_exposure_allowed": false,
       "window_evaluations": {
         "100": {
           "window": 100,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 43,
+          "rows_needed_to_minimum": 7,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 43,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 43
+            },
+            "avg_pnl": 0.0112,
+            "avg_quality": 0.5766,
+            "avg_drawdown_penalty": 0.0216,
+            "avg_time_underwater": 0.0968
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-25 16:16:19.621291"
         },
         "200": {
           "window": 200,
           "same_as_current_calibration_window": true,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 43,
+          "rows_needed_to_minimum": 7,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 43,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 43
+            },
+            "avg_pnl": 0.0112,
+            "avg_quality": 0.5766,
+            "avg_drawdown_penalty": 0.0216,
+            "avg_time_underwater": 0.0968
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-25 16:16:19.621291"
         },
         "600": {
           "window": 600,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 43,
+          "rows_needed_to_minimum": 7,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 43,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 43
+            },
+            "avg_pnl": 0.0112,
+            "avg_quality": 0.5766,
+            "avg_drawdown_penalty": 0.0216,
+            "avg_time_underwater": 0.0968
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-25 16:16:19.621291"
         },
         "1000": {
           "window": 1000,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 43,
+          "rows_needed_to_minimum": 7,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 43,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 43
+            },
+            "avg_pnl": 0.0112,
+            "avg_quality": 0.5766,
+            "avg_drawdown_penalty": 0.0216,
+            "avg_time_underwater": 0.0968
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-25 16:16:19.621291"
         },
         "5000": {
           "window": 5000,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 57,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 57,
+            "win_rate": 0.8421,
             "target_counts": {
-              "1": 4
+              "1": 48,
+              "0": 9
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0082,
+            "avg_quality": 0.4375,
+            "avg_drawdown_penalty": 0.092,
+            "avg_time_underwater": 0.2527
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         },
         "29152": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 57,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 57,
+            "win_rate": 0.8421,
             "target_counts": {
-              "1": 4
+              "1": 48,
+              "0": 9
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0082,
+            "avg_quality": 0.4375,
+            "avg_drawdown_penalty": 0.092,
+            "avg_time_underwater": 0.2527
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         },
         "all": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 57,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 57,
+            "win_rate": 0.8421,
             "target_counts": {
-              "1": 4
+              "1": 48,
+              "0": 9
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0082,
+            "avg_quality": 0.4375,
+            "avg_drawdown_penalty": 0.092,
+            "avg_time_underwater": 0.2527
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         }
       }
     },
@@ -571,150 +604,163 @@
         "entry_quality_label",
         "regime_label"
       ],
-      "source_compression_rows": 4,
-      "source_metric_gate_candidate": false,
-      "status": "insufficient_rows",
+      "source_compression_rows": 171,
+      "source_metric_gate_candidate": true,
+      "status": "reference_candidate_current_window_under_minimum",
       "deployable_support": false,
       "live_exposure_allowed": false,
       "window_evaluations": {
         "100": {
           "window": 100,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 43,
+          "rows_needed_to_minimum": 7,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 43,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 43
+            },
+            "avg_pnl": 0.0112,
+            "avg_quality": 0.5766,
+            "avg_drawdown_penalty": 0.0216,
+            "avg_time_underwater": 0.0968
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-25 16:16:19.621291"
         },
         "200": {
           "window": 200,
           "same_as_current_calibration_window": true,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 43,
+          "rows_needed_to_minimum": 7,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 43,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 43
+            },
+            "avg_pnl": 0.0112,
+            "avg_quality": 0.5766,
+            "avg_drawdown_penalty": 0.0216,
+            "avg_time_underwater": 0.0968
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-25 16:16:19.621291"
         },
         "600": {
           "window": 600,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 124,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 124,
+            "win_rate": 0.7742,
+            "target_counts": {
+              "1": 96,
+              "0": 28
+            },
+            "avg_pnl": 0.0084,
+            "avg_quality": 0.3907,
+            "avg_drawdown_penalty": 0.1486,
+            "avg_time_underwater": 0.3295
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-18 16:31:45.259042"
         },
         "1000": {
           "window": 1000,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 157,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 157,
+            "win_rate": 0.6943,
+            "target_counts": {
+              "1": 109,
+              "0": 48
+            },
+            "avg_pnl": 0.0061,
+            "avg_quality": 0.3118,
+            "avg_drawdown_penalty": 0.1818,
+            "avg_time_underwater": 0.4071
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-16 02:04:42.671793"
         },
         "5000": {
           "window": 5000,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 171,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 171,
+            "win_rate": 0.6667,
             "target_counts": {
-              "1": 4
+              "1": 114,
+              "0": 57
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0055,
+            "avg_quality": 0.2871,
+            "avg_drawdown_penalty": 0.1921,
+            "avg_time_underwater": 0.4337
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         },
         "29152": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 171,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 171,
+            "win_rate": 0.6667,
             "target_counts": {
-              "1": 4
+              "1": 114,
+              "0": 57
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0055,
+            "avg_quality": 0.2871,
+            "avg_drawdown_penalty": 0.1921,
+            "avg_time_underwater": 0.4337
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         },
         "all": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 171,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 171,
+            "win_rate": 0.6667,
             "target_counts": {
-              "1": 4
+              "1": 114,
+              "0": 57
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0055,
+            "avg_quality": 0.2871,
+            "avg_drawdown_penalty": 0.1921,
+            "avg_time_underwater": 0.4337
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         }
       }
     },
@@ -731,150 +777,163 @@
         "regime_label",
         "regime_gate"
       ],
-      "source_compression_rows": 4,
-      "source_metric_gate_candidate": false,
-      "status": "insufficient_rows",
+      "source_compression_rows": 171,
+      "source_metric_gate_candidate": true,
+      "status": "reference_candidate_current_window_under_minimum",
       "deployable_support": false,
       "live_exposure_allowed": false,
       "window_evaluations": {
         "100": {
           "window": 100,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 43,
+          "rows_needed_to_minimum": 7,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 43,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 43
+            },
+            "avg_pnl": 0.0112,
+            "avg_quality": 0.5766,
+            "avg_drawdown_penalty": 0.0216,
+            "avg_time_underwater": 0.0968
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-25 16:16:19.621291"
         },
         "200": {
           "window": 200,
           "same_as_current_calibration_window": true,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 43,
+          "rows_needed_to_minimum": 7,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 43,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 43
+            },
+            "avg_pnl": 0.0112,
+            "avg_quality": 0.5766,
+            "avg_drawdown_penalty": 0.0216,
+            "avg_time_underwater": 0.0968
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-25 16:16:19.621291"
         },
         "600": {
           "window": 600,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 124,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 124,
+            "win_rate": 0.7742,
+            "target_counts": {
+              "1": 96,
+              "0": 28
+            },
+            "avg_pnl": 0.0084,
+            "avg_quality": 0.3907,
+            "avg_drawdown_penalty": 0.1486,
+            "avg_time_underwater": 0.3295
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-18 16:31:45.259042"
         },
         "1000": {
           "window": 1000,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 157,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 157,
+            "win_rate": 0.6943,
+            "target_counts": {
+              "1": 109,
+              "0": 48
+            },
+            "avg_pnl": 0.0061,
+            "avg_quality": 0.3118,
+            "avg_drawdown_penalty": 0.1818,
+            "avg_time_underwater": 0.4071
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-16 02:04:42.671793"
         },
         "5000": {
           "window": 5000,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 171,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 171,
+            "win_rate": 0.6667,
             "target_counts": {
-              "1": 4
+              "1": 114,
+              "0": 57
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0055,
+            "avg_quality": 0.2871,
+            "avg_drawdown_penalty": 0.1921,
+            "avg_time_underwater": 0.4337
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         },
         "29152": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 171,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 171,
+            "win_rate": 0.6667,
             "target_counts": {
-              "1": 4
+              "1": 114,
+              "0": 57
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0055,
+            "avg_quality": 0.2871,
+            "avg_drawdown_penalty": 0.1921,
+            "avg_time_underwater": 0.4337
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         },
         "all": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
+          "rows": 171,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 171,
+            "win_rate": 0.6667,
             "target_counts": {
-              "1": 4
+              "1": 114,
+              "0": 57
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0055,
+            "avg_quality": 0.2871,
+            "avg_drawdown_penalty": 0.1921,
+            "avg_time_underwater": 0.4337
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         }
       }
     }
@@ -893,15 +952,15 @@
   "recommended_actions": [
     {
       "id": "rerun_oos_under_selected_semantic_candidate",
-      "priority": "P1",
-      "selected_candidate_id": null,
+      "priority": "P0",
+      "selected_candidate_id": "semantic_entry_quality_family",
       "live_exposure_allowed": false,
       "success_condition": "OOS/Top-K/support-audit replay passes under an explicit new identity; otherwise record hard no-go."
     },
     {
       "id": "keep_current_exact_support_gate_fail_closed",
       "priority": "P0",
-      "current_exact_bucket_rows": 0,
+      "current_exact_bucket_rows": 10,
       "minimum_support_rows": 50,
       "live_exposure_allowed": false,
       "success_condition": "current exact support reaches at least 50 rows before any risk-on live action."

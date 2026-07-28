@@ -1,12 +1,12 @@
 # Live canary structural pivot
 
-- generated_at: `2026-07-28T14:47:04.947889Z`
+- generated_at: `2026-07-28T18:29:27.871978Z`
 - PM handoff carried forward: `PM 強制反平衡：若 72h 內不能執行 bounded micro-canary，必須寫明單一失敗 gate 與下一個驗證 artifact；不得再只做 observation-only heartbeat。`
 - deployment_blocker: `circuit_breaker_active`
-- current bucket: `BLOCK|structure_quality_block|q00`
-- lane actionability: `no_trade_block_lane` / support evidence role: `no_trade_decision_validation_not_deployable_support`
-- operator interpretation: 當前即時 lane 是 BLOCK / 不交易決策 lane。精準支持 0/50 只可視為無風險觀望驗證，不可視為買入 / 加倉部署 closure。
-- support: `0/50` (gap `50`, delta `0`, stagnant `2`)
+- current bucket: `CAUTION|structure_quality_caution|q15`
+- lane actionability: `risk_on_candidate_lane` / support evidence role: `deployment_support_identity_required`
+- operator interpretation: Current live lane can become risk-on only after exact support, breaker, model-shadow, venue lifecycle, and live-canary policy gates all pass.
+- support: `10/50` (gap `40`, delta `0`, stagnant `2`)
 - semantic-signature progress: delta `0`, stagnant `2` (does not relax strict support_identity)
 - equilibrium deadlock: confirmed=`False`, verdict=`equilibrium_deadlock_watch`, forced_artifact=`data/equilibrium_deadlock_research_action.json`
 - release_ready: `False` / recent wins `13/50`, required `15`, needed `2`
@@ -16,7 +16,7 @@
 - micro_canary_ready: **False** / order_submission_enabled: **False**
 - single_failed_gate_for_72h_decision: `circuit_breaker_gate`
 - next_validation_artifact: `data/circuit_breaker_audit.json after 24h canonical tail outcomes improve`
-- map_signal_forced_lane: `no_trade_lane_audit` / next artifact: `data/no_trade_lane_replay.json；驗證觀望 / reduce-only 行為，不把它寫成 risk-on support closure。`
+- map_signal_forced_lane: `support_identity_redesign` / next artifact: `data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|structure_quality_caution|q15 after Map/Signal redesign or exact-bucket row harvest`
 
 ## Decision
 停止重複 observation-only。每輪刷新 live-canary pivot，將 readiness 拆成 support、breaker、model-shadow、venue lifecycle、live-canary policy 五個 gate。
@@ -38,7 +38,7 @@
 - `A_venue_lifecycle_proof`: status=`blocked_missing_runtime_backed_proof`, can_start_now=`True`, live_exposure=`none_or_min_exchange_probe_only`
 - `B_model_shadow_to_decision`: status=`waiting_for_shadow_candidate`, can_start_now=`False`, live_exposure=`paper_shadow_only`
 - `C_strategy_micro_canary`: status=`blocked_by_circuit_breaker_gate`, can_start_now=`False`, live_exposure=`max one first-layer position, tiny symbol cap, no auto-add, no pyramiding until post-trade proof is clean`
-- `D_map_signal_redesign_for_current_bucket`: status=`no_trade_lane_audit_required`, can_start_now=`True`, live_exposure=`none`
+- `D_map_signal_redesign_for_current_bucket`: status=`forced_research_action_required`, can_start_now=`True`, live_exposure=`none`
 
 ## Local config snapshot (secret-safe)
 - config: `config.yaml` exists=`True`

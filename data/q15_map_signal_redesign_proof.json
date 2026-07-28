@@ -1,24 +1,24 @@
 {
-  "generated_at": "2026-07-28T14:46:21.413972Z",
+  "generated_at": "2026-07-28T18:28:48.584829Z",
   "artifact": "q15_map_signal_redesign_proof",
   "source_artifacts": {
     "live_predict_probe_path": "data/live_predict_probe.json",
-    "live_predict_probe_generated_at": "2026-07-28T14:46:12.500752Z",
+    "live_predict_probe_generated_at": "2026-07-28T18:28:22.623339Z",
     "q15_support_audit_path": "data/q15_support_audit.json",
-    "q15_support_audit_generated_at": "2026-07-28T14:46:12.496718Z",
+    "q15_support_audit_generated_at": "2026-07-28T18:28:22.609544Z",
     "q15_bucket_root_cause_path": "data/q15_bucket_root_cause.json",
-    "q15_bucket_root_cause_generated_at": "2026-07-28T14:46:10.261078Z",
+    "q15_bucket_root_cause_generated_at": "2026-07-28T18:28:12.691968Z",
     "q15_drift_rebaseline_backtest_path": "data/q15_drift_rebaseline_backtest.json",
-    "q15_drift_rebaseline_backtest_generated_at": "2026-07-28T14:46:19.392264Z",
+    "q15_drift_rebaseline_backtest_generated_at": "2026-07-28T18:28:43.745304Z",
     "recent_drift_report_path": "data/recent_drift_report.json",
-    "recent_drift_report_generated_at": "2026-07-28T14:46:02.116873+00:00"
+    "recent_drift_report_generated_at": "2026-07-28T18:27:55.671449+00:00"
   },
   "support_identity": {
     "target_col": "simulated_pyramid_win",
     "horizon_minutes": 1440,
-    "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
     "regime_label": "bear",
-    "regime_gate": "BLOCK",
+    "regime_gate": "CAUTION",
     "entry_quality_label": "C",
     "calibration_window": 200,
     "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
@@ -27,9 +27,9 @@
     "joined_labeled_rows": 29152,
     "db_meta": {
       "features_normalized": {
-        "count": 29357,
+        "count": 29364,
         "min_ts": "2024-04-14 07:00:00.000000",
-        "max_ts": "2026-07-28 14:33:27.381993"
+        "max_ts": "2026-07-28 18:09:30.410367"
       },
       "labels": {
         "count": 76425,
@@ -37,14 +37,14 @@
         "max_ts": "2026-07-28 11:29:42.581059"
       },
       "raw_market_data": {
-        "count": 38682,
+        "count": 38689,
         "min_ts": "2024-04-13 22:00:00.000000",
-        "max_ts": "2026-07-28 14:33:27.381993"
+        "max_ts": "2026-07-28 18:09:30.410367"
       }
     }
   },
   "recent_drift_context": {
-    "source_generated_at": "2026-07-28T14:46:02.116873+00:00",
+    "source_generated_at": "2026-07-28T18:27:55.671449+00:00",
     "window": 100,
     "win_rate": 0.63,
     "dominant_regime": "chop",
@@ -53,39 +53,37 @@
   },
   "root_cause_context": {
     "artifact": "q15_bucket_root_cause",
-    "generated_at": "2026-07-28T14:46:10.261078Z",
+    "generated_at": "2026-07-28T18:28:12.691968Z",
     "verdict": "runtime_blocker_preempts_bucket_root_cause",
     "candidate_patch_type": null,
     "candidate_patch_feature": null,
     "candidate_patch": null,
     "exact_live_lane": {
-      "rows": 327,
+      "rows": 74,
       "bucket_counts": {
-        "BLOCK|structure_overextended_block|q85": 233,
-        "BLOCK|bear_bias200_hard_block|q00": 56,
-        "BLOCK|bias200_below_min|q15": 21,
-        "BLOCK|bear_bias200_hard_block|q15": 11,
-        "BLOCK|structure_quality_block|q00": 4,
-        "BLOCK|bias200_below_min|q00": 2
+        "CAUTION|base_caution_regime_or_bias|q15": 38,
+        "CAUTION|structure_quality_caution|q15": 22,
+        "CAUTION|base_caution_regime_or_bias|q00": 13,
+        "CAUTION|base_caution_regime_or_bias|q35": 1
       },
-      "dominant_neighbor_bucket": "BLOCK|structure_overextended_block|q85",
-      "dominant_neighbor_rows": 233,
+      "dominant_neighbor_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+      "dominant_neighbor_rows": 38,
       "near_boundary_window": {
-        "lower": 0.0091,
+        "lower": 0.1738,
         "upper": 0.35
       },
-      "near_boundary_rows": 71
+      "near_boundary_rows": 50
     }
   },
   "verdict": {
-    "status": "map_signal_redesign_reference_only_current_window_unproven",
-    "decision": "A map/signal redesign candidate exists only as historical/reference evidence; current-window support is empty or under-minimum.",
+    "status": "map_signal_redesign_no_current_window_deployable_candidate",
+    "decision": "Map/signal candidates were evaluated but none passed current-window support and metric gates.",
     "selected_candidate_id": "dominant_neighbor_exact_lane",
-    "selected_candidate_status": "reference_candidate_current_window_empty",
+    "selected_candidate_status": "insufficient_rows",
     "selected_redesign_type": "bucket_map_neighbor",
-    "selected_target_bucket": "BLOCK|structure_overextended_block|q85",
+    "selected_target_bucket": "CAUTION|base_caution_regime_or_bias|q15",
     "selected_current_window_rows": 0,
-    "selected_all_history_rows": 338,
+    "selected_all_history_rows": 38,
     "selected_current_window_metrics": {
       "rows": 0,
       "win_rate": null,
@@ -96,47 +94,47 @@
       "avg_time_underwater": null
     },
     "selected_all_history_metrics": {
-      "rows": 338,
-      "win_rate": 0.645,
+      "rows": 38,
+      "win_rate": 0.7368,
       "target_counts": {
-        "1": 218,
-        "0": 120
+        "1": 28,
+        "0": 10
       },
-      "avg_pnl": 0.0029,
-      "avg_quality": 0.2431,
-      "avg_drawdown_penalty": 0.1892,
-      "avg_time_underwater": 0.4566
+      "avg_pnl": 0.005,
+      "avg_quality": 0.3475,
+      "avg_drawdown_penalty": 0.0956,
+      "avg_time_underwater": 0.2755
     },
-    "best_reference_candidate_id": "dominant_neighbor_exact_lane",
-    "best_reference_target_bucket": "BLOCK|structure_overextended_block|q85",
-    "best_reference_current_window_rows": 0,
-    "best_reference_all_history_rows": 338,
+    "best_reference_candidate_id": "semantic_entry_quality_family",
+    "best_reference_target_bucket": "CAUTION|structure_quality_caution|q15",
+    "best_reference_current_window_rows": 43,
+    "best_reference_all_history_rows": 57,
     "best_reference_all_history_metrics": {
-      "rows": 338,
-      "win_rate": 0.645,
+      "rows": 57,
+      "win_rate": 0.8421,
       "target_counts": {
-        "1": 218,
-        "0": 120
+        "1": 48,
+        "0": 9
       },
-      "avg_pnl": 0.0029,
-      "avg_quality": 0.2431,
-      "avg_drawdown_penalty": 0.1892,
-      "avg_time_underwater": 0.4566
+      "avg_pnl": 0.0082,
+      "avg_quality": 0.4375,
+      "avg_drawdown_penalty": 0.092,
+      "avg_time_underwater": 0.2527
     },
-    "current_exact_bucket_rows": 0,
+    "current_exact_bucket_rows": 10,
     "minimum_support_rows": 50,
-    "gap_to_minimum": 50,
+    "gap_to_minimum": 40,
     "root_cause_verdict": "runtime_blocker_preempts_bucket_root_cause",
     "root_cause_candidate_patch_type": null,
     "root_cause_candidate_patch_feature": null,
-    "root_cause_dominant_neighbor_bucket": "BLOCK|structure_overextended_block|q85",
-    "root_cause_dominant_neighbor_rows": 233,
-    "root_cause_near_boundary_rows": 71,
+    "root_cause_dominant_neighbor_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+    "root_cause_dominant_neighbor_rows": 38,
+    "root_cause_near_boundary_rows": 50,
     "deployable": false,
     "live_exposure_allowed": false,
     "order_submission_enabled": false,
     "risk_on_order_enabled": false,
-    "primary_failed_gate": "current_window_support_gate",
+    "primary_failed_gate": "current_live_support_gate",
     "branch_id": "map_signal_redesign_proof",
     "branch_status": "delivered_no_current_window_deployable"
   },
@@ -146,7 +144,7 @@
       "description": "Baseline: current calibration window plus exact regime/gate/entry/bucket identity.",
       "redesign_type": "none",
       "evidence_role": "current_deployable_identity_baseline",
-      "target_bucket": "BLOCK|structure_quality_block|q00",
+      "target_bucket": "CAUTION|structure_quality_caution|q15",
       "bucket_suffix": null,
       "exact_fields": [
         "regime_label",
@@ -163,148 +161,159 @@
         "100": {
           "window": 100,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 10,
+          "rows_needed_to_minimum": 40,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 10,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 10
+            },
+            "avg_pnl": 0.0126,
+            "avg_quality": 0.5907,
+            "avg_drawdown_penalty": 0.0272,
+            "avg_time_underwater": 0.1125
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-07-26 01:55:17.731478"
         },
         "200": {
           "window": 200,
           "same_as_current_calibration_window": true,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 10,
+          "rows_needed_to_minimum": 40,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 10,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 10
+            },
+            "avg_pnl": 0.0126,
+            "avg_quality": 0.5907,
+            "avg_drawdown_penalty": 0.0272,
+            "avg_time_underwater": 0.1125
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-07-26 01:55:17.731478"
         },
         "600": {
           "window": 600,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 10,
+          "rows_needed_to_minimum": 40,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 10,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 10
+            },
+            "avg_pnl": 0.0126,
+            "avg_quality": 0.5907,
+            "avg_drawdown_penalty": 0.0272,
+            "avg_time_underwater": 0.1125
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-07-26 01:55:17.731478"
         },
         "1000": {
           "window": 1000,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 10,
+          "rows_needed_to_minimum": 40,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 10,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 10
+            },
+            "avg_pnl": 0.0126,
+            "avg_quality": 0.5907,
+            "avg_drawdown_penalty": 0.0272,
+            "avg_time_underwater": 0.1125
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-07-26 01:55:17.731478"
         },
         "5000": {
           "window": 5000,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
+          "rows": 22,
+          "rows_needed_to_minimum": 28,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 22,
+            "win_rate": 0.5909,
             "target_counts": {
-              "1": 4
+              "1": 13,
+              "0": 9
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0047,
+            "avg_quality": 0.2452,
+            "avg_drawdown_penalty": 0.1726,
+            "avg_time_underwater": 0.4437
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         },
         "29152": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
+          "rows": 22,
+          "rows_needed_to_minimum": 28,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 22,
+            "win_rate": 0.5909,
             "target_counts": {
-              "1": 4
+              "1": 13,
+              "0": 9
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0047,
+            "avg_quality": 0.2452,
+            "avg_drawdown_penalty": 0.1726,
+            "avg_time_underwater": 0.4437
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         },
         "all": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
+          "rows": 22,
+          "rows_needed_to_minimum": 28,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 22,
+            "win_rate": 0.5909,
             "target_counts": {
-              "1": 4
+              "1": 13,
+              "0": 9
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.0047,
+            "avg_quality": 0.2452,
+            "avg_drawdown_penalty": 0.1726,
+            "avg_time_underwater": 0.4437
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-07-26 11:32:05.163038",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
         }
       }
     },
@@ -313,7 +322,7 @@
       "description": "Treat entry quality as a semantic family inside the current regime/gate/bucket.",
       "redesign_type": "semantic_entry_quality_family",
       "evidence_role": "research_candidate_semantic_adapter_required",
-      "target_bucket": "BLOCK|structure_quality_block|q00",
+      "target_bucket": "CAUTION|structure_quality_caution|q15",
       "bucket_suffix": null,
       "exact_fields": [
         "regime_label",
@@ -325,6 +334,187 @@
         "calibration_window"
       ],
       "source": "q15_drift_rebaseline_backtest",
+      "status": "reference_candidate_current_window_under_minimum",
+      "deployable_support": false,
+      "live_exposure_allowed": false,
+      "window_evaluations": {
+        "100": {
+          "window": 100,
+          "same_as_current_calibration_window": false,
+          "rows": 43,
+          "rows_needed_to_minimum": 7,
+          "ready_by_count": false,
+          "metric_gate_candidate": false,
+          "metric_rejected": false,
+          "metrics": {
+            "rows": 43,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 43
+            },
+            "avg_pnl": 0.0112,
+            "avg_quality": 0.5766,
+            "avg_drawdown_penalty": 0.0216,
+            "avg_time_underwater": 0.0968
+          },
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-25 16:16:19.621291"
+        },
+        "200": {
+          "window": 200,
+          "same_as_current_calibration_window": true,
+          "rows": 43,
+          "rows_needed_to_minimum": 7,
+          "ready_by_count": false,
+          "metric_gate_candidate": false,
+          "metric_rejected": false,
+          "metrics": {
+            "rows": 43,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 43
+            },
+            "avg_pnl": 0.0112,
+            "avg_quality": 0.5766,
+            "avg_drawdown_penalty": 0.0216,
+            "avg_time_underwater": 0.0968
+          },
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-25 16:16:19.621291"
+        },
+        "600": {
+          "window": 600,
+          "same_as_current_calibration_window": false,
+          "rows": 43,
+          "rows_needed_to_minimum": 7,
+          "ready_by_count": false,
+          "metric_gate_candidate": false,
+          "metric_rejected": false,
+          "metrics": {
+            "rows": 43,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 43
+            },
+            "avg_pnl": 0.0112,
+            "avg_quality": 0.5766,
+            "avg_drawdown_penalty": 0.0216,
+            "avg_time_underwater": 0.0968
+          },
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-25 16:16:19.621291"
+        },
+        "1000": {
+          "window": 1000,
+          "same_as_current_calibration_window": false,
+          "rows": 43,
+          "rows_needed_to_minimum": 7,
+          "ready_by_count": false,
+          "metric_gate_candidate": false,
+          "metric_rejected": false,
+          "metrics": {
+            "rows": 43,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 43
+            },
+            "avg_pnl": 0.0112,
+            "avg_quality": 0.5766,
+            "avg_drawdown_penalty": 0.0216,
+            "avg_time_underwater": 0.0968
+          },
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-07-25 16:16:19.621291"
+        },
+        "5000": {
+          "window": 5000,
+          "same_as_current_calibration_window": false,
+          "rows": 57,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
+          "metric_rejected": false,
+          "metrics": {
+            "rows": 57,
+            "win_rate": 0.8421,
+            "target_counts": {
+              "1": 48,
+              "0": 9
+            },
+            "avg_pnl": 0.0082,
+            "avg_quality": 0.4375,
+            "avg_drawdown_penalty": 0.092,
+            "avg_time_underwater": 0.2527
+          },
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
+        },
+        "29152": {
+          "window": 29152,
+          "same_as_current_calibration_window": false,
+          "rows": 57,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
+          "metric_rejected": false,
+          "metrics": {
+            "rows": 57,
+            "win_rate": 0.8421,
+            "target_counts": {
+              "1": 48,
+              "0": 9
+            },
+            "avg_pnl": 0.0082,
+            "avg_quality": 0.4375,
+            "avg_drawdown_penalty": 0.092,
+            "avg_time_underwater": 0.2527
+          },
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
+        },
+        "all": {
+          "window": 29152,
+          "same_as_current_calibration_window": false,
+          "rows": 57,
+          "rows_needed_to_minimum": 0,
+          "ready_by_count": true,
+          "metric_gate_candidate": true,
+          "metric_rejected": false,
+          "metrics": {
+            "rows": 57,
+            "win_rate": 0.8421,
+            "target_counts": {
+              "1": 48,
+              "0": 9
+            },
+            "avg_pnl": 0.0082,
+            "avg_quality": 0.4375,
+            "avg_drawdown_penalty": 0.092,
+            "avg_time_underwater": 0.2527
+          },
+          "latest_timestamp": "2026-07-26 14:03:02.008033",
+          "oldest_timestamp": "2026-05-14 09:07:11.405005"
+        }
+      }
+    },
+    {
+      "id": "dominant_neighbor_exact_lane",
+      "description": "Root-cause candidate: map current exact lane to the dominant neighboring structure bucket.",
+      "redesign_type": "bucket_map_neighbor",
+      "evidence_role": "root_cause_map_signal_candidate",
+      "target_bucket": "CAUTION|base_caution_regime_or_bias|q15",
+      "bucket_suffix": null,
+      "exact_fields": [
+        "regime_label",
+        "regime_gate",
+        "entry_quality_label",
+        "target_bucket"
+      ],
+      "relaxed_fields": [
+        "current_live_structure_bucket",
+        "calibration_window"
+      ],
+      "source": "q15_bucket_root_cause.exact_live_lane.dominant_neighbor_bucket",
       "status": "insufficient_rows",
       "deployable_support": false,
       "live_exposure_allowed": false,
@@ -412,241 +602,71 @@
         "5000": {
           "window": 5000,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
+          "rows": 38,
+          "rows_needed_to_minimum": 12,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 38,
+            "win_rate": 0.7368,
             "target_counts": {
-              "1": 4
+              "1": 28,
+              "0": 10
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.005,
+            "avg_quality": 0.3475,
+            "avg_drawdown_penalty": 0.0956,
+            "avg_time_underwater": 0.2755
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-05-24 15:32:44.944555",
+          "oldest_timestamp": "2026-05-18 22:05:36.848169"
         },
         "29152": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
+          "rows": 38,
+          "rows_needed_to_minimum": 12,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 38,
+            "win_rate": 0.7368,
             "target_counts": {
-              "1": 4
+              "1": 28,
+              "0": 10
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.005,
+            "avg_quality": 0.3475,
+            "avg_drawdown_penalty": 0.0956,
+            "avg_time_underwater": 0.2755
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
+          "latest_timestamp": "2026-05-24 15:32:44.944555",
+          "oldest_timestamp": "2026-05-18 22:05:36.848169"
         },
         "all": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 4,
-          "rows_needed_to_minimum": 46,
+          "rows": 38,
+          "rows_needed_to_minimum": 12,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 4,
-            "win_rate": 1.0,
+            "rows": 38,
+            "win_rate": 0.7368,
             "target_counts": {
-              "1": 4
+              "1": 28,
+              "0": 10
             },
-            "avg_pnl": 0.0021,
-            "avg_quality": 0.4329,
-            "avg_drawdown_penalty": 0.0808,
-            "avg_time_underwater": 0.2661
+            "avg_pnl": 0.005,
+            "avg_quality": 0.3475,
+            "avg_drawdown_penalty": 0.0956,
+            "avg_time_underwater": 0.2755
           },
-          "latest_timestamp": "2026-05-16 14:07:07.729505",
-          "oldest_timestamp": "2026-05-16 09:25:24.915402"
-        }
-      }
-    },
-    {
-      "id": "dominant_neighbor_exact_lane",
-      "description": "Root-cause candidate: map current exact lane to the dominant neighboring structure bucket.",
-      "redesign_type": "bucket_map_neighbor",
-      "evidence_role": "root_cause_map_signal_candidate",
-      "target_bucket": "BLOCK|structure_overextended_block|q85",
-      "bucket_suffix": null,
-      "exact_fields": [
-        "regime_label",
-        "regime_gate",
-        "entry_quality_label",
-        "target_bucket"
-      ],
-      "relaxed_fields": [
-        "current_live_structure_bucket",
-        "calibration_window"
-      ],
-      "source": "q15_bucket_root_cause.exact_live_lane.dominant_neighbor_bucket",
-      "status": "reference_candidate_current_window_empty",
-      "deployable_support": false,
-      "live_exposure_allowed": false,
-      "window_evaluations": {
-        "100": {
-          "window": 100,
-          "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
-          },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
-        },
-        "200": {
-          "window": 200,
-          "same_as_current_calibration_window": true,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
-          },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
-        },
-        "600": {
-          "window": 600,
-          "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
-          },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
-        },
-        "1000": {
-          "window": 1000,
-          "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
-          },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
-        },
-        "5000": {
-          "window": 5000,
-          "same_as_current_calibration_window": false,
-          "rows": 233,
-          "rows_needed_to_minimum": 0,
-          "ready_by_count": true,
-          "metric_gate_candidate": false,
-          "metric_rejected": true,
-          "metrics": {
-            "rows": 233,
-            "win_rate": 0.5021,
-            "target_counts": {
-              "1": 117,
-              "0": 116
-            },
-            "avg_pnl": 0.0014,
-            "avg_quality": 0.1385,
-            "avg_drawdown_penalty": 0.2391,
-            "avg_time_underwater": 0.5707
-          },
-          "latest_timestamp": "2026-06-06 15:34:01.037286",
-          "oldest_timestamp": "2026-05-14 02:02:28.590386"
-        },
-        "29152": {
-          "window": 29152,
-          "same_as_current_calibration_window": false,
-          "rows": 338,
-          "rows_needed_to_minimum": 0,
-          "ready_by_count": true,
-          "metric_gate_candidate": true,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 338,
-            "win_rate": 0.645,
-            "target_counts": {
-              "1": 218,
-              "0": 120
-            },
-            "avg_pnl": 0.0029,
-            "avg_quality": 0.2431,
-            "avg_drawdown_penalty": 0.1892,
-            "avg_time_underwater": 0.4566
-          },
-          "latest_timestamp": "2026-06-06 15:34:01.037286",
-          "oldest_timestamp": "2024-04-16 10:00:00.000000"
-        },
-        "all": {
-          "window": 29152,
-          "same_as_current_calibration_window": false,
-          "rows": 338,
-          "rows_needed_to_minimum": 0,
-          "ready_by_count": true,
-          "metric_gate_candidate": true,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 338,
-            "win_rate": 0.645,
-            "target_counts": {
-              "1": 218,
-              "0": 120
-            },
-            "avg_pnl": 0.0029,
-            "avg_quality": 0.2431,
-            "avg_drawdown_penalty": 0.1892,
-            "avg_time_underwater": 0.4566
-          },
-          "latest_timestamp": "2026-06-06 15:34:01.037286",
-          "oldest_timestamp": "2024-04-16 10:00:00.000000"
+          "latest_timestamp": "2026-05-24 15:32:44.944555",
+          "oldest_timestamp": "2026-05-18 22:05:36.848169"
         }
       }
     },
@@ -655,7 +675,7 @@
       "description": "Root-cause candidate with entry-quality family relaxation inside the dominant neighboring bucket.",
       "redesign_type": "bucket_map_neighbor_semantic",
       "evidence_role": "higher_risk_semantic_map_candidate",
-      "target_bucket": "BLOCK|structure_overextended_block|q85",
+      "target_bucket": "CAUTION|base_caution_regime_or_bias|q15",
       "bucket_suffix": null,
       "exact_fields": [
         "regime_label",
@@ -668,7 +688,7 @@
         "calibration_window"
       ],
       "source": "q15_bucket_root_cause.exact_live_lane.dominant_neighbor_bucket",
-      "status": "reference_candidate_current_window_empty",
+      "status": "insufficient_rows",
       "deployable_support": false,
       "live_exposure_allowed": false,
       "window_evaluations": {
@@ -735,93 +755,91 @@
         "1000": {
           "window": 1000,
           "same_as_current_calibration_window": false,
-          "rows": 7,
-          "rows_needed_to_minimum": 43,
+          "rows": 0,
+          "rows_needed_to_minimum": 50,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 7,
-            "win_rate": 1.0,
-            "target_counts": {
-              "1": 7
-            },
-            "avg_pnl": 0.0443,
-            "avg_quality": 0.9971,
-            "avg_drawdown_penalty": 0.0145,
-            "avg_time_underwater": 0.0329
+            "rows": 0,
+            "win_rate": null,
+            "target_counts": {},
+            "avg_pnl": null,
+            "avg_quality": null,
+            "avg_drawdown_penalty": null,
+            "avg_time_underwater": null
           },
-          "latest_timestamp": "2026-07-13 23:17:05.203647",
-          "oldest_timestamp": "2026-07-13 18:03:00.579971"
+          "latest_timestamp": null,
+          "oldest_timestamp": null
         },
         "5000": {
           "window": 5000,
           "same_as_current_calibration_window": false,
-          "rows": 756,
-          "rows_needed_to_minimum": 0,
-          "ready_by_count": true,
+          "rows": 46,
+          "rows_needed_to_minimum": 4,
+          "ready_by_count": false,
           "metric_gate_candidate": false,
-          "metric_rejected": true,
+          "metric_rejected": false,
           "metrics": {
-            "rows": 756,
-            "win_rate": 0.4735,
+            "rows": 46,
+            "win_rate": 0.7609,
             "target_counts": {
-              "1": 358,
-              "0": 398
+              "0": 11,
+              "1": 35
             },
-            "avg_pnl": 0.0006,
-            "avg_quality": 0.1156,
-            "avg_drawdown_penalty": 0.2438,
-            "avg_time_underwater": 0.5617
+            "avg_pnl": 0.0052,
+            "avg_quality": 0.3562,
+            "avg_drawdown_penalty": 0.1025,
+            "avg_time_underwater": 0.3115
           },
-          "latest_timestamp": "2026-07-13 23:17:05.203647",
-          "oldest_timestamp": "2026-05-13 16:02:16.545201"
+          "latest_timestamp": "2026-05-26 16:37:39.511472",
+          "oldest_timestamp": "2026-05-18 22:05:36.848169"
         },
         "29152": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 2172,
-          "rows_needed_to_minimum": 0,
-          "ready_by_count": true,
-          "metric_gate_candidate": true,
+          "rows": 46,
+          "rows_needed_to_minimum": 4,
+          "ready_by_count": false,
+          "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 2172,
-            "win_rate": 0.6192,
+            "rows": 46,
+            "win_rate": 0.7609,
             "target_counts": {
-              "1": 1345,
-              "0": 827
+              "0": 11,
+              "1": 35
             },
-            "avg_pnl": 0.0041,
-            "avg_quality": 0.24,
-            "avg_drawdown_penalty": 0.2289,
-            "avg_time_underwater": 0.4456
+            "avg_pnl": 0.0052,
+            "avg_quality": 0.3562,
+            "avg_drawdown_penalty": 0.1025,
+            "avg_time_underwater": 0.3115
           },
-          "latest_timestamp": "2026-07-13 23:17:05.203647",
-          "oldest_timestamp": "2024-04-16 09:00:00.000000"
+          "latest_timestamp": "2026-05-26 16:37:39.511472",
+          "oldest_timestamp": "2026-05-18 22:05:36.848169"
         },
         "all": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 2172,
-          "rows_needed_to_minimum": 0,
-          "ready_by_count": true,
-          "metric_gate_candidate": true,
+          "rows": 46,
+          "rows_needed_to_minimum": 4,
+          "ready_by_count": false,
+          "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 2172,
-            "win_rate": 0.6192,
+            "rows": 46,
+            "win_rate": 0.7609,
             "target_counts": {
-              "1": 1345,
-              "0": 827
+              "0": 11,
+              "1": 35
             },
-            "avg_pnl": 0.0041,
-            "avg_quality": 0.24,
-            "avg_drawdown_penalty": 0.2289,
-            "avg_time_underwater": 0.4456
+            "avg_pnl": 0.0052,
+            "avg_quality": 0.3562,
+            "avg_drawdown_penalty": 0.1025,
+            "avg_time_underwater": 0.3115
           },
-          "latest_timestamp": "2026-07-13 23:17:05.203647",
-          "oldest_timestamp": "2024-04-16 09:00:00.000000"
+          "latest_timestamp": "2026-05-26 16:37:39.511472",
+          "oldest_timestamp": "2026-05-18 22:05:36.848169"
         }
       }
     },
@@ -930,62 +948,68 @@
         "5000": {
           "window": 5000,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 1,
+          "rows_needed_to_minimum": 49,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 1,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 1
+            },
+            "avg_pnl": 0.0055,
+            "avg_quality": 0.4519,
+            "avg_drawdown_penalty": 0.1536,
+            "avg_time_underwater": 0.3659
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-05-23 23:08:35.613079",
+          "oldest_timestamp": "2026-05-23 23:08:35.613079"
         },
         "29152": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 1,
+          "rows_needed_to_minimum": 49,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 1,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 1
+            },
+            "avg_pnl": 0.0055,
+            "avg_quality": 0.4519,
+            "avg_drawdown_penalty": 0.1536,
+            "avg_time_underwater": 0.3659
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-05-23 23:08:35.613079",
+          "oldest_timestamp": "2026-05-23 23:08:35.613079"
         },
         "all": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 1,
+          "rows_needed_to_minimum": 49,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 1,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 1
+            },
+            "avg_pnl": 0.0055,
+            "avg_quality": 0.4519,
+            "avg_drawdown_penalty": 0.1536,
+            "avg_time_underwater": 0.3659
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-05-23 23:08:35.613079",
+          "oldest_timestamp": "2026-05-23 23:08:35.613079"
         }
       }
     },
@@ -1094,235 +1118,68 @@
         "5000": {
           "window": 5000,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 4,
+          "rows_needed_to_minimum": 46,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 4,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 4
+            },
+            "avg_pnl": 0.0057,
+            "avg_quality": 0.4697,
+            "avg_drawdown_penalty": 0.1445,
+            "avg_time_underwater": 0.221
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-05-24 00:16:19.866379",
+          "oldest_timestamp": "2026-05-23 23:08:35.613079"
         },
         "29152": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 4,
+          "rows_needed_to_minimum": 46,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
+            "rows": 4,
+            "win_rate": 1.0,
+            "target_counts": {
+              "1": 4
+            },
+            "avg_pnl": 0.0057,
+            "avg_quality": 0.4697,
+            "avg_drawdown_penalty": 0.1445,
+            "avg_time_underwater": 0.221
           },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
+          "latest_timestamp": "2026-05-24 00:16:19.866379",
+          "oldest_timestamp": "2026-05-23 23:08:35.613079"
         },
         "all": {
           "window": 29152,
           "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
+          "rows": 4,
+          "rows_needed_to_minimum": 46,
           "ready_by_count": false,
           "metric_gate_candidate": false,
           "metric_rejected": false,
           "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
-          },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
-        }
-      }
-    },
-    {
-      "id": "best_historical_exact_lane_bucket",
-      "description": "Highest historical exact-lane bucket by rows/win/pnl after excluding current and root-cause neighbor buckets.",
-      "redesign_type": "historical_bucket_map_reference",
-      "evidence_role": "reference_only_bucket_map_candidate",
-      "target_bucket": "BLOCK|bear_bias200_hard_block|q00",
-      "bucket_suffix": null,
-      "exact_fields": [
-        "regime_label",
-        "regime_gate",
-        "entry_quality_label",
-        "target_bucket"
-      ],
-      "relaxed_fields": [
-        "current_live_structure_bucket",
-        "calibration_window"
-      ],
-      "source": "historical_exact_lane_bucket_scan",
-      "status": "reference_candidate_current_window_empty",
-      "deployable_support": false,
-      "live_exposure_allowed": false,
-      "window_evaluations": {
-        "100": {
-          "window": 100,
-          "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
-          },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
-        },
-        "200": {
-          "window": 200,
-          "same_as_current_calibration_window": true,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
-          },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
-        },
-        "600": {
-          "window": 600,
-          "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
-          },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
-        },
-        "1000": {
-          "window": 1000,
-          "same_as_current_calibration_window": false,
-          "rows": 0,
-          "rows_needed_to_minimum": 50,
-          "ready_by_count": false,
-          "metric_gate_candidate": false,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 0,
-            "win_rate": null,
-            "target_counts": {},
-            "avg_pnl": null,
-            "avg_quality": null,
-            "avg_drawdown_penalty": null,
-            "avg_time_underwater": null
-          },
-          "latest_timestamp": null,
-          "oldest_timestamp": null
-        },
-        "5000": {
-          "window": 5000,
-          "same_as_current_calibration_window": false,
-          "rows": 56,
-          "rows_needed_to_minimum": 0,
-          "ready_by_count": true,
-          "metric_gate_candidate": true,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 56,
-            "win_rate": 0.5893,
+            "rows": 4,
+            "win_rate": 1.0,
             "target_counts": {
-              "1": 33,
-              "0": 23
+              "1": 4
             },
-            "avg_pnl": 0.0084,
-            "avg_quality": 0.2727,
-            "avg_drawdown_penalty": 0.206,
-            "avg_time_underwater": 0.568
+            "avg_pnl": 0.0057,
+            "avg_quality": 0.4697,
+            "avg_drawdown_penalty": 0.1445,
+            "avg_time_underwater": 0.221
           },
-          "latest_timestamp": "2026-05-28 10:25:37.291839",
-          "oldest_timestamp": "2026-05-22 20:11:40.124891"
-        },
-        "29152": {
-          "window": 29152,
-          "same_as_current_calibration_window": false,
-          "rows": 56,
-          "rows_needed_to_minimum": 0,
-          "ready_by_count": true,
-          "metric_gate_candidate": true,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 56,
-            "win_rate": 0.5893,
-            "target_counts": {
-              "1": 33,
-              "0": 23
-            },
-            "avg_pnl": 0.0084,
-            "avg_quality": 0.2727,
-            "avg_drawdown_penalty": 0.206,
-            "avg_time_underwater": 0.568
-          },
-          "latest_timestamp": "2026-05-28 10:25:37.291839",
-          "oldest_timestamp": "2026-05-22 20:11:40.124891"
-        },
-        "all": {
-          "window": 29152,
-          "same_as_current_calibration_window": false,
-          "rows": 56,
-          "rows_needed_to_minimum": 0,
-          "ready_by_count": true,
-          "metric_gate_candidate": true,
-          "metric_rejected": false,
-          "metrics": {
-            "rows": 56,
-            "win_rate": 0.5893,
-            "target_counts": {
-              "1": 33,
-              "0": 23
-            },
-            "avg_pnl": 0.0084,
-            "avg_quality": 0.2727,
-            "avg_drawdown_penalty": 0.206,
-            "avg_time_underwater": 0.568
-          },
-          "latest_timestamp": "2026-05-28 10:25:37.291839",
-          "oldest_timestamp": "2026-05-22 20:11:40.124891"
+          "latest_timestamp": "2026-05-24 00:16:19.866379",
+          "oldest_timestamp": "2026-05-23 23:08:35.613079"
         }
       }
     }
@@ -1343,14 +1200,14 @@
       "id": "reject_current_window_metric_failed_map",
       "priority": "P1",
       "selected_candidate_id": "dominant_neighbor_exact_lane",
-      "selected_target_bucket": "BLOCK|structure_overextended_block|q85",
+      "selected_target_bucket": "CAUTION|base_caution_regime_or_bias|q15",
       "live_exposure_allowed": false,
       "success_condition": "If the root-cause map candidate fails current-window metrics, keep it reference-only and move to a different signal redesign or hard no-go."
     },
     {
       "id": "rerun_oos_if_current_window_candidate_emerges",
       "priority": "P0",
-      "best_reference_candidate_id": "dominant_neighbor_exact_lane",
+      "best_reference_candidate_id": "semantic_entry_quality_family",
       "live_exposure_allowed": false,
       "success_condition": "Only a candidate with current-window rows, metrics, OOS replay, support audit, and API guardrail proof may move toward canary readiness."
     }

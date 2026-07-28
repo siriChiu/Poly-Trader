@@ -1,10 +1,10 @@
 # Customer-safe alternative proof
 
-- generated_at: `2026-07-28T14:46:49.363683Z`
+- generated_at: `2026-07-28T18:29:20.868787Z`
 - current_live_blocker: `circuit_breaker_active`
-- current_live_structure_bucket: `BLOCK|structure_quality_block|q00`
-- exact support: `0/50` (gap `50`)
-- support_route_verdict: `exact_bucket_unsupported_block`
+- current_live_structure_bucket: `CAUTION|structure_quality_caution|q15`
+- exact support: `10/50` (gap `40`)
+- support_route_verdict: `exact_bucket_present_but_below_minimum`
 - circuit_breaker_release_ready: `False` (wins `13/15`, gap `2`)
 - primary_blocking_gate: `circuit_breaker_gate`
 - canary_ready: **False**
@@ -19,7 +19,7 @@
 - Runtime-blocked candidates: `0`
 - Deployable rows: `0`
 - Top-K support overlay: status=`fresh_live_probe_overlay` / freshness=`fresh` / blocking=`False` / reason=`—`
-- 最近研究候選：`logistic_regression` / `top_1pct` / OOS ROI=0.2465 / 勝率=0.6897 / profit factor=4.3797 / 最大回撤=0.0478 / 最差 fold=0.0994 / 交易數=29 / 候選層級=research_oos_gate_failed / 部署判定=不可部署 / 僅允許 paper-shadow，直到 live gates 全部通過
+- 最近研究候選：`logistic_regression` / `top_1pct` / OOS ROI=0.2465 / 勝率=0.6897 / profit factor=4.3797 / 最大回撤=0.0478 / 最差 fold=0.0994 / 交易數=29 / 候選層級=owner_approved_personal_use / 部署判定=not_live_deployable / 僅允許 paper-shadow，直到 live gates 全部通過
 - Venue runtime_ready: `False` / `blocked_missing_runtime_backed_proof` / artifact=`venue_dry_run_proof` status=`blocked_missing_runtime_backed_proof`
 - Allowed today:
   - 啟動 paper-shadow 訊號帳本並追蹤 24h pyramid outcome
@@ -41,9 +41,9 @@
 - `track_breaker_and_exact_support`: surface=`artifacts`, mode=`gate_tracking`, live_exposure_allowed=`False`, next=data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy
 
 ## Blocked live lanes
-- `live_buy_add_exposure`: blocked_actions=`live_buy, live_add, live_canary_buy`, gate=`circuit_breaker_gate`, support=`0/50`, breaker_wins=`13/15`, order_submission_enabled=`False`
-- `risk_on_automation_enable`: blocked_actions=`automation_enable, risk_on_auto_ordering`, gate=`circuit_breaker_gate`, support=`0/50`, breaker_wins=`13/15`, order_submission_enabled=`False`
-- `unbounded_live_canary`: blocked_actions=`unbounded_live_canary, uncapped_live_order`, gate=`circuit_breaker_gate`, support=`0/50`, breaker_wins=`13/15`, order_submission_enabled=`False`
+- `live_buy_add_exposure`: blocked_actions=`live_buy, live_add, live_canary_buy`, gate=`circuit_breaker_gate`, support=`10/50`, breaker_wins=`13/15`, order_submission_enabled=`False`
+- `risk_on_automation_enable`: blocked_actions=`automation_enable, risk_on_auto_ordering`, gate=`circuit_breaker_gate`, support=`10/50`, breaker_wins=`13/15`, order_submission_enabled=`False`
+- `unbounded_live_canary`: blocked_actions=`unbounded_live_canary, uncapped_live_order`, gate=`circuit_breaker_gate`, support=`10/50`, breaker_wins=`13/15`, order_submission_enabled=`False`
 
 ## Recent-tail no-new-risk context
 - window: `250` / win_rate=`0.508` / dominant_regime=盤整 share=`0.828`
@@ -63,12 +63,12 @@
 ## Alternative solution option portfolio
 - option_count: `3`
 - selected_next_artifact: `data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy`
-- time_to_evidence_bucket: `unknown_until_exact_identity_rows_start_accumulating`
+- time_to_evidence_bucket: `within_week_if_exact_identity_keeps_accumulating`
 - safety_invariant: All alternatives are customer-safe only: deployable=false, live_exposure_allowed=false, order_submission_enabled=false until exact support, Top-K deployability, and venue runtime proof all pass.
 - `paper_shadow_decision_support_sleeve`: role=`customer_usable_now`, deployable=`False`, live_exposure_allowed=`False`, next=`data/customer_safe_alternative_proof.json + Execution Console / Strategy Lab paper-shadow proof with deployable=false copy`
 - `semantic_rebaseline_review`: role=`support_policy_alternative`, deployable=`False`, live_exposure_allowed=`False`, next=`OOS + Top-K + support audit replay under any proposed new calibration_window identity`
 - `venue_dry_run_readiness_proof`: role=`delivery_risk_reduction`, deployable=`False`, live_exposure_allowed=`False`, next=`OKX/Binance dry-run lifecycle proof checklist with credential state as boolean only`
 
 ## Next gate
-circuit_breaker release_ready=False，current exact support rows 0/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
+circuit_breaker release_ready=False，current exact support rows 10/50 必須補齊；同時 Top-K deployable_rows>0、venue runtime lifecycle proof complete，才允許最小 canary review。
 

@@ -1,18 +1,18 @@
 # q15 drift-aware rebaseline backtest
 
-- generated_at: `2026-07-28T14:46:19.392264Z`
-- verdict: **no_rebaseline_candidate_found**
-- decision: No semantic/rebaseline candidate has enough evidence; keep exact-row harvest or hard no-go as the forced branch.
-- selected_candidate_id: `None`
-- selected_current_window_rows: **None**
-- selected_all_history_rows: **None**
-- current exact support: **0/50**
+- generated_at: `2026-07-28T18:28:43.745304Z`
+- verdict: **reference_candidate_found_but_current_window_unproven**
+- decision: A historical semantic candidate exists, but current calibration-window evidence is empty or under-minimum; it is reference-only and cannot release live buy/add.
+- selected_candidate_id: `semantic_entry_quality_family`
+- selected_current_window_rows: **43**
+- selected_all_history_rows: **57**
+- current exact support: **10/50**
 - live_exposure_allowed: **False**
 - order_submission_enabled: **False**
 
 ## Recent drift context
 
-- source_generated_at: `2026-07-28T14:46:02.116873+00:00`
+- source_generated_at: `2026-07-28T18:27:55.671449+00:00`
 - window: `100`
 - win_rate: `0.63`
 - dominant_regime: `chop` / share `0.57`
@@ -22,11 +22,11 @@
 
 | candidate | status | all rows | current-window rows | relaxed fields | deployable |
 | --- | --- | ---: | ---: | --- | --- |
-| current_exact_identity_window | baseline_current_identity | 4 | 0 | — | False |
-| rebaseline_calibration_window_only | insufficient_rows | 4 | 0 | calibration_window | False |
-| semantic_entry_quality_family | insufficient_rows | 4 | 0 | calibration_window,entry_quality_label | False |
-| regime_gate_bucket_family | insufficient_rows | 4 | 0 | calibration_window,entry_quality_label,regime_label | False |
-| bucket_only_family | insufficient_rows | 4 | 0 | calibration_window,entry_quality_label,regime_label,regime_gate | False |
+| current_exact_identity_window | baseline_current_identity | 22 | 10 | — | False |
+| rebaseline_calibration_window_only | insufficient_rows | 22 | 10 | calibration_window | False |
+| semantic_entry_quality_family | reference_candidate_current_window_under_minimum | 57 | 43 | calibration_window,entry_quality_label | False |
+| regime_gate_bucket_family | reference_candidate_current_window_under_minimum | 171 | 43 | calibration_window,entry_quality_label,regime_label | False |
+| bucket_only_family | reference_candidate_current_window_under_minimum | 171 | 43 | calibration_window,entry_quality_label,regime_label,regime_gate | False |
 
 ## Promotion requirements
 

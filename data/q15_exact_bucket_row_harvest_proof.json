@@ -1,27 +1,27 @@
 {
-  "generated_at": "2026-07-28T14:46:17.368066Z",
+  "generated_at": "2026-07-28T18:28:37.675880Z",
   "artifact": "q15_exact_bucket_row_harvest_proof",
   "purpose": "Prove exact current-bucket support movement without converting it into deployment clearance.",
   "source_artifacts": {
-    "live_predict_probe_generated_at": "2026-07-28T14:46:12.500752Z",
-    "q15_support_audit_generated_at": "2026-07-28T14:46:12.496718Z",
-    "q15_support_fill_feasibility_generated_at": "2026-07-28T14:46:15.408949+00:00"
+    "live_predict_probe_generated_at": "2026-07-28T18:28:22.623339Z",
+    "q15_support_audit_generated_at": "2026-07-28T18:28:22.609544Z",
+    "q15_support_fill_feasibility_generated_at": "2026-07-28T18:28:27.877149+00:00"
   },
   "support_identity": {
     "target_col": "simulated_pyramid_win",
     "horizon_minutes": 1440,
-    "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
     "regime_label": "bear",
-    "regime_gate": "BLOCK",
+    "regime_gate": "CAUTION",
     "entry_quality_label": "C",
     "calibration_window": 200,
     "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
   },
   "db_meta": {
     "features_normalized": {
-      "count": 29357,
+      "count": 29364,
       "min_ts": "2024-04-14 07:00:00.000000",
-      "max_ts": "2026-07-28 14:33:27.381993"
+      "max_ts": "2026-07-28 18:09:30.410367"
     },
     "labels": {
       "count": 76425,
@@ -29,36 +29,46 @@
       "max_ts": "2026-07-28 11:29:42.581059"
     },
     "raw_market_data": {
-      "count": 38682,
+      "count": 38689,
       "min_ts": "2024-04-13 22:00:00.000000",
-      "max_ts": "2026-07-28 14:33:27.381993"
+      "max_ts": "2026-07-28 18:09:30.410367"
     }
   },
   "harvest_window": {
     "calibration_window": 200,
     "scope_rows": 200,
-    "exact_identity_rows": 0,
-    "exact_bucket_rows": 0,
+    "exact_identity_rows": 10,
+    "exact_bucket_rows": 10,
     "non_bucket_identity_rows": 0,
     "minimum_support_rows": 50,
-    "rows_needed_to_minimum": 50,
+    "rows_needed_to_minimum": 40,
     "support_ready_by_count": false,
     "exact_bucket_metrics": {
-      "rows": 0,
-      "win_rate": null,
-      "target_counts": {},
-      "avg_pnl": null,
-      "avg_quality": null,
-      "avg_drawdown_penalty": null,
-      "avg_time_underwater": null
+      "rows": 10,
+      "win_rate": 1.0,
+      "target_counts": {
+        "1": 10
+      },
+      "avg_pnl": 0.0126,
+      "avg_quality": 0.5907,
+      "avg_drawdown_penalty": 0.0272,
+      "avg_time_underwater": 0.1125
     },
-    "latest_exact_bucket_timestamp": null,
-    "oldest_exact_bucket_timestamp": null,
-    "sample_exact_bucket_timestamps": [],
+    "latest_exact_bucket_timestamp": "2026-07-26 11:32:05.163038",
+    "oldest_exact_bucket_timestamp": "2026-07-26 01:55:17.731478",
+    "sample_exact_bucket_timestamps": [
+      "2026-07-26 11:32:05.163038",
+      "2026-07-26 07:48:42.705034",
+      "2026-07-26 07:16:28.715644",
+      "2026-07-26 06:45:21.983575",
+      "2026-07-26 06:13:08.375331"
+    ],
     "symbol_alignment": {
       "join_policy": "timestamp_plus_canonical_symbol_latest_feature_and_label_id",
       "canonical_symbol_transform": "remove_slash",
-      "exact_bucket_symbol_join_modes": {},
+      "exact_bucket_symbol_join_modes": {
+        "strict_symbol": 10
+      },
       "exact_bucket_canonical_symbol_recovered_rows": 0,
       "sample_recovered_pairs": [],
       "evidence_role": "data_alignment_cleanup_not_deployment_clearance",
@@ -67,40 +77,40 @@
     "sample_non_bucket_identity_buckets": []
   },
   "support_progress": {
-    "status": "stalled_under_minimum",
-    "reason": "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
-    "regression_basis": "same_identity_same_semantic_signature",
-    "current_rows": 0,
-    "previous_rows": 0,
+    "status": "semantic_rebaseline_under_minimum",
+    "reason": "current q15 exact support 目前是 10/50，仍低於 minimum；最近同 bucket 但不同 support_identity 的 reference 是 0/50（heartbeat 48），delta=10，mismatched=['entry_quality_label'], missing=[]。這表示 identity / 語義重切後仍未補到 exact support，不可把比較歷史歸零成進度。",
+    "regression_basis": "legacy_or_different_semantic_signature",
+    "current_rows": 10,
+    "previous_rows": 10,
     "delta_vs_previous": 0,
     "stagnant_run_count": 2,
-    "stalled_support_accumulation": true,
+    "stalled_support_accumulation": false,
     "semantic_signature_delta_vs_previous": 0,
     "semantic_signature_stagnant_run_count": 2,
     "semantic_signature_stalled_support_accumulation": true,
     "previous_route_changed": false,
-    "previous_support_route_verdict": "insufficient_support_everywhere",
-    "previous_support_governance_route": "exact_live_lane_proxy_available"
+    "previous_support_route_verdict": "exact_bucket_present_but_below_minimum",
+    "previous_support_governance_route": "exact_live_bucket_present_but_below_minimum"
   },
   "verdict": {
-    "status": "exact_bucket_row_harvest_no_current_rows",
-    "decision": "No current exact bucket rows are available; keep exact-row harvest or hard no-go as the forced branch.",
-    "current_exact_bucket_rows": 0,
-    "previous_rows": 0,
+    "status": "exact_bucket_row_harvest_stalled_under_minimum",
+    "decision": "Current exact support is still under minimum and has no positive delta; anti-equilibrium forced execution must not fall back to observation-only.",
+    "current_exact_bucket_rows": 10,
+    "previous_rows": 10,
     "delta_vs_previous": 0,
     "semantic_signature_delta_vs_previous": 0,
     "stagnant_run_count": 2,
     "semantic_signature_stagnant_run_count": 2,
     "minimum_support_rows": 50,
-    "gap_to_minimum": 50,
-    "rows_needed_to_minimum": 50,
+    "gap_to_minimum": 40,
+    "rows_needed_to_minimum": 40,
     "support_gate_ready": false,
     "deployable": false,
     "live_exposure_allowed": false,
     "order_submission_enabled": false,
     "risk_on_order_enabled": false,
-    "primary_failed_gate": "current_live_support_gate",
-    "time_to_evidence_bucket": "unknown_until_exact_identity_rows_start_accumulating",
+    "primary_failed_gate": "support_accumulation_stalled",
+    "time_to_evidence_bucket": "within_week_if_exact_identity_keeps_accumulating",
     "missing_capability_class": "Signal/Support",
     "alternative_solution_required": true,
     "row_harvest_evidence_role": "current_exact_support_movement_not_deployment_clearance"

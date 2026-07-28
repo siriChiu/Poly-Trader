@@ -1,6 +1,6 @@
 # Venue dry-run proof
 
-- generated_at: `2026-07-28T14:46:31.353689Z`
+- generated_at: `2026-07-28T18:28:58.259919Z`
 - status: `blocked_missing_runtime_backed_proof`
 - symbol: `BTC/USDT`
 - live_exposure_allowed: `False`

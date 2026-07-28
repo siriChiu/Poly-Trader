@@ -1,31 +1,31 @@
 {
-  "generated_at": "2026-07-28T14:47:05.947467Z",
+  "generated_at": "2026-07-28T18:29:28.867935Z",
   "artifact": "no_trade_lane_replay",
   "source_artifacts": {
     "live_predict_probe": {
       "path": "data/live_predict_probe.json",
       "exists": true,
-      "generated_at": "2026-07-28T14:46:12.500752Z"
+      "generated_at": "2026-07-28T18:28:22.623339Z"
     },
     "recent_drift_report": {
       "path": "data/recent_drift_report.json",
       "exists": true,
-      "generated_at": "2026-07-28T14:46:02.116873+00:00"
+      "generated_at": "2026-07-28T18:27:55.671449+00:00"
     },
     "live_canary_structural_pivot": {
       "path": "data/live_canary_structural_pivot.json",
       "exists": true,
-      "generated_at": "2026-07-28T14:47:04.947889Z"
+      "generated_at": "2026-07-28T18:29:27.871978Z"
     },
     "live_decision_quality_drilldown": {
       "path": "data/live_decision_quality_drilldown.json",
       "exists": true,
-      "generated_at": "2026-07-28T14:46:12.733253Z"
+      "generated_at": "2026-07-28T18:28:23.602871Z"
     },
     "customer_safe_alternative_proof": {
       "path": "data/customer_safe_alternative_proof.json",
       "exists": true,
-      "generated_at": "2026-07-28T14:46:49.363683Z"
+      "generated_at": "2026-07-28T18:29:20.868787Z"
     }
   },
   "current_truth": {
@@ -34,19 +34,19 @@
     "deployment_blocker": "circuit_breaker_active",
     "runtime_closure_state": "circuit_breaker_active",
     "regime_label": "bear",
-    "regime_gate": "BLOCK",
-    "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
-    "current_lane_actionability": "no_trade_block_lane",
-    "support_evidence_role": "no_trade_decision_validation_not_deployable_support",
-    "allowed_layers_raw": 0,
+    "regime_gate": "CAUTION",
+    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+    "current_lane_actionability": "risk_on_candidate_lane",
+    "support_evidence_role": "deployment_support_identity_required",
+    "allowed_layers_raw": 1,
     "allowed_layers": 0,
-    "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
-    "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
-    "support_rows": 0,
+    "allowed_layers_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
+    "execution_guardrail_reason": "decision_quality_below_trade_floor; circuit_breaker_active",
+    "support_rows": 10,
     "minimum_support_rows": 50,
-    "support_gap": 50,
-    "support_route_verdict": "exact_bucket_unsupported_block",
-    "support_governance_route": "exact_live_lane_proxy_available",
+    "support_gap": 40,
+    "support_route_verdict": "exact_bucket_present_but_below_minimum",
+    "support_governance_route": "exact_live_bucket_present_but_below_minimum",
     "recent_window_wins": 13,
     "recent_window_size": 50,
     "required_recent_window_wins": 15,
@@ -72,11 +72,11 @@
     ]
   },
   "replay_decision": {
-    "verdict": "validated_abstain_reduce_only_no_trade_lane",
-    "validated": true,
+    "verdict": "not_applicable_or_incomplete_no_trade_replay",
+    "validated": false,
     "deployable": false,
     "deployment_verdict": "not_deployable_no_trade_decision_validation",
-    "support_evidence_role": "no_trade_decision_validation_not_deployable_support",
+    "support_evidence_role": "deployment_support_identity_required",
     "buy_add_support_closure_allowed": false,
     "support_rows_counted_for_buy_add": false,
     "risk_on_order_enabled": false,
@@ -84,13 +84,13 @@
     "live_exposure_allowed": false,
     "operator_summary": "當前 BLOCK / 不交易 lane 的 replay 結論是等待 / 觀望、減風險與 paper-shadow 可用；這份 artifact 不能作為買入 / 加倉 support closure。",
     "next_validation_artifact": "data/no_trade_lane_replay.json",
-    "structural_pivot_next_artifact": "data/no_trade_lane_replay.json；驗證觀望 / reduce-only 行為，不把它寫成 risk-on support closure。"
+    "structural_pivot_next_artifact": "data/q15_support_fill_feasibility.json (current support-fill q15/q35 compatibility artifact) + data/live_predict_probe.json for current bucket CAUTION|structure_quality_caution|q15 after Map/Signal redesign or exact-bucket row harvest"
   },
   "replay": {
     "source": "data/live_predict_probe.json + data/recent_drift_report.json",
     "mode": "abstain_reduce_only_no_trade_lane_replay",
     "abstain_path": {
-      "validated": true,
+      "validated": false,
       "operator_action": "等待 / 觀望",
       "adds_new_risk": false,
       "risk_on_order_enabled": false,
@@ -143,25 +143,25 @@
       ]
     },
     "decision_quality_context": {
-      "chosen_scope": "global",
+      "chosen_scope": "regime_gate",
       "recent_pathology_reason": null,
-      "exact_live_lane_rows": 0,
-      "exact_live_lane_win_rate": null
+      "exact_live_lane_rows": 10,
+      "exact_live_lane_win_rate": 1.0
     }
   },
   "machine_checks": {
-    "current_lane_is_no_trade_block_lane": true,
+    "current_lane_is_no_trade_block_lane": false,
     "should_trade_false": true,
     "allowed_layers_zero": true,
     "drift_replay_shadow_only": true,
     "risk_off_paths_visible": true,
     "paper_shadow_paths_visible": true,
-    "support_evidence_not_deployable": true,
+    "support_evidence_not_deployable": false,
     "buy_add_support_closure_allowed": false,
     "risk_on_order_enabled": false,
     "order_submission_enabled": false,
     "live_exposure_allowed": false,
-    "all_passed": true
+    "all_passed": false
   },
   "customer_value_delta": "把 current BLOCK lane 從口頭 no-go 轉成可重跑 abstain / reduce-only / paper-shadow replay proof，同時保留 live buy/add fail-closed。",
   "fail_closed_invariants": {
