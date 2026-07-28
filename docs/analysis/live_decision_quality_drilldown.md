@@ -1,8 +1,8 @@
 # Live Decision-Quality Drilldown
 
-- generated_at: **2026-07-28T18:28:23.602871Z**
-- feature_timestamp: **2026-07-28 18:09:30.410367**
-- live_probe_generated_at: **2026-07-28T18:28:22.623339Z**
+- generated_at: **2026-07-28T18:43:37.291447Z**
+- feature_timestamp: **2026-07-28 18:41:44.247652**
+- live_probe_generated_at: **2026-07-28T18:43:37.278118Z**
 - target: `simulated_pyramid_win`
 - live path: **熊市 / 觀察 / C**
 - signal: **風控熔斷** @ confidence **0.5000**
@@ -28,16 +28,16 @@
 
 ## Entry-quality component breakdown
 
-- final entry_quality: **0.5705** / trade_floor **0.55** / gap **0.0205**
-- 基礎品質: **0.7027** × 權重 **0.75**
-- 結構品質: **0.1738** × 權重 **0.25**
-- base components: feat_4h_bias50=0.874 (w=0.4, contrib=0.3496), feat_nose=0.4384 (w=0.18, contrib=0.0789), feat_pulse=0.4703 (w=0.27, contrib=0.127), feat_ear=0.9812 (w=0.15, contrib=0.1472)
-- structure components: feat_4h_bb_pct_b=0.4136 (w=0.34, contrib=0.1406), feat_4h_dist_bb_lower=0.1005 (w=0.33, contrib=0.0332), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
+- final entry_quality: **0.5709** / trade_floor **0.55** / gap **0.0209**
+- 基礎品質: **0.7042** × 權重 **0.75**
+- 結構品質: **0.1712** × 權重 **0.25**
+- base components: feat_4h_bias50=0.8768 (w=0.4, contrib=0.3507), feat_nose=0.4355 (w=0.18, contrib=0.0784), feat_pulse=0.4762 (w=0.27, contrib=0.1286), feat_ear=0.9765 (w=0.15, contrib=0.1465)
+- structure components: feat_4h_bb_pct_b=0.4074 (w=0.34, contrib=0.1385), feat_4h_dist_bb_lower=0.099 (w=0.33, contrib=0.0327), feat_4h_dist_swing_low=0.0 (w=0.33, contrib=0.0)
 
 ## Gap attribution（哪個 component 真正在卡 floor）
 
 - remaining_gap_to_floor: **0.0**
-- base_group_max_entry_gain: **0.223** | structure_group_max_entry_gain: **0.2065**
+- base_group_max_entry_gain: **0.2219** | structure_group_max_entry_gain: **0.2072**
 - best_single_component: **None**（group=None, Δscore≈None, max_gain≈None）
 - single-component floor crossers: None
 - bias50 fully relaxed: entry≈**None** / layers≈**0** / required_bias50_cap≈**None**
