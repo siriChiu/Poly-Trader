@@ -40,6 +40,7 @@ from feature_engine.feature_history_policy import (
     build_source_blocker_summary,
     compute_sqlite_feature_coverage,
 )
+from model.personal_release import evaluate_candidate_release
 from scripts.hb_collect import summarize_label_horizons
 from scripts.issues import IssueTracker, normalize_verify_steps
 
@@ -1643,21 +1644,23 @@ def _high_conviction_topk_fast_refresh_requirement(
     *,
     now: datetime | None = None,
 ) -> tuple[bool, str | None]:
-    """Return whether fast heartbeat must rebuild the Top-K OOS matrix.
+    """Describe Top-K freshness without launching heavy rebuilds in fast mode.
 
-    Fast heartbeats normally reuse candidate artifacts to stay cron-safe, but the
-    high-conviction Top-K matrix is an operator-facing deployment gate.  If its
-    own generated_at freshness contract has expired, refreshing only this bounded
-    lane is safer than delivering stale Strategy Lab / leaderboard deployability
-    truth for another cron interval.
+    The current Top-K rebuild takes several minutes on the two-year dataset, so it
+    cannot fit the 240-second cron envelope. Fast heartbeat keeps the last verified
+    matrix, overlays fresh live-support/runtime truth, and surfaces age as an
+    advisory. Missing/stale model evidence must be refreshed by full heartbeat or
+    the explicit ``--fast-refresh-candidates`` lane; live execution remains
+    fail-closed while that evidence is unavailable.
     """
     matrix_path = Path(PROJECT_ROOT) / "data" / "high_conviction_topk_oos_matrix.json"
     payload = _read_json_file(matrix_path)
     if not payload:
-        return True, "artifact_missing"
+        return False, "artifact_missing_full_refresh_required"
     freshness = _high_conviction_topk_freshness(payload.get("generated_at"), now=now)
     if freshness.get("status") != "fresh":
-        return True, str(freshness.get("reason") or freshness.get("status") or "artifact_not_fresh")
+        reason = str(freshness.get("reason") or freshness.get("status") or "artifact_not_fresh")
+        return False, f"{reason}_full_refresh_required"
     age_minutes = freshness.get("age_minutes")
     stale_after_minutes = freshness.get("stale_after_minutes")
     headroom_minutes = HIGH_CONVICTION_TOPK_FAST_REFRESH_HEADROOM_SEC / 60.0
@@ -1666,7 +1669,7 @@ def _high_conviction_topk_fast_refresh_requirement(
         and isinstance(stale_after_minutes, (int, float))
         and age_minutes >= max(stale_after_minutes - headroom_minutes, 0.0)
     ):
-        return True, "artifact_near_stale"
+        return False, "artifact_near_stale_full_refresh_required"
     return False, None
 
 
@@ -1771,6 +1774,22 @@ def _compact_high_conviction_topk_matrix_summary(
         "max_drawdown",
         "worst_fold",
         "trade_count",
+        "owner_approved",
+        "owner_approval_decision_id",
+        "owner_approved_by",
+        "strategy_release_ready",
+        "strategy_release_status",
+        "statistical_gate_policy",
+        "statistical_gate_blocking",
+        "statistical_warnings",
+        "technical_execution_blockers",
+        "hard_gate_failures",
+        "support_evidence_ratio",
+        "model_evidence_ratio",
+        "evidence_score",
+        "evidence_tier",
+        "recommended_max_layers",
+        "technical_execution_gates_required",
         "deployable_verdict",
         "deployment_candidate_tier",
         "gate_failures",
@@ -2357,6 +2376,7 @@ def _apply_live_support_context_to_high_conviction_row(
     row: Dict[str, Any],
     support_context: Dict[str, Any],
     gates: Dict[str, Any] | None = None,
+    release_policy: Dict[str, Any] | None = None,
 ) -> None:
     live_guardrail_failures = _HIGH_CONVICTION_TOPK_LIVE_FAILURES
     existing_gate_failures = row.get("gate_failures") if isinstance(row.get("gate_failures"), list) else []
@@ -2441,13 +2461,28 @@ def _apply_live_support_context_to_high_conviction_row(
         if context_key in support_context:
             row[row_key] = support_context.get(context_key)
 
+    release_decision = evaluate_candidate_release(
+        row,
+        strict_failures=gate_failures,
+        support_context=support_context,
+        policy=release_policy or {},
+    )
+    row.update(release_decision)
+    owner_release_ready = bool(
+        release_decision.get("owner_approved")
+        and release_decision.get("strategy_release_ready")
+    )
+
     row["gate_failures"] = gate_failures
     row["model_gate_failures"] = model_gate_failures
     row["live_gate_failures"] = live_gate_failures
     row["oos_gate_passed"] = oos_gate_passed
     row["blocked_only_by_live_guardrails"] = blocked_only_by_live_guardrails
     row["deployable_verdict"] = "deployable" if not gate_failures else "not_deployable"
-    if row["deployable_verdict"] == "deployable":
+    if owner_release_ready:
+        row["deployable_verdict"] = "not_live_deployable"
+        row["deployment_candidate_tier"] = "owner_approved_personal_use"
+    elif row["deployable_verdict"] == "deployable":
         row["deployment_candidate_tier"] = "deployable"
     elif blocked_only_by_live_guardrails:
         row["deployment_candidate_tier"] = "runtime_blocked_oos_pass"
@@ -2466,6 +2501,22 @@ _HIGH_CONVICTION_CANDIDATE_SUMMARY_KEYS = (
     "max_drawdown",
     "worst_fold",
     "trade_count",
+    "owner_approved",
+    "owner_approval_decision_id",
+    "owner_approved_by",
+    "strategy_release_ready",
+    "strategy_release_status",
+    "statistical_gate_policy",
+    "statistical_gate_blocking",
+    "statistical_warnings",
+    "technical_execution_blockers",
+    "hard_gate_failures",
+    "support_evidence_ratio",
+    "model_evidence_ratio",
+    "evidence_score",
+    "evidence_tier",
+    "recommended_max_layers",
+    "technical_execution_gates_required",
     "deployable_verdict",
     "deployment_candidate_tier",
     "gate_failures",
@@ -2557,6 +2608,7 @@ def _high_conviction_topk_risk_first_sort_key(row: Dict[str, Any]) -> tuple:
         _high_conviction_topk_row_gate_parts(row)
     )
     return (
+        bool(row.get("owner_approved") and row.get("strategy_release_ready")),
         str(row.get("deployable_verdict") or "") == "deployable",
         blocked_only_by_live_guardrails,
         oos_gate_passed,
@@ -2612,7 +2664,8 @@ def _refresh_high_conviction_topk_candidate_summaries(payload: Dict[str, Any], *
     nearest_rows = [
         row
         for row in ranked_rows
-        if str(row.get("deployable_verdict") or "") == "deployable"
+        if bool(row.get("owner_approved") and row.get("strategy_release_ready"))
+        or str(row.get("deployable_verdict") or "") == "deployable"
         or _high_conviction_topk_row_gate_parts(row)[4]
     ]
     if not nearest_rows:
@@ -2676,9 +2729,15 @@ def _sync_high_conviction_topk_matrix_live_context(
             payload["support_context_current_as_of"] = support_context.get("support_context_current_as_of")
 
         minimum_gates = payload.get("minimum_deployment_gates") if isinstance(payload.get("minimum_deployment_gates"), dict) else None
+        release_policy = payload.get("strategy_release_policy") if isinstance(payload.get("strategy_release_policy"), dict) else {}
         for row in rows:
             if isinstance(row, dict):
-                _apply_live_support_context_to_high_conviction_row(row, support_context, minimum_gates)
+                _apply_live_support_context_to_high_conviction_row(
+                    row,
+                    support_context,
+                    minimum_gates,
+                    release_policy,
+                )
         freshness = _high_conviction_topk_freshness(payload.get("generated_at"))
         payload["artifact_freshness_status"] = freshness.get("status")
         payload["artifact_freshness_reason"] = freshness.get("reason")
@@ -2691,6 +2750,12 @@ def _sync_high_conviction_topk_matrix_live_context(
         payload["risk_qualified_rows"] = sum(1 for row in rows if isinstance(row, dict) and row.get("oos_gate_passed"))
         payload["runtime_blocked_candidate_rows"] = sum(
             1 for row in rows if isinstance(row, dict) and row.get("blocked_only_by_live_guardrails")
+        )
+        payload["owner_approved_rows"] = sum(
+            1 for row in rows if isinstance(row, dict) and row.get("owner_approved")
+        )
+        payload["strategy_release_ready_rows"] = sum(
+            1 for row in rows if isinstance(row, dict) and row.get("strategy_release_ready")
         )
         _refresh_high_conviction_topk_candidate_summaries(payload)
         _apply_high_conviction_top_level_live_gate_summary(payload, support_context)
@@ -4135,28 +4200,27 @@ def _format_leaderboard_payload_state_for_docs(
 def _leaderboard_payload_fast_refresh_requirement(
     leaderboard_candidate_diagnostics: Dict[str, Any] | None,
 ) -> tuple[bool, str | None]:
-    """Decide whether fast heartbeat must rebuild the leaderboard payload.
+    """Describe leaderboard payload debt without rebuilding it in fast mode.
 
-    Fast mode normally skips candidate-evaluation lanes, but Strategy Lab is a
-    product surface: if the latest machine-readable probe says its leaderboard
-    payload is stale, missing, or cache-error-backed, a fast heartbeat should
-    spend the bounded leaderboard-probe budget to rebuild that single lane while
-    still skipping the heavier feature-group and bull-pocket grids.
+    Rebuilding the persisted leaderboard can exceed the entire 240-second cron
+    envelope. Fast heartbeat therefore surfaces missing/stale/error state and
+    leaves the payload fail-closed; full heartbeat or the explicit
+    ``--fast-refresh-candidates`` opt-in owns the expensive rebuild.
     """
 
     context = leaderboard_candidate_diagnostics or {}
     if not context:
-        return True, "missing_leaderboard_probe_artifact"
+        return False, "missing_leaderboard_probe_artifact_full_refresh_required"
     if context.get("leaderboard_payload_stale") is True:
-        return True, "stale_leaderboard_payload"
+        return False, "stale_leaderboard_payload_full_refresh_required"
     if context.get("leaderboard_payload_error"):
-        return True, "leaderboard_payload_error"
+        return False, "leaderboard_payload_error_full_refresh_required"
     if context.get("leaderboard_payload_cache_error"):
-        return True, "leaderboard_payload_cache_error"
+        return False, "leaderboard_payload_cache_error_full_refresh_required"
     if _docs_value_missing(context.get("leaderboard_payload_source")):
-        return True, "missing_leaderboard_payload_source"
+        return False, "missing_leaderboard_payload_source_full_refresh_required"
     if _docs_value_missing(context.get("leaderboard_count")):
-        return True, "missing_leaderboard_rows"
+        return False, "missing_leaderboard_rows_full_refresh_required"
     return False, None
 
 

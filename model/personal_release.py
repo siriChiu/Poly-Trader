@@ -271,7 +271,6 @@ def apply_runtime_release_policy(
 
     blocker_type = _norm(blocker.get("type") or guarded.get("deployment_blocker"))
     support_warning = blocker_type if blocker_type in _SUPPORT_ONLY_BLOCKERS else None
-    warnings = _unique([*guarded.get("statistical_warnings", []), *([support_warning] if support_warning else [])])
     raw_layers = _to_int(guarded.get("allowed_layers_raw"))
     if raw_layers is None:
         raw_layers = max(_to_int(guarded.get("allowed_layers")) or 0, 0)
@@ -294,6 +293,27 @@ def apply_runtime_release_policy(
         minimum_support_rows = _to_int(guarded.get("minimum_support_rows"))
     support_ratio = _ratio(support_rows, minimum_support_rows or 50)
     runtime_evidence_tier = _evidence_tier(support_ratio, support_ratio)
+    inferred_support_warning = None
+    if minimum_support_rows and (support_rows or 0) < minimum_support_rows:
+        inferred_support_warning = (
+            "unsupported_exact_live_structure_bucket"
+            if (support_rows or 0) <= 0
+            else "under_minimum_exact_live_structure_bucket"
+        )
+    warnings = _unique(
+        [
+            *guarded.get("statistical_warnings", []),
+            *([support_warning] if support_warning else []),
+            *([inferred_support_warning] if inferred_support_warning else []),
+        ]
+    )
+    binding_verified = _binding_matches(_mapping(runtime_identity), policy)
+    technical_execution_blockers = _unique(
+        [
+            *guarded.get("technical_execution_blockers", []),
+            *([blocker_type] if blocker_type and blocker_type not in _SUPPORT_ONLY_BLOCKERS else []),
+        ]
+    )
 
     guarded.update(
         {
@@ -305,12 +325,14 @@ def apply_runtime_release_policy(
             "statistical_gate_policy": policy.get("statistical_gate_policy"),
             "statistical_gate_blocking": False,
             "statistical_warnings": warnings,
+            "technical_execution_blockers": technical_execution_blockers,
             "support_evidence_ratio": support_ratio,
             "model_evidence_ratio": None,
             "evidence_score": support_ratio,
             "evidence_tier": runtime_evidence_tier,
             "recommended_max_layers": max_layers,
             "technical_execution_gates_required": True,
+            "runtime_binding_verified": binding_verified,
             "allowed_layers_raw": raw_layers,
         }
     )
@@ -323,7 +345,7 @@ def apply_runtime_release_policy(
         guarded["allowed_layers"] = 0
         return guarded
 
-    if not _binding_matches(_mapping(runtime_identity), policy):
+    if not binding_verified:
         binding = _mapping(policy.get("runtime_binding"))
         required_model = binding.get("model") or "approved model"
         required_profile = binding.get("feature_profile") or "approved feature profile"
@@ -349,6 +371,9 @@ def apply_runtime_release_policy(
                 "execution_guardrail_applied": True,
                 "execution_guardrail_reason": technical_blocker["type"],
                 "runtime_binding_verified": False,
+                "technical_execution_blockers": _unique(
+                    [*technical_execution_blockers, technical_blocker["type"]]
+                ),
             }
         )
         return guarded

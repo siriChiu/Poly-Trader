@@ -13,10 +13,10 @@ RUNNER = ROOT / "scripts" / "hb_parallel_runner.py"
 @pytest.mark.parametrize(
     ("diagnostics", "expected_required", "expected_reason"),
     [
-        ({}, True, "missing_leaderboard_probe_artifact"),
-        ({"leaderboard_payload_stale": True, "leaderboard_payload_source": "latest_persisted_snapshot", "leaderboard_count": 6}, True, "stale_leaderboard_payload"),
-        ({"leaderboard_payload_error": "cache read failed", "leaderboard_payload_source": "latest_persisted_snapshot", "leaderboard_count": 6}, True, "leaderboard_payload_error"),
-        ({"leaderboard_payload_source": None, "leaderboard_payload_stale": False, "leaderboard_count": 6}, True, "missing_leaderboard_payload_source"),
+        ({}, False, "missing_leaderboard_probe_artifact_full_refresh_required"),
+        ({"leaderboard_payload_stale": True, "leaderboard_payload_source": "latest_persisted_snapshot", "leaderboard_count": 6}, False, "stale_leaderboard_payload_full_refresh_required"),
+        ({"leaderboard_payload_error": "cache read failed", "leaderboard_payload_source": "latest_persisted_snapshot", "leaderboard_count": 6}, False, "leaderboard_payload_error_full_refresh_required"),
+        ({"leaderboard_payload_source": None, "leaderboard_payload_stale": False, "leaderboard_count": 6}, False, "missing_leaderboard_payload_source_full_refresh_required"),
         ({"leaderboard_payload_source": "live_rebuild", "leaderboard_payload_stale": False, "leaderboard_count": 6}, False, None),
     ],
 )

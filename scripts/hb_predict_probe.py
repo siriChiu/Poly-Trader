@@ -1130,7 +1130,7 @@ def _build_probe_payload(
     )
     support_route_verdict_value = str(support_route.get("verdict") or "")
     support_route_deployable_value = support_route.get("deployable")
-    support_gap_blocks_deployment = (
+    support_gap_exists = (
         progress_rows_value is not None
         and progress_minimum_value is not None
         and progress_rows_value < progress_minimum_value
@@ -1143,10 +1143,14 @@ def _build_probe_payload(
                 "unsupported_exact_live_structure_bucket",
             }
         )
+    )
+    support_gap_blocks_deployment = (
+        support_gap_exists
         and result_deployment_blocker != "circuit_breaker_active"
         and not result_deployment_blocker.startswith("exact_live_lane_toxic_")
     )
-    if support_gap_blocks_deployment:
+    support_gap_requires_owner_advisory = owner_release_active and support_gap_exists
+    if support_gap_blocks_deployment or support_gap_requires_owner_advisory:
         progress_gap_value = support_progress.get("gap_to_minimum")
         if progress_gap_value is None:
             progress_gap_value = progress_minimum_value - progress_rows_value

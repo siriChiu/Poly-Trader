@@ -5,6 +5,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 from model import q35_bias50_calibration as q35_calibration_module
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "hb_parallel_runner.py"
@@ -695,8 +697,8 @@ def test_high_conviction_topk_fast_refresh_requirement_uses_generated_at_freshne
     now = hb_parallel_runner.datetime(2026, 5, 2, 6, 5, tzinfo=hb_parallel_runner.timezone.utc)
 
     required, reason = hb_parallel_runner._high_conviction_topk_fast_refresh_requirement(now=now)
-    assert required is True
-    assert reason == "artifact_missing"
+    assert required is False
+    assert reason == "artifact_missing_full_refresh_required"
 
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -706,16 +708,16 @@ def test_high_conviction_topk_fast_refresh_requirement_uses_generated_at_freshne
         encoding="utf-8",
     )
     required, reason = hb_parallel_runner._high_conviction_topk_fast_refresh_requirement(now=now)
-    assert required is True
-    assert reason == "artifact_older_than_policy"
+    assert required is False
+    assert reason == "artifact_older_than_policy_full_refresh_required"
 
     matrix_path.write_text(
         json.dumps({"generated_at": "2026-05-02T05:10:01+00:00", "rows": []}),
         encoding="utf-8",
     )
     required, reason = hb_parallel_runner._high_conviction_topk_fast_refresh_requirement(now=now)
-    assert required is True
-    assert reason == "artifact_near_stale"
+    assert required is False
+    assert reason == "artifact_near_stale_full_refresh_required"
 
     matrix_path.write_text(
         json.dumps({"generated_at": "2026-05-02T06:00:00+00:00", "rows": []}),
@@ -724,6 +726,22 @@ def test_high_conviction_topk_fast_refresh_requirement_uses_generated_at_freshne
     required, reason = hb_parallel_runner._high_conviction_topk_fast_refresh_requirement(now=now)
     assert required is False
     assert reason is None
+
+
+@pytest.mark.parametrize(
+    ("diagnostics", "reason"),
+    [
+        ({}, "missing_leaderboard_probe_artifact_full_refresh_required"),
+        ({"leaderboard_payload_stale": True}, "stale_leaderboard_payload_full_refresh_required"),
+        ({"leaderboard_payload_error": "boom"}, "leaderboard_payload_error_full_refresh_required"),
+        ({"leaderboard_payload_cache_error": "boom"}, "leaderboard_payload_cache_error_full_refresh_required"),
+    ],
+)
+def test_fast_heartbeat_never_auto_rebuilds_expensive_leaderboard_payload(diagnostics, reason):
+    required, actual_reason = hb_parallel_runner._leaderboard_payload_fast_refresh_requirement(diagnostics)
+
+    assert required is False
+    assert actual_reason == reason
 
 
 def test_parse_args_allows_fast_candidate_refresh_opt_in():
@@ -1965,6 +1983,83 @@ def test_high_conviction_live_context_and_rows_surface_q15_active_repair(monkeyp
     assert row["legacy_semantic_evidence_promotable_to_same_identity_history"] is True
     assert row["deployable_verdict"] == "not_deployable"
     assert row["deployment_candidate_tier"] == "runtime_blocked_oos_pass"
+
+
+def test_high_conviction_live_overlay_preserves_owner_release_and_recomputes_evidence():
+    context = {
+        "support_route_verdict": "exact_bucket_present_but_below_minimum",
+        "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+        "support_route_deployable": False,
+        "deployment_blocker": "circuit_breaker_active",
+        "runtime_closure_state": "circuit_breaker_active",
+        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+        "current_live_structure_bucket_rows": 10,
+        "minimum_support_rows": 50,
+        "current_live_structure_bucket_gap_to_minimum": 40,
+        "release_condition": {"release_ready": False},
+    }
+    policy = {
+        "enabled": True,
+        "mode": "owner_approved_personal_use",
+        "decision_id": "owner-release-test",
+        "approved_by": "Kazuha",
+        "selector": {
+            "model": "logistic_regression",
+            "feature_profile": "current_full",
+            "regime": "all",
+            "top_k": "top_1pct",
+        },
+        "statistical_gate_policy": "advisory_with_uncertainty_sizing",
+        "minimum_full_evidence_trades": 50,
+        "max_layers_until_full_evidence": 1,
+    }
+    owner_row = {
+        "model": "logistic_regression",
+        "feature_profile": "current_full",
+        "regime": "all",
+        "top_k": "top_1pct",
+        "trade_count": 29,
+        "win_rate": 0.6897,
+        "max_drawdown": 0.0478,
+        "profit_factor": 4.3797,
+        "worst_fold": 0.0994,
+        "oos_roi": 0.2465,
+    }
+
+    hb_parallel_runner._apply_live_support_context_to_high_conviction_row(
+        owner_row,
+        context,
+        release_policy=policy,
+    )
+
+    assert owner_row["owner_approved"] is True
+    assert owner_row["strategy_release_ready"] is True
+    assert owner_row["statistical_gate_blocking"] is False
+    assert owner_row["support_evidence_ratio"] == 0.2
+    assert owner_row["evidence_tier"] == "limited"
+    assert owner_row["deployable_verdict"] == "not_live_deployable"
+    assert owner_row["deployment_candidate_tier"] == "owner_approved_personal_use"
+
+    research_row = {
+        "model": "xgboost",
+        "feature_profile": "current_full",
+        "regime": "all",
+        "top_k": "top_1pct",
+        "gate_failures": [],
+        "model_gate_failures": [],
+        "live_gate_failures": [],
+        "oos_gate_passed": True,
+        "blocked_only_by_live_guardrails": False,
+        "deployable_verdict": "not_deployable",
+        "deployment_candidate_tier": "research_oos_gate_failed",
+    }
+    payload = {"rows": [research_row, owner_row]}
+    hb_parallel_runner._refresh_high_conviction_topk_candidate_summaries(payload)
+    nearest = payload["nearest_deployable_rows"][0]
+    assert nearest["owner_approved"] is True
+    assert nearest["strategy_release_status"] == "owner_approved_personal_use"
+    assert nearest["deployable_verdict"] == "not_live_deployable"
+    assert nearest["deployment_candidate_tier"] == "owner_approved_personal_use"
 
 
 def test_needs_q15_post_audit_runtime_resync_when_support_ready_but_probe_still_unpatched():
@@ -7001,7 +7096,7 @@ def test_main_fast_mode_repairs_missing_leaderboard_payload_without_heavy_candid
 
     hb_parallel_runner.main(["--fast", "--hb", "test"])
 
-    assert order == ["q35", "predict_probe", "drilldown", "leaderboard", "q15", "q15_root", "q15_replay"]
+    assert order == ["q35", "predict_probe", "drilldown", "q15", "q15_root", "q15_replay"]
 
 
 def test_main_fast_mode_refreshes_leaderboard_alignment_snapshot_when_artifact_exists(tmp_path, monkeypatch):

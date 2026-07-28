@@ -214,9 +214,14 @@ def test_verified_runtime_binding_opens_only_first_layer_and_keeps_support_as_wa
 
 def test_owner_approval_never_overrides_circuit_breaker():
     result = apply_runtime_release_policy(
-        {"allowed_layers": 3, "allowed_layers_raw": 3},
+        {
+            "allowed_layers": 3,
+            "allowed_layers_raw": 3,
+            "current_live_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+        },
         {"type": "circuit_breaker_active", "reason": "loss streak"},
-        policy=_policy(binding_verified=True),
+        policy=_policy(binding_verified=False),
         runtime_identity={"model": "logistic_regression", "feature_profile": "current_full"},
     )
 
@@ -224,6 +229,10 @@ def test_owner_approval_never_overrides_circuit_breaker():
     assert result["allowed_layers"] == 0
     assert result["strategy_release_status"] == "owner_approved_personal_use"
     assert result["technical_execution_gates_required"] is True
+    assert result["technical_execution_blockers"] == ["circuit_breaker_active"]
+    assert result["statistical_warnings"] == ["unsupported_exact_live_structure_bucket"]
+    assert result["runtime_binding_verified"] is False
+    assert result["evidence_tier"] == "limited"
 
 
 def test_runtime_closure_explains_owner_release_without_waiting_copy():

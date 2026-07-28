@@ -157,6 +157,13 @@ def test_build_probe_payload_promotes_circuit_breaker_release_math_to_top_level(
             "execution_guardrail_applied": True,
             "execution_guardrail_reason": "circuit_breaker_blocks_trade",
             "deployment_blocker": "circuit_breaker_active",
+            "owner_approved": True,
+            "strategy_release_ready": True,
+            "strategy_release_status": "owner_approved_personal_use",
+            "statistical_gate_blocking": False,
+            "statistical_warnings": [],
+            "technical_execution_blockers": ["circuit_breaker_active"],
+            "runtime_binding_verified": False,
             "deployment_blocker_reason": "Recent 50-sample win rate: 8.00% < 30%",
             "deployment_blocker_source": "circuit_breaker",
             "deployment_blocker_details": {
@@ -176,7 +183,18 @@ def test_build_probe_payload_promotes_circuit_breaker_release_math_to_top_level(
         used_model="regime_bear_ensemble",
         current_live_structure_bucket="CIRCUIT_BREAKER",
         current_live_structure_bucket_rows=0,
-        q15_support_audit={},
+        q15_support_audit={
+            "support_route": {
+                "verdict": "exact_bucket_unsupported_block",
+                "deployable": False,
+                "support_progress": {
+                    "status": "stalled_under_minimum",
+                    "current_rows": 0,
+                    "minimum_support_rows": 50,
+                    "gap_to_minimum": 50,
+                },
+            }
+        },
         four_h_non_null={},
         lag_non_null={},
     )
@@ -190,6 +208,10 @@ def test_build_probe_payload_promotes_circuit_breaker_release_math_to_top_level(
     assert payload["additional_recent_window_wins_needed"] == 11
     assert payload["recent_window"] == 50
     assert "至少還差 11 勝" in payload["runtime_closure_summary"]
+    assert payload["deployment_blocker"] == "circuit_breaker_active"
+    assert payload["statistical_gate_blocking"] is False
+    assert payload["statistical_warnings"] == ["unsupported_exact_live_structure_bucket"]
+    assert payload["technical_execution_blockers"] == ["circuit_breaker_active"]
 
 
 def test_build_probe_payload_uses_circuit_breaker_audit_release_fallback(monkeypatch, tmp_path):
