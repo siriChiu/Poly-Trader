@@ -435,6 +435,10 @@ def test_execution_run_lifecycle_start_pause_stop_and_detail(monkeypatch, tmp_pa
     assert outcome_artifact["live_runner"]["latest_run"]["run_id"] == live_runner_run_id
     assert outcome_artifact["live_runner"]["latest_decision"]["action"] == "BUY_LAYER"
 
+    def _duplicate_live_runner_scan_forbidden(*_args, **_kwargs):
+        raise AssertionError("execution overview must reuse reconciliation live-runner evidence")
+
+    monkeypatch.setattr(api_module, "build_live_runner_overview", _duplicate_live_runner_scan_forbidden)
     overview_payload = asyncio.run(api_module.api_execution_overview())
     trend_card = next(card for card in overview_payload["profile_cards"] if card["key"] == "trend")
     assert trend_card["current_run_state"] == "running"

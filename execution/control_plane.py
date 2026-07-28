@@ -2466,6 +2466,9 @@ def build_paper_shadow_outcome_reconciliation(
         "artifact": artifact,
         "artifact_path": str(target_path),
         "persisted": bool(persist),
+        # The overview route also needs this snapshot. Returning it avoids a
+        # second N+1 outcome scan over the same live-runner decisions.
+        "live_runner_overview": live_runner_overview,
     }
 
 

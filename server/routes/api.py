@@ -3679,11 +3679,16 @@ async def api_execution_overview() -> Dict[str, Any]:
         db,
         status_payload=status_payload,
         persist=False,
+        # Operator overview only surfaces the latest compact evidence. Keep the
+        # request bounded; heartbeat artifacts retain the wider 100-row audit.
+        limit=10,
     )
     overview["paper_shadow_outcome_reconciliation"] = _compact_paper_shadow_outcome_reconciliation(
         outcome_reconciliation
     )
-    live_runner_overview = build_live_runner_overview(db, status_payload=status_payload)
+    live_runner_overview = outcome_reconciliation.get("live_runner_overview")
+    if not isinstance(live_runner_overview, dict):
+        live_runner_overview = build_live_runner_overview(db, status_payload=status_payload, limit=10)
     overview["live_runner"] = _compact_live_runner_overview(live_runner_overview)
     overview["shadow_evidence_daemon"] = build_shadow_evidence_daemon_artifact(
         previous_artifact=load_shadow_evidence_daemon_artifact(),
