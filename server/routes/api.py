@@ -38,6 +38,7 @@ from server.live_pathology_summary import (
 )
 from database.models import TradeHistory, RawEvent, RawMarketData, FeaturesNormalized, Labels, OrderLifecycleEvent
 from database.runtime import configured_database_path
+from model.personal_release import evaluate_candidate_release, resolve_personal_release_policy
 from model.runtime_closure import (
     build_circuit_breaker_release_surface,
     build_runtime_closure_state,
@@ -1869,6 +1870,25 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         )
     )
     q15_bucket_root_cause = payload.get("q15_bucket_root_cause") or current_bucket_root_cause
+    api_trade_open_states = {
+        "capacity_opened",
+        "capacity_opened_signal_hold",
+        "owner_approved_capacity_opened",
+        "owner_approved_current_signal_hold",
+    }
+    owner_release_active = payload.get("strategy_release_status") == "owner_approved_personal_use"
+    api_trade_guardrail_context = (
+        "策略已由擁有者放行供個人使用；統計樣本不足僅作警示與部位分級。"
+        "真實買入 / 加倉仍須先通過同模型綁定、即時熔斷、場館、permit、kill switch 與 bounded canary；"
+        "任一技術保護欄未通過時 POST /api/trade 會回 409。"
+        if owner_release_active
+        else (
+            "POST /api/trade 對真實買入 / 加倉會先讀即時部署阻塞點；"
+            "阻塞時回 409 current_live_deployment_blocker。可先觀望、"
+            "減倉 / 賣出降低風險，或用 shadow_buy / paper_buy 做強制 dry-run paper/shadow 演練；"
+            "ExecutionService.submit_order 只允許 shadow/paper buy 在 paper/dry_run 模式送出。"
+        )
+    )
     return {
         "runtime_closure_state": runtime_closure_state,
         "runtime_closure_summary": runtime_closure_summary,
@@ -1888,6 +1908,21 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "allowed_layers_reason": payload.get("allowed_layers_reason"),
         "allowed_layers_raw": payload.get("allowed_layers_raw"),
         "allowed_layers_raw_reason": payload.get("allowed_layers_raw_reason"),
+        "owner_approved": payload.get("owner_approved"),
+        "owner_approval_decision_id": payload.get("owner_approval_decision_id"),
+        "owner_approved_by": payload.get("owner_approved_by"),
+        "strategy_release_ready": payload.get("strategy_release_ready"),
+        "strategy_release_status": payload.get("strategy_release_status"),
+        "statistical_gate_policy": payload.get("statistical_gate_policy"),
+        "statistical_gate_blocking": payload.get("statistical_gate_blocking"),
+        "statistical_warnings": payload.get("statistical_warnings"),
+        "technical_execution_blockers": payload.get("technical_execution_blockers"),
+        "hard_gate_failures": payload.get("hard_gate_failures"),
+        "evidence_score": payload.get("evidence_score"),
+        "evidence_tier": payload.get("evidence_tier"),
+        "recommended_max_layers": payload.get("recommended_max_layers"),
+        "technical_execution_gates_required": payload.get("technical_execution_gates_required"),
+        "runtime_binding_verified": payload.get("runtime_binding_verified"),
         "execution_guardrail_applied": payload.get("execution_guardrail_applied"),
         "execution_guardrail_reason": payload.get("execution_guardrail_reason"),
         "deployment_blocker": payload.get("deployment_blocker"),
@@ -1896,19 +1931,14 @@ def _build_live_runtime_closure_surface(confidence_payload: Optional[Dict[str, A
         "deployment_blocker_details": payload.get("deployment_blocker_details"),
         "api_trade_guardrail_active": bool(
             payload.get("deployment_blocker")
-            or str(runtime_closure_state or "").lower() not in {"capacity_opened", "capacity_opened_signal_hold"}
+            or str(runtime_closure_state or "").lower() not in api_trade_open_states
             or str(signal or "").upper() in {"CIRCUIT_BREAKER", "HOLD", "ABSTAIN"}
         ),
         "api_trade_buy_guardrail": "current_live_deployment_blocker_409",
         "api_trade_allowed_risk_off_sides": list(_API_TRADE_RISK_OFF_SIDES),
         "api_trade_allowed_paper_shadow_sides": list(_API_TRADE_SHADOW_RISK_ON_SIDES),
         "api_trade_allowed_actions": list(_API_TRADE_BLOCKED_ALLOWED_ACTIONS),
-        "api_trade_guardrail_context": (
-            "POST /api/trade 對真實買入 / 加倉會先讀即時部署阻塞點；"
-            "阻塞時回 409 current_live_deployment_blocker。可先等待 / 觀望、"
-            "減倉 / 賣出降低風險，或用 shadow_buy / paper_buy 做強制 dry-run paper/shadow 演練；"
-            "ExecutionService.submit_order 只允許 shadow/paper buy 在 paper/dry_run 模式送出。"
-        ),
+        "api_trade_guardrail_context": api_trade_guardrail_context,
         **circuit_breaker_release_surface,
         "q35_discriminative_redesign_applied": payload.get("q35_discriminative_redesign_applied"),
         "q35_discriminative_redesign": payload.get("q35_discriminative_redesign"),
@@ -4782,8 +4812,27 @@ def _apply_high_conviction_support_overlay_to_row(
     gate_failures = [*model_gate_failures, *live_gate_failures]
     oos_gate_passed = not model_gate_failures
     blocked_only_by_live_guardrails = bool(gate_failures) and oos_gate_passed and bool(live_gate_failures)
+    try:
+        from config import load_config
+
+        release_policy = resolve_personal_release_policy(load_config())
+    except Exception:
+        release_policy = {}
+    release_decision = evaluate_candidate_release(
+        normalized,
+        strict_failures=gate_failures,
+        support_context=support_context,
+        policy=release_policy,
+    )
+    owner_release_ready = bool(
+        release_decision.get("owner_approved")
+        and release_decision.get("strategy_release_ready")
+    )
     deployable_verdict = "deployable" if not gate_failures else "not_deployable"
-    if deployable_verdict == "deployable":
+    if owner_release_ready:
+        deployable_verdict = "not_live_deployable"
+        deployment_candidate_tier = "owner_approved_personal_use"
+    elif deployable_verdict == "deployable":
         deployment_candidate_tier = "deployable"
     elif blocked_only_by_live_guardrails:
         deployment_candidate_tier = "runtime_blocked_oos_pass"
@@ -4792,6 +4841,7 @@ def _apply_high_conviction_support_overlay_to_row(
 
     normalized.update(
         {
+            **release_decision,
             "deployable_verdict": deployable_verdict,
             "deployment_candidate_tier": deployment_candidate_tier,
             "gate_failures": gate_failures,
@@ -4819,6 +4869,7 @@ def _high_conviction_row_sort_key(row: Dict[str, Any]) -> tuple:
     win_rate = _coerce_float_or_none(row.get("win_rate"))
     trade_count = _coerce_int_or_none(row.get("trade_count"))
     return (
+        bool(row.get("owner_approved") and row.get("strategy_release_ready")),
         str(row.get("deployable_verdict") or "") == "deployable",
         blocked_only_by_live_guardrails,
         oos_gate_passed,
@@ -4868,6 +4919,22 @@ def _compact_high_conviction_topk_row(
         "max_drawdown": _coerce_float_or_none(row.get("max_drawdown")),
         "worst_fold": _coerce_float_or_none(row.get("worst_fold")),
         "trade_count": _coerce_int_or_none(row.get("trade_count")),
+        "owner_approved": bool(row.get("owner_approved")),
+        "owner_approval_decision_id": row.get("owner_approval_decision_id"),
+        "owner_approved_by": row.get("owner_approved_by"),
+        "strategy_release_ready": bool(row.get("strategy_release_ready")),
+        "strategy_release_status": row.get("strategy_release_status"),
+        "statistical_gate_policy": row.get("statistical_gate_policy"),
+        "statistical_gate_blocking": row.get("statistical_gate_blocking"),
+        "statistical_warnings": row.get("statistical_warnings") if isinstance(row.get("statistical_warnings"), list) else [],
+        "technical_execution_blockers": row.get("technical_execution_blockers") if isinstance(row.get("technical_execution_blockers"), list) else [],
+        "hard_gate_failures": row.get("hard_gate_failures") if isinstance(row.get("hard_gate_failures"), list) else [],
+        "support_evidence_ratio": _coerce_float_or_none(row.get("support_evidence_ratio")),
+        "model_evidence_ratio": _coerce_float_or_none(row.get("model_evidence_ratio")),
+        "evidence_score": _coerce_float_or_none(row.get("evidence_score")),
+        "evidence_tier": row.get("evidence_tier"),
+        "recommended_max_layers": _coerce_int_or_none(row.get("recommended_max_layers")),
+        "technical_execution_gates_required": bool(row.get("technical_execution_gates_required")),
         "support_route": _support_value("support_route", "support_route_verdict"),
         "support_governance_route": _support_value("support_governance_route"),
         "support_governance_reference_evidence": _support_value("support_governance_reference_evidence"),
@@ -5453,13 +5520,23 @@ def _load_high_conviction_topk_summary(
     ]
     rows.sort(key=_high_conviction_row_sort_key, reverse=True)
     deployable_count = sum(1 for row in rows if row.get("deployable_verdict") == "deployable")
+    owner_approved_count = sum(
+        1 for row in rows if row.get("owner_approved") and row.get("strategy_release_ready")
+    )
+    strategy_release_ready_count = sum(1 for row in rows if row.get("strategy_release_ready"))
     risk_qualified_count = sum(1 for row in rows if _topk_row_gate_parts(row)[3])
     runtime_blocked_candidate_count = sum(1 for row in rows if _topk_row_gate_parts(row)[4])
     freshness = _build_high_conviction_topk_freshness(payload.get("generated_at"))
     freshness_status = str(freshness.get("status") or "unavailable")
     freshness_blocker = freshness.get("reason") if freshness.get("deployment_blocking") else None
     deployment_ready = deployable_count > 0 and freshness_status == "fresh"
-    if deployment_ready:
+    if owner_approved_count > 0:
+        deployment_readiness_status = (
+            "owner_approved_personal_use_evidence_stale_technical_gates_required"
+            if freshness_status != "fresh"
+            else "owner_approved_personal_use_technical_gates_required"
+        )
+    elif deployment_ready:
         deployment_readiness_status = "deployable_candidates_available"
     elif freshness_status == "stale":
         deployment_readiness_status = "stale_artifact_shadow_only"
@@ -5472,7 +5549,11 @@ def _load_high_conviction_topk_summary(
     nearest_deployable_rows = [
         _compact_high_conviction_topk_row(row, support_context)
         for row in rows
-        if _topk_row_gate_parts(row)[4] or str(row.get("deployable_verdict") or "") == "deployable"
+        if (
+            bool(row.get("owner_approved") and row.get("strategy_release_ready"))
+            or _topk_row_gate_parts(row)[4]
+            or str(row.get("deployable_verdict") or "") == "deployable"
+        )
     ][:limit]
     return {
         "source_artifact": str(artifact_path),
@@ -5488,6 +5569,7 @@ def _load_high_conviction_topk_summary(
         "samples": payload.get("samples"),
         "top_k_grid": payload.get("top_k_grid") if isinstance(payload.get("top_k_grid"), list) else [],
         "minimum_deployment_gates": payload.get("minimum_deployment_gates") if isinstance(payload.get("minimum_deployment_gates"), dict) else {},
+        "strategy_release_policy": payload.get("strategy_release_policy") if isinstance(payload.get("strategy_release_policy"), dict) else {},
         "support_context": support_context,
         "support_context_status": support_context.get("support_context_status"),
         "support_context_freshness": support_context.get("support_context_freshness"),
@@ -5497,6 +5579,8 @@ def _load_high_conviction_topk_summary(
         "refresh_error": refresh_state.get("error"),
         "row_count": len(rows),
         "deployable_count": deployable_count,
+        "owner_approved_rows": owner_approved_count,
+        "strategy_release_ready_rows": strategy_release_ready_count,
         "risk_qualified_count": risk_qualified_count,
         "runtime_blocked_candidate_count": runtime_blocked_candidate_count,
         "status": deployment_readiness_status,

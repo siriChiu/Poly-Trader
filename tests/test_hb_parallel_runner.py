@@ -3960,6 +3960,58 @@ def test_overwrite_current_state_docs_uses_current_bucket_support_truth_when_buc
     assert "維持 current-live exact-support truth" in orid_md
 
 
+def test_overwrite_current_state_docs_keeps_owner_release_and_moves_priority_to_runtime_binding(tmp_path, monkeypatch):
+    monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
+    (tmp_path / "data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "issues.json").write_text(
+        json.dumps({"issues": []}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    result = hb_parallel_runner.overwrite_current_state_docs(
+        "20260720-owner-release",
+        {},
+        {},
+        {"primary_summary": {}},
+        {
+            "deployment_blocker": "owner_approved_strategy_binding_required",
+            "deployment_blocker_reason": "exact fitted model binding is required",
+            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q15",
+            "current_live_structure_bucket_rows": 31,
+            "minimum_support_rows": 50,
+            "current_live_structure_bucket_gap_to_minimum": 19,
+            "support_route_verdict": "exact_bucket_present_but_below_minimum",
+            "support_governance_route": "exact_live_bucket_present_but_below_minimum",
+            "owner_approved": True,
+            "strategy_release_ready": True,
+            "strategy_release_status": "owner_approved_personal_use",
+            "statistical_gate_blocking": False,
+            "statistical_warnings": ["under_minimum_exact_live_structure_bucket"],
+            "technical_execution_blockers": ["owner_approved_strategy_binding_required"],
+            "evidence_tier": "caution",
+            "recommended_max_layers": 1,
+            "runtime_binding_verified": False,
+            "deployment_blocker_details": {"release_condition": {}},
+        },
+        {},
+        {},
+        {},
+        {},
+    )
+
+    assert result["success"] is True
+    issues_md = (tmp_path / "ISSUES.md").read_text(encoding="utf-8")
+    roadmap_md = (tmp_path / "ROADMAP.md").read_text(encoding="utf-8")
+    orid_md = (tmp_path / "ORID_DECISIONS.md").read_text(encoding="utf-8")
+    assert "owner-approved 個人策略放行已生效" in issues_md
+    assert "統計 support 與 execution safety 已分離" in issues_md
+    assert "### 目標 A：完成 owner-approved 策略的 exact runtime binding" in roadmap_md
+    assert "strategy_release_status=owner_approved_personal_use" in roadmap_md
+    assert "runtime_binding_verified=false" in roadmap_md
+    assert "目標 A：維持 current-live exact-support blocker" not in roadmap_md
+    assert "不再以固定 support 筆數作被動等待主線" in orid_md
+
+
 def test_overwrite_current_state_docs_surfaces_q15_breaker_context_for_under_minimum_support(tmp_path, monkeypatch):
     monkeypatch.setattr(hb_parallel_runner, "PROJECT_ROOT", str(tmp_path))
     (tmp_path / "data").mkdir(parents=True, exist_ok=True)

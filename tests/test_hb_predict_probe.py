@@ -8,6 +8,28 @@ class DummySession:
         return None
 
 
+def test_api_trade_guardrail_owner_release_keeps_execution_safety_contract():
+    payload = hb_predict_probe._api_trade_guardrail_surface(
+        {
+            "signal": "BUY",
+            "allowed_layers": 1,
+            "allowed_layers_reason": "owner_approved_uncertainty_caps_first_layer",
+            "deployment_blocker": None,
+            "owner_approved": True,
+            "strategy_release_ready": True,
+        },
+        "owner_approved_capacity_opened",
+    )
+
+    assert payload["api_trade_guardrail_active"] is False
+    assert payload["api_trade_buy_guardrail"] == "not_blocked"
+    assert "統計樣本不足僅作風險警示" in payload["api_trade_guardrail_context"]
+    assert "signed permit" in payload["api_trade_guardrail_context"]
+    assert "bounded canary" in payload["api_trade_guardrail_context"]
+    assert "stale quote" in payload["api_trade_guardrail_context"]
+    assert "kill switch" in payload["api_trade_guardrail_context"]
+
+
 def test_build_probe_payload_ignores_stale_q15_support_identity_overlay(monkeypatch):
     monkeypatch.setattr(hb_predict_probe, "build_live_pathology_scope_surface", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(hb_predict_probe, "_load_q35_scaling_audit_summary", lambda _bucket: {})

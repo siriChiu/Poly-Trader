@@ -824,6 +824,23 @@ interface HighConvictionTopKRow {
   live_gate_failures?: string[];
   oos_gate_passed?: boolean;
   blocked_only_by_live_guardrails?: boolean;
+  owner_approved?: boolean;
+  owner_approval_decision_id?: string | null;
+  owner_approved_by?: string | null;
+  strategy_release_ready?: boolean;
+  strategy_release_status?: string | null;
+  statistical_gate_policy?: string | null;
+  statistical_gate_blocking?: boolean;
+  statistical_warnings?: string[];
+  technical_execution_blockers?: string[];
+  hard_gate_failures?: string[];
+  support_evidence_ratio?: number | null;
+  model_evidence_ratio?: number | null;
+  evidence_score?: number | null;
+  evidence_tier?: string | null;
+  recommended_max_layers?: number | null;
+  runtime_binding_verified?: boolean | null;
+  technical_execution_gates_required?: boolean;
 }
 
 interface HighConvictionTopKSummary {
@@ -858,6 +875,9 @@ interface HighConvictionTopKSummary {
   runtime_blocked_candidate_count?: number | null;
   runtime_blocked_candidate_rows?: number | null;
   runtime_blocked_candidates?: number | null;
+  owner_approved_rows?: number | null;
+  strategy_release_ready_rows?: number | null;
+  strategy_release_policy?: Record<string, any> | null;
   status?: string | null;
   best_rows?: HighConvictionTopKRow[];
   nearest_deployable_rows?: HighConvictionTopKRow[];
@@ -1975,11 +1995,13 @@ export default function StrategyLab() {
   const placeholderModelRows = Array.isArray(modelMeta.placeholder_rows) ? modelMeta.placeholder_rows : [];
   const modelStrategyParamScan = modelMeta.strategy_param_scan ?? null;
   const leaderboardGovernance = modelMeta.leaderboard_governance ?? null;
-  const highConvictionTopK = modelMeta.high_conviction_topk ?? null;
-  const highConvictionRows = Array.isArray(highConvictionTopK?.nearest_deployable_rows) ? highConvictionTopK.nearest_deployable_rows : (Array.isArray(highConvictionTopK?.best_rows) ? highConvictionTopK.best_rows : []);
+  const highConvictionTopK = (modelMeta.high_conviction_topk ?? null) as HighConvictionTopKSummary | null;
+  const highConvictionRows: HighConvictionTopKRow[] = Array.isArray(highConvictionTopK?.nearest_deployable_rows) ? highConvictionTopK.nearest_deployable_rows : (Array.isArray(highConvictionTopK?.best_rows) ? highConvictionTopK.best_rows : []);
   const highConvictionGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.gate_failures) ? row.gate_failures : []))).slice(0, 6);
   const highConvictionModelGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.model_gate_failures) ? row.model_gate_failures : []))).slice(0, 6);
   const highConvictionLiveGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.live_gate_failures) ? row.live_gate_failures : []))).slice(0, 6);
+  const highConvictionStatisticalWarnings = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.statistical_warnings) ? row.statistical_warnings : []))).slice(0, 6);
+  const highConvictionHardGateFailures = Array.from(new Set(highConvictionRows.flatMap((row) => Array.isArray(row.hard_gate_failures) ? row.hard_gate_failures : []))).slice(0, 6);
   const highConvictionDeployableCount = firstFiniteNumber(
     highConvictionTopK?.deployable_count,
     highConvictionTopK?.deployable_rows,
@@ -1996,6 +2018,11 @@ export default function StrategyLab() {
     highConvictionTopK?.risk_qualified_rows,
     highConvictionRows.filter((row) => row.oos_gate_passed).length,
   ) ?? 0;
+  const highConvictionOwnerApprovedCount = firstFiniteNumber(
+    highConvictionTopK?.owner_approved_rows,
+    highConvictionRows.filter((row) => row.owner_approved && row.strategy_release_ready).length,
+  ) ?? 0;
+  const highConvictionOwnerReleaseActive = highConvictionOwnerApprovedCount > 0;
   const highConvictionDeployable = highConvictionDeployableCount > 0;
   const highConvictionFreshnessStatus = highConvictionTopK?.freshness?.status ?? highConvictionTopK?.freshness_status ?? "unavailable";
   const highConvictionArtifactAgeMinutes = highConvictionTopK?.freshness?.age_minutes ?? highConvictionTopK?.artifact_age_minutes ?? null;
@@ -2006,8 +2033,16 @@ export default function StrategyLab() {
   const highConvictionStaleAfterLabel = isFiniteNumber(highConvictionStaleAfterMinutes) ? `政策 ${formatDecimal(highConvictionStaleAfterMinutes, 0)} 分鐘` : "政策 —";
   const highConvictionDeploymentReadinessLabel = humanizeRuntimeDetailText(highConvictionTopK?.deployment_readiness_status || highConvictionTopK?.status || "paper_shadow_only");
   const highConvictionRuntimeBlocked = !highConvictionFreshnessBlocking && !highConvictionDeployable && highConvictionRuntimeBlockedCount > 0;
-  const highConvictionStatusLabel = highConvictionFreshnessBlocking ? "矩陣過期 / 僅影子觀察" : (highConvictionDeployable ? "已有候選，但仍需人工灰度確認" : (highConvictionRuntimeBlocked ? "離線通過，但即時部署阻塞 / 影子觀察" : "研究觀察 / 影子驗證"));
-  const highConvictionCardTone = highConvictionFreshnessBlocking ? "border-amber-500/30 bg-amber-500/10 text-amber-50" : (highConvictionDeployable ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-50" : (highConvictionRuntimeBlocked ? "border-rose-500/30 bg-rose-500/10 text-rose-50" : "border-violet-500/30 bg-violet-500/10 text-violet-50"));
+  const highConvictionStatusLabel = highConvictionOwnerReleaseActive
+    ? (highConvictionFreshnessBlocking ? "已由擁有者放行／證據快照需更新" : "已由擁有者放行／統計不確定性分級")
+    : highConvictionFreshnessBlocking
+      ? "矩陣過期 / 僅影子觀察"
+      : (highConvictionDeployable ? "已有候選，但仍需人工灰度確認" : (highConvictionRuntimeBlocked ? "離線通過，但即時部署阻塞 / 影子觀察" : "研究觀察 / 影子驗證"));
+  const highConvictionCardTone = highConvictionOwnerReleaseActive
+    ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-50"
+    : highConvictionFreshnessBlocking
+      ? "border-amber-500/30 bg-amber-500/10 text-amber-50"
+      : (highConvictionDeployable ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-50" : (highConvictionRuntimeBlocked ? "border-rose-500/30 bg-rose-500/10 text-rose-50" : "border-violet-500/30 bg-violet-500/10 text-violet-50"));
   const highConvictionGridLabel = Array.isArray(highConvictionTopK?.top_k_grid) && highConvictionTopK.top_k_grid.length > 0 ? highConvictionTopK.top_k_grid.map((label) => humanizeRuntimeDetailText(label)).join(" / ") : "Top-K 分層 —";
   const highConvictionGeneratedAtLabel = highConvictionTopK?.generated_at ? new Date(highConvictionTopK.generated_at).toLocaleString("zh-TW") : "生成時間 —";
   const highConvictionGateSummary = highConvictionTopK?.minimum_deployment_gates ? Object.entries(highConvictionTopK.minimum_deployment_gates).map(([key, value]) => `${humanizeRuntimeDetailText(key)}=${formatHighConvictionGateValue(key, value)}`).join(" · ") : "部署門檻 —";
@@ -2029,7 +2064,13 @@ export default function StrategyLab() {
   const highConvictionSupportGovernanceLabel = highConvictionSupportContext ? humanizeSupportGovernanceRouteLabel(highConvictionSupportContext.support_governance_route || null) : "—";
   const highConvictionDeploymentBlockerLabel = highConvictionSupportContext ? humanizeCurrentLiveBlockerLabel(highConvictionSupportContext.deployment_blocker || null) : "—";
   const highConvictionRuntimeClosureLabel = highConvictionSupportContext?.runtime_closure_state ? humanizeRuntimeClosureStateLabel(highConvictionSupportContext.runtime_closure_state) : "—";
-  const highConvictionPrimaryRuntimeRow = highConvictionRows.find((row) => row.blocked_only_by_live_guardrails || row.deployment_candidate_tier === "runtime_blocked_oos_pass") || highConvictionRows[0] || null;
+  const highConvictionPrimaryRuntimeRow = highConvictionRows.find((row) => row.owner_approved && row.strategy_release_ready)
+    || highConvictionRows.find((row) => row.blocked_only_by_live_guardrails || row.deployment_candidate_tier === "runtime_blocked_oos_pass")
+    || highConvictionRows[0]
+    || null;
+  const highConvictionOwnerEvidenceLabel = highConvictionOwnerReleaseActive
+    ? `證據 ${humanizeRuntimeDetailText(highConvictionPrimaryRuntimeRow?.evidence_tier || "caution")} · 建議最多 ${formatDecimal(highConvictionPrimaryRuntimeRow?.recommended_max_layers ?? 1, 0)} 層`
+    : null;
   const highConvictionRuntimeSignalLabel = formatHighConvictionRuntimeSignalLabel(highConvictionSupportContext?.signal || highConvictionPrimaryRuntimeRow?.signal || null);
   const highConvictionAllowedLayersValue = highConvictionSupportContext?.allowed_layers ?? highConvictionPrimaryRuntimeRow?.allowed_layers;
   const highConvictionAllowedLayersLabel = isFiniteNumber(highConvictionAllowedLayersValue) ? formatDecimal(highConvictionAllowedLayersValue, 0) : "—";
@@ -2066,9 +2107,11 @@ export default function StrategyLab() {
   const highConvictionSupportRowsLabel = isFiniteNumber(highConvictionSupportRows) && isFiniteNumber(highConvictionMinimumRows)
     ? `${formatDecimal(highConvictionSupportRows, 0)} / ${formatDecimal(highConvictionMinimumRows, 0)}${isFiniteNumber(highConvictionSupportGap) ? `（缺 ${formatDecimal(highConvictionSupportGap, 0)}）` : ""}`
     : "—";
-  const highConvictionSupportGateNextAction = isFiniteNumber(highConvictionSupportGap) && highConvictionSupportGap > 0
-    ? `下一步補齊 ${formatDecimal(highConvictionSupportGap, 0)} 筆當前分桶支持樣本`
-    : "支持樣本已達門檻或等待最新同步";
+  const highConvictionSupportGateNextAction = highConvictionOwnerReleaseActive
+    ? "樣本門檻已降為風險警示；下一步綁定相同 fitted model、feature schema 與 checksum，不再被動累積到固定筆數"
+    : isFiniteNumber(highConvictionSupportGap) && highConvictionSupportGap > 0
+      ? `下一步補齊 ${formatDecimal(highConvictionSupportGap, 0)} 筆當前分桶支持樣本`
+      : "支持樣本已達門檻或等待最新同步";
   const governanceContract = leaderboardGovernance?.governance_contract ?? null;
   const profileSplit = leaderboardGovernance?.profile_split ?? null;
   const modelLeaderboardStaleStateLabel = modelMeta.refreshing
@@ -3909,9 +3952,11 @@ export default function StrategyLab() {
                     <div className={`rounded-lg border px-3 py-3 text-xs space-y-3 ${highConvictionCardTone}`}>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <div className="font-semibold text-violet-100">高信心 OOS Top-K 部署門檻</div>
+                          <div className="font-semibold text-violet-100">高信心 OOS Top-K 策略放行</div>
                           <div className="mt-1 text-[11px] text-violet-100/80">
-                            最接近部署候選優先顯示；離線驗證 / 風控門檻已過但遇到即時部署阻塞（例如熔斷、支持樣本或場館保護）時，仍維持模擬觀察 / 影子驗證 / 僅觀察，不開新倉。
+                            {highConvictionOwnerReleaseActive
+                              ? "個人策略放行與 live 技術執行已分離：樣本 / support 轉為透明警示與部位分級；同模型綁定、熔斷、場館、permit、kill switch 與 bounded canary 仍不可繞過。"
+                              : "最接近部署候選優先顯示；離線驗證 / 風控門檻已過但遇到即時部署阻塞時，仍維持模擬觀察 / 影子驗證 / 僅觀察，不開新倉。"}
                           </div>
                         </div>
                         <div className="text-right text-[11px] text-violet-100/80">
@@ -3920,13 +3965,25 @@ export default function StrategyLab() {
                           <div>矩陣新鮮度 {highConvictionFreshnessLabel} · {highConvictionArtifactAgeLabel}</div>
                         </div>
                       </div>
-                      {highConvictionFreshnessBlocking && (
-                        <div className="rounded-lg border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-5 text-amber-50">
-                          <div className="font-semibold text-amber-100">Top-K 矩陣過期，部署降級為影子觀察</div>
-                          <div className="mt-1">{highConvictionArtifactAgeLabel} · {highConvictionStaleAfterLabel} · 後端狀態 {highConvictionDeploymentReadinessLabel}。請先重跑 high-conviction Top-K / model leaderboard refresh，再把候選視為灰度部署對象。</div>
+                      {highConvictionOwnerReleaseActive && (
+                        <div className="rounded-lg border border-cyan-300/30 bg-cyan-500/10 px-3 py-2 text-[11px] leading-5 text-cyan-50">
+                          <div className="font-semibold text-cyan-100">RELEASED_FOR_PERSONAL_USE · 擁有者已核准</div>
+                          <div className="mt-1">
+                            Logistic Regression / current_full / all / top_1pct 已進入個人使用策略 lane；{highConvictionOwnerEvidenceLabel}。
+                            統計 warnings 保留顯示但不再永久 veto。現在的工程動作是綁定同一 fitted artifact / schema / checksum，完成後仍只開第一層並通過所有技術安全 gate。
+                          </div>
                         </div>
                       )}
-                      {highConvictionRuntimeBlocked && (
+                      {highConvictionFreshnessBlocking && (
+                        <div className="rounded-lg border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-5 text-amber-50">
+                          <div className="font-semibold text-amber-100">{highConvictionOwnerReleaseActive ? "證據快照已過期；個人放行狀態不撤銷" : "Top-K 矩陣過期，部署降級為影子觀察"}</div>
+                          <div className="mt-1">
+                            {highConvictionArtifactAgeLabel} · {highConvictionStaleAfterLabel} · 後端狀態 {highConvictionDeploymentReadinessLabel}。
+                            {highConvictionOwnerReleaseActive ? "請更新績效與不確定性快照；live 技術 gate 仍照常 fail-closed。" : "請先重跑 high-conviction Top-K / model leaderboard refresh，再把候選視為灰度部署對象。"}
+                          </div>
+                        </div>
+                      )}
+                      {!highConvictionOwnerReleaseActive && highConvictionRuntimeBlocked && (
                         <div className="rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-[11px] leading-5 text-rose-50">
                           <div className="font-semibold text-rose-100">OOS 候選已過門檻，但即時部署仍阻塞</div>
                           <div className="mt-1">離線驗證 / 風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} 筆；可部署 {formatDecimal(highConvictionDeployableCount, 0)} 筆。{highConvictionRuntimeBlockerSummary} · 支持樣本 {highConvictionSupportRowsLabel} · {highConvictionSupportGateNextAction} · {highConvictionSupportProgressLabel} · {highConvictionCircuitBreakerReleaseLabel}。請先補齊當前分桶支持樣本 / 解除執行保護，再把候選視為灰度部署對象。</div>
@@ -3950,9 +4007,9 @@ export default function StrategyLab() {
                           <div className="mt-1 text-[10px] text-violet-100/70">{highConvictionArtifactAgeLabel} · {highConvictionStaleAfterLabel}</div>
                         </div>
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
-                          <div className="text-[11px] text-slate-300">部署樣本</div>
-                          <div className="mt-1 font-medium text-slate-100">{formatDecimal(highConvictionTopK.row_count, 0)} 筆 · 可部署 {formatDecimal(highConvictionDeployableCount, 0)}</div>
-                          <div className="mt-1 text-[10px] text-violet-100/70">離線驗證 / 風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} · 只剩即時阻塞 {formatDecimal(highConvictionRuntimeBlockedCount, 0)}</div>
+                          <div className="text-[11px] text-slate-300">策略放行</div>
+                          <div className="mt-1 font-medium text-slate-100">{formatDecimal(highConvictionTopK.row_count, 0)} 筆 · 擁有者放行 {formatDecimal(highConvictionOwnerApprovedCount, 0)}</div>
+                          <div className="mt-1 text-[10px] text-violet-100/70">嚴格 live-ready {formatDecimal(highConvictionDeployableCount, 0)} · 離線風控已過 {formatDecimal(highConvictionRiskQualifiedCount, 0)} · 技術阻塞 {formatDecimal(highConvictionRuntimeBlockedCount, 0)}</div>
                         </div>
                         <div className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
                           <div className="text-[11px] text-slate-300">目標</div>
@@ -3983,7 +4040,14 @@ export default function StrategyLab() {
                                   <td className="px-2 py-2 text-left text-slate-100">
                                     <div className="font-medium">{row.model_name || row.model || "未命名模型"}</div>
                                     <div className="mt-1 text-[10px] text-violet-100/70">{humanizeRuntimeDetailText(row.feature_profile || "特徵設定 —")} · {formatHighConvictionRegimeLabel(row.regime)} · {humanizeRuntimeDetailText(row.top_k || "Top-K —")}</div>
-                                    <div className="mt-1 text-[10px] text-violet-100/60">部署判定 {humanizeRuntimeDetailText(row.deployable_verdict || "not_deployable")}</div>
+                                    <div className="mt-1 text-[10px] text-violet-100/60">
+                                      策略狀態 {humanizeRuntimeDetailText(row.strategy_release_status || row.deployable_verdict || "not_deployable")}
+                                    </div>
+                                    {row.owner_approved && row.strategy_release_ready && (
+                                      <div className="mt-1 text-[10px] text-cyan-200">
+                                        擁有者已放行 · {humanizeRuntimeDetailText(row.evidence_tier || "caution")} · 建議最多 {formatDecimal(row.recommended_max_layers ?? 1, 0)} 層 · 技術安全 gate 必須保留
+                                      </div>
+                                    )}
                                     {(row.signal || isFiniteNumber(row.allowed_layers) || row.execution_guardrail_reason) && (
                                       <div className="mt-1 text-[10px] text-violet-100/60">即時訊號 {formatHighConvictionRuntimeSignalLabel(row.signal)} · 可用層 {isFiniteNumber(row.allowed_layers) ? formatDecimal(row.allowed_layers, 0) : "—"} · 原因 {row.execution_guardrail_reason ? humanizeRuntimeDetailText(row.execution_guardrail_reason) : "—"}</div>
                                     )}
@@ -4014,11 +4078,20 @@ export default function StrategyLab() {
                       ) : (
                         <div className="rounded-lg border border-violet-300/20 bg-slate-950/20 px-3 py-2 text-violet-100/80">尚未產生可排序的高信心候選。</div>
                       )}
-                      <div className="rounded-lg border border-rose-300/20 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-50">
-                        <div className="font-semibold text-rose-100">未通過門檻</div>
-                        <div className="mt-1">{highConvictionGateFailures.length > 0 ? highConvictionGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "目前沒有額外失敗碼；仍需確認即時阻塞點與支持路徑後才可部署。"}</div>
-                        <div className="mt-1 text-rose-50/80">模型 / 風控門檻：{highConvictionModelGateFailures.length > 0 ? highConvictionModelGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "已過"}</div>
-                        <div className="mt-1 text-rose-50/80">即時 / 支持門檻：{highConvictionLiveGateFailures.length > 0 ? highConvictionLiveGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "待確認"}</div>
+                      <div className={`rounded-lg border px-3 py-2 text-[11px] ${highConvictionOwnerReleaseActive ? "border-amber-300/20 bg-amber-500/10 text-amber-50" : "border-rose-300/20 bg-rose-500/10 text-rose-50"}`}>
+                        <div className="font-semibold">{highConvictionOwnerReleaseActive ? "統計警示與不可繞過的技術 gate" : "未通過門檻"}</div>
+                        {highConvictionOwnerReleaseActive ? (
+                          <>
+                            <div className="mt-1">統計警示：{highConvictionStatisticalWarnings.length > 0 ? highConvictionStatisticalWarnings.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "無"}。這些警示影響證據等級與部位，不撤銷個人策略放行。</div>
+                            <div className="mt-1">硬 gate：{highConvictionHardGateFailures.length > 0 ? highConvictionHardGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "目前策略風控證據無硬失敗；live 仍需完成同模型綁定與執行安全檢查。"}</div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="mt-1">{highConvictionGateFailures.length > 0 ? highConvictionGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "目前沒有額外失敗碼；仍需確認即時阻塞點與支持路徑後才可部署。"}</div>
+                            <div className="mt-1 opacity-80">模型 / 風控門檻：{highConvictionModelGateFailures.length > 0 ? highConvictionModelGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "已過"}</div>
+                            <div className="mt-1 opacity-80">即時 / 支持門檻：{highConvictionLiveGateFailures.length > 0 ? highConvictionLiveGateFailures.map((failure) => humanizeRuntimeDetailText(failure)).join(" · ") : "待確認"}</div>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}

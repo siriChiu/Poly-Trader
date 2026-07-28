@@ -939,6 +939,40 @@ def test_live_runtime_truth_marks_aligned_exact_support_under_minimum_as_blockin
     assert "不可視為部署閉環" in payload["support_alignment_summary"]
 
 
+def test_live_runtime_truth_surfaces_owner_release_and_keeps_technical_gate_contract():
+    payload = api_module._build_live_runtime_closure_surface({
+        "signal": "BUY",
+        "regime_label": "bull",
+        "regime_gate": "ALLOW",
+        "structure_bucket": "ALLOW|structure_quality_allow|q35",
+        "current_live_structure_bucket": "ALLOW|structure_quality_allow|q35",
+        "current_live_structure_bucket_rows": 34,
+        "minimum_support_rows": 50,
+        "allowed_layers": 1,
+        "allowed_layers_raw": 3,
+        "allowed_layers_reason": "owner_approved_uncertainty_caps_first_layer",
+        "deployment_blocker": None,
+        "strategy_release_status": "owner_approved_personal_use",
+        "strategy_release_ready": True,
+        "owner_approved": True,
+        "statistical_gate_blocking": False,
+        "statistical_warnings": ["under_minimum_exact_live_structure_bucket"],
+        "recommended_max_layers": 1,
+        "technical_execution_gates_required": True,
+        "runtime_binding_verified": True,
+    })
+
+    assert payload["runtime_closure_state"] == "owner_approved_capacity_opened"
+    assert payload["api_trade_guardrail_active"] is False
+    assert payload["strategy_release_status"] == "owner_approved_personal_use"
+    assert payload["statistical_gate_blocking"] is False
+    assert payload["recommended_max_layers"] == 1
+    assert payload["technical_execution_gates_required"] is True
+    assert "統計樣本不足僅作警示" in payload["api_trade_guardrail_context"]
+    assert "permit" in payload["api_trade_guardrail_context"]
+    assert "bounded canary" in payload["api_trade_guardrail_context"]
+
+
 def test_api_trade_rejects_buy_when_current_live_blocker_active(monkeypatch):
     async def _blocked_confidence_payload():
         return {

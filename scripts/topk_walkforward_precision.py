@@ -13,6 +13,8 @@ if str(PROJECT_ROOT) not in sys.path:
 import pandas as pd
 
 from backtesting.model_leaderboard import MIN_TRAIN_SAMPLES, ModelLeaderboard
+from config import load_config
+from model.personal_release import evaluate_candidate_release, resolve_personal_release_policy
 from server.routes.api import DB_PATH, load_model_leaderboard_frame
 
 TOP_PCTS = [0.01, 0.02, 0.05, 0.10]
@@ -709,10 +711,12 @@ def build_high_conviction_oos_matrix_rows(
     support_context: Optional[dict] = None,
     feature_profile: str = "current_full",
     gates: Optional[dict] = None,
+    release_policy: Optional[dict] = None,
 ) -> list[dict]:
-    """Flatten aggregate/fold top-k evidence into deployment-gated matrix rows."""
+    """Flatten aggregate/fold top-k evidence into strict and personal-release lanes."""
     support_context = dict(support_context or {"support_route_verdict": "not_evaluated"})
     gates = dict(gates or MINIMUM_DEPLOYMENT_GATES)
+    release_policy = dict(release_policy or {})
     rows: list[dict] = []
 
     def _append_row(regime: str, top_key: str, metrics: dict) -> None:
@@ -722,8 +726,37 @@ def build_high_conviction_oos_matrix_rows(
         model_gate_failures = [failure for failure in failures if failure not in LIVE_GUARDRAIL_FAILURES]
         oos_gate_passed = not model_gate_failures
         blocked_only_by_live_guardrails = bool(failures) and oos_gate_passed and bool(live_gate_failures)
+        release_decision = evaluate_candidate_release(
+            {
+                "model": model_name,
+                "feature_profile": feature_profile,
+                "regime": regime,
+                "top_k": top_key,
+                "trade_count": int(metrics.get("trade_count", metrics.get("n", 0)) or 0),
+                "wins": int(metrics.get("wins", 0) or 0),
+                "losses": int(metrics.get("losses", 0) or 0),
+                "win_rate": metrics.get("win_rate"),
+                "oos_roi": metrics.get("oos_roi"),
+                "profit_factor": metrics.get("profit_factor"),
+                "max_drawdown": metrics.get("max_drawdown"),
+                "worst_fold": worst_fold,
+            },
+            strict_failures=failures,
+            support_context=support_context,
+            policy=release_policy,
+        )
+        owner_release_ready = bool(
+            release_decision.get("owner_approved")
+            and release_decision.get("strategy_release_ready")
+        )
         deployable_verdict = "deployable" if not failures else "not_deployable"
-        if deployable_verdict == "deployable":
+        if owner_release_ready:
+            # Strategy release and live venue deployability are intentionally separate.
+            # The owner-approved row is usable in the personal strategy lane, while
+            # live execution still depends on exact model binding and technical gates.
+            deployable_verdict = "not_live_deployable"
+            deployment_candidate_tier = "owner_approved_personal_use"
+        elif deployable_verdict == "deployable":
             deployment_candidate_tier = "deployable"
         elif blocked_only_by_live_guardrails:
             deployment_candidate_tier = "runtime_blocked_oos_pass"
@@ -787,6 +820,7 @@ def build_high_conviction_oos_matrix_rows(
                 "live_truth_overlay_blocker": support_context.get("live_truth_overlay_blocker"),
                 "stale_support_context_reference": support_context.get("stale_support_context_reference"),
                 "minimum_deployment_gates": gates,
+                **release_decision,
                 "deployable_verdict": deployable_verdict,
                 "deployment_candidate_tier": deployment_candidate_tier,
                 "gate_failures": failures,
@@ -823,6 +857,22 @@ HIGH_CONVICTION_CANDIDATE_SUMMARY_KEYS = (
     "live_gate_failures",
     "oos_gate_passed",
     "blocked_only_by_live_guardrails",
+    "owner_approved",
+    "owner_approval_decision_id",
+    "owner_approved_by",
+    "strategy_release_ready",
+    "strategy_release_status",
+    "statistical_gate_policy",
+    "statistical_gate_blocking",
+    "statistical_warnings",
+    "technical_execution_blockers",
+    "hard_gate_failures",
+    "support_evidence_ratio",
+    "model_evidence_ratio",
+    "evidence_score",
+    "evidence_tier",
+    "recommended_max_layers",
+    "technical_execution_gates_required",
     "support_route",
     "support_governance_route",
     "support_route_deployable",
@@ -922,6 +972,7 @@ def _risk_first_candidate_sort_key(row: dict) -> tuple:
         _tier,
     ) = _topk_row_gate_parts(row)
     return (
+        bool(row.get("owner_approved") and row.get("strategy_release_ready")),
         str(row.get("deployable_verdict") or "") == "deployable",
         blocked_only_by_live_guardrails,
         oos_gate_passed,
@@ -979,7 +1030,11 @@ def apply_top_level_candidate_summary(result: dict, *, limit: int = 6) -> dict:
     nearest_rows = [
         row
         for row in ranked_rows
-        if str(row.get("deployable_verdict") or "") == "deployable" or _topk_row_gate_parts(row)[4]
+        if (
+            bool(row.get("owner_approved") and row.get("strategy_release_ready"))
+            or str(row.get("deployable_verdict") or "") == "deployable"
+            or _topk_row_gate_parts(row)[4]
+        )
     ]
     if not nearest_rows:
         nearest_rows = ranked_rows[:1]
@@ -1110,6 +1165,7 @@ def evaluate_model(data: pd.DataFrame, target_col: str, model_name: str) -> dict
 def main() -> None:
     data, target_col = load_frame()
     support_context = _load_support_context(auto_refresh=True)
+    release_policy = resolve_personal_release_policy(load_config())
     generated_at = datetime.now(timezone.utc).isoformat()
     result = {
         "generated_at": generated_at,
@@ -1118,6 +1174,7 @@ def main() -> None:
         "samples": int(len(data)),
         "top_k_grid": [f"top_{int(pct * 100)}pct" for pct in TOP_PCTS],
         "minimum_deployment_gates": MINIMUM_DEPLOYMENT_GATES,
+        "strategy_release_policy": release_policy,
         "support_context": support_context,
         "artifact": str(OUT_PATH),
         "rows": [],
@@ -1128,9 +1185,18 @@ def main() -> None:
         report = evaluate_model(data, target_col, model_name)
         if report is not None:
             result["models"][model_name] = report
-            result["rows"].extend(build_high_conviction_oos_matrix_rows(model_name, report, support_context=support_context))
+            result["rows"].extend(
+                build_high_conviction_oos_matrix_rows(
+                    model_name,
+                    report,
+                    support_context=support_context,
+                    release_policy=release_policy,
+                )
+            )
     result["row_count"] = len(result["rows"])
     result["deployable_rows"] = sum(1 for row in result["rows"] if row.get("deployable_verdict") == "deployable")
+    result["owner_approved_rows"] = sum(1 for row in result["rows"] if row.get("strategy_release_status") == "owner_approved_personal_use")
+    result["strategy_release_ready_rows"] = sum(1 for row in result["rows"] if row.get("strategy_release_ready"))
     result["risk_qualified_rows"] = sum(1 for row in result["rows"] if row.get("oos_gate_passed"))
     result["runtime_blocked_candidate_rows"] = sum(
         1 for row in result["rows"] if row.get("blocked_only_by_live_guardrails")

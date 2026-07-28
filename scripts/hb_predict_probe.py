@@ -894,6 +894,9 @@ def _api_trade_guardrail_surface(runtime_result: dict, runtime_closure_state: st
         and bool(allowed_layers_reason)
     )
     runtime_blocker = deployment_blocker or runtime_closure_state or execution_guardrail_reason or allowed_layers_reason
+    owner_release_active = bool(
+        payload.get("owner_approved") and payload.get("strategy_release_ready")
+    )
     if not guardrail_active:
         return {
             "api_trade_guardrail_active": False,
@@ -904,7 +907,11 @@ def _api_trade_guardrail_surface(runtime_result: dict, runtime_closure_state: st
             "api_trade_allowed_risk_off_sides": API_TRADE_RISK_OFF_SIDES,
             "api_trade_allowed_paper_shadow_sides": API_TRADE_PAPER_SHADOW_SIDES,
             "api_trade_allowed_actions": ["buy", *API_TRADE_BLOCKED_ALLOWED_ACTIONS],
-            "api_trade_guardrail_context": "即時部署阻塞未啟用；/api/trade 可送出買入，也可等待 / 觀望、paper/shadow 演練，或減倉 / 賣出降低風險。",
+            "api_trade_guardrail_context": (
+                "owner-approved 個人策略的統計樣本不足僅作風險警示；route-level blocker 已清除，但實際 live order 仍須通過 exact model binding、signed permit、bounded canary、stale quote、防重複下單、曝險上限與 kill switch。"
+                if owner_release_active
+                else "即時部署阻塞未啟用；/api/trade 可送出買入，也可等待 / 觀望、paper/shadow 演練，或減倉 / 賣出降低風險。"
+            ),
         }
 
     return {
@@ -1116,6 +1123,11 @@ def _build_probe_payload(
         "insufficient_support_everywhere",
     }
     result_deployment_blocker = str(result.get("deployment_blocker") or "")
+    owner_release_active = bool(
+        result.get("owner_approved")
+        and result.get("strategy_release_ready")
+        and result.get("statistical_gate_blocking") is False
+    )
     support_route_verdict_value = str(support_route.get("verdict") or "")
     support_route_deployable_value = support_route.get("deployable")
     support_gap_blocks_deployment = (
@@ -1152,33 +1164,60 @@ def _build_probe_payload(
         support_route_copy = support_route_label
         current_live_structure_bucket_copy = shared_humanize_runtime_text(current_live_structure_bucket)
         support_truth_reason = (
-            f"當前即時結構分桶 `{current_live_structure_bucket_copy}` 的精準支持樣本仍停在 "
-            f"{progress_rows_value}/{progress_minimum_value}（缺 {progress_gap_value}），"
-            f"支持路徑={support_route_copy}，不可把舊範圍的支持閉環誤讀成部署閉環"
-            f"{decision_quality_copy}；目前維持不可部署治理。"
+            (
+                f"當前即時結構分桶 `{current_live_structure_bucket_copy}` 的精準支持樣本為 "
+                f"{progress_rows_value}/{progress_minimum_value}（缺 {progress_gap_value}），"
+                f"支持路徑={support_route_copy}{decision_quality_copy}；owner 已接受統計不確定性，"
+                "此差距只影響 evidence tier / position cap，不撤銷個人策略放行。"
+            )
+            if owner_release_active
+            else (
+                f"當前即時結構分桶 `{current_live_structure_bucket_copy}` 的精準支持樣本仍停在 "
+                f"{progress_rows_value}/{progress_minimum_value}（缺 {progress_gap_value}），"
+                f"支持路徑={support_route_copy}，不可把舊範圍的支持閉環誤讀成部署閉環"
+                f"{decision_quality_copy}；目前維持不可部署治理。"
+            )
         )
-        deployment_blocker_details["reason"] = support_truth_reason
         if progress_rows_value <= 0:
             # Zero exact current-live rows are absent support, not an accumulating
-            # under-minimum bucket.  q15 semantic-rebaseline overlays may report
-            # `insufficient_support_everywhere` instead of the generic
-            # `exact_bucket_unsupported_block`; keep the machine support_mode
-            # canonical so operator surfaces do not imply samples exist.
+            # under-minimum bucket. q15 semantic-rebaseline overlays may report
+            # `insufficient_support_everywhere` instead of the generic route.
             support_blocker_type = "unsupported_exact_live_structure_bucket"
-            deployment_blocker_details["support_mode"] = "exact_bucket_unsupported_block"
+            support_mode = "exact_bucket_unsupported_block"
         else:
             support_blocker_type = "under_minimum_exact_live_structure_bucket"
-            deployment_blocker_details["support_mode"] = "exact_bucket_present_but_below_minimum"
-        deployment_blocker_details["type"] = support_blocker_type
-        deployment_blocker_details.setdefault("source", "q15_support_audit")
-        runtime_result["deployment_blocker"] = support_blocker_type
-        runtime_result["deployment_blocker_reason"] = support_truth_reason
-        runtime_result["deployment_blocker_source"] = deployment_blocker_details.get("source")
-        runtime_result["deployment_blocker_details"] = deployment_blocker_details
-        runtime_result["allowed_layers"] = 0
-        runtime_result["allowed_layers_reason"] = support_blocker_type
-        runtime_result["execution_guardrail_applied"] = True
-        runtime_result["execution_guardrail_reason"] = support_blocker_type
+            support_mode = "exact_bucket_present_but_below_minimum"
+        if owner_release_active:
+            warnings = list(runtime_result.get("statistical_warnings") or [])
+            if support_blocker_type not in warnings:
+                warnings.append(support_blocker_type)
+            deployment_blocker_details["statistical_support_warning"] = {
+                "type": support_blocker_type,
+                "reason": support_truth_reason,
+                "support_mode": support_mode,
+                "current_rows": progress_rows_value,
+                "minimum_support_rows": progress_minimum_value,
+                "gap_to_minimum": progress_gap_value,
+                "blocking": False,
+            }
+            deployment_blocker_details["statistical_gate_blocking"] = False
+            runtime_result["statistical_warnings"] = warnings
+            runtime_result["statistical_gate_blocking"] = False
+            runtime_result["support_evidence_advisory"] = True
+            runtime_result["deployment_blocker_details"] = deployment_blocker_details
+        else:
+            deployment_blocker_details["reason"] = support_truth_reason
+            deployment_blocker_details["type"] = support_blocker_type
+            deployment_blocker_details["support_mode"] = support_mode
+            deployment_blocker_details.setdefault("source", "q15_support_audit")
+            runtime_result["deployment_blocker"] = support_blocker_type
+            runtime_result["deployment_blocker_reason"] = support_truth_reason
+            runtime_result["deployment_blocker_source"] = deployment_blocker_details.get("source")
+            runtime_result["deployment_blocker_details"] = deployment_blocker_details
+            runtime_result["allowed_layers"] = 0
+            runtime_result["allowed_layers_reason"] = support_blocker_type
+            runtime_result["execution_guardrail_applied"] = True
+            runtime_result["execution_guardrail_reason"] = support_blocker_type
     q35_scaling_audit = _load_q35_scaling_audit_summary(current_live_structure_bucket)
     q15_bucket_root_cause = _load_q15_bucket_root_cause_summary(
         str(current_live_structure_bucket) if current_live_structure_bucket is not None else None
@@ -1330,6 +1369,23 @@ def _build_probe_payload(
         "deployment_blocker_reason": runtime_result.get("deployment_blocker_reason"),
         "deployment_blocker_source": runtime_result.get("deployment_blocker_source"),
         "deployment_blocker_details": deployment_blocker_details,
+        "owner_approved": runtime_result.get("owner_approved"),
+        "owner_approval_decision_id": runtime_result.get("owner_approval_decision_id"),
+        "owner_approved_by": runtime_result.get("owner_approved_by"),
+        "strategy_release_ready": runtime_result.get("strategy_release_ready"),
+        "strategy_release_status": runtime_result.get("strategy_release_status"),
+        "statistical_gate_policy": runtime_result.get("statistical_gate_policy"),
+        "statistical_gate_blocking": runtime_result.get("statistical_gate_blocking"),
+        "statistical_warnings": runtime_result.get("statistical_warnings") or [],
+        "technical_execution_blockers": runtime_result.get("technical_execution_blockers") or [],
+        "hard_gate_failures": runtime_result.get("hard_gate_failures") or [],
+        "support_evidence_ratio": runtime_result.get("support_evidence_ratio"),
+        "model_evidence_ratio": runtime_result.get("model_evidence_ratio"),
+        "evidence_score": runtime_result.get("evidence_score"),
+        "evidence_tier": runtime_result.get("evidence_tier"),
+        "recommended_max_layers": runtime_result.get("recommended_max_layers"),
+        "technical_execution_gates_required": runtime_result.get("technical_execution_gates_required"),
+        "runtime_binding_verified": runtime_result.get("runtime_binding_verified"),
         **circuit_breaker_release_surface,
         "support_route_verdict": support_route.get("verdict"),
         "support_route_deployable": support_route.get("deployable"),

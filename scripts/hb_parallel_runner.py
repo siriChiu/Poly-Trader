@@ -5171,7 +5171,47 @@ def overwrite_current_state_docs(
             f"1. **support truth ≠ deployment closure**：`support={support_current_rows}/{support_minimum_rows}` 且 "
             f"`support_route_verdict={support_route_verdict}` 只代表 same-bucket support 狀態，真正 deployment blocker 仍由 latest runtime truth 決定。"
         )
-    if breaker_is_primary:
+    owner_release_active = bool(
+        live_predictor_diagnostics.get("owner_approved")
+        and live_predictor_diagnostics.get("strategy_release_ready")
+    )
+    owner_release_status = str(
+        live_predictor_diagnostics.get("strategy_release_status") or "owner_approved_personal_use"
+    )
+    owner_evidence_tier = str(live_predictor_diagnostics.get("evidence_tier") or "caution")
+    owner_max_layers = live_predictor_diagnostics.get("recommended_max_layers")
+    owner_binding_verified = bool(live_predictor_diagnostics.get("runtime_binding_verified"))
+    if owner_release_active:
+        facts_blocker_heading = "- **owner-approved 個人策略放行已生效；統計 support 與 execution safety 已分離**"
+        current_priority_line1 = (
+            "1. **維持 `owner_approved_personal_use` 放行，集中完成同一 fitted model / feature schema / checksum 綁定與技術安全 gate**"
+        )
+        goal_a_title = "### 目標 A：完成 owner-approved 策略的 exact runtime binding 與 bounded execution proof"
+        goal_a_success = (
+            f"- `/`、`/execution`、`/execution/status`、`/lab`、probe、drilldown、docs 一致顯示 `strategy_release_status={owner_release_status}`；"
+            f"`support={support_current_rows}/{support_minimum_rows}` 僅影響 `evidence_tier={owner_evidence_tier}` 與最多 `{owner_max_layers if owner_max_layers is not None else 1}` 層，不再作二元 release blocker；"
+            f"runtime 必須證明 exact model / schema / checksum binding（目前 `runtime_binding_verified={str(owner_binding_verified).lower()}`），並保留 permit、bounded canary、stale quote、防重複下單、曝險上限與 kill switch。"
+        )
+        next_gate_line1 = "1. **把 owner-approved strategy 綁定到同一 fitted artifact；support 維持 advisory、技術安全維持 fail-closed**"
+        next_gate_line1_blocker = (
+            "   - 升級 blocker：若個人策略放行被樣本數默默撤銷、UI 又回到被動補 50 筆，或 exact model binding / permit / canary / stale quote / duplicate-order / exposure / kill-switch 任一硬 gate 被繞過"
+        )
+        success_primary_line = (
+            f"- 策略放行狀態清楚且持久：**{owner_release_status}**；當前技術 execution blocker：**{deployment_blocker or 'none'}**"
+        )
+        orid_reflection_line = (
+            f"- 這輪最需要防止的誤讀，是把 `{support_current_rows}/{support_minimum_rows}` 再寫成永久等待條件；owner 已接受統計不確定性，真正待辦是 exact runtime binding 與不可繞過的 execution safety。"
+        )
+        orid_insight2 = (
+            f"2. **統計不確定性改以部位分級承接**：`evidence_tier={owner_evidence_tier}` / `recommended_max_layers={owner_max_layers if owner_max_layers is not None else 1}`；策略 release 不因 sliding-window support 波動而撤銷。"
+        )
+        orid_action_line = (
+            "- **Action**：保持 owner-approved 個人放行，下一步只做 exact fitted artifact binding、paper/shadow proof 與 bounded canary 技術驗證；不再以固定 support 筆數作被動等待主線。"
+        )
+        orid_fail_line = (
+            "- **If fail**：若 owner release 被統計 gate 覆蓋，或任何 live execution 硬 gate 被 override，立即 fail-closed 並升級為 current-state governance blocker。"
+        )
+    elif breaker_is_primary:
         facts_blocker_heading = "- **canonical 即時部署阻塞仍是熔斷優先真相**"
         current_priority_line1 = f"1. **維持熔斷優先真相，同時保留 {support_scope_label} support rows 可 machine-read**"
         goal_a_title = "### 目標 A：維持熔斷解除條件作為唯一即時部署阻塞點"
@@ -7848,6 +7888,17 @@ def collect_live_predictor_diagnostics(probe_result: Dict[str, Any] | None = Non
         "q15_exact_supported_component_patch_applied": payload.get("q15_exact_supported_component_patch_applied"),
         "runtime_closure_state": payload.get("runtime_closure_state"),
         "runtime_closure_summary": payload.get("runtime_closure_summary"),
+        "owner_approved": payload.get("owner_approved"),
+        "owner_approval_decision_id": payload.get("owner_approval_decision_id"),
+        "strategy_release_ready": payload.get("strategy_release_ready"),
+        "strategy_release_status": payload.get("strategy_release_status"),
+        "statistical_gate_policy": payload.get("statistical_gate_policy"),
+        "statistical_gate_blocking": payload.get("statistical_gate_blocking"),
+        "statistical_warnings": payload.get("statistical_warnings") or [],
+        "technical_execution_blockers": payload.get("technical_execution_blockers") or [],
+        "evidence_tier": payload.get("evidence_tier"),
+        "recommended_max_layers": payload.get("recommended_max_layers"),
+        "runtime_binding_verified": payload.get("runtime_binding_verified"),
         "entry_quality_label": payload.get("entry_quality_label"),
         "entry_quality_components": payload.get("entry_quality_components") or {},
         "allowed_layers_raw": payload.get("allowed_layers_raw"),
