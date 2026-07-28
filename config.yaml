@@ -25,6 +25,33 @@ trading:
   dry_run: true
   venue: "okx"
 
+# Personal project release policy. Statistical sample/support thresholds remain
+# visible for audit and uncertainty sizing, but they no longer veto the owner's
+# approved strategy. Live adapters still require exact model binding plus every
+# technical execution gate (breaker, venue, permit, kill switch, canary caps).
+strategy_release:
+  mode: "owner_approved_personal_use"
+  owner_approval:
+    enabled: true
+    decision_id: "poly-trader-personal-release-2026-07-19"
+    approved_by: "Kazuha"
+    selector:
+      model: "logistic_regression"
+      feature_profile: "current_full"
+      regime: "all"
+      top_k: "top_1pct"
+    statistical_gate_policy: "advisory_with_uncertainty_sizing"
+    minimum_full_evidence_trades: 50
+    max_layers_until_full_evidence: 1
+    runtime_binding:
+      # Fail-actionable instead of fail-waiting: strategy release is active now,
+      # but runtime must bind the same fitted logistic model/schema/checksum.
+      verified: false
+      model: "logistic_regression"
+      feature_profile: "current_full"
+      artifact_path: null
+      artifact_sha256: null
+
 live_runner:
   strategy_name: "Auto Leaderboard · 重掃 random_forest Hybrid #01"
   interval_seconds: 300

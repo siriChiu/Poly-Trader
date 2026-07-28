@@ -14,6 +14,7 @@ import numpy as np
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database.models import FeaturesNormalized, Labels
+from model.personal_release import apply_runtime_release_policy, resolve_personal_release_policy
 from model.q35_bias50_calibration import compute_piecewise_bias50_score
 from utils.logger import setup_logger
 
@@ -1970,6 +1971,28 @@ def _apply_deployment_blocker_to_execution_profile(
     guarded["execution_guardrail_reason"] = final_reason
     guarded["allowed_layers_reason"] = final_reason or raw_reason
     return guarded
+
+
+def _apply_configured_personal_release(
+    execution_profile: Dict[str, Any],
+    deployment_blocker: Optional[Dict[str, Any]],
+    *,
+    runtime_identity: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Overlay owner release without weakening technical execution safety."""
+    try:
+        from config import load_config
+
+        policy = resolve_personal_release_policy(load_config())
+    except Exception as exc:
+        logger.warning("Personal release policy load failed; strict gates remain active: %s", exc)
+        return execution_profile
+    return apply_runtime_release_policy(
+        execution_profile,
+        deployment_blocker,
+        policy=policy,
+        runtime_identity=runtime_identity or {},
+    )
 
 
 def _load_dynamic_window_guardrail() -> Dict[str, Any]:
@@ -4708,10 +4731,16 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
 
     if cb is not None:
         logger.warning(f"CIRCUIT BREAKER TRIGGERED: {cb['reason']}")
+        circuit_blocker = _circuit_breaker_deployment_blocker(cb)
         execution_profile = _apply_live_execution_guardrails(decision_profile, decision_quality_contract)
         execution_profile = _apply_deployment_blocker_to_execution_profile(
             execution_profile,
-            _circuit_breaker_deployment_blocker(cb),
+            circuit_blocker,
+        )
+        execution_profile = _apply_configured_personal_release(
+            execution_profile,
+            circuit_blocker,
+            runtime_identity={"model": "circuit_breaker", "feature_profile": "current_full"},
         )
         return {
             "timestamp": cb.get("timestamp") or datetime.utcnow().isoformat() + "Z",
@@ -4758,6 +4787,11 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
             regime_predictor = XGBoostPredictor(regime_models[regime])
             reg_conf = regime_predictor.predict_proba(features)
             if regime == "chop" and abs(reg_conf - chop_abort) < 0.05:
+                chop_execution_profile = _apply_configured_personal_release(
+                    execution_profile,
+                    deployment_blocker,
+                    runtime_identity={"model": "regime_chop_abstain", "feature_profile": "current_full"},
+                )
                 return {
                     "timestamp": datetime.utcnow().isoformat() + "Z",
                     "features": features,
@@ -4769,7 +4803,7 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
                     "used_model": "regime_chop_abstain",
                     "model_route_regime": regime,
                     "target_col": getattr(getattr(predictor, '_global', predictor), '_target_col', DEFAULT_TARGET_COL),
-                    **execution_profile,
+                    **chop_execution_profile,
                     **decision_quality_contract,
                 }
             # Ensemble: weight regime model 60%, global 40%
@@ -4797,6 +4831,12 @@ def predict(session: Session, predictor=None, regime_models=None) -> Optional[Di
         signal = "HOLD"
         confidence_level = "MEDIUM"
 
+    runtime_model_identity = used_model if used_model != "global" else type(predictor).__name__
+    execution_profile = _apply_configured_personal_release(
+        execution_profile,
+        deployment_blocker,
+        runtime_identity={"model": runtime_model_identity, "feature_profile": "current_full"},
+    )
     support_route = _summarize_structure_bucket_support_route(decision_quality_contract)
     result = {
         "timestamp": datetime.utcnow().isoformat() + "Z",

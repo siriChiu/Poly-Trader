@@ -3510,9 +3510,13 @@ def test_predict_applies_execution_guardrail_to_live_result(monkeypatch):
 
     assert result["signal"] == "BUY"
     assert result["allowed_layers_raw"] == 2
-    assert result["allowed_layers"] == 1
+    assert result["allowed_layers"] == 0
     assert result["execution_guardrail_applied"] is True
-    assert result["should_trade"] is True
+    assert result["should_trade"] is False
+    assert result["strategy_release_status"] == "owner_approved_personal_use"
+    assert result["deployment_blocker"] == "owner_approved_strategy_binding_required"
+    assert result["statistical_gate_blocking"] is False
+    assert result["technical_execution_gates_required"] is True
 
 
 

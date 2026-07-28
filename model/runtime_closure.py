@@ -47,6 +47,14 @@ def build_runtime_closure_state(result: Mapping[str, Any] | None) -> str:
         return "circuit_breaker_active"
     if blocker.startswith("exact_live_lane_toxic_"):
         return "deployment_guardrail_blocks_trade"
+    if result.get("strategy_release_status") == "owner_approved_personal_use":
+        if blocker == "owner_approved_strategy_binding_required":
+            return "owner_approved_execution_binding_blocked"
+        if blocker:
+            return "owner_approved_technical_execution_blocked"
+        if _int_or_zero(result.get("allowed_layers")) > 0:
+            return "owner_approved_capacity_opened"
+        return "owner_approved_current_signal_hold"
     if blocker == "decision_quality_below_trade_floor" and support_route_verdict == "exact_bucket_supported" and not patch_name:
         return "support_closed_but_trade_floor_blocked"
     if patch_name and result.get("signal") == "HOLD" and (_int_or_zero(result.get("allowed_layers")) > 0):
@@ -113,6 +121,27 @@ def build_runtime_closure_summary(
             "目前保持僅觀察，不可把支持樣本閉環誤讀成部署閉環。"
         )
         return _append_scope_summary(summary, scope_pathology_summary)
+
+    if result.get("strategy_release_status") == "owner_approved_personal_use":
+        support_text = _format_support_rows(current_rows, minimum_rows)
+        max_layers = max(_int_or_zero(result.get("recommended_max_layers")), 1)
+        if blocker == "owner_approved_strategy_binding_required":
+            return (
+                f"策略已由擁有者放行供個人使用；統計樣本 {support_text} 已改為風險警示，不再作為被動等待條件。"
+                f"目前唯一可執行的技術阻塞是：{_humanize_runtime_text(blocker_reason or blocker)}"
+            )
+        if blocker:
+            return (
+                f"策略已由擁有者放行供個人使用；統計樣本 {support_text} 僅作風險警示。"
+                f"目前仍由技術安全條件 {_humanize_runtime_text(blocker)} 阻止執行："
+                f"{_humanize_runtime_text(blocker_reason or '需完成技術執行保護欄')}。"
+            )
+        layer_text = "第一層" if max_layers == 1 else f"最多 {max_layers} 層"
+        return (
+            f"策略已由擁有者放行供個人使用；統計樣本 {support_text} 僅作風險警示，"
+            f"不確定性部位政策目前限制為{layer_text}。"
+            "實際 live 送單仍必須通過熔斷、同模型綁定、場館、permit 與 bounded canary 技術保護。"
+        )
 
     if blocker == "decision_quality_below_trade_floor" and support_route_verdict == "exact_bucket_supported" and not patch_name:
         trade_floor = _trade_floor(result)
