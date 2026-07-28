@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T10:52:39.406369Z",
+  "generated_at": "2026-07-28T14:46:31.353689Z",
   "artifact": "venue_dry_run_proof",
   "status": "blocked_missing_runtime_backed_proof",
   "symbol": "BTC/USDT",
@@ -7,7 +7,7 @@
     "execution_metadata_smoke": {
       "path": "data/execution_metadata_smoke.json",
       "exists": true,
-      "generated_at": "2026-06-05T10:24:37.620616Z"
+      "generated_at": "2026-07-28T14:46:30.738494Z"
     }
   },
   "live_exposure_allowed": false,
@@ -349,6 +349,66 @@
       "open order poll",
       "trade history poll",
       "local ledger match"
+    ]
+  },
+  "local_lifecycle_rehearsal": {
+    "status": "passed_local_state_machine_runtime_unverified",
+    "scope": "local_contract_rehearsal_not_exchange_proof",
+    "venue": "okx",
+    "runtime_backed": false,
+    "dry_run_only": true,
+    "order_submission_enabled": false,
+    "risk_on_order_enabled": false,
+    "live_order_submitted": false,
+    "events": [
+      {
+        "sequence": 1,
+        "event_type": "order_previewed",
+        "state": "previewed"
+      },
+      {
+        "sequence": 2,
+        "event_type": "ack_recorded",
+        "state": "open"
+      },
+      {
+        "sequence": 3,
+        "event_type": "partial_fill_recorded",
+        "state": "partially_filled",
+        "requested_units": 100000,
+        "filled_units": 25000,
+        "remaining_units": 75000
+      },
+      {
+        "sequence": 4,
+        "event_type": "cancel_recorded",
+        "state": "canceled"
+      },
+      {
+        "sequence": 5,
+        "event_type": "ledger_reconciled",
+        "state": "reconciled",
+        "filled_units": 25000,
+        "canceled_units": 75000
+      }
+    ],
+    "checks": {
+      "transition_order_valid": true,
+      "filled_qty_lte_requested_qty": true,
+      "remaining_qty_matches": true,
+      "terminal_state_canceled": true,
+      "ledger_match": true,
+      "live_adapter_called": false
+    },
+    "metadata_contract": {
+      "symbol": "BTC/USDT",
+      "preview_qty": 1e-05
+    },
+    "limitations": [
+      "local deterministic rehearsal only",
+      "no exchange adapter was called",
+      "no exchange acknowledgement, fill, cancel, or reconciliation was observed",
+      "runtime venue lifecycle remains unverified"
     ]
   },
   "customer_usable_now": [

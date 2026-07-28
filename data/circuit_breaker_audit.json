@@ -1,49 +1,53 @@
 {
-  "generated_at": "2026-07-09T10:09:00.639599Z",
-  "heartbeat": "adhoc",
+  "generated_at": "2026-07-28T14:46:05.991553Z",
+  "heartbeat": "58",
   "target_col": "simulated_pyramid_win",
   "canonical_horizon_minutes": 1440,
-  "verdict": "breaker_clear",
-  "summary": "1440m canonical live horizon 未觸發 breaker。",
-  "recommended_patch": "維持 horizon-aligned breaker，繼續追 live q15/q35 / support route。",
+  "verdict": "canonical_breaker_active",
+  "summary": "1440m canonical live horizon 仍觸發 breaker：['recent_win_rate']。",
+  "recommended_patch": "維持 breaker，改做 canonical tail root-cause / release-condition artifact。",
   "release_condition": {
-    "release_ready": true,
-    "blocked_by": [],
+    "release_ready": false,
+    "blocked_by": [
+      "recent_win_rate"
+    ],
     "streak_release_ready": true,
-    "recent_win_rate_release_ready": true,
+    "recent_win_rate_release_ready": false,
     "streak_must_be_below": 50,
-    "current_streak": 0,
+    "current_streak": 35,
     "recent_window": 50,
     "recent_win_rate_floor": 0.3,
-    "current_recent_window_win_rate": 0.3,
-    "current_recent_window_wins": 15,
+    "current_recent_window_win_rate": 0.26,
+    "current_recent_window_wins": 13,
     "required_recent_window_wins": 15,
-    "additional_recent_window_wins_needed": 0
+    "additional_recent_window_wins_needed": 2
   },
   "tail_pathology": {
-    "losses_in_recent_window": 35,
-    "wins_in_recent_window": 15,
-    "loss_share": 0.7,
-    "window_start_timestamp": "2026-07-06 10:00:00.000000",
-    "window_end_timestamp": "2026-07-08 11:00:00.000000"
+    "losses_in_recent_window": 37,
+    "wins_in_recent_window": 13,
+    "loss_share": 0.74,
+    "window_start_timestamp": "2026-07-26 13:31:32.013272",
+    "window_end_timestamp": "2026-07-27 15:12:07.304716"
   },
   "canonical_scope": {
     "scope": "horizon_1440",
-    "rows_available": 26009,
-    "triggered": false,
-    "triggered_by": [],
-    "release_ready": true,
-    "current_streak": 0,
+    "rows_available": 29211,
+    "triggered": true,
+    "triggered_by": [
+      "recent_win_rate"
+    ],
+    "release_ready": false,
+    "current_streak": 35,
     "streak_must_be_below": 50,
     "recent_window": 50,
     "recent_win_rate_floor": 0.3,
-    "current_recent_window_win_rate": 0.3,
-    "current_recent_window_wins": 15,
+    "current_recent_window_win_rate": 0.26,
+    "current_recent_window_wins": 13,
     "required_recent_window_wins": 15,
-    "additional_recent_window_wins_needed": 0,
-    "losses_in_recent_window": 35,
-    "loss_share": 0.7,
-    "latest_timestamp": "2026-07-08 11:00:00.000000",
+    "additional_recent_window_wins_needed": 2,
+    "losses_in_recent_window": 37,
+    "loss_share": 0.74,
+    "latest_timestamp": "2026-07-27 15:12:07.304716",
     "oldest_timestamp": "2024-04-14 07:00:00.000000"
   },
   "trigger_thresholds": {
@@ -54,415 +58,535 @@
   },
   "mixed_scope": {
     "scope": "mixed_all_horizons",
-    "rows_available": 51700,
-    "triggered": false,
-    "triggered_by": [],
-    "release_ready": true,
+    "rows_available": 58418,
+    "triggered": true,
+    "triggered_by": [
+      "recent_win_rate"
+    ],
+    "release_ready": false,
     "release_condition": {
-      "release_ready": true,
-      "blocked_by": [],
+      "release_ready": false,
+      "blocked_by": [
+        "recent_win_rate"
+      ],
       "streak_release_ready": true,
-      "recent_win_rate_release_ready": true,
+      "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 0,
+      "current_streak": 6,
       "recent_window": 50,
       "recent_win_rate_floor": 0.3,
-      "current_recent_window_win_rate": 0.3,
-      "current_recent_window_wins": 15,
+      "current_recent_window_win_rate": 0.28,
+      "current_recent_window_wins": 14,
       "required_recent_window_wins": 15,
-      "additional_recent_window_wins_needed": 0
+      "additional_recent_window_wins_needed": 1
     },
     "tail_pathology": {
-      "losses_in_recent_window": 35,
-      "wins_in_recent_window": 15,
-      "loss_share": 0.7,
-      "window_start_timestamp": "2026-07-06 10:00:00.000000",
-      "window_end_timestamp": "2026-07-08 11:00:00.000000",
+      "losses_in_recent_window": 36,
+      "wins_in_recent_window": 14,
+      "loss_share": 0.72,
+      "window_start_timestamp": "2026-07-27 13:00:59.673887",
+      "window_end_timestamp": "2026-07-28 11:29:42.581059",
       "latest_rows_preview": [
         {
-          "timestamp": "2026-07-08 11:00:00.000000",
-          "horizon_minutes": 1440,
+          "timestamp": "2026-07-28 11:29:42.581059",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 10:58:05.038139",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 10:26:10.083166",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 09:53:56.479661",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 09:22:49.770096",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 08:50:35.988707",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 08:18:23.838773",
+          "horizon_minutes": 240,
           "target": 1
         },
         {
-          "timestamp": "2026-07-08 10:00:00.000000",
-          "horizon_minutes": 1440,
+          "timestamp": "2026-07-28 07:46:07.039365",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 07:15:00.254598",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 06:42:47.151580",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 06:11:37.935190",
+          "horizon_minutes": 240,
           "target": 1
         },
         {
-          "timestamp": "2026-07-08 09:00:00.000000",
-          "horizon_minutes": 1440,
+          "timestamp": "2026-07-28 05:39:24.183540",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 05:08:17.472932",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 04:36:03.458876",
+          "horizon_minutes": 240,
           "target": 1
         },
         {
-          "timestamp": "2026-07-08 08:00:00.000000",
-          "horizon_minutes": 1440,
+          "timestamp": "2026-07-28 04:04:55.267052",
+          "horizon_minutes": 240,
           "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 07:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 06:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 05:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-08 04:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-08 03:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-08 02:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-08 01:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-08 00:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-07 23:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-07 22:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-07 21:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
         }
       ]
     },
     "streak": {
-      "count": 0,
-      "start_timestamp": null,
-      "end_timestamp": null,
-      "horizons": {},
-      "rows": [],
+      "count": 6,
+      "start_timestamp": "2026-07-28 08:50:35.988707",
+      "end_timestamp": "2026-07-28 11:29:42.581059",
+      "horizons": {
+        "240": 6
+      },
+      "rows": [
+        {
+          "timestamp": "2026-07-28 11:29:42.581059",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 10:58:05.038139",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 10:26:10.083166",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 09:53:56.479661",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 09:22:49.770096",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 08:50:35.988707",
+          "horizon_minutes": 240,
+          "target": 0
+        }
+      ],
       "threshold": 50,
       "breaches_threshold": false
     },
     "recent_window": {
       "window_size": 50,
-      "wins": 15,
-      "losses": 35,
-      "win_rate": 0.3,
+      "wins": 14,
+      "losses": 36,
+      "win_rate": 0.28,
       "trigger_floor": 0.3,
-      "breaches_floor": false,
+      "breaches_floor": true,
       "horizons": {
-        "1440": 50
+        "240": 44,
+        "1440": 6
       },
       "rows": [
         {
-          "timestamp": "2026-07-08 11:00:00.000000",
-          "horizon_minutes": 1440,
+          "timestamp": "2026-07-28 11:29:42.581059",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 10:58:05.038139",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 10:26:10.083166",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 09:53:56.479661",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 09:22:49.770096",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 08:50:35.988707",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 08:18:23.838773",
+          "horizon_minutes": 240,
           "target": 1
         },
         {
-          "timestamp": "2026-07-08 10:00:00.000000",
-          "horizon_minutes": 1440,
+          "timestamp": "2026-07-28 07:46:07.039365",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 07:15:00.254598",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 06:42:47.151580",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 06:11:37.935190",
+          "horizon_minutes": 240,
           "target": 1
         },
         {
-          "timestamp": "2026-07-08 09:00:00.000000",
-          "horizon_minutes": 1440,
+          "timestamp": "2026-07-28 05:39:24.183540",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 05:08:17.472932",
+          "horizon_minutes": 240,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-28 04:36:03.458876",
+          "horizon_minutes": 240,
           "target": 1
         },
         {
-          "timestamp": "2026-07-08 08:00:00.000000",
-          "horizon_minutes": 1440,
+          "timestamp": "2026-07-28 04:04:55.267052",
+          "horizon_minutes": 240,
           "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 07:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 06:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 05:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-08 04:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-08 03:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-08 02:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-08 01:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-08 00:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-07 23:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-07 22:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
-        },
-        {
-          "timestamp": "2026-07-07 21:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 0
         }
       ]
     },
-    "latest_timestamp": "2026-07-08 11:00:00.000000",
+    "latest_timestamp": "2026-07-28 11:29:42.581059",
     "oldest_timestamp": "2024-04-14 07:00:00.000000"
   },
   "aligned_scope": {
     "scope": "horizon_1440",
-    "rows_available": 26009,
-    "triggered": false,
-    "triggered_by": [],
-    "release_ready": true,
+    "rows_available": 29211,
+    "triggered": true,
+    "triggered_by": [
+      "recent_win_rate"
+    ],
+    "release_ready": false,
     "release_condition": {
-      "release_ready": true,
-      "blocked_by": [],
+      "release_ready": false,
+      "blocked_by": [
+        "recent_win_rate"
+      ],
       "streak_release_ready": true,
-      "recent_win_rate_release_ready": true,
+      "recent_win_rate_release_ready": false,
       "streak_must_be_below": 50,
-      "current_streak": 0,
+      "current_streak": 35,
       "recent_window": 50,
       "recent_win_rate_floor": 0.3,
-      "current_recent_window_win_rate": 0.3,
-      "current_recent_window_wins": 15,
+      "current_recent_window_win_rate": 0.26,
+      "current_recent_window_wins": 13,
       "required_recent_window_wins": 15,
-      "additional_recent_window_wins_needed": 0
+      "additional_recent_window_wins_needed": 2
     },
     "tail_pathology": {
-      "losses_in_recent_window": 35,
-      "wins_in_recent_window": 15,
-      "loss_share": 0.7,
-      "window_start_timestamp": "2026-07-06 10:00:00.000000",
-      "window_end_timestamp": "2026-07-08 11:00:00.000000",
+      "losses_in_recent_window": 37,
+      "wins_in_recent_window": 13,
+      "loss_share": 0.74,
+      "window_start_timestamp": "2026-07-26 13:31:32.013272",
+      "window_end_timestamp": "2026-07-27 15:12:07.304716",
       "latest_rows_preview": [
         {
-          "timestamp": "2026-07-08 11:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 10:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 09:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 08:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 07:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 06:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 05:00:00.000000",
+          "timestamp": "2026-07-27 15:12:07.304716",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-08 04:00:00.000000",
+          "timestamp": "2026-07-27 14:39:53.610364",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-08 03:00:00.000000",
+          "timestamp": "2026-07-27 14:08:34.043130",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-08 02:00:00.000000",
+          "timestamp": "2026-07-27 13:51:48.867740",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-08 01:00:00.000000",
+          "timestamp": "2026-07-27 13:32:06.230161",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-08 00:00:00.000000",
+          "timestamp": "2026-07-27 13:00:59.673887",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-07 23:00:00.000000",
+          "timestamp": "2026-07-27 12:28:45.794447",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-07 22:00:00.000000",
+          "timestamp": "2026-07-27 11:57:38.975970",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-07 21:00:00.000000",
+          "timestamp": "2026-07-27 11:25:25.191573",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 10:54:18.650175",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 10:22:04.784557",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 09:49:50.839957",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 09:17:37.036418",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 08:45:23.388262",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 08:13:09.556397",
           "horizon_minutes": 1440,
           "target": 0
         }
       ]
     },
     "streak": {
-      "count": 0,
-      "start_timestamp": null,
-      "end_timestamp": null,
-      "horizons": {},
-      "rows": [],
+      "count": 35,
+      "start_timestamp": "2026-07-26 21:26:22.441129",
+      "end_timestamp": "2026-07-27 15:12:07.304716",
+      "horizons": {
+        "1440": 35
+      },
+      "rows": [
+        {
+          "timestamp": "2026-07-27 15:12:07.304716",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 14:39:53.610364",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 14:08:34.043130",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 13:51:48.867740",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 13:32:06.230161",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 13:00:59.673887",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 12:28:45.794447",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 11:57:38.975970",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 11:25:25.191573",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 10:54:18.650175",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 10:22:04.784557",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 09:49:50.839957",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 09:17:37.036418",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 08:45:23.388262",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 08:13:09.556397",
+          "horizon_minutes": 1440,
+          "target": 0
+        }
+      ],
       "threshold": 50,
       "breaches_threshold": false
     },
     "recent_window": {
       "window_size": 50,
-      "wins": 15,
-      "losses": 35,
-      "win_rate": 0.3,
+      "wins": 13,
+      "losses": 37,
+      "win_rate": 0.26,
       "trigger_floor": 0.3,
-      "breaches_floor": false,
+      "breaches_floor": true,
       "horizons": {
         "1440": 50
       },
       "rows": [
         {
-          "timestamp": "2026-07-08 11:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 10:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 09:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 08:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 07:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 06:00:00.000000",
-          "horizon_minutes": 1440,
-          "target": 1
-        },
-        {
-          "timestamp": "2026-07-08 05:00:00.000000",
+          "timestamp": "2026-07-27 15:12:07.304716",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-08 04:00:00.000000",
+          "timestamp": "2026-07-27 14:39:53.610364",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-08 03:00:00.000000",
+          "timestamp": "2026-07-27 14:08:34.043130",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-08 02:00:00.000000",
+          "timestamp": "2026-07-27 13:51:48.867740",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-08 01:00:00.000000",
+          "timestamp": "2026-07-27 13:32:06.230161",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-08 00:00:00.000000",
+          "timestamp": "2026-07-27 13:00:59.673887",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-07 23:00:00.000000",
+          "timestamp": "2026-07-27 12:28:45.794447",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-07 22:00:00.000000",
+          "timestamp": "2026-07-27 11:57:38.975970",
           "horizon_minutes": 1440,
           "target": 0
         },
         {
-          "timestamp": "2026-07-07 21:00:00.000000",
+          "timestamp": "2026-07-27 11:25:25.191573",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 10:54:18.650175",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 10:22:04.784557",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 09:49:50.839957",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 09:17:37.036418",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 08:45:23.388262",
+          "horizon_minutes": 1440,
+          "target": 0
+        },
+        {
+          "timestamp": "2026-07-27 08:13:09.556397",
           "horizon_minutes": 1440,
           "target": 0
         }
       ]
     },
-    "latest_timestamp": "2026-07-08 11:00:00.000000",
+    "latest_timestamp": "2026-07-27 15:12:07.304716",
     "oldest_timestamp": "2024-04-14 07:00:00.000000"
   },
   "root_cause": {
-    "verdict": "breaker_clear",
-    "summary": "1440m canonical live horizon 未觸發 breaker。",
-    "recommended_patch": "維持 horizon-aligned breaker，繼續追 live q15/q35 / support route。"
+    "verdict": "canonical_breaker_active",
+    "summary": "1440m canonical live horizon 仍觸發 breaker：['recent_win_rate']。",
+    "recommended_patch": "維持 breaker，改做 canonical tail root-cause / release-condition artifact。"
   }
 }

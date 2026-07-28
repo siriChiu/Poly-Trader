@@ -1,6 +1,6 @@
 # Venue dry-run proof
 
-- generated_at: `2026-06-05T10:52:39.406369Z`
+- generated_at: `2026-07-28T14:46:31.353689Z`
 - status: `blocked_missing_runtime_backed_proof`
 - symbol: `BTC/USDT`
 - live_exposure_allowed: `False`
@@ -31,3 +31,11 @@
 - cancel: `blocked_missing_credentials` / runtime_backed=`False`
 - fill: `blocked_missing_credentials` / runtime_backed=`False`
 - reconciliation: `blocked_missing_credentials` / runtime_backed=`False`
+
+## Local contract rehearsal (not exchange proof)
+- local lifecycle rehearsal: `passed_local_state_machine_runtime_unverified`
+- scope: `local_contract_rehearsal_not_exchange_proof`
+- venue: `okx`
+- runtime_backed: `False`
+- live_adapter_called: `False`
+- interpretation: local state-machine/ledger proof only; exchange ack/fill/cancel/reconciliation remain unverified.

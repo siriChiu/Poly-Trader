@@ -1,96 +1,96 @@
 {
-  "generated_at": "2026-07-10T10:37:48.625577Z",
-  "feature_timestamp": "2026-07-10 10:30:23.755547",
+  "generated_at": "2026-07-28T14:46:25.358600Z",
+  "feature_timestamp": "2026-07-28 14:33:27.381993",
   "target_col": "simulated_pyramid_win",
   "support_identity": {
     "target_col": "simulated_pyramid_win",
     "horizon_minutes": 1440,
-    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
-    "regime_label": "bull",
-    "regime_gate": "CAUTION",
-    "entry_quality_label": "D",
+    "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+    "regime_label": "bear",
+    "regime_gate": "BLOCK",
+    "entry_quality_label": "C",
     "calibration_window": 200,
     "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
   },
   "artifact_context_freshness": {
     "verdict": "current_context",
     "mismatched_fields": [],
-    "latest_live_probe_feature_timestamp": "2026-07-10 10:30:23.755547",
-    "drilldown_generated_at": "2026-07-10T10:37:48.620087Z",
-    "drilldown_feature_timestamp": "2026-07-10 10:30:23.755547",
-    "artifact_feature_timestamp": "2026-07-10 10:30:23.755547",
-    "probe_current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
-    "artifact_current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+    "latest_live_probe_feature_timestamp": "2026-07-28 14:33:27.381993",
+    "drilldown_generated_at": "2026-07-28T14:46:12.733253Z",
+    "drilldown_feature_timestamp": "2026-07-28 14:33:27.381993",
+    "artifact_feature_timestamp": "2026-07-28 14:33:27.381993",
+    "probe_current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+    "artifact_current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
     "support_identity": {
       "target_col": "simulated_pyramid_win",
       "horizon_minutes": 1440,
-      "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
-      "regime_label": "bull",
-      "regime_gate": "CAUTION",
-      "entry_quality_label": "D",
+      "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+      "regime_label": "bear",
+      "regime_gate": "BLOCK",
+      "entry_quality_label": "C",
       "calibration_window": 200,
       "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
     }
   },
   "current_live": {
-    "feature_timestamp": "2026-07-10 10:30:23.755547",
-    "signal": "HOLD",
-    "regime_label": "bull",
-    "regime_gate": "CAUTION",
-    "entry_quality": 0.3804,
-    "entry_quality_label": "D",
+    "feature_timestamp": "2026-07-28 14:33:27.381993",
+    "signal": "CIRCUIT_BREAKER",
+    "regime_label": "bear",
+    "regime_gate": "BLOCK",
+    "entry_quality": 0.655,
+    "entry_quality_label": "C",
     "decision_quality_label": "D",
     "decision_quality_horizon_minutes": 1440,
-    "decision_quality_calibration_scope": "regime_label+entry_quality_label",
+    "decision_quality_calibration_scope": "global",
     "decision_quality_calibration_window": 200,
     "allowed_layers": 0,
-    "allowed_layers_reason": "unsupported_exact_live_structure_bucket",
-    "execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
-    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
+    "allowed_layers_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+    "execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+    "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
     "current_live_structure_bucket_rows": 0,
     "raw_features": {
-      "feat_4h_bias50": 2.6486,
-      "feat_nose": 0.9456,
-      "feat_pulse": 0.6538,
-      "feat_ear": 0.0348
+      "feat_4h_bias50": -2.8042,
+      "feat_nose": 0.291,
+      "feat_pulse": 0.7171,
+      "feat_ear": -0.0013
     }
   },
   "scope_applicability": {
     "status": "current_live_not_q15_lane",
     "active_for_current_live_row": false,
-    "current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+    "current_structure_bucket": "BLOCK|structure_quality_block|q00",
     "target_structure_bucket": "CAUTION|structure_quality_caution|q15",
     "reason": "current live row 已不在 q15 lane；q15 support audit 只能描述 standby q15 route readiness，不可當成 current-live deployment closure。"
   },
   "equilibrium_deadlock": {
-    "verdict": "not_applicable_current_live_not_target_lane",
-    "state": "standby",
+    "verdict": "equilibrium_deadlock_watch",
+    "state": "watch",
     "confirmed": false,
-    "severity": "none",
+    "severity": "P1",
     "failure_mode": "closed_loop_support_identity_starvation_under_static_gate",
-    "decision": "current live row 不在 q15/current target lane；此 audit 只保留 reference/standby，不把 target-lane support stagnation 誤判為 current-live deadlock。",
+    "decision": "尚未達 confirmed 閾值，但 under-minimum support 已出現零位移或停滯訊號；下一輪需證明 rows 有位移或升級為 forced branch。",
     "deadlock_signature": {
-      "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
-      "support_progress_status": "no_recent_comparable_history",
+      "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+      "support_progress_status": "stalled_under_minimum",
       "support_route_verdict": "insufficient_support_everywhere",
-      "support_governance_route": "exact_live_bucket_supported",
+      "support_governance_route": "exact_live_lane_proxy_available",
       "current_rows": 0,
       "minimum_support_rows": 50,
       "gap_to_minimum": 50,
-      "delta_vs_previous": null,
-      "stagnant_run_count": 0,
-      "semantic_signature_delta_vs_previous": null,
-      "semantic_signature_stagnant_run_count": 0
+      "delta_vs_previous": 0,
+      "stagnant_run_count": 2,
+      "semantic_signature_delta_vs_previous": 0,
+      "semantic_signature_stagnant_run_count": 2
     },
     "trigger_conditions": {
       "under_minimum": true,
       "support_ready": false,
-      "support_delta_zero": false,
-      "semantic_signature_delta_zero": false,
+      "support_delta_zero": true,
+      "semantic_signature_delta_zero": true,
       "stagnant_run_count_ge_threshold": false,
       "semantic_stagnant_run_count_ge_threshold": false,
-      "stalled_support_accumulation": false,
-      "semantic_stalled_support_accumulation": false,
+      "stalled_support_accumulation": true,
+      "semantic_stalled_support_accumulation": true,
       "threshold": 3
     },
     "research_basis": [
@@ -113,7 +113,7 @@
     ],
     "forced_research_action_artifact": {
       "artifact_id": "equilibrium_deadlock_research_action",
-      "required": false,
+      "required": true,
       "owner_lane": "D_map_signal_redesign_for_current_bucket",
       "output_path": "data/equilibrium_deadlock_research_action.json",
       "required_by_next_heartbeat": false,
@@ -139,14 +139,14 @@
     }
   },
   "forced_branch_decision": {
-    "status": "not_required",
-    "selected_branch": null,
-    "decision": "support deadlock forced branch 尚未觸發；維持一般 support / venue / model gate 驗證。",
+    "status": "hard_no_go_recorded",
+    "selected_branch": "hard_no_go_single_failed_gate",
+    "decision": "熔斷仍是唯一 immediate live gate；本輪以 single failed gate 記錄 no-go，同時要求後續交付 Map/Signal、exact-row harvest 或 drift rebaseline artifact。",
     "decision_clock": "72h_micro_canary_or_single_failed_gate",
-    "single_failed_gate": "support_gate",
-    "next_validation_artifact": "data/q15_support_audit.json",
+    "single_failed_gate": "circuit_breaker_gate",
+    "next_validation_artifact": "data/circuit_breaker_audit.json",
     "equilibrium_deadlock_confirmed": false,
-    "forced_research_action_required": false,
+    "forced_research_action_required": true,
     "live_exposure_allowed": false,
     "shadow_or_paper_allowed": true,
     "branch_matrix": [
@@ -155,33 +155,33 @@
         "status": "delivered_no_current_window_deployable",
         "success_condition": "提出新版 support identity / semantic bucket map，重跑 replay/backtest，且不把 proxy/reference rows 包裝成 deployable exact support。",
         "next_artifact": "data/q15_map_signal_redesign_proof.json",
-        "artifact_generated_at": "2026-06-05T03:46:44.756417Z",
-        "artifact_verdict": "map_signal_redesign_no_current_window_deployable_candidate",
+        "artifact_generated_at": "2026-07-28T14:46:21.413972Z",
+        "artifact_verdict": "map_signal_redesign_reference_only_current_window_unproven",
         "selected_candidate_id": "dominant_neighbor_exact_lane",
-        "selected_target_bucket": "BLOCK|bear_bias200_hard_block|q00",
-        "selected_current_window_rows": 28,
-        "selected_all_history_rows": 174,
-        "best_reference_candidate_id": "best_historical_exact_lane_bucket",
-        "primary_failed_gate": "current_live_support_gate",
+        "selected_target_bucket": "BLOCK|structure_overextended_block|q85",
+        "selected_current_window_rows": 0,
+        "selected_all_history_rows": 338,
+        "best_reference_candidate_id": "dominant_neighbor_exact_lane",
+        "primary_failed_gate": "current_window_support_gate",
         "deployable": false,
         "live_exposure_allowed": false
       },
       {
         "id": "exact_bucket_row_harvest_proof",
-        "status": "delivered_support_ready_remaining_gates",
+        "status": "delivered_under_minimum_progress_unproven",
         "success_condition": "交付 current support_identity 完全一致的新 exact rows，證明 support_rows 有正 delta；若仍無位移，記錄 hard no-go。",
         "next_artifact": "data/q15_exact_bucket_row_harvest_proof.json",
-        "artifact_generated_at": "2026-06-05T03:46:33.530787Z",
-        "artifact_verdict": "exact_bucket_row_harvest_support_ready_remaining_gates",
-        "current_rows": 131,
-        "previous_rows": 131,
+        "artifact_generated_at": "2026-07-28T14:46:17.368066Z",
+        "artifact_verdict": "exact_bucket_row_harvest_no_current_rows",
+        "current_rows": 0,
+        "previous_rows": 0,
         "minimum_support_rows": 50,
-        "rows_needed": 0,
+        "rows_needed": 50,
         "delta_vs_previous": 0,
         "semantic_signature_delta_vs_previous": 0,
-        "semantic_signature_stagnant_run_count": 4,
-        "support_gate_ready": true,
-        "primary_failed_gate": "remaining_live_gates",
+        "semantic_signature_stagnant_run_count": 2,
+        "support_gate_ready": false,
+        "primary_failed_gate": "current_live_support_gate",
         "live_exposure_allowed": false
       },
       {
@@ -189,8 +189,8 @@
         "status": "delivered_reference_only",
         "success_condition": "用 fresh window / walk-forward / drift-aware rebaseline 檢查 current bucket 是否已失效，並輸出 go/no-go。",
         "next_artifact": "data/q15_drift_rebaseline_backtest.json",
-        "artifact_generated_at": "2026-06-05T03:46:38.416907Z",
-        "artifact_verdict": "current_identity_support_ready_rebaseline_not_needed",
+        "artifact_generated_at": "2026-07-28T14:46:19.392264Z",
+        "artifact_verdict": "no_rebaseline_candidate_found",
         "selected_candidate_id": null,
         "selected_current_window_rows": null,
         "selected_all_history_rows": null,
@@ -199,10 +199,10 @@
       },
       {
         "id": "hard_no_go_single_failed_gate",
-        "status": "standby",
+        "status": "selected",
         "success_condition": "若仍不能 micro-canary，寫明唯一 hard gate 與下一個驗證 artifact；不得用繼續觀察取代。",
-        "single_failed_gate": "support_gate",
-        "next_artifact": "data/q15_support_audit.json",
+        "single_failed_gate": "circuit_breaker_gate",
+        "next_artifact": "data/circuit_breaker_audit.json",
         "live_exposure_allowed": false
       }
     ],
@@ -219,18 +219,18 @@
     ]
   },
   "exact_bucket_row_harvest_proof": {
-    "generated_at": "2026-06-05T03:46:33.530787Z",
+    "generated_at": "2026-07-28T14:46:17.368066Z",
     "artifact": "q15_exact_bucket_row_harvest_proof",
     "purpose": "Prove exact current-bucket support movement without converting it into deployment clearance.",
     "source_artifacts": {
-      "live_predict_probe_generated_at": "2026-06-05T03:46:21.654036Z",
-      "q15_support_audit_generated_at": "2026-06-05T03:46:21.646189Z",
-      "q15_support_fill_feasibility_generated_at": "2026-06-05T03:46:28.397005+00:00"
+      "live_predict_probe_generated_at": "2026-07-28T14:46:12.500752Z",
+      "q15_support_audit_generated_at": "2026-07-28T14:46:12.496718Z",
+      "q15_support_fill_feasibility_generated_at": "2026-07-28T14:46:15.408949+00:00"
     },
     "support_identity": {
       "target_col": "simulated_pyramid_win",
       "horizon_minutes": 1440,
-      "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+      "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
       "regime_label": "bear",
       "regime_gate": "BLOCK",
       "entry_quality_label": "C",
@@ -239,130 +239,90 @@
     },
     "db_meta": {
       "features_normalized": {
-        "count": 25839,
+        "count": 29357,
         "min_ts": "2024-04-14 07:00:00.000000",
-        "max_ts": "2026-06-05 03:00:00.000000"
+        "max_ts": "2026-07-28 14:33:27.381993"
       },
       "labels": {
-        "count": 69413,
+        "count": 76425,
         "min_ts": "2024-04-14 07:00:00.000000",
-        "max_ts": "2026-06-04 22:00:00.000000"
+        "max_ts": "2026-07-28 11:29:42.581059"
       },
       "raw_market_data": {
-        "count": 35124,
+        "count": 38682,
         "min_ts": "2024-04-13 22:00:00.000000",
-        "max_ts": "2026-06-05 03:00:00.000000"
+        "max_ts": "2026-07-28 14:33:27.381993"
       }
     },
     "harvest_window": {
       "calibration_window": 200,
       "scope_rows": 200,
-      "exact_identity_rows": 183,
-      "exact_bucket_rows": 131,
-      "non_bucket_identity_rows": 52,
+      "exact_identity_rows": 0,
+      "exact_bucket_rows": 0,
+      "non_bucket_identity_rows": 0,
       "minimum_support_rows": 50,
-      "rows_needed_to_minimum": 0,
-      "support_ready_by_count": true,
+      "rows_needed_to_minimum": 50,
+      "support_ready_by_count": false,
       "exact_bucket_metrics": {
-        "rows": 131,
-        "win_rate": 0.3053,
-        "target_counts": {
-          "0": 91,
-          "1": 40
-        },
-        "avg_pnl": -0.0072,
-        "avg_quality": -0.082,
-        "avg_drawdown_penalty": 0.3565,
-        "avg_time_underwater": 0.5779
+        "rows": 0,
+        "win_rate": null,
+        "target_counts": {},
+        "avg_pnl": null,
+        "avg_quality": null,
+        "avg_drawdown_penalty": null,
+        "avg_time_underwater": null
       },
-      "latest_exact_bucket_timestamp": "2026-06-04 04:00:00.000000",
-      "oldest_exact_bucket_timestamp": "2026-05-28 21:00:00.000000",
-      "sample_exact_bucket_timestamps": [
-        "2026-06-04 04:00:00.000000",
-        "2026-06-04 02:00:00.000000",
-        "2026-06-04 01:00:00.000000",
-        "2026-06-04 00:00:00.000000",
-        "2026-06-03 23:00:00.000000"
-      ],
+      "latest_exact_bucket_timestamp": null,
+      "oldest_exact_bucket_timestamp": null,
+      "sample_exact_bucket_timestamps": [],
       "symbol_alignment": {
         "join_policy": "timestamp_plus_canonical_symbol_latest_feature_and_label_id",
         "canonical_symbol_transform": "remove_slash",
-        "exact_bucket_symbol_join_modes": {
-          "canonical_symbol": 112,
-          "strict_symbol": 19
-        },
-        "exact_bucket_canonical_symbol_recovered_rows": 112,
-        "sample_recovered_pairs": [
-          {
-            "timestamp": "2026-06-04 04:00:00.000000",
-            "feature_symbol": "BTC/USDT",
-            "label_symbol": "BTCUSDT"
-          },
-          {
-            "timestamp": "2026-06-03 08:00:00.000000",
-            "feature_symbol": "BTC/USDT",
-            "label_symbol": "BTCUSDT"
-          },
-          {
-            "timestamp": "2026-06-03 07:00:00.000000",
-            "feature_symbol": "BTC/USDT",
-            "label_symbol": "BTCUSDT"
-          },
-          {
-            "timestamp": "2026-06-03 06:00:00.000000",
-            "feature_symbol": "BTC/USDT",
-            "label_symbol": "BTCUSDT"
-          },
-          {
-            "timestamp": "2026-06-03 05:00:00.000000",
-            "feature_symbol": "BTC/USDT",
-            "label_symbol": "BTCUSDT"
-          }
-        ],
+        "exact_bucket_symbol_join_modes": {},
+        "exact_bucket_canonical_symbol_recovered_rows": 0,
+        "sample_recovered_pairs": [],
         "evidence_role": "data_alignment_cleanup_not_deployment_clearance",
         "live_exposure_allowed": false
       },
-      "sample_non_bucket_identity_buckets": [
-        "BLOCK|bias200_below_min|q15"
-      ]
+      "sample_non_bucket_identity_buckets": []
     },
     "support_progress": {
-      "status": "exact_supported",
-      "reason": "current live exact bucket 已達 minimum support，可轉向 exact-supported deployment verify。",
-      "regression_basis": "current_identity",
-      "current_rows": 131,
-      "previous_rows": 131,
+      "status": "stalled_under_minimum",
+      "reason": "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
+      "regression_basis": "same_identity_same_semantic_signature",
+      "current_rows": 0,
+      "previous_rows": 0,
       "delta_vs_previous": 0,
-      "stagnant_run_count": 4,
-      "stalled_support_accumulation": false,
+      "stagnant_run_count": 2,
+      "stalled_support_accumulation": true,
       "semantic_signature_delta_vs_previous": 0,
-      "semantic_signature_stagnant_run_count": 4,
-      "semantic_signature_stalled_support_accumulation": false,
+      "semantic_signature_stagnant_run_count": 2,
+      "semantic_signature_stalled_support_accumulation": true,
       "previous_route_changed": false,
-      "previous_support_route_verdict": "exact_bucket_supported",
-      "previous_support_governance_route": "exact_live_bucket_supported"
+      "previous_support_route_verdict": "insufficient_support_everywhere",
+      "previous_support_governance_route": "exact_live_lane_proxy_available"
     },
     "verdict": {
-      "status": "exact_bucket_row_harvest_support_ready_remaining_gates",
-      "decision": "Current exact bucket rows meet minimum support; this artifact proves support movement only, so live buy/add still waits for model, venue, API guardrail, and bounded-canary gates.",
-      "current_exact_bucket_rows": 131,
-      "previous_rows": 131,
+      "status": "exact_bucket_row_harvest_no_current_rows",
+      "decision": "No current exact bucket rows are available; keep exact-row harvest or hard no-go as the forced branch.",
+      "current_exact_bucket_rows": 0,
+      "previous_rows": 0,
       "delta_vs_previous": 0,
       "semantic_signature_delta_vs_previous": 0,
-      "stagnant_run_count": 4,
-      "semantic_signature_stagnant_run_count": 4,
+      "stagnant_run_count": 2,
+      "semantic_signature_stagnant_run_count": 2,
       "minimum_support_rows": 50,
-      "gap_to_minimum": 0,
-      "rows_needed_to_minimum": 0,
-      "support_gate_ready": true,
+      "gap_to_minimum": 50,
+      "rows_needed_to_minimum": 50,
+      "support_gate_ready": false,
       "deployable": false,
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
       "risk_on_order_enabled": false,
-      "primary_failed_gate": "remaining_live_gates",
-      "time_to_evidence_bucket": "ready_for_remaining_live_execution_gates",
-      "missing_capability_class": "Review",
-      "alternative_solution_required": false,
+      "primary_failed_gate": "current_live_support_gate",
+      "time_to_evidence_bucket": "unknown_until_exact_identity_rows_start_accumulating",
+      "missing_capability_class": "Signal/Support",
+      "alternative_solution_required": true,
       "row_harvest_evidence_role": "current_exact_support_movement_not_deployment_clearance"
     },
     "promotion_requirements": [
@@ -383,24 +343,24 @@
     "risk_on_order_enabled": false
   },
   "map_signal_redesign_proof": {
-    "generated_at": "2026-06-05T03:46:44.756417Z",
+    "generated_at": "2026-07-28T14:46:21.413972Z",
     "artifact": "q15_map_signal_redesign_proof",
     "source_artifacts": {
       "live_predict_probe_path": "data/live_predict_probe.json",
-      "live_predict_probe_generated_at": "2026-06-05T03:46:21.654036Z",
+      "live_predict_probe_generated_at": "2026-07-28T14:46:12.500752Z",
       "q15_support_audit_path": "data/q15_support_audit.json",
-      "q15_support_audit_generated_at": "2026-06-05T03:46:21.646189Z",
+      "q15_support_audit_generated_at": "2026-07-28T14:46:12.496718Z",
       "q15_bucket_root_cause_path": "data/q15_bucket_root_cause.json",
-      "q15_bucket_root_cause_generated_at": "2026-06-05T03:46:18.436695Z",
+      "q15_bucket_root_cause_generated_at": "2026-07-28T14:46:10.261078Z",
       "q15_drift_rebaseline_backtest_path": "data/q15_drift_rebaseline_backtest.json",
-      "q15_drift_rebaseline_backtest_generated_at": "2026-06-05T03:46:38.416907Z",
+      "q15_drift_rebaseline_backtest_generated_at": "2026-07-28T14:46:19.392264Z",
       "recent_drift_report_path": "data/recent_drift_report.json",
-      "recent_drift_report_generated_at": "2026-06-05T03:46:07.357078+00:00"
+      "recent_drift_report_generated_at": "2026-07-28T14:46:02.116873+00:00"
     },
     "support_identity": {
       "target_col": "simulated_pyramid_win",
       "horizon_minutes": 1440,
-      "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+      "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
       "regime_label": "bear",
       "regime_gate": "BLOCK",
       "entry_quality_label": "C",
@@ -408,134 +368,119 @@
       "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
     },
     "data_coverage": {
-      "joined_labeled_rows": 25536,
+      "joined_labeled_rows": 29152,
       "db_meta": {
         "features_normalized": {
-          "count": 25839,
+          "count": 29357,
           "min_ts": "2024-04-14 07:00:00.000000",
-          "max_ts": "2026-06-05 03:00:00.000000"
+          "max_ts": "2026-07-28 14:33:27.381993"
         },
         "labels": {
-          "count": 69413,
+          "count": 76425,
           "min_ts": "2024-04-14 07:00:00.000000",
-          "max_ts": "2026-06-04 22:00:00.000000"
+          "max_ts": "2026-07-28 11:29:42.581059"
         },
         "raw_market_data": {
-          "count": 35124,
+          "count": 38682,
           "min_ts": "2024-04-13 22:00:00.000000",
-          "max_ts": "2026-06-05 03:00:00.000000"
+          "max_ts": "2026-07-28 14:33:27.381993"
         }
       }
     },
     "recent_drift_context": {
-      "source_generated_at": "2026-06-05T03:46:07.357078+00:00",
+      "source_generated_at": "2026-07-28T14:46:02.116873+00:00",
       "window": 100,
-      "win_rate": 0.21,
-      "dominant_regime": "bear",
-      "dominant_regime_share": 0.94,
-      "alerts": [
-        "regime_concentration",
-        "regime_shift"
-      ]
+      "win_rate": 0.63,
+      "dominant_regime": "chop",
+      "dominant_regime_share": 0.57,
+      "alerts": []
     },
     "root_cause_context": {
       "artifact": "q15_bucket_root_cause",
-      "generated_at": "2026-06-05T03:46:18.436695Z",
-      "verdict": "same_lane_neighbor_bucket_dominates",
-      "candidate_patch_type": "structure_component_scoring",
-      "candidate_patch_feature": "feat_4h_bb_pct_b",
-      "candidate_patch": {
-        "type": "structure_component_scoring",
-        "feature": "feat_4h_bb_pct_b",
-        "current_raw": -0.0299,
-        "current_normalized": 0.0,
-        "needed_raw_delta_to_cross_q35": 0.8849,
-        "target_bucket_p25": -0.0101,
-        "target_bucket_median": 0.0393,
-        "needed_raw_delta_to_target_p25": 0.0299,
-        "needed_raw_delta_to_target_median": 0.0692
-      },
+      "generated_at": "2026-07-28T14:46:10.261078Z",
+      "verdict": "runtime_blocker_preempts_bucket_root_cause",
+      "candidate_patch_type": null,
+      "candidate_patch_feature": null,
+      "candidate_patch": null,
       "exact_live_lane": {
-        "rows": 473,
+        "rows": 327,
         "bucket_counts": {
-          "BLOCK|bear_bias200_hard_block|q00": 174,
-          "BLOCK|bias200_below_min|q00": 139,
-          "BLOCK|structure_quality_block|q00": 93,
-          "BLOCK|bias200_below_min|q15": 44,
-          "BLOCK|bear_bias200_hard_block|q15": 23
+          "BLOCK|structure_overextended_block|q85": 233,
+          "BLOCK|bear_bias200_hard_block|q00": 56,
+          "BLOCK|bias200_below_min|q15": 21,
+          "BLOCK|bear_bias200_hard_block|q15": 11,
+          "BLOCK|structure_quality_block|q00": 4,
+          "BLOCK|bias200_below_min|q00": 2
         },
-        "dominant_neighbor_bucket": "BLOCK|bear_bias200_hard_block|q00",
-        "dominant_neighbor_rows": 174,
+        "dominant_neighbor_bucket": "BLOCK|structure_overextended_block|q85",
+        "dominant_neighbor_rows": 233,
         "near_boundary_window": {
-          "lower": 0.0593,
+          "lower": 0.0091,
           "upper": 0.35
         },
-        "near_boundary_rows": 293
+        "near_boundary_rows": 71
       }
     },
     "verdict": {
-      "status": "map_signal_redesign_no_current_window_deployable_candidate",
-      "decision": "Map/signal candidates were evaluated but none passed current-window support and metric gates.",
+      "status": "map_signal_redesign_reference_only_current_window_unproven",
+      "decision": "A map/signal redesign candidate exists only as historical/reference evidence; current-window support is empty or under-minimum.",
       "selected_candidate_id": "dominant_neighbor_exact_lane",
-      "selected_candidate_status": "count_ready_metric_rejected",
+      "selected_candidate_status": "reference_candidate_current_window_empty",
       "selected_redesign_type": "bucket_map_neighbor",
-      "selected_target_bucket": "BLOCK|bear_bias200_hard_block|q00",
-      "selected_current_window_rows": 28,
-      "selected_all_history_rows": 174,
+      "selected_target_bucket": "BLOCK|structure_overextended_block|q85",
+      "selected_current_window_rows": 0,
+      "selected_all_history_rows": 338,
       "selected_current_window_metrics": {
-        "rows": 28,
-        "win_rate": 0.8214,
-        "target_counts": {
-          "1": 23,
-          "0": 5
-        },
-        "avg_pnl": 0.0038,
-        "avg_quality": 0.3675,
-        "avg_drawdown_penalty": 0.0991,
-        "avg_time_underwater": 0.3019
+        "rows": 0,
+        "win_rate": null,
+        "target_counts": {},
+        "avg_pnl": null,
+        "avg_quality": null,
+        "avg_drawdown_penalty": null,
+        "avg_time_underwater": null
       },
       "selected_all_history_metrics": {
-        "rows": 174,
-        "win_rate": 0.523,
+        "rows": 338,
+        "win_rate": 0.645,
         "target_counts": {
-          "1": 91,
-          "0": 83
+          "1": 218,
+          "0": 120
         },
-        "avg_pnl": 0.0071,
-        "avg_quality": 0.2179,
-        "avg_drawdown_penalty": 0.2282,
-        "avg_time_underwater": 0.6094
+        "avg_pnl": 0.0029,
+        "avg_quality": 0.2431,
+        "avg_drawdown_penalty": 0.1892,
+        "avg_time_underwater": 0.4566
       },
-      "best_reference_candidate_id": "best_historical_exact_lane_bucket",
-      "best_reference_target_bucket": "BLOCK|bear_bias200_hard_block|q15",
+      "best_reference_candidate_id": "dominant_neighbor_exact_lane",
+      "best_reference_target_bucket": "BLOCK|structure_overextended_block|q85",
       "best_reference_current_window_rows": 0,
-      "best_reference_all_history_rows": 133,
+      "best_reference_all_history_rows": 338,
       "best_reference_all_history_metrics": {
-        "rows": 133,
-        "win_rate": 0.9549,
+        "rows": 338,
+        "win_rate": 0.645,
         "target_counts": {
-          "0": 6,
-          "1": 127
+          "1": 218,
+          "0": 120
         },
-        "avg_pnl": 0.0089,
-        "avg_quality": 0.5114,
-        "avg_drawdown_penalty": 0.068,
-        "avg_time_underwater": 0.1654
+        "avg_pnl": 0.0029,
+        "avg_quality": 0.2431,
+        "avg_drawdown_penalty": 0.1892,
+        "avg_time_underwater": 0.4566
       },
-      "current_exact_bucket_rows": 131,
+      "current_exact_bucket_rows": 0,
       "minimum_support_rows": 50,
-      "gap_to_minimum": 0,
-      "root_cause_verdict": "same_lane_neighbor_bucket_dominates",
-      "root_cause_candidate_patch_type": "structure_component_scoring",
-      "root_cause_candidate_patch_feature": "feat_4h_bb_pct_b",
-      "root_cause_dominant_neighbor_bucket": "BLOCK|bear_bias200_hard_block|q00",
-      "root_cause_dominant_neighbor_rows": 174,
-      "root_cause_near_boundary_rows": 293,
+      "gap_to_minimum": 50,
+      "root_cause_verdict": "runtime_blocker_preempts_bucket_root_cause",
+      "root_cause_candidate_patch_type": null,
+      "root_cause_candidate_patch_feature": null,
+      "root_cause_dominant_neighbor_bucket": "BLOCK|structure_overextended_block|q85",
+      "root_cause_dominant_neighbor_rows": 233,
+      "root_cause_near_boundary_rows": 71,
       "deployable": false,
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
       "risk_on_order_enabled": false,
-      "primary_failed_gate": "current_live_support_gate",
+      "primary_failed_gate": "current_window_support_gate",
       "branch_id": "map_signal_redesign_proof",
       "branch_status": "delivered_no_current_window_deployable"
     },
@@ -545,7 +490,7 @@
         "description": "Baseline: current calibration window plus exact regime/gate/entry/bucket identity.",
         "redesign_type": "none",
         "evidence_role": "current_deployable_identity_baseline",
-        "target_bucket": "BLOCK|bias200_below_min|q00",
+        "target_bucket": "BLOCK|structure_quality_block|q00",
         "bucket_suffix": null,
         "exact_fields": [
           "regime_label",
@@ -562,163 +507,148 @@
           "100": {
             "window": 100,
             "same_as_current_calibration_window": false,
-            "rows": 90,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 90,
-              "win_rate": 0.2111,
-              "target_counts": {
-                "0": 71,
-                "1": 19
-              },
-              "avg_pnl": -0.0105,
-              "avg_quality": -0.197,
-              "avg_drawdown_penalty": 0.4768,
-              "avg_time_underwater": 0.655
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-31 07:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "200": {
             "window": 200,
             "same_as_current_calibration_window": true,
-            "rows": 131,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 131,
-              "win_rate": 0.3053,
-              "target_counts": {
-                "0": 91,
-                "1": 40
-              },
-              "avg_pnl": -0.0072,
-              "avg_quality": -0.082,
-              "avg_drawdown_penalty": 0.3565,
-              "avg_time_underwater": 0.5779
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "600": {
             "window": 600,
             "same_as_current_calibration_window": false,
-            "rows": 131,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 131,
-              "win_rate": 0.3053,
-              "target_counts": {
-                "0": 91,
-                "1": 40
-              },
-              "avg_pnl": -0.0072,
-              "avg_quality": -0.082,
-              "avg_drawdown_penalty": 0.3565,
-              "avg_time_underwater": 0.5779
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "1000": {
             "window": 1000,
             "same_as_current_calibration_window": false,
-            "rows": 131,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 131,
-              "win_rate": 0.3053,
-              "target_counts": {
-                "0": 91,
-                "1": 40
-              },
-              "avg_pnl": -0.0072,
-              "avg_quality": -0.082,
-              "avg_drawdown_penalty": 0.3565,
-              "avg_time_underwater": 0.5779
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "5000": {
             "window": 5000,
             "same_as_current_calibration_window": false,
-            "rows": 139,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 139,
-              "win_rate": 0.3453,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 91,
-                "1": 48
+                "1": 4
               },
-              "avg_pnl": -0.0062,
-              "avg_quality": -0.0445,
-              "avg_drawdown_penalty": 0.3381,
-              "avg_time_underwater": 0.5507
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-05 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
-          "25536": {
-            "window": 25536,
+          "29152": {
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 141,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 141,
-              "win_rate": 0.3546,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 91,
-                "1": 50
+                "1": 4
               },
-              "avg_pnl": -0.0057,
-              "avg_quality": -0.0335,
-              "avg_drawdown_penalty": 0.3344,
-              "avg_time_underwater": 0.5441
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2025-04-09 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
           "all": {
-            "window": 25536,
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 141,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 141,
-              "win_rate": 0.3546,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 91,
-                "1": 50
+                "1": 4
               },
-              "avg_pnl": -0.0057,
-              "avg_quality": -0.0335,
-              "avg_drawdown_penalty": 0.3344,
-              "avg_time_underwater": 0.5441
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2025-04-09 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           }
         }
       },
@@ -727,7 +657,7 @@
         "description": "Treat entry quality as a semantic family inside the current regime/gate/bucket.",
         "redesign_type": "semantic_entry_quality_family",
         "evidence_role": "research_candidate_semantic_adapter_required",
-        "target_bucket": "BLOCK|bias200_below_min|q00",
+        "target_bucket": "BLOCK|structure_quality_block|q00",
         "bucket_suffix": null,
         "exact_fields": [
           "regime_label",
@@ -739,170 +669,155 @@
           "calibration_window"
         ],
         "source": "q15_drift_rebaseline_backtest",
-        "status": "current_window_count_ready_metric_rejected",
+        "status": "insufficient_rows",
         "deployable_support": false,
         "live_exposure_allowed": false,
         "window_evaluations": {
           "100": {
             "window": 100,
             "same_as_current_calibration_window": false,
-            "rows": 94,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 94,
-              "win_rate": 0.2234,
-              "target_counts": {
-                "0": 73,
-                "1": 21
-              },
-              "avg_pnl": -0.0101,
-              "avg_quality": -0.1849,
-              "avg_drawdown_penalty": 0.4702,
-              "avg_time_underwater": 0.646
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-31 07:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "200": {
             "window": 200,
             "same_as_current_calibration_window": true,
-            "rows": 137,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 137,
-              "win_rate": 0.3139,
-              "target_counts": {
-                "0": 94,
-                "1": 43
-              },
-              "avg_pnl": -0.0069,
-              "avg_quality": -0.0729,
-              "avg_drawdown_penalty": 0.3515,
-              "avg_time_underwater": 0.571
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "600": {
             "window": 600,
             "same_as_current_calibration_window": false,
-            "rows": 137,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 137,
-              "win_rate": 0.3139,
-              "target_counts": {
-                "0": 94,
-                "1": 43
-              },
-              "avg_pnl": -0.0069,
-              "avg_quality": -0.0729,
-              "avg_drawdown_penalty": 0.3515,
-              "avg_time_underwater": 0.571
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "1000": {
             "window": 1000,
             "same_as_current_calibration_window": false,
-            "rows": 137,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 137,
-              "win_rate": 0.3139,
-              "target_counts": {
-                "0": 94,
-                "1": 43
-              },
-              "avg_pnl": -0.0069,
-              "avg_quality": -0.0729,
-              "avg_drawdown_penalty": 0.3515,
-              "avg_time_underwater": 0.571
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "5000": {
             "window": 5000,
             "same_as_current_calibration_window": false,
-            "rows": 145,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 145,
-              "win_rate": 0.3517,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 94,
-                "1": 51
+                "1": 4
               },
-              "avg_pnl": -0.006,
-              "avg_quality": -0.0375,
-              "avg_drawdown_penalty": 0.3341,
-              "avg_time_underwater": 0.5453
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-05 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
-          "25536": {
-            "window": 25536,
+          "29152": {
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 384,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 384,
-              "win_rate": 0.5677,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 166,
-                "1": 218
+                "1": 4
               },
-              "avg_pnl": 0.0009,
-              "avg_quality": 0.1508,
-              "avg_drawdown_penalty": 0.3449,
-              "avg_time_underwater": 0.4699
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2025-04-09 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
           "all": {
-            "window": 25536,
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 384,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 384,
-              "win_rate": 0.5677,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 166,
-                "1": 218
+                "1": 4
               },
-              "avg_pnl": 0.0009,
-              "avg_quality": 0.1508,
-              "avg_drawdown_penalty": 0.3449,
-              "avg_time_underwater": 0.4699
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2025-04-09 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           }
         }
       },
@@ -911,7 +826,7 @@
         "description": "Root-cause candidate: map current exact lane to the dominant neighboring structure bucket.",
         "redesign_type": "bucket_map_neighbor",
         "evidence_role": "root_cause_map_signal_candidate",
-        "target_bucket": "BLOCK|bear_bias200_hard_block|q00",
+        "target_bucket": "BLOCK|structure_overextended_block|q85",
         "bucket_suffix": null,
         "exact_fields": [
           "regime_label",
@@ -924,7 +839,7 @@
           "calibration_window"
         ],
         "source": "q15_bucket_root_cause.exact_live_lane.dominant_neighbor_bucket",
-        "status": "count_ready_metric_rejected",
+        "status": "reference_candidate_current_window_empty",
         "deployable_support": false,
         "live_exposure_allowed": false,
         "window_evaluations": {
@@ -951,140 +866,131 @@
           "200": {
             "window": 200,
             "same_as_current_calibration_window": true,
-            "rows": 28,
-            "rows_needed_to_minimum": 22,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
             "ready_by_count": false,
             "metric_gate_candidate": false,
             "metric_rejected": false,
             "metrics": {
-              "rows": 28,
-              "win_rate": 0.8214,
-              "target_counts": {
-                "1": 23,
-                "0": 5
-              },
-              "avg_pnl": 0.0038,
-              "avg_quality": 0.3675,
-              "avg_drawdown_penalty": 0.0991,
-              "avg_time_underwater": 0.3019
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-05-28 10:25:37.291839",
-            "oldest_timestamp": "2026-05-28 04:01:59.191621"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "600": {
             "window": 600,
             "same_as_current_calibration_window": false,
-            "rows": 100,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 100,
-              "win_rate": 0.25,
-              "target_counts": {
-                "1": 25,
-                "0": 75
-              },
-              "avg_pnl": -0.0051,
-              "avg_quality": -0.0754,
-              "avg_drawdown_penalty": 0.2691,
-              "avg_time_underwater": 0.7068
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-05-28 10:25:37.291839",
-            "oldest_timestamp": "2026-05-26 19:02:15.038679"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "1000": {
             "window": 1000,
             "same_as_current_calibration_window": false,
-            "rows": 174,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 174,
-              "win_rate": 0.523,
-              "target_counts": {
-                "1": 91,
-                "0": 83
-              },
-              "avg_pnl": 0.0071,
-              "avg_quality": 0.2179,
-              "avg_drawdown_penalty": 0.2282,
-              "avg_time_underwater": 0.6094
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-05-28 10:25:37.291839",
-            "oldest_timestamp": "2026-05-22 20:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "5000": {
             "window": 5000,
             "same_as_current_calibration_window": false,
-            "rows": 174,
+            "rows": 233,
             "rows_needed_to_minimum": 0,
             "ready_by_count": true,
             "metric_gate_candidate": false,
             "metric_rejected": true,
             "metrics": {
-              "rows": 174,
-              "win_rate": 0.523,
+              "rows": 233,
+              "win_rate": 0.5021,
               "target_counts": {
-                "1": 91,
-                "0": 83
+                "1": 117,
+                "0": 116
               },
-              "avg_pnl": 0.0071,
-              "avg_quality": 0.2179,
-              "avg_drawdown_penalty": 0.2282,
-              "avg_time_underwater": 0.6094
+              "avg_pnl": 0.0014,
+              "avg_quality": 0.1385,
+              "avg_drawdown_penalty": 0.2391,
+              "avg_time_underwater": 0.5707
             },
-            "latest_timestamp": "2026-05-28 10:25:37.291839",
-            "oldest_timestamp": "2026-05-22 20:00:00.000000"
+            "latest_timestamp": "2026-06-06 15:34:01.037286",
+            "oldest_timestamp": "2026-05-14 02:02:28.590386"
           },
-          "25536": {
-            "window": 25536,
+          "29152": {
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 174,
+            "rows": 338,
             "rows_needed_to_minimum": 0,
             "ready_by_count": true,
-            "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_gate_candidate": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 174,
-              "win_rate": 0.523,
+              "rows": 338,
+              "win_rate": 0.645,
               "target_counts": {
-                "1": 91,
-                "0": 83
+                "1": 218,
+                "0": 120
               },
-              "avg_pnl": 0.0071,
-              "avg_quality": 0.2179,
-              "avg_drawdown_penalty": 0.2282,
-              "avg_time_underwater": 0.6094
+              "avg_pnl": 0.0029,
+              "avg_quality": 0.2431,
+              "avg_drawdown_penalty": 0.1892,
+              "avg_time_underwater": 0.4566
             },
-            "latest_timestamp": "2026-05-28 10:25:37.291839",
-            "oldest_timestamp": "2026-05-22 20:00:00.000000"
+            "latest_timestamp": "2026-06-06 15:34:01.037286",
+            "oldest_timestamp": "2024-04-16 10:00:00.000000"
           },
           "all": {
-            "window": 25536,
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 174,
+            "rows": 338,
             "rows_needed_to_minimum": 0,
             "ready_by_count": true,
-            "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_gate_candidate": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 174,
-              "win_rate": 0.523,
+              "rows": 338,
+              "win_rate": 0.645,
               "target_counts": {
-                "1": 91,
-                "0": 83
+                "1": 218,
+                "0": 120
               },
-              "avg_pnl": 0.0071,
-              "avg_quality": 0.2179,
-              "avg_drawdown_penalty": 0.2282,
-              "avg_time_underwater": 0.6094
+              "avg_pnl": 0.0029,
+              "avg_quality": 0.2431,
+              "avg_drawdown_penalty": 0.1892,
+              "avg_time_underwater": 0.4566
             },
-            "latest_timestamp": "2026-05-28 10:25:37.291839",
-            "oldest_timestamp": "2026-05-22 20:00:00.000000"
+            "latest_timestamp": "2026-06-06 15:34:01.037286",
+            "oldest_timestamp": "2024-04-16 10:00:00.000000"
           }
         }
       },
@@ -1093,7 +999,7 @@
         "description": "Root-cause candidate with entry-quality family relaxation inside the dominant neighboring bucket.",
         "redesign_type": "bucket_map_neighbor_semantic",
         "evidence_role": "higher_risk_semantic_map_candidate",
-        "target_bucket": "BLOCK|bear_bias200_hard_block|q00",
+        "target_bucket": "BLOCK|structure_overextended_block|q85",
         "bucket_suffix": null,
         "exact_fields": [
           "regime_label",
@@ -1106,7 +1012,7 @@
           "calibration_window"
         ],
         "source": "q15_bucket_root_cause.exact_live_lane.dominant_neighbor_bucket",
-        "status": "reference_candidate_current_window_under_minimum",
+        "status": "reference_candidate_current_window_empty",
         "deployable_support": false,
         "live_exposure_allowed": false,
         "window_evaluations": {
@@ -1133,140 +1039,133 @@
           "200": {
             "window": 200,
             "same_as_current_calibration_window": true,
-            "rows": 29,
-            "rows_needed_to_minimum": 21,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
             "ready_by_count": false,
             "metric_gate_candidate": false,
             "metric_rejected": false,
             "metrics": {
-              "rows": 29,
-              "win_rate": 0.8276,
-              "target_counts": {
-                "1": 24,
-                "0": 5
-              },
-              "avg_pnl": 0.0037,
-              "avg_quality": 0.3678,
-              "avg_drawdown_penalty": 0.1007,
-              "avg_time_underwater": 0.3075
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-05-28 10:25:37.291839",
-            "oldest_timestamp": "2026-05-28 04:01:59.191621"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "600": {
             "window": 600,
             "same_as_current_calibration_window": false,
-            "rows": 139,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 139,
-              "win_rate": 0.1871,
-              "target_counts": {
-                "1": 26,
-                "0": 113
-              },
-              "avg_pnl": -0.0074,
-              "avg_quality": -0.1397,
-              "avg_drawdown_penalty": 0.2856,
-              "avg_time_underwater": 0.745
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-05-28 10:25:37.291839",
-            "oldest_timestamp": "2026-05-26 18:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "1000": {
             "window": 1000,
             "same_as_current_calibration_window": false,
-            "rows": 223,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 7,
+            "rows_needed_to_minimum": 43,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 223,
-              "win_rate": 0.4574,
+              "rows": 7,
+              "win_rate": 1.0,
               "target_counts": {
-                "1": 102,
-                "0": 121
+                "1": 7
               },
-              "avg_pnl": 0.0046,
-              "avg_quality": 0.1528,
-              "avg_drawdown_penalty": 0.2388,
-              "avg_time_underwater": 0.6329
+              "avg_pnl": 0.0443,
+              "avg_quality": 0.9971,
+              "avg_drawdown_penalty": 0.0145,
+              "avg_time_underwater": 0.0329
             },
-            "latest_timestamp": "2026-05-28 10:25:37.291839",
-            "oldest_timestamp": "2026-05-22 20:00:00.000000"
+            "latest_timestamp": "2026-07-13 23:17:05.203647",
+            "oldest_timestamp": "2026-07-13 18:03:00.579971"
           },
           "5000": {
             "window": 5000,
             "same_as_current_calibration_window": false,
-            "rows": 223,
+            "rows": 756,
             "rows_needed_to_minimum": 0,
             "ready_by_count": true,
             "metric_gate_candidate": false,
             "metric_rejected": true,
             "metrics": {
-              "rows": 223,
-              "win_rate": 0.4574,
+              "rows": 756,
+              "win_rate": 0.4735,
               "target_counts": {
-                "1": 102,
-                "0": 121
+                "1": 358,
+                "0": 398
               },
-              "avg_pnl": 0.0046,
-              "avg_quality": 0.1528,
-              "avg_drawdown_penalty": 0.2388,
-              "avg_time_underwater": 0.6329
+              "avg_pnl": 0.0006,
+              "avg_quality": 0.1156,
+              "avg_drawdown_penalty": 0.2438,
+              "avg_time_underwater": 0.5617
             },
-            "latest_timestamp": "2026-05-28 10:25:37.291839",
-            "oldest_timestamp": "2026-05-22 20:00:00.000000"
+            "latest_timestamp": "2026-07-13 23:17:05.203647",
+            "oldest_timestamp": "2026-05-13 16:02:16.545201"
           },
-          "25536": {
-            "window": 25536,
+          "29152": {
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 586,
+            "rows": 2172,
             "rows_needed_to_minimum": 0,
             "ready_by_count": true,
             "metric_gate_candidate": true,
             "metric_rejected": false,
             "metrics": {
-              "rows": 586,
-              "win_rate": 0.5853,
+              "rows": 2172,
+              "win_rate": 0.6192,
               "target_counts": {
-                "1": 343,
-                "0": 243
+                "1": 1345,
+                "0": 827
               },
-              "avg_pnl": 0.0053,
-              "avg_quality": 0.2395,
-              "avg_drawdown_penalty": 0.2179,
-              "avg_time_underwater": 0.4667
+              "avg_pnl": 0.0041,
+              "avg_quality": 0.24,
+              "avg_drawdown_penalty": 0.2289,
+              "avg_time_underwater": 0.4456
             },
-            "latest_timestamp": "2026-05-28 10:25:37.291839",
-            "oldest_timestamp": "2025-06-21 21:00:00.000000"
+            "latest_timestamp": "2026-07-13 23:17:05.203647",
+            "oldest_timestamp": "2024-04-16 09:00:00.000000"
           },
           "all": {
-            "window": 25536,
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 586,
+            "rows": 2172,
             "rows_needed_to_minimum": 0,
             "ready_by_count": true,
             "metric_gate_candidate": true,
             "metric_rejected": false,
             "metrics": {
-              "rows": 586,
-              "win_rate": 0.5853,
+              "rows": 2172,
+              "win_rate": 0.6192,
               "target_counts": {
-                "1": 343,
-                "0": 243
+                "1": 1345,
+                "0": 827
               },
-              "avg_pnl": 0.0053,
-              "avg_quality": 0.2395,
-              "avg_drawdown_penalty": 0.2179,
-              "avg_time_underwater": 0.4667
+              "avg_pnl": 0.0041,
+              "avg_quality": 0.24,
+              "avg_drawdown_penalty": 0.2289,
+              "avg_time_underwater": 0.4456
             },
-            "latest_timestamp": "2026-05-28 10:25:37.291839",
-            "oldest_timestamp": "2025-06-21 21:00:00.000000"
+            "latest_timestamp": "2026-07-13 23:17:05.203647",
+            "oldest_timestamp": "2024-04-16 09:00:00.000000"
           }
         }
       },
@@ -1392,51 +1291,45 @@
             "latest_timestamp": null,
             "oldest_timestamp": null
           },
-          "25536": {
-            "window": 25536,
+          "29152": {
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 25,
-            "rows_needed_to_minimum": 25,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
             "ready_by_count": false,
             "metric_gate_candidate": false,
             "metric_rejected": false,
             "metrics": {
-              "rows": 25,
-              "win_rate": 0.92,
-              "target_counts": {
-                "0": 2,
-                "1": 23
-              },
-              "avg_pnl": 0.0294,
-              "avg_quality": 0.7296,
-              "avg_drawdown_penalty": 0.1261,
-              "avg_time_underwater": 0.2681
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-03-07 08:00:00.000000",
-            "oldest_timestamp": "2025-04-09 07:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "all": {
-            "window": 25536,
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 25,
-            "rows_needed_to_minimum": 25,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
             "ready_by_count": false,
             "metric_gate_candidate": false,
             "metric_rejected": false,
             "metrics": {
-              "rows": 25,
-              "win_rate": 0.92,
-              "target_counts": {
-                "0": 2,
-                "1": 23
-              },
-              "avg_pnl": 0.0294,
-              "avg_quality": 0.7296,
-              "avg_drawdown_penalty": 0.1261,
-              "avg_time_underwater": 0.2681
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-03-07 08:00:00.000000",
-            "oldest_timestamp": "2025-04-09 07:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           }
         }
       },
@@ -1458,7 +1351,7 @@
           "calibration_window"
         ],
         "source": "q15_bucket_root_cause.boundary_review",
-        "status": "reference_candidate_current_window_empty",
+        "status": "insufficient_rows",
         "deployable_support": false,
         "live_exposure_allowed": false,
         "window_evaluations": {
@@ -1562,51 +1455,45 @@
             "latest_timestamp": null,
             "oldest_timestamp": null
           },
-          "25536": {
-            "window": 25536,
+          "29152": {
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 108,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
-            "metric_gate_candidate": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
+            "metric_gate_candidate": false,
             "metric_rejected": false,
             "metrics": {
-              "rows": 108,
-              "win_rate": 0.6667,
-              "target_counts": {
-                "1": 72,
-                "0": 36
-              },
-              "avg_pnl": 0.0129,
-              "avg_quality": 0.3693,
-              "avg_drawdown_penalty": 0.2198,
-              "avg_time_underwater": 0.4755
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-03-08 17:00:00.000000",
-            "oldest_timestamp": "2025-04-09 07:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "all": {
-            "window": 25536,
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 108,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
-            "metric_gate_candidate": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
+            "metric_gate_candidate": false,
             "metric_rejected": false,
             "metrics": {
-              "rows": 108,
-              "win_rate": 0.6667,
-              "target_counts": {
-                "1": 72,
-                "0": 36
-              },
-              "avg_pnl": 0.0129,
-              "avg_quality": 0.3693,
-              "avg_drawdown_penalty": 0.2198,
-              "avg_time_underwater": 0.4755
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-03-08 17:00:00.000000",
-            "oldest_timestamp": "2025-04-09 07:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           }
         }
       },
@@ -1615,7 +1502,7 @@
         "description": "Highest historical exact-lane bucket by rows/win/pnl after excluding current and root-cause neighbor buckets.",
         "redesign_type": "historical_bucket_map_reference",
         "evidence_role": "reference_only_bucket_map_candidate",
-        "target_bucket": "BLOCK|bear_bias200_hard_block|q15",
+        "target_bucket": "BLOCK|bear_bias200_hard_block|q00",
         "bucket_suffix": null,
         "exact_fields": [
           "regime_label",
@@ -1675,117 +1562,111 @@
           "600": {
             "window": 600,
             "same_as_current_calibration_window": false,
-            "rows": 8,
-            "rows_needed_to_minimum": 42,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
             "ready_by_count": false,
             "metric_gate_candidate": false,
-            "metric_rejected": true,
+            "metric_rejected": false,
             "metrics": {
-              "rows": 8,
-              "win_rate": 0.625,
-              "target_counts": {
-                "0": 3,
-                "1": 5
-              },
-              "avg_pnl": -0.001,
-              "avg_quality": 0.1918,
-              "avg_drawdown_penalty": 0.2052,
-              "avg_time_underwater": 0.363
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-05-27 11:17:38.302160",
-            "oldest_timestamp": "2026-05-23 18:19:42.413188"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "1000": {
             "window": 1000,
             "same_as_current_calibration_window": false,
-            "rows": 23,
-            "rows_needed_to_minimum": 27,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
             "ready_by_count": false,
             "metric_gate_candidate": false,
             "metric_rejected": false,
             "metrics": {
-              "rows": 23,
-              "win_rate": 0.8696,
-              "target_counts": {
-                "0": 3,
-                "1": 20
-              },
-              "avg_pnl": 0.0151,
-              "avg_quality": 0.5439,
-              "avg_drawdown_penalty": 0.0797,
-              "avg_time_underwater": 0.1962
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-05-27 11:17:38.302160",
-            "oldest_timestamp": "2026-05-23 14:20:57.083571"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "5000": {
             "window": 5000,
             "same_as_current_calibration_window": false,
-            "rows": 23,
-            "rows_needed_to_minimum": 27,
-            "ready_by_count": false,
-            "metric_gate_candidate": false,
-            "metric_rejected": false,
-            "metrics": {
-              "rows": 23,
-              "win_rate": 0.8696,
-              "target_counts": {
-                "0": 3,
-                "1": 20
-              },
-              "avg_pnl": 0.0151,
-              "avg_quality": 0.5439,
-              "avg_drawdown_penalty": 0.0797,
-              "avg_time_underwater": 0.1962
-            },
-            "latest_timestamp": "2026-05-27 11:17:38.302160",
-            "oldest_timestamp": "2026-05-23 14:20:57.083571"
-          },
-          "25536": {
-            "window": 25536,
-            "same_as_current_calibration_window": false,
-            "rows": 133,
+            "rows": 56,
             "rows_needed_to_minimum": 0,
             "ready_by_count": true,
             "metric_gate_candidate": true,
             "metric_rejected": false,
             "metrics": {
-              "rows": 133,
-              "win_rate": 0.9549,
+              "rows": 56,
+              "win_rate": 0.5893,
               "target_counts": {
-                "0": 6,
-                "1": 127
+                "1": 33,
+                "0": 23
               },
-              "avg_pnl": 0.0089,
-              "avg_quality": 0.5114,
-              "avg_drawdown_penalty": 0.068,
-              "avg_time_underwater": 0.1654
+              "avg_pnl": 0.0084,
+              "avg_quality": 0.2727,
+              "avg_drawdown_penalty": 0.206,
+              "avg_time_underwater": 0.568
             },
-            "latest_timestamp": "2026-05-27 11:17:38.302160",
-            "oldest_timestamp": "2024-04-16 09:00:00.000000"
+            "latest_timestamp": "2026-05-28 10:25:37.291839",
+            "oldest_timestamp": "2026-05-22 20:11:40.124891"
+          },
+          "29152": {
+            "window": 29152,
+            "same_as_current_calibration_window": false,
+            "rows": 56,
+            "rows_needed_to_minimum": 0,
+            "ready_by_count": true,
+            "metric_gate_candidate": true,
+            "metric_rejected": false,
+            "metrics": {
+              "rows": 56,
+              "win_rate": 0.5893,
+              "target_counts": {
+                "1": 33,
+                "0": 23
+              },
+              "avg_pnl": 0.0084,
+              "avg_quality": 0.2727,
+              "avg_drawdown_penalty": 0.206,
+              "avg_time_underwater": 0.568
+            },
+            "latest_timestamp": "2026-05-28 10:25:37.291839",
+            "oldest_timestamp": "2026-05-22 20:11:40.124891"
           },
           "all": {
-            "window": 25536,
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 133,
+            "rows": 56,
             "rows_needed_to_minimum": 0,
             "ready_by_count": true,
             "metric_gate_candidate": true,
             "metric_rejected": false,
             "metrics": {
-              "rows": 133,
-              "win_rate": 0.9549,
+              "rows": 56,
+              "win_rate": 0.5893,
               "target_counts": {
-                "0": 6,
-                "1": 127
+                "1": 33,
+                "0": 23
               },
-              "avg_pnl": 0.0089,
-              "avg_quality": 0.5114,
-              "avg_drawdown_penalty": 0.068,
-              "avg_time_underwater": 0.1654
+              "avg_pnl": 0.0084,
+              "avg_quality": 0.2727,
+              "avg_drawdown_penalty": 0.206,
+              "avg_time_underwater": 0.568
             },
-            "latest_timestamp": "2026-05-27 11:17:38.302160",
-            "oldest_timestamp": "2024-04-16 09:00:00.000000"
+            "latest_timestamp": "2026-05-28 10:25:37.291839",
+            "oldest_timestamp": "2026-05-22 20:11:40.124891"
           }
         }
       }
@@ -1806,36 +1687,36 @@
         "id": "reject_current_window_metric_failed_map",
         "priority": "P1",
         "selected_candidate_id": "dominant_neighbor_exact_lane",
-        "selected_target_bucket": "BLOCK|bear_bias200_hard_block|q00",
+        "selected_target_bucket": "BLOCK|structure_overextended_block|q85",
         "live_exposure_allowed": false,
         "success_condition": "If the root-cause map candidate fails current-window metrics, keep it reference-only and move to a different signal redesign or hard no-go."
       },
       {
         "id": "rerun_oos_if_current_window_candidate_emerges",
         "priority": "P0",
-        "best_reference_candidate_id": "best_historical_exact_lane_bucket",
+        "best_reference_candidate_id": "dominant_neighbor_exact_lane",
         "live_exposure_allowed": false,
         "success_condition": "Only a candidate with current-window rows, metrics, OOS replay, support audit, and API guardrail proof may move toward canary readiness."
       }
     ]
   },
   "drift_rebaseline_backtest": {
-    "generated_at": "2026-06-05T03:46:38.416907Z",
+    "generated_at": "2026-07-28T14:46:19.392264Z",
     "artifact": "q15_drift_rebaseline_backtest",
     "source_artifacts": {
       "live_predict_probe_path": "data/live_predict_probe.json",
-      "live_predict_probe_generated_at": "2026-06-05T03:46:21.654036Z",
+      "live_predict_probe_generated_at": "2026-07-28T14:46:12.500752Z",
       "q15_support_audit_path": "data/q15_support_audit.json",
-      "q15_support_audit_generated_at": "2026-06-05T03:46:21.646189Z",
+      "q15_support_audit_generated_at": "2026-07-28T14:46:12.496718Z",
       "q15_support_fill_feasibility_path": "data/q15_support_fill_feasibility.json",
-      "q15_support_fill_feasibility_generated_at": "2026-06-05T03:46:28.397005+00:00",
+      "q15_support_fill_feasibility_generated_at": "2026-07-28T14:46:15.408949+00:00",
       "recent_drift_report_path": "data/recent_drift_report.json",
-      "recent_drift_report_generated_at": "2026-06-05T03:46:07.357078+00:00"
+      "recent_drift_report_generated_at": "2026-07-28T14:46:02.116873+00:00"
     },
     "support_identity": {
       "target_col": "simulated_pyramid_win",
       "horizon_minutes": 1440,
-      "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+      "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
       "regime_label": "bear",
       "regime_gate": "BLOCK",
       "entry_quality_label": "C",
@@ -1843,57 +1724,54 @@
       "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
     },
     "data_coverage": {
-      "joined_labeled_rows": 25536,
+      "joined_labeled_rows": 29152,
       "db_meta": {
         "features_normalized": {
-          "count": 25839,
+          "count": 29357,
           "min_ts": "2024-04-14 07:00:00.000000",
-          "max_ts": "2026-06-05 03:00:00.000000"
+          "max_ts": "2026-07-28 14:33:27.381993"
         },
         "labels": {
-          "count": 69413,
+          "count": 76425,
           "min_ts": "2024-04-14 07:00:00.000000",
-          "max_ts": "2026-06-04 22:00:00.000000"
+          "max_ts": "2026-07-28 11:29:42.581059"
         },
         "raw_market_data": {
-          "count": 35124,
+          "count": 38682,
           "min_ts": "2024-04-13 22:00:00.000000",
-          "max_ts": "2026-06-05 03:00:00.000000"
+          "max_ts": "2026-07-28 14:33:27.381993"
         }
       }
     },
     "current_forced_branch": {
-      "status": "not_required",
-      "selected_branch": null,
-      "single_failed_gate": "support_gate",
+      "status": "hard_no_go_recorded",
+      "selected_branch": "hard_no_go_single_failed_gate",
+      "single_failed_gate": "circuit_breaker_gate",
       "decision_clock": "72h_micro_canary_or_single_failed_gate"
     },
     "recent_drift_context": {
-      "source_generated_at": "2026-06-05T03:46:07.357078+00:00",
+      "source_generated_at": "2026-07-28T14:46:02.116873+00:00",
       "window": 100,
-      "win_rate": 0.21,
-      "dominant_regime": "bear",
-      "dominant_regime_share": 0.94,
-      "avg_pnl": -0.0106,
-      "avg_quality": -0.1998,
-      "avg_drawdown_penalty": 0.4769,
-      "alerts": [
-        "regime_concentration",
-        "regime_shift"
-      ]
+      "win_rate": 0.63,
+      "dominant_regime": "chop",
+      "dominant_regime_share": 0.57,
+      "avg_pnl": 0.0014,
+      "avg_quality": 0.2402,
+      "avg_drawdown_penalty": 0.1315,
+      "alerts": []
     },
     "verdict": {
-      "status": "current_identity_support_ready_rebaseline_not_needed",
-      "decision": "current exact support already meets minimum; rebaseline proof is not the primary gate, but live buy/add still waits for remaining gates.",
+      "status": "no_rebaseline_candidate_found",
+      "decision": "No semantic/rebaseline candidate has enough evidence; keep exact-row harvest or hard no-go as the forced branch.",
       "selected_candidate_id": null,
       "selected_candidate_status": null,
       "selected_candidate_evidence_role": null,
       "selected_all_history_rows": null,
       "selected_current_window_rows": null,
       "selected_current_window_key": "200",
-      "current_exact_bucket_rows": 131,
+      "current_exact_bucket_rows": 0,
       "minimum_support_rows": 50,
-      "gap_to_minimum": 0,
+      "gap_to_minimum": 50,
       "deployable": false,
       "live_exposure_allowed": false,
       "order_submission_enabled": false,
@@ -1915,7 +1793,7 @@
           "current_live_structure_bucket"
         ],
         "relaxed_fields": [],
-        "source_compression_rows": 131,
+        "source_compression_rows": 0,
         "source_metric_gate_candidate": false,
         "status": "baseline_current_identity",
         "deployable_support": false,
@@ -1924,156 +1802,141 @@
           "100": {
             "window": 100,
             "same_as_current_calibration_window": false,
-            "rows": 90,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 90,
-              "win_rate": 0.2111,
-              "target_counts": {
-                "0": 71,
-                "1": 19
-              },
-              "avg_pnl": -0.0105,
-              "avg_quality": -0.197,
-              "avg_drawdown_penalty": 0.4768,
-              "avg_time_underwater": 0.655
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-31 07:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "200": {
             "window": 200,
             "same_as_current_calibration_window": true,
-            "rows": 131,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 131,
-              "win_rate": 0.3053,
-              "target_counts": {
-                "0": 91,
-                "1": 40
-              },
-              "avg_pnl": -0.0072,
-              "avg_quality": -0.082,
-              "avg_drawdown_penalty": 0.3565,
-              "avg_time_underwater": 0.5779
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "600": {
             "window": 600,
             "same_as_current_calibration_window": false,
-            "rows": 131,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 131,
-              "win_rate": 0.3053,
-              "target_counts": {
-                "0": 91,
-                "1": 40
-              },
-              "avg_pnl": -0.0072,
-              "avg_quality": -0.082,
-              "avg_drawdown_penalty": 0.3565,
-              "avg_time_underwater": 0.5779
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "1000": {
             "window": 1000,
             "same_as_current_calibration_window": false,
-            "rows": 131,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 131,
-              "win_rate": 0.3053,
-              "target_counts": {
-                "0": 91,
-                "1": 40
-              },
-              "avg_pnl": -0.0072,
-              "avg_quality": -0.082,
-              "avg_drawdown_penalty": 0.3565,
-              "avg_time_underwater": 0.5779
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "5000": {
             "window": 5000,
             "same_as_current_calibration_window": false,
-            "rows": 139,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 139,
-              "win_rate": 0.3453,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 91,
-                "1": 48
+                "1": 4
               },
-              "avg_pnl": -0.0062,
-              "avg_quality": -0.0445,
-              "avg_drawdown_penalty": 0.3381,
-              "avg_time_underwater": 0.5507
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-05 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
-          "25536": {
-            "window": 25536,
+          "29152": {
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 141,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 141,
-              "win_rate": 0.3546,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 91,
-                "1": 50
+                "1": 4
               },
-              "avg_pnl": -0.0057,
-              "avg_quality": -0.0335,
-              "avg_drawdown_penalty": 0.3344,
-              "avg_time_underwater": 0.5441
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2025-04-09 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
           "all": {
-            "window": 25536,
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 141,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 141,
-              "win_rate": 0.3546,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 91,
-                "1": 50
+                "1": 4
               },
-              "avg_pnl": -0.0057,
-              "avg_quality": -0.0335,
-              "avg_drawdown_penalty": 0.3344,
-              "avg_time_underwater": 0.5441
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2025-04-09 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           }
         }
       },
@@ -2090,165 +1953,150 @@
         "relaxed_fields": [
           "calibration_window"
         ],
-        "source_compression_rows": 141,
+        "source_compression_rows": 4,
         "source_metric_gate_candidate": false,
-        "status": "count_ready_metric_rejected",
+        "status": "insufficient_rows",
         "deployable_support": false,
         "live_exposure_allowed": false,
         "window_evaluations": {
           "100": {
             "window": 100,
             "same_as_current_calibration_window": false,
-            "rows": 90,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 90,
-              "win_rate": 0.2111,
-              "target_counts": {
-                "0": 71,
-                "1": 19
-              },
-              "avg_pnl": -0.0105,
-              "avg_quality": -0.197,
-              "avg_drawdown_penalty": 0.4768,
-              "avg_time_underwater": 0.655
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-31 07:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "200": {
             "window": 200,
             "same_as_current_calibration_window": true,
-            "rows": 131,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 131,
-              "win_rate": 0.3053,
-              "target_counts": {
-                "0": 91,
-                "1": 40
-              },
-              "avg_pnl": -0.0072,
-              "avg_quality": -0.082,
-              "avg_drawdown_penalty": 0.3565,
-              "avg_time_underwater": 0.5779
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "600": {
             "window": 600,
             "same_as_current_calibration_window": false,
-            "rows": 131,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 131,
-              "win_rate": 0.3053,
-              "target_counts": {
-                "0": 91,
-                "1": 40
-              },
-              "avg_pnl": -0.0072,
-              "avg_quality": -0.082,
-              "avg_drawdown_penalty": 0.3565,
-              "avg_time_underwater": 0.5779
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "1000": {
             "window": 1000,
             "same_as_current_calibration_window": false,
-            "rows": 131,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 131,
-              "win_rate": 0.3053,
-              "target_counts": {
-                "0": 91,
-                "1": 40
-              },
-              "avg_pnl": -0.0072,
-              "avg_quality": -0.082,
-              "avg_drawdown_penalty": 0.3565,
-              "avg_time_underwater": 0.5779
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "5000": {
             "window": 5000,
             "same_as_current_calibration_window": false,
-            "rows": 139,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 139,
-              "win_rate": 0.3453,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 91,
-                "1": 48
+                "1": 4
               },
-              "avg_pnl": -0.0062,
-              "avg_quality": -0.0445,
-              "avg_drawdown_penalty": 0.3381,
-              "avg_time_underwater": 0.5507
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-05 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
-          "25536": {
-            "window": 25536,
+          "29152": {
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 141,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 141,
-              "win_rate": 0.3546,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 91,
-                "1": 50
+                "1": 4
               },
-              "avg_pnl": -0.0057,
-              "avg_quality": -0.0335,
-              "avg_drawdown_penalty": 0.3344,
-              "avg_time_underwater": 0.5441
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2025-04-09 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
           "all": {
-            "window": 25536,
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 141,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 141,
-              "win_rate": 0.3546,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 91,
-                "1": 50
+                "1": 4
               },
-              "avg_pnl": -0.0057,
-              "avg_quality": -0.0335,
-              "avg_drawdown_penalty": 0.3344,
-              "avg_time_underwater": 0.5441
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2025-04-09 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           }
         }
       },
@@ -2265,165 +2113,150 @@
           "calibration_window",
           "entry_quality_label"
         ],
-        "source_compression_rows": 384,
+        "source_compression_rows": 4,
         "source_metric_gate_candidate": false,
-        "status": "count_ready_metric_rejected",
+        "status": "insufficient_rows",
         "deployable_support": false,
         "live_exposure_allowed": false,
         "window_evaluations": {
           "100": {
             "window": 100,
             "same_as_current_calibration_window": false,
-            "rows": 94,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 94,
-              "win_rate": 0.2234,
-              "target_counts": {
-                "0": 73,
-                "1": 21
-              },
-              "avg_pnl": -0.0101,
-              "avg_quality": -0.1849,
-              "avg_drawdown_penalty": 0.4702,
-              "avg_time_underwater": 0.646
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-31 07:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "200": {
             "window": 200,
             "same_as_current_calibration_window": true,
-            "rows": 137,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 137,
-              "win_rate": 0.3139,
-              "target_counts": {
-                "0": 94,
-                "1": 43
-              },
-              "avg_pnl": -0.0069,
-              "avg_quality": -0.0729,
-              "avg_drawdown_penalty": 0.3515,
-              "avg_time_underwater": 0.571
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "600": {
             "window": 600,
             "same_as_current_calibration_window": false,
-            "rows": 137,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 137,
-              "win_rate": 0.3139,
-              "target_counts": {
-                "0": 94,
-                "1": 43
-              },
-              "avg_pnl": -0.0069,
-              "avg_quality": -0.0729,
-              "avg_drawdown_penalty": 0.3515,
-              "avg_time_underwater": 0.571
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "1000": {
             "window": 1000,
             "same_as_current_calibration_window": false,
-            "rows": 137,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 137,
-              "win_rate": 0.3139,
-              "target_counts": {
-                "0": 94,
-                "1": 43
-              },
-              "avg_pnl": -0.0069,
-              "avg_quality": -0.0729,
-              "avg_drawdown_penalty": 0.3515,
-              "avg_time_underwater": 0.571
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "5000": {
             "window": 5000,
             "same_as_current_calibration_window": false,
-            "rows": 145,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 145,
-              "win_rate": 0.3517,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 94,
-                "1": 51
+                "1": 4
               },
-              "avg_pnl": -0.006,
-              "avg_quality": -0.0375,
-              "avg_drawdown_penalty": 0.3341,
-              "avg_time_underwater": 0.5453
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-05 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
-          "25536": {
-            "window": 25536,
+          "29152": {
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 384,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 384,
-              "win_rate": 0.5677,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 166,
-                "1": 218
+                "1": 4
               },
-              "avg_pnl": 0.0009,
-              "avg_quality": 0.1508,
-              "avg_drawdown_penalty": 0.3449,
-              "avg_time_underwater": 0.4699
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2025-04-09 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
           "all": {
-            "window": 25536,
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 384,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 384,
-              "win_rate": 0.5677,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 166,
-                "1": 218
+                "1": 4
               },
-              "avg_pnl": 0.0009,
-              "avg_quality": 0.1508,
-              "avg_drawdown_penalty": 0.3449,
-              "avg_time_underwater": 0.4699
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2025-04-09 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           }
         }
       },
@@ -2440,165 +2273,150 @@
           "entry_quality_label",
           "regime_label"
         ],
-        "source_compression_rows": 559,
+        "source_compression_rows": 4,
         "source_metric_gate_candidate": false,
-        "status": "count_ready_metric_rejected",
+        "status": "insufficient_rows",
         "deployable_support": false,
         "live_exposure_allowed": false,
         "window_evaluations": {
           "100": {
             "window": 100,
             "same_as_current_calibration_window": false,
-            "rows": 94,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 94,
-              "win_rate": 0.2234,
-              "target_counts": {
-                "0": 73,
-                "1": 21
-              },
-              "avg_pnl": -0.0101,
-              "avg_quality": -0.1849,
-              "avg_drawdown_penalty": 0.4702,
-              "avg_time_underwater": 0.646
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-31 07:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "200": {
             "window": 200,
             "same_as_current_calibration_window": true,
-            "rows": 137,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 137,
-              "win_rate": 0.3139,
-              "target_counts": {
-                "0": 94,
-                "1": 43
-              },
-              "avg_pnl": -0.0069,
-              "avg_quality": -0.0729,
-              "avg_drawdown_penalty": 0.3515,
-              "avg_time_underwater": 0.571
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "600": {
             "window": 600,
             "same_as_current_calibration_window": false,
-            "rows": 137,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 137,
-              "win_rate": 0.3139,
-              "target_counts": {
-                "0": 94,
-                "1": 43
-              },
-              "avg_pnl": -0.0069,
-              "avg_quality": -0.0729,
-              "avg_drawdown_penalty": 0.3515,
-              "avg_time_underwater": 0.571
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "1000": {
             "window": 1000,
             "same_as_current_calibration_window": false,
-            "rows": 137,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 137,
-              "win_rate": 0.3139,
-              "target_counts": {
-                "0": 94,
-                "1": 43
-              },
-              "avg_pnl": -0.0069,
-              "avg_quality": -0.0729,
-              "avg_drawdown_penalty": 0.3515,
-              "avg_time_underwater": 0.571
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "5000": {
             "window": 5000,
             "same_as_current_calibration_window": false,
-            "rows": 145,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 145,
-              "win_rate": 0.3517,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 94,
-                "1": 51
+                "1": 4
               },
-              "avg_pnl": -0.006,
-              "avg_quality": -0.0375,
-              "avg_drawdown_penalty": 0.3341,
-              "avg_time_underwater": 0.5453
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-05 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
-          "25536": {
-            "window": 25536,
+          "29152": {
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 559,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 559,
-              "win_rate": 0.6512,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 195,
-                "1": 364
+                "1": 4
               },
-              "avg_pnl": 0.0054,
-              "avg_quality": 0.2524,
-              "avg_drawdown_penalty": 0.3259,
-              "avg_time_underwater": 0.4308
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2024-05-01 07:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
           "all": {
-            "window": 25536,
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 559,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 559,
-              "win_rate": 0.6512,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 195,
-                "1": 364
+                "1": 4
               },
-              "avg_pnl": 0.0054,
-              "avg_quality": 0.2524,
-              "avg_drawdown_penalty": 0.3259,
-              "avg_time_underwater": 0.4308
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2024-05-01 07:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           }
         }
       },
@@ -2615,165 +2433,150 @@
           "regime_label",
           "regime_gate"
         ],
-        "source_compression_rows": 559,
+        "source_compression_rows": 4,
         "source_metric_gate_candidate": false,
-        "status": "count_ready_metric_rejected",
+        "status": "insufficient_rows",
         "deployable_support": false,
         "live_exposure_allowed": false,
         "window_evaluations": {
           "100": {
             "window": 100,
             "same_as_current_calibration_window": false,
-            "rows": 94,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 94,
-              "win_rate": 0.2234,
-              "target_counts": {
-                "0": 73,
-                "1": 21
-              },
-              "avg_pnl": -0.0101,
-              "avg_quality": -0.1849,
-              "avg_drawdown_penalty": 0.4702,
-              "avg_time_underwater": 0.646
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-31 07:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "200": {
             "window": 200,
             "same_as_current_calibration_window": true,
-            "rows": 137,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 137,
-              "win_rate": 0.3139,
-              "target_counts": {
-                "0": 94,
-                "1": 43
-              },
-              "avg_pnl": -0.0069,
-              "avg_quality": -0.0729,
-              "avg_drawdown_penalty": 0.3515,
-              "avg_time_underwater": 0.571
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "600": {
             "window": 600,
             "same_as_current_calibration_window": false,
-            "rows": 137,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 137,
-              "win_rate": 0.3139,
-              "target_counts": {
-                "0": 94,
-                "1": 43
-              },
-              "avg_pnl": -0.0069,
-              "avg_quality": -0.0729,
-              "avg_drawdown_penalty": 0.3515,
-              "avg_time_underwater": 0.571
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "1000": {
             "window": 1000,
             "same_as_current_calibration_window": false,
-            "rows": 137,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 0,
+            "rows_needed_to_minimum": 50,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 137,
-              "win_rate": 0.3139,
-              "target_counts": {
-                "0": 94,
-                "1": 43
-              },
-              "avg_pnl": -0.0069,
-              "avg_quality": -0.0729,
-              "avg_drawdown_penalty": 0.3515,
-              "avg_time_underwater": 0.571
+              "rows": 0,
+              "win_rate": null,
+              "target_counts": {},
+              "avg_pnl": null,
+              "avg_quality": null,
+              "avg_drawdown_penalty": null,
+              "avg_time_underwater": null
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-28 21:00:00.000000"
+            "latest_timestamp": null,
+            "oldest_timestamp": null
           },
           "5000": {
             "window": 5000,
             "same_as_current_calibration_window": false,
-            "rows": 145,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 145,
-              "win_rate": 0.3517,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 94,
-                "1": 51
+                "1": 4
               },
-              "avg_pnl": -0.006,
-              "avg_quality": -0.0375,
-              "avg_drawdown_penalty": 0.3341,
-              "avg_time_underwater": 0.5453
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2026-05-05 02:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
-          "25536": {
-            "window": 25536,
+          "29152": {
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 559,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 559,
-              "win_rate": 0.6512,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 195,
-                "1": 364
+                "1": 4
               },
-              "avg_pnl": 0.0054,
-              "avg_quality": 0.2524,
-              "avg_drawdown_penalty": 0.3259,
-              "avg_time_underwater": 0.4308
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2024-05-01 07:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           },
           "all": {
-            "window": 25536,
+            "window": 29152,
             "same_as_current_calibration_window": false,
-            "rows": 559,
-            "rows_needed_to_minimum": 0,
-            "ready_by_count": true,
+            "rows": 4,
+            "rows_needed_to_minimum": 46,
+            "ready_by_count": false,
             "metric_gate_candidate": false,
             "metrics": {
-              "rows": 559,
-              "win_rate": 0.6512,
+              "rows": 4,
+              "win_rate": 1.0,
               "target_counts": {
-                "0": 195,
-                "1": 364
+                "1": 4
               },
-              "avg_pnl": 0.0054,
-              "avg_quality": 0.2524,
-              "avg_drawdown_penalty": 0.3259,
-              "avg_time_underwater": 0.4308
+              "avg_pnl": 0.0021,
+              "avg_quality": 0.4329,
+              "avg_drawdown_penalty": 0.0808,
+              "avg_time_underwater": 0.2661
             },
-            "latest_timestamp": "2026-06-04 04:00:00.000000",
-            "oldest_timestamp": "2024-05-01 07:00:00.000000"
+            "latest_timestamp": "2026-05-16 14:07:07.729505",
+            "oldest_timestamp": "2026-05-16 09:25:24.915402"
           }
         }
       }
@@ -2800,7 +2603,7 @@
       {
         "id": "keep_current_exact_support_gate_fail_closed",
         "priority": "P0",
-        "current_exact_bucket_rows": 131,
+        "current_exact_bucket_rows": 0,
         "minimum_support_rows": 50,
         "live_exposure_allowed": false,
         "success_condition": "current exact support reaches at least 50 rows before any risk-on live action."
@@ -2811,50 +2614,50 @@
     "support_identity": {
       "target_col": "simulated_pyramid_win",
       "horizon_minutes": 1440,
-      "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
-      "regime_label": "bull",
-      "regime_gate": "CAUTION",
-      "entry_quality_label": "D",
+      "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+      "regime_label": "bear",
+      "regime_gate": "BLOCK",
+      "entry_quality_label": "C",
       "calibration_window": 200,
       "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
     },
-    "support_governance_route": "exact_live_bucket_supported",
-    "preferred_support_cohort": "exact_live_bucket",
+    "support_governance_route": "exact_live_lane_proxy_available",
+    "preferred_support_cohort": null,
     "verdict": "insufficient_support_everywhere",
     "deployable": false,
     "governance_reference_only": true,
     "reason": "current live path 在 exact bucket / proxy / neighbor 都沒有 deployment 級支撐。",
     "release_condition": "先擴充 exact bucket 或縮小治理範圍，否則不得調整 runtime gate。",
-    "route_hint": "exact_live_bucket_supported",
+    "route_hint": "exact_live_lane_proxy_available",
     "minimum_support_rows": 50,
     "current_live_structure_bucket_gap_to_minimum": 50,
-    "exact_bucket_root_cause": "exact_bucket_supported",
-    "recommended_action": "可回到 exact live bucket 直接治理與驗證。",
+    "exact_bucket_root_cause": "same_lane_exists_but_q65_missing",
+    "recommended_action": "support 全面不足；下一輪需優先擴充樣本或縮小治理範圍。",
     "exact_live_bucket_proxy_rows": 0,
-    "exact_live_lane_proxy_rows": 10,
+    "exact_live_lane_proxy_rows": 43,
     "supported_neighbor_rows": 0,
     "support_progress": {
-      "status": "no_recent_comparable_history",
-      "reason": "目前找不到同一 current live structure bucket且同 support_identity / semantic signature 的最近 heartbeat 可比較；先持續累積 exact support。",
-      "regression_basis": "no_same_identity_same_semantic_signature_history",
+      "status": "stalled_under_minimum",
+      "reason": "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
+      "regression_basis": "same_identity_same_semantic_signature",
       "support_identity": {
         "target_col": "simulated_pyramid_win",
         "horizon_minutes": 1440,
-        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
-        "regime_label": "bull",
-        "regime_gate": "CAUTION",
-        "entry_quality_label": "D",
+        "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+        "regime_label": "bear",
+        "regime_gate": "BLOCK",
+        "entry_quality_label": "C",
         "calibration_window": 200,
         "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
       },
       "current_rows": 0,
       "minimum_support_rows": 50,
       "gap_to_minimum": 50,
-      "delta_vs_previous": null,
-      "previous_rows": null,
+      "delta_vs_previous": 0,
+      "previous_rows": 0,
       "previous_route_changed": false,
-      "previous_support_route_verdict": null,
-      "previous_support_governance_route": null,
+      "previous_support_route_verdict": "insufficient_support_everywhere",
+      "previous_support_governance_route": "exact_live_lane_proxy_available",
       "regressed_from_supported": false,
       "recent_supported_rows": null,
       "recent_supported_heartbeat": null,
@@ -2862,95 +2665,221 @@
       "delta_vs_recent_supported": null,
       "legacy_supported_reference": null,
       "semantic_rebaseline_reference": null,
-      "comparable_history_count": 0,
+      "comparable_history_count": 1,
       "legacy_reference_history_count": 0,
-      "stagnant_run_count": 0,
-      "stalled_support_accumulation": false,
+      "stagnant_run_count": 2,
+      "stalled_support_accumulation": true,
       "semantic_signature_progress": {
-        "comparable_history_count": 0,
-        "previous_rows": null,
-        "delta_vs_previous": null,
-        "stagnant_run_count": 0,
-        "stalled_support_accumulation": false,
+        "comparable_history_count": 1,
+        "previous_rows": 0,
+        "delta_vs_previous": 0,
+        "stagnant_run_count": 2,
+        "stalled_support_accumulation": true,
         "history": [
           {
             "heartbeat": "current",
-            "timestamp": "2026-07-10T10:37:48.625228+00:00",
-            "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+            "timestamp": "2026-07-28T14:46:25.328532+00:00",
+            "live_current_structure_bucket": "BLOCK|structure_quality_block|q00",
             "live_current_structure_bucket_rows": 0,
             "minimum_support_rows": 50,
             "support_route_verdict": "insufficient_support_everywhere",
-            "support_governance_route": "exact_live_bucket_supported",
+            "support_governance_route": "exact_live_lane_proxy_available",
             "support_identity": {
               "target_col": "simulated_pyramid_win",
               "horizon_minutes": 1440,
-              "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
-              "regime_label": "bull",
-              "regime_gate": "CAUTION",
-              "entry_quality_label": "D",
+              "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+              "regime_label": "bear",
+              "regime_gate": "BLOCK",
+              "entry_quality_label": "C",
               "calibration_window": 200,
               "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
             }
+          },
+          {
+            "heartbeat": "56",
+            "timestamp": "2026-07-28T02:18:17.473675+00:00",
+            "live_current_structure_bucket": "BLOCK|structure_quality_block|q00",
+            "live_current_structure_bucket_rows": 0,
+            "minimum_support_rows": 50,
+            "support_route_verdict": "insufficient_support_everywhere",
+            "support_governance_route": "exact_live_lane_proxy_available",
+            "support_identity": {
+              "target_col": "simulated_pyramid_win",
+              "horizon_minutes": 1440,
+              "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+              "regime_label": "bear",
+              "regime_gate": "BLOCK",
+              "entry_quality_label": "C",
+              "calibration_window": 200,
+              "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+            },
+            "support_identity_backfilled": false,
+            "semantic_identity_evidence": {
+              "source": "explicit_support_identity",
+              "explicit_support_identity_present": true,
+              "explicit_bucket_semantic_signature_present": true,
+              "backfilled_bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+              "backfilled_support_identity": {
+                "target_col": "simulated_pyramid_win",
+                "horizon_minutes": 1440,
+                "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+                "regime_label": "bear",
+                "regime_gate": "BLOCK",
+                "entry_quality_label": "C",
+                "calibration_window": 200,
+                "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+              },
+              "candidate_support_identity": {
+                "target_col": "simulated_pyramid_win",
+                "horizon_minutes": 1440,
+                "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+                "regime_label": "bear",
+                "regime_gate": "BLOCK",
+                "entry_quality_label": "C",
+                "calibration_window": 200,
+                "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+              },
+              "source_fields_complete": true,
+              "matched_fields": [
+                "target_col",
+                "horizon_minutes",
+                "current_live_structure_bucket",
+                "regime_label",
+                "regime_gate",
+                "entry_quality_label",
+                "calibration_window",
+                "bucket_semantic_signature"
+              ],
+              "mismatched_fields": [],
+              "missing_fields": [],
+              "supports_current_identity": true,
+              "promotable_to_same_identity_history": true,
+              "verdict": "same_identity_evidence_backfilled"
+            },
+            "regression_basis": "no_same_identity_same_semantic_signature_history"
           }
         ],
         "ignored_strict_identity_fields": [
           "entry_quality_label"
         ]
       },
-      "semantic_signature_delta_vs_previous": null,
-      "semantic_signature_stagnant_run_count": 0,
-      "semantic_signature_stalled_support_accumulation": false,
+      "semantic_signature_delta_vs_previous": 0,
+      "semantic_signature_stagnant_run_count": 2,
+      "semantic_signature_stalled_support_accumulation": true,
       "escalate_to_blocker": false,
       "history": [
         {
           "heartbeat": "current",
-          "timestamp": "2026-07-10T10:37:48.625228+00:00",
-          "live_current_structure_bucket": "CAUTION|structure_quality_caution|q35",
+          "timestamp": "2026-07-28T14:46:25.328532+00:00",
+          "live_current_structure_bucket": "BLOCK|structure_quality_block|q00",
           "live_current_structure_bucket_rows": 0,
           "minimum_support_rows": 50,
           "support_route_verdict": "insufficient_support_everywhere",
-          "support_governance_route": "exact_live_bucket_supported",
+          "support_governance_route": "exact_live_lane_proxy_available",
           "support_identity": {
             "target_col": "simulated_pyramid_win",
             "horizon_minutes": 1440,
-            "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
-            "regime_label": "bull",
-            "regime_gate": "CAUTION",
-            "entry_quality_label": "D",
+            "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+            "regime_label": "bear",
+            "regime_gate": "BLOCK",
+            "entry_quality_label": "C",
             "calibration_window": 200,
             "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
           }
+        },
+        {
+          "heartbeat": "56",
+          "timestamp": "2026-07-28T02:18:17.473675+00:00",
+          "live_current_structure_bucket": "BLOCK|structure_quality_block|q00",
+          "live_current_structure_bucket_rows": 0,
+          "minimum_support_rows": 50,
+          "support_route_verdict": "insufficient_support_everywhere",
+          "support_governance_route": "exact_live_lane_proxy_available",
+          "support_identity": {
+            "target_col": "simulated_pyramid_win",
+            "horizon_minutes": 1440,
+            "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+            "regime_label": "bear",
+            "regime_gate": "BLOCK",
+            "entry_quality_label": "C",
+            "calibration_window": 200,
+            "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+          },
+          "support_identity_backfilled": false,
+          "semantic_identity_evidence": {
+            "source": "explicit_support_identity",
+            "explicit_support_identity_present": true,
+            "explicit_bucket_semantic_signature_present": true,
+            "backfilled_bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2",
+            "backfilled_support_identity": {
+              "target_col": "simulated_pyramid_win",
+              "horizon_minutes": 1440,
+              "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+              "regime_label": "bear",
+              "regime_gate": "BLOCK",
+              "entry_quality_label": "C",
+              "calibration_window": 200,
+              "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+            },
+            "candidate_support_identity": {
+              "target_col": "simulated_pyramid_win",
+              "horizon_minutes": 1440,
+              "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+              "regime_label": "bear",
+              "regime_gate": "BLOCK",
+              "entry_quality_label": "C",
+              "calibration_window": 200,
+              "bucket_semantic_signature": "live_structure_bucket:q15_support_identity:v2"
+            },
+            "source_fields_complete": true,
+            "matched_fields": [
+              "target_col",
+              "horizon_minutes",
+              "current_live_structure_bucket",
+              "regime_label",
+              "regime_gate",
+              "entry_quality_label",
+              "calibration_window",
+              "bucket_semantic_signature"
+            ],
+            "mismatched_fields": [],
+            "missing_fields": [],
+            "supports_current_identity": true,
+            "promotable_to_same_identity_history": true,
+            "verdict": "same_identity_evidence_backfilled"
+          },
+          "regression_basis": "no_same_identity_same_semantic_signature_history"
         }
       ],
       "equilibrium_deadlock": {
-        "verdict": "not_enough_evidence_for_deadlock",
-        "state": "not_deadlock",
+        "verdict": "equilibrium_deadlock_watch",
+        "state": "watch",
         "confirmed": false,
-        "severity": "none",
+        "severity": "P1",
         "failure_mode": "closed_loop_support_identity_starvation_under_static_gate",
-        "decision": "目前沒有足夠重複 under-minimum 零位移證據可判定平衡死循環。",
+        "decision": "尚未達 confirmed 閾值，但 under-minimum support 已出現零位移或停滯訊號；下一輪需證明 rows 有位移或升級為 forced branch。",
         "deadlock_signature": {
-          "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
-          "support_progress_status": "no_recent_comparable_history",
+          "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+          "support_progress_status": "stalled_under_minimum",
           "support_route_verdict": "insufficient_support_everywhere",
-          "support_governance_route": "exact_live_bucket_supported",
+          "support_governance_route": "exact_live_lane_proxy_available",
           "current_rows": 0,
           "minimum_support_rows": 50,
           "gap_to_minimum": 50,
-          "delta_vs_previous": null,
-          "stagnant_run_count": 0,
-          "semantic_signature_delta_vs_previous": null,
-          "semantic_signature_stagnant_run_count": 0
+          "delta_vs_previous": 0,
+          "stagnant_run_count": 2,
+          "semantic_signature_delta_vs_previous": 0,
+          "semantic_signature_stagnant_run_count": 2
         },
         "trigger_conditions": {
           "under_minimum": true,
           "support_ready": false,
-          "support_delta_zero": false,
-          "semantic_signature_delta_zero": false,
+          "support_delta_zero": true,
+          "semantic_signature_delta_zero": true,
           "stagnant_run_count_ge_threshold": false,
           "semantic_stagnant_run_count_ge_threshold": false,
-          "stalled_support_accumulation": false,
-          "semantic_stalled_support_accumulation": false,
+          "stalled_support_accumulation": true,
+          "semantic_stalled_support_accumulation": true,
           "threshold": 3
         },
         "research_basis": [
@@ -2973,7 +2902,7 @@
         ],
         "forced_research_action_artifact": {
           "artifact_id": "equilibrium_deadlock_research_action",
-          "required": false,
+          "required": true,
           "owner_lane": "D_map_signal_redesign_for_current_bucket",
           "output_path": "data/equilibrium_deadlock_research_action.json",
           "required_by_next_heartbeat": false,
@@ -3001,27 +2930,18 @@
     }
   },
   "floor_cross_legality": {
-    "verdict": "math_cross_possible_but_illegal_without_exact_support",
+    "verdict": "runtime_blocker_preempts_floor_analysis",
     "legal_to_relax_runtime_gate": false,
-    "reason": "feat_4h_bias50 在數學上可單點補足 floor gap（需要 score Δ≈0.5653），但 current q15 exact support 尚未達 deployment 門檻，因此不得單靠 component calibration 解除 blocker。",
-    "remaining_gap_to_floor": 0.1696,
-    "best_single_component": "feat_4h_bias50",
-    "best_single_component_required_score_delta": 0.5653,
-    "best_single_component_can_cross_floor": true
+    "reason": "目前先被 runtime blocker 擋下（Recent 50-sample win rate: 26.00% < 30%），不能把 q15 floor-cross 當成當前 deploy 入口。",
+    "remaining_gap_to_floor": 0.0,
+    "best_single_component": null,
+    "best_single_component_required_score_delta": null,
+    "best_single_component_can_cross_floor": false
   },
   "component_experiment": {
-    "verdict": "reference_only_current_live_not_q15_and_support_not_ready",
-    "feature": "feat_4h_bias50",
-    "mode": "reference_only_non_current_live_scope",
-    "remaining_gap_to_floor": 0.1696,
-    "required_score_delta_to_cross_floor": 0.5653,
-    "bias50_floor_counterfactual": {
-      "entry_if_bias50_fully_relaxed": null,
-      "layers_if_bias50_fully_relaxed": 0,
-      "required_bias50_cap_for_floor": null,
-      "current_bias50_value": -11.4026
-    },
-    "reason": "current live row 目前停在 CAUTION|structure_quality_caution|q35，不在 q15 target lane CAUTION|structure_quality_caution|q15；本 artifact 只能描述非 current-live 的 q15/reference route，不得當成 current-live deployment closure。",
+    "verdict": "runtime_blocker_preempts_component_experiment",
+    "feature": null,
+    "reason": "目前先被 runtime blocker 擋下（Recent 50-sample win rate: 26.00% < 30%），q15 component experiment 只能保留為背景研究。",
     "machine_read_answer": {
       "support_ready": false,
       "entry_quality_ge_0_55": false,
@@ -3029,22 +2949,19 @@
       "component_experiment_entry_quality_ge_0_55": false,
       "allowed_layers_gt_0": false,
       "preserves_positive_discrimination": null,
-      "preserves_positive_discrimination_status": "not_applicable_current_live_not_q15_lane",
-      "current_entry_quality": 0.3804,
+      "preserves_positive_discrimination_status": "not_measured_runtime_blocked",
+      "current_entry_quality": 0.655,
       "trade_floor": 0.55,
-      "current_trade_floor_gap": -0.1696,
-      "current_entry_quality_ge_0_55": false,
-      "current_entry_quality_ge_trade_floor": false,
-      "active_for_current_live_row": false,
-      "current_structure_bucket": "CAUTION|structure_quality_caution|q35",
-      "target_structure_bucket": "CAUTION|structure_quality_caution|q15"
+      "current_trade_floor_gap": 0.105,
+      "current_entry_quality_ge_0_55": true,
+      "current_entry_quality_ge_trade_floor": true
     },
     "positive_discrimination_evidence": {
       "preserves_positive_discrimination": null,
       "status": "not_measured_missing_current_bucket_metrics",
       "reason": "exact lane artifact 缺少 current bucket metrics，無法驗證正向 discrimination。"
     },
-    "verify_next": "先處理 current-live bucket CAUTION|structure_quality_caution|q35 的 exact-support / runtime blocker；只有 live row 回到 q15 lane 且 exact support deployable 時，q15 component experiment 才可進入 deployment verify。"
+    "verify_next": "先清除 runtime blocker，再重跑 q15_support_audit / live_decision_quality_drilldown。"
   },
   "active_repair_plan": {
     "phase": "current_bucket_first",
@@ -3056,47 +2973,47 @@
       "reduce",
       "sell"
     ],
-    "current_signal": "HOLD",
+    "current_signal": "CIRCUIT_BREAKER",
     "current_allowed_layers": 0,
-    "current_execution_guardrail_reason": "unsupported_exact_live_structure_bucket",
-    "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
-    "support_status": "no_recent_comparable_history",
+    "current_execution_guardrail_reason": "decision_quality_below_trade_floor; unsupported_exact_live_structure_bucket_blocks_trade; circuit_breaker_active",
+    "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+    "support_status": "stalled_under_minimum",
     "current_rows": 0,
     "minimum_support_rows": 50,
     "gap_to_minimum": 50,
-    "stagnant_run_count": 0,
-    "semantic_signature_delta_vs_previous": null,
-    "semantic_signature_stagnant_run_count": 0,
-    "semantic_signature_stalled_support_accumulation": false,
+    "stagnant_run_count": 2,
+    "semantic_signature_delta_vs_previous": 0,
+    "semantic_signature_stagnant_run_count": 2,
+    "semantic_signature_stalled_support_accumulation": true,
     "equilibrium_deadlock": {
-      "verdict": "not_applicable_current_live_not_target_lane",
-      "state": "standby",
+      "verdict": "equilibrium_deadlock_watch",
+      "state": "watch",
       "confirmed": false,
-      "severity": "none",
+      "severity": "P1",
       "failure_mode": "closed_loop_support_identity_starvation_under_static_gate",
-      "decision": "current live row 不在 q15/current target lane；此 audit 只保留 reference/standby，不把 target-lane support stagnation 誤判為 current-live deadlock。",
+      "decision": "尚未達 confirmed 閾值，但 under-minimum support 已出現零位移或停滯訊號；下一輪需證明 rows 有位移或升級為 forced branch。",
       "deadlock_signature": {
-        "current_live_structure_bucket": "CAUTION|structure_quality_caution|q35",
-        "support_progress_status": "no_recent_comparable_history",
+        "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
+        "support_progress_status": "stalled_under_minimum",
         "support_route_verdict": "insufficient_support_everywhere",
-        "support_governance_route": "exact_live_bucket_supported",
+        "support_governance_route": "exact_live_lane_proxy_available",
         "current_rows": 0,
         "minimum_support_rows": 50,
         "gap_to_minimum": 50,
-        "delta_vs_previous": null,
-        "stagnant_run_count": 0,
-        "semantic_signature_delta_vs_previous": null,
-        "semantic_signature_stagnant_run_count": 0
+        "delta_vs_previous": 0,
+        "stagnant_run_count": 2,
+        "semantic_signature_delta_vs_previous": 0,
+        "semantic_signature_stagnant_run_count": 2
       },
       "trigger_conditions": {
         "under_minimum": true,
         "support_ready": false,
-        "support_delta_zero": false,
-        "semantic_signature_delta_zero": false,
+        "support_delta_zero": true,
+        "semantic_signature_delta_zero": true,
         "stagnant_run_count_ge_threshold": false,
         "semantic_stagnant_run_count_ge_threshold": false,
-        "stalled_support_accumulation": false,
-        "semantic_stalled_support_accumulation": false,
+        "stalled_support_accumulation": true,
+        "semantic_stalled_support_accumulation": true,
         "threshold": 3
       },
       "research_basis": [
@@ -3119,7 +3036,7 @@
       ],
       "forced_research_action_artifact": {
         "artifact_id": "equilibrium_deadlock_research_action",
-        "required": false,
+        "required": true,
         "owner_lane": "D_map_signal_redesign_for_current_bucket",
         "output_path": "data/equilibrium_deadlock_research_action.json",
         "required_by_next_heartbeat": false,
@@ -3144,7 +3061,7 @@
         ]
       }
     },
-    "forced_research_action_required": false,
+    "forced_research_action_required": true,
     "forced_research_action_output_path": "data/equilibrium_deadlock_research_action.json",
     "legacy_reference_only": false,
     "legacy_semantic_evidence": null,
@@ -3156,14 +3073,14 @@
       "主動代謝與清理：proxy、neighbor、legacy reference 未補齊語義證據前全部標記 reference-only。"
     ],
     "forced_branch_decision": {
-      "status": "not_required",
-      "selected_branch": null,
-      "decision": "support deadlock forced branch 尚未觸發；維持一般 support / venue / model gate 驗證。",
+      "status": "hard_no_go_recorded",
+      "selected_branch": "hard_no_go_single_failed_gate",
+      "decision": "熔斷仍是唯一 immediate live gate；本輪以 single failed gate 記錄 no-go，同時要求後續交付 Map/Signal、exact-row harvest 或 drift rebaseline artifact。",
       "decision_clock": "72h_micro_canary_or_single_failed_gate",
-      "single_failed_gate": "support_gate",
-      "next_validation_artifact": "data/q15_support_audit.json",
+      "single_failed_gate": "circuit_breaker_gate",
+      "next_validation_artifact": "data/circuit_breaker_audit.json",
       "equilibrium_deadlock_confirmed": false,
-      "forced_research_action_required": false,
+      "forced_research_action_required": true,
       "live_exposure_allowed": false,
       "shadow_or_paper_allowed": true,
       "branch_matrix": [
@@ -3172,33 +3089,33 @@
           "status": "delivered_no_current_window_deployable",
           "success_condition": "提出新版 support identity / semantic bucket map，重跑 replay/backtest，且不把 proxy/reference rows 包裝成 deployable exact support。",
           "next_artifact": "data/q15_map_signal_redesign_proof.json",
-          "artifact_generated_at": "2026-06-05T03:46:44.756417Z",
-          "artifact_verdict": "map_signal_redesign_no_current_window_deployable_candidate",
+          "artifact_generated_at": "2026-07-28T14:46:21.413972Z",
+          "artifact_verdict": "map_signal_redesign_reference_only_current_window_unproven",
           "selected_candidate_id": "dominant_neighbor_exact_lane",
-          "selected_target_bucket": "BLOCK|bear_bias200_hard_block|q00",
-          "selected_current_window_rows": 28,
-          "selected_all_history_rows": 174,
-          "best_reference_candidate_id": "best_historical_exact_lane_bucket",
-          "primary_failed_gate": "current_live_support_gate",
+          "selected_target_bucket": "BLOCK|structure_overextended_block|q85",
+          "selected_current_window_rows": 0,
+          "selected_all_history_rows": 338,
+          "best_reference_candidate_id": "dominant_neighbor_exact_lane",
+          "primary_failed_gate": "current_window_support_gate",
           "deployable": false,
           "live_exposure_allowed": false
         },
         {
           "id": "exact_bucket_row_harvest_proof",
-          "status": "delivered_support_ready_remaining_gates",
+          "status": "delivered_under_minimum_progress_unproven",
           "success_condition": "交付 current support_identity 完全一致的新 exact rows，證明 support_rows 有正 delta；若仍無位移，記錄 hard no-go。",
           "next_artifact": "data/q15_exact_bucket_row_harvest_proof.json",
-          "artifact_generated_at": "2026-06-05T03:46:33.530787Z",
-          "artifact_verdict": "exact_bucket_row_harvest_support_ready_remaining_gates",
-          "current_rows": 131,
-          "previous_rows": 131,
+          "artifact_generated_at": "2026-07-28T14:46:17.368066Z",
+          "artifact_verdict": "exact_bucket_row_harvest_no_current_rows",
+          "current_rows": 0,
+          "previous_rows": 0,
           "minimum_support_rows": 50,
-          "rows_needed": 0,
+          "rows_needed": 50,
           "delta_vs_previous": 0,
           "semantic_signature_delta_vs_previous": 0,
-          "semantic_signature_stagnant_run_count": 4,
-          "support_gate_ready": true,
-          "primary_failed_gate": "remaining_live_gates",
+          "semantic_signature_stagnant_run_count": 2,
+          "support_gate_ready": false,
+          "primary_failed_gate": "current_live_support_gate",
           "live_exposure_allowed": false
         },
         {
@@ -3206,8 +3123,8 @@
           "status": "delivered_reference_only",
           "success_condition": "用 fresh window / walk-forward / drift-aware rebaseline 檢查 current bucket 是否已失效，並輸出 go/no-go。",
           "next_artifact": "data/q15_drift_rebaseline_backtest.json",
-          "artifact_generated_at": "2026-06-05T03:46:38.416907Z",
-          "artifact_verdict": "current_identity_support_ready_rebaseline_not_needed",
+          "artifact_generated_at": "2026-07-28T14:46:19.392264Z",
+          "artifact_verdict": "no_rebaseline_candidate_found",
           "selected_candidate_id": null,
           "selected_current_window_rows": null,
           "selected_all_history_rows": null,
@@ -3216,10 +3133,10 @@
         },
         {
           "id": "hard_no_go_single_failed_gate",
-          "status": "standby",
+          "status": "selected",
           "success_condition": "若仍不能 micro-canary，寫明唯一 hard gate 與下一個驗證 artifact；不得用繼續觀察取代。",
-          "single_failed_gate": "support_gate",
-          "next_artifact": "data/q15_support_audit.json",
+          "single_failed_gate": "circuit_breaker_gate",
+          "next_artifact": "data/circuit_breaker_audit.json",
           "live_exposure_allowed": false
         }
       ],
@@ -3251,145 +3168,148 @@
         "priority": "P0",
         "description": "fast heartbeat 在 q15 under-minimum / semantic rebaseline / stagnant 狀態下不得重用舊 q15 support artifact。",
         "success_condition": "每輪 support_progress.history / stagnant_run_count 反映最新 heartbeat truth。"
+      },
+      {
+        "id": "semantic_signature_map_signal_redesign_or_row_harvest",
+        "type": "forced_execution_branch",
+        "priority": "P0",
+        "description": "同 bucket semantic signature 支持行數仍無進展；entry-quality label 變動不得重置 PM 反平衡時鐘。",
+        "semantic_signature_delta_vs_previous": 0,
+        "semantic_signature_stagnant_run_count": 2,
+        "ignored_strict_identity_fields": [
+          "entry_quality_label"
+        ],
+        "success_condition": "下一輪交付 Map/Signal redesign proof 或 exact-bucket row harvest artifact，而不是只回報 support still 0/50。"
+      },
+      {
+        "id": "equilibrium_deadlock_research_action",
+        "type": "forced_research_action_artifact",
+        "priority": "P0",
+        "description": "current-live support gate 已進入或接近平衡死循環；下一輪必須交付結構性證據，而不是重述 still blocked。",
+        "output_path": "data/equilibrium_deadlock_research_action.json",
+        "required_by_next_heartbeat": false,
+        "allowed_action_family_ids": [
+          "map_signal_redesign_proof",
+          "exact_bucket_row_harvest_proof",
+          "drift_rebaseline_backtest"
+        ],
+        "forbidden_shortcuts": [
+          "lower_minimum_support_rows",
+          "treat_proxy_neighbor_or_legacy_rows_as_deployable_support",
+          "enable_live_buy_or_add_before_exact_support_and_venue_lifecycle_proof"
+        ],
+        "success_condition": "交付 Map/Signal redesign proof、exact-bucket row harvest proof 或 drift-aware rebaseline backtest；live buy/add 維持 fail-closed。"
       }
     ]
   },
   "component_gap_attribution": {
     "trade_floor": 0.55,
-    "entry_quality": 0.3804,
-    "remaining_gap_to_floor": 0.1696,
+    "entry_quality": 0.655,
+    "remaining_gap_to_floor": 0.0,
     "reconstructed_from_q15_patch": false,
     "runtime_entry_quality_after_patch": null,
     "runtime_trade_floor_gap_after_patch": null,
-    "base_group_max_entry_gain": 0.5174,
-    "structure_group_max_entry_gain": 0.1022,
-    "best_single_component": {
-      "group": "base",
-      "feature": "feat_4h_bias50",
-      "raw_value": 2.6486,
-      "normalized_score": 0.0,
-      "weight": 0.4,
-      "outer_weight": 0.75,
-      "effective_weight": 0.3,
-      "weighted_contribution": 0.0,
-      "headroom_to_perfect_score": 1.0,
-      "max_entry_gain_if_perfect": 0.3,
-      "required_score_delta_to_cross_floor": 0.5653,
-      "can_single_component_cross_floor": true
-    },
-    "single_component_floor_crossers": [
-      {
-        "group": "base",
-        "feature": "feat_4h_bias50",
-        "raw_value": 2.6486,
-        "normalized_score": 0.0,
-        "weight": 0.4,
-        "outer_weight": 0.75,
-        "effective_weight": 0.3,
-        "weighted_contribution": 0.0,
-        "headroom_to_perfect_score": 1.0,
-        "max_entry_gain_if_perfect": 0.3,
-        "required_score_delta_to_cross_floor": 0.5653,
-        "can_single_component_cross_floor": true
-      }
-    ],
+    "base_group_max_entry_gain": 0.0973,
+    "structure_group_max_entry_gain": 0.2478,
+    "best_single_component": null,
+    "single_component_floor_crossers": [],
     "components_by_headroom": [
       {
-        "group": "base",
-        "feature": "feat_4h_bias50",
-        "raw_value": 2.6486,
-        "normalized_score": 0.0,
-        "weight": 0.4,
-        "outer_weight": 0.75,
-        "effective_weight": 0.3,
-        "weighted_contribution": 0.0,
-        "headroom_to_perfect_score": 1.0,
-        "max_entry_gain_if_perfect": 0.3,
-        "required_score_delta_to_cross_floor": 0.5653,
-        "can_single_component_cross_floor": true
-      },
-      {
-        "group": "base",
-        "feature": "feat_nose",
-        "raw_value": 0.9456,
-        "normalized_score": 0.0544,
-        "weight": 0.18,
-        "outer_weight": 0.75,
-        "effective_weight": 0.135,
-        "weighted_contribution": 0.0098,
-        "headroom_to_perfect_score": 0.9456,
-        "max_entry_gain_if_perfect": 0.1277,
-        "required_score_delta_to_cross_floor": 1.2563,
-        "can_single_component_cross_floor": false
-      },
-      {
-        "group": "base",
-        "feature": "feat_pulse",
-        "raw_value": 0.6538,
-        "normalized_score": 0.6538,
-        "weight": 0.27,
-        "outer_weight": 0.75,
-        "effective_weight": 0.2025,
-        "weighted_contribution": 0.1765,
-        "headroom_to_perfect_score": 0.3462,
-        "max_entry_gain_if_perfect": 0.0701,
-        "required_score_delta_to_cross_floor": 0.8375,
-        "can_single_component_cross_floor": false
-      },
-      {
         "group": "structure",
-        "feature": "feat_4h_dist_bb_lower",
-        "raw_value": 2.5291,
-        "normalized_score": 0.3161,
-        "weight": 0.33,
+        "feature": "feat_4h_bb_pct_b",
+        "raw_value": 0.0216,
+        "normalized_score": 0.0216,
+        "weight": 0.34,
         "outer_weight": 0.25,
-        "effective_weight": 0.0825,
-        "weighted_contribution": 0.1043,
-        "headroom_to_perfect_score": 0.6839,
-        "max_entry_gain_if_perfect": 0.0564,
-        "required_score_delta_to_cross_floor": 2.0558,
+        "effective_weight": 0.085,
+        "weighted_contribution": 0.0073,
+        "headroom_to_perfect_score": 0.9784,
+        "max_entry_gain_if_perfect": 0.0832,
+        "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       },
       {
         "group": "structure",
         "feature": "feat_4h_dist_swing_low",
-        "raw_value": 4.4446,
-        "normalized_score": 0.4445,
+        "raw_value": -0.8626,
+        "normalized_score": 0.0,
         "weight": 0.33,
         "outer_weight": 0.25,
         "effective_weight": 0.0825,
-        "weighted_contribution": 0.1467,
-        "headroom_to_perfect_score": 0.5555,
-        "max_entry_gain_if_perfect": 0.0458,
-        "required_score_delta_to_cross_floor": 2.0558,
+        "weighted_contribution": 0.0,
+        "headroom_to_perfect_score": 1.0,
+        "max_entry_gain_if_perfect": 0.0825,
+        "required_score_delta_to_cross_floor": null,
+        "can_single_component_cross_floor": false
+      },
+      {
+        "group": "structure",
+        "feature": "feat_4h_dist_bb_lower",
+        "raw_value": 0.0423,
+        "normalized_score": 0.0053,
+        "weight": 0.33,
+        "outer_weight": 0.25,
+        "effective_weight": 0.0825,
+        "weighted_contribution": 0.0017,
+        "headroom_to_perfect_score": 0.9947,
+        "max_entry_gain_if_perfect": 0.0821,
+        "required_score_delta_to_cross_floor": null,
+        "can_single_component_cross_floor": false
+      },
+      {
+        "group": "base",
+        "feature": "feat_pulse",
+        "raw_value": 0.7171,
+        "normalized_score": 0.7171,
+        "weight": 0.27,
+        "outer_weight": 0.75,
+        "effective_weight": 0.2025,
+        "weighted_contribution": 0.1936,
+        "headroom_to_perfect_score": 0.2829,
+        "max_entry_gain_if_perfect": 0.0573,
+        "required_score_delta_to_cross_floor": null,
+        "can_single_component_cross_floor": false
+      },
+      {
+        "group": "base",
+        "feature": "feat_nose",
+        "raw_value": 0.291,
+        "normalized_score": 0.709,
+        "weight": 0.18,
+        "outer_weight": 0.75,
+        "effective_weight": 0.135,
+        "weighted_contribution": 0.1276,
+        "headroom_to_perfect_score": 0.291,
+        "max_entry_gain_if_perfect": 0.0393,
+        "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       },
       {
         "group": "base",
         "feature": "feat_ear",
-        "raw_value": 0.0348,
-        "normalized_score": 0.8258,
+        "raw_value": -0.0013,
+        "normalized_score": 0.9934,
         "weight": 0.15,
         "outer_weight": 0.75,
         "effective_weight": 0.1125,
-        "weighted_contribution": 0.1239,
-        "headroom_to_perfect_score": 0.1742,
-        "max_entry_gain_if_perfect": 0.0196,
-        "required_score_delta_to_cross_floor": 1.5076,
+        "weighted_contribution": 0.149,
+        "headroom_to_perfect_score": 0.0066,
+        "max_entry_gain_if_perfect": 0.0007,
+        "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       },
       {
-        "group": "structure",
-        "feature": "feat_4h_bb_pct_b",
-        "raw_value": 1.0374,
+        "group": "base",
+        "feature": "feat_4h_bias50",
+        "raw_value": -2.8042,
         "normalized_score": 1.0,
-        "weight": 0.34,
-        "outer_weight": 0.25,
-        "effective_weight": 0.085,
-        "weighted_contribution": 0.34,
+        "weight": 0.4,
+        "outer_weight": 0.75,
+        "effective_weight": 0.3,
+        "weighted_contribution": 0.4,
         "headroom_to_perfect_score": 0.0,
         "max_entry_gain_if_perfect": 0.0,
-        "required_score_delta_to_cross_floor": 1.9953,
+        "required_score_delta_to_cross_floor": null,
         "can_single_component_cross_floor": false
       }
     ],
@@ -3397,9 +3317,46 @@
       "entry_if_bias50_fully_relaxed": null,
       "layers_if_bias50_fully_relaxed": 0,
       "required_bias50_cap_for_floor": null,
-      "current_bias50_value": -11.4026
+      "current_bias50_value": -2.8042
     }
   },
-  "runtime_blocker": null,
-  "next_action": "current live row 目前不在 q15 lane（current=CAUTION|structure_quality_caution|q35, target=CAUTION|structure_quality_caution|q15）；q15 audit 只保留 standby/reference route readiness。下一輪主焦點應回到 current-live exact-support blocker / deployment verify，除非 live row 再次回到 q15 bucket。"
+  "runtime_blocker": {
+    "type": "circuit_breaker",
+    "signal": "CIRCUIT_BREAKER",
+    "model_type": "circuit_breaker",
+    "reason": "Recent 50-sample win rate: 26.00% < 30%",
+    "streak": 35,
+    "win_rate": 0.26,
+    "recent_window_win_rate": 0.26,
+    "recent_window_wins": 13,
+    "window_size": 50,
+    "triggered_by": [
+      "recent_win_rate"
+    ],
+    "horizon_minutes": 1440,
+    "allowed_layers": 0,
+    "release_condition": {
+      "release_ready": false,
+      "blocked_by": [
+        "recent_win_rate"
+      ],
+      "streak_release_ready": true,
+      "recent_win_rate_release_ready": false,
+      "streak_must_be_below": 50,
+      "current_streak": 35,
+      "recent_window": 50,
+      "recent_win_rate_must_be_at_least": 0.3,
+      "current_recent_window_win_rate": 0.26,
+      "current_recent_window_wins": 13,
+      "required_recent_window_wins": 15,
+      "additional_recent_window_wins_needed": 2
+    },
+    "recent_window": {
+      "window_size": 50,
+      "wins": 13,
+      "win_rate": 0.26,
+      "floor": 0.3
+    }
+  },
+  "next_action": "current live row 目前不在 q15 lane（current=BLOCK|structure_quality_block|q00, target=CAUTION|structure_quality_caution|q15）；q15 audit 只保留 standby/reference route readiness。下一輪主焦點應回到 current-live exact-support blocker / deployment verify，除非 live row 再次回到 q15 bucket。"
 }

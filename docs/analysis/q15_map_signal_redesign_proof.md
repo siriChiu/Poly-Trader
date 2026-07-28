@@ -1,37 +1,37 @@
 # q15 Map/Signal redesign proof
 
-- generated_at: `2026-06-05T03:46:44.756417Z`
-- verdict: **map_signal_redesign_no_current_window_deployable_candidate**
-- decision: Map/signal candidates were evaluated but none passed current-window support and metric gates.
+- generated_at: `2026-07-28T14:46:21.413972Z`
+- verdict: **map_signal_redesign_reference_only_current_window_unproven**
+- decision: A map/signal redesign candidate exists only as historical/reference evidence; current-window support is empty or under-minimum.
 - selected_candidate_id: `dominant_neighbor_exact_lane`
-- selected_target_bucket: `BLOCK|bear_bias200_hard_block|q00`
-- selected_current_window_rows: **28**
-- selected_all_history_rows: **174**
-- best_reference_candidate_id: `best_historical_exact_lane_bucket`
-- current exact support: **131/50**
+- selected_target_bucket: `BLOCK|structure_overextended_block|q85`
+- selected_current_window_rows: **0**
+- selected_all_history_rows: **338**
+- best_reference_candidate_id: `dominant_neighbor_exact_lane`
+- current exact support: **0/50**
 - live_exposure_allowed: **False**
 - order_submission_enabled: **False**
 
 ## Root-cause context
 
-- root verdict: `same_lane_neighbor_bucket_dominates`
-- candidate_patch_type: `structure_component_scoring`
-- candidate_patch_feature: `feat_4h_bb_pct_b`
-- dominant_neighbor_bucket: `BLOCK|bear_bias200_hard_block|q00`
-- dominant_neighbor_rows: `174`
-- near_boundary_rows: `293`
+- root verdict: `runtime_blocker_preempts_bucket_root_cause`
+- candidate_patch_type: `None`
+- candidate_patch_feature: `None`
+- dominant_neighbor_bucket: `BLOCK|structure_overextended_block|q85`
+- dominant_neighbor_rows: `233`
+- near_boundary_rows: `71`
 
 ## Candidate matrix
 
 | candidate | status | target | current rows | all rows | all win rate | current win rate | deployable |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| `current_exact_identity_window` | `baseline_current_identity` | `BLOCK|bias200_below_min|q00` | 131 | 141 | 0.3546 | 0.3053 | False |
-| `semantic_entry_quality_family` | `current_window_count_ready_metric_rejected` | `BLOCK|bias200_below_min|q00` | 137 | 384 | 0.5677 | 0.3139 | False |
-| `dominant_neighbor_exact_lane` | `count_ready_metric_rejected` | `BLOCK|bear_bias200_hard_block|q00` | 28 | 174 | 0.523 | 0.8214 | False |
-| `dominant_neighbor_semantic_family` | `reference_candidate_current_window_under_minimum` | `BLOCK|bear_bias200_hard_block|q00` | 29 | 586 | 0.5853 | 0.8276 | False |
-| `q35_boundary_exact_lane` | `insufficient_rows` | `|q35` | 0 | 25 | 0.92 | None | False |
-| `q35_regime_gate_family` | `reference_candidate_current_window_empty` | `|q35` | 0 | 108 | 0.6667 | None | False |
-| `best_historical_exact_lane_bucket` | `reference_candidate_current_window_empty` | `BLOCK|bear_bias200_hard_block|q15` | 0 | 133 | 0.9549 | None | False |
+| `current_exact_identity_window` | `baseline_current_identity` | `BLOCK|structure_quality_block|q00` | 0 | 4 | 1.0 | None | False |
+| `semantic_entry_quality_family` | `insufficient_rows` | `BLOCK|structure_quality_block|q00` | 0 | 4 | 1.0 | None | False |
+| `dominant_neighbor_exact_lane` | `reference_candidate_current_window_empty` | `BLOCK|structure_overextended_block|q85` | 0 | 338 | 0.645 | None | False |
+| `dominant_neighbor_semantic_family` | `reference_candidate_current_window_empty` | `BLOCK|structure_overextended_block|q85` | 0 | 2172 | 0.6192 | None | False |
+| `q35_boundary_exact_lane` | `insufficient_rows` | `|q35` | 0 | 0 | None | None | False |
+| `q35_regime_gate_family` | `insufficient_rows` | `|q35` | 0 | 0 | None | None | False |
+| `best_historical_exact_lane_bucket` | `reference_candidate_current_window_empty` | `BLOCK|bear_bias200_hard_block|q00` | 0 | 56 | 0.5893 | None | False |
 
 ## Guardrail
 

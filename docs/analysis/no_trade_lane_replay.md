@@ -1,6 +1,6 @@
 # No-Trade Lane Replay
 
-_Generated at: `2026-06-05T10:52:40.138706Z`_
+_Generated at: `2026-07-28T14:47:05.947467Z`_
 
 ## Decision
 - verdict: `validated_abstain_reduce_only_no_trade_lane` / validated: `True`
@@ -10,9 +10,9 @@ _Generated at: `2026-06-05T10:52:40.138706Z`_
 - operator summary: 當前 BLOCK / 不交易 lane 的 replay 結論是等待 / 觀望、減風險與 paper-shadow 可用；這份 artifact 不能作為買入 / 加倉 support closure。
 
 ## Current Lane
-- signal: `HOLD` / should_trade: `False` / deployment_blocker: `exact_live_lane_toxic_sub_bucket_current_bucket`
-- bucket: `BLOCK|bias200_below_min|q00` / actionability: `no_trade_block_lane`
-- support: `131/50` / gap: `0` / route: `exact_bucket_supported`
+- signal: `CIRCUIT_BREAKER` / should_trade: `False` / deployment_blocker: `circuit_breaker_active`
+- bucket: `BLOCK|structure_quality_block|q00` / actionability: `no_trade_block_lane`
+- support: `0/50` / gap: `50` / route: `exact_bucket_unsupported_block`
 - allowed actions: `wait, reduce, sell, shadow_buy, paper_buy, diagnostics, mode_toggle`
 - risk-off sides: `reduce, sell` / paper-shadow sides: `shadow_buy, paper_buy`
 
@@ -21,8 +21,8 @@ _Generated at: `2026-06-05T10:52:40.138706Z`_
 - reduce-only path validated: `True`
 - paper-shadow path validated: `True`
 - recent drift mode: `shadow_only_no_new_risk_falsification` / deployment verdict: `not_deployable_shadow_only_runtime_blocked`
-- recent window: `100` / win_rate: `21.0%` / dominant_regime: `bear`
-- best shadow gate: `observable_4h_shift_shadow_gate` / verdict: `fails_shadow_metric` / kept_win_rate: `21.5%`
+- recent window: `250` / win_rate: `50.8%` / dominant_regime: `chop`
+- best shadow gate: `dominant_regime_shadow_gate` / verdict: `fails_shadow_metric` / kept_win_rate: `100.0%`
 
 ## Machine Checks
 - `current_lane_is_no_trade_block_lane`: `True`

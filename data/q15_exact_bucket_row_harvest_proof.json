@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-06-05T03:46:33.530787Z",
+  "generated_at": "2026-07-28T14:46:17.368066Z",
   "artifact": "q15_exact_bucket_row_harvest_proof",
   "purpose": "Prove exact current-bucket support movement without converting it into deployment clearance.",
   "source_artifacts": {
-    "live_predict_probe_generated_at": "2026-06-05T03:46:21.654036Z",
-    "q15_support_audit_generated_at": "2026-06-05T03:46:21.646189Z",
-    "q15_support_fill_feasibility_generated_at": "2026-06-05T03:46:28.397005+00:00"
+    "live_predict_probe_generated_at": "2026-07-28T14:46:12.500752Z",
+    "q15_support_audit_generated_at": "2026-07-28T14:46:12.496718Z",
+    "q15_support_fill_feasibility_generated_at": "2026-07-28T14:46:15.408949+00:00"
   },
   "support_identity": {
     "target_col": "simulated_pyramid_win",
     "horizon_minutes": 1440,
-    "current_live_structure_bucket": "BLOCK|bias200_below_min|q00",
+    "current_live_structure_bucket": "BLOCK|structure_quality_block|q00",
     "regime_label": "bear",
     "regime_gate": "BLOCK",
     "entry_quality_label": "C",
@@ -19,130 +19,90 @@
   },
   "db_meta": {
     "features_normalized": {
-      "count": 25839,
+      "count": 29357,
       "min_ts": "2024-04-14 07:00:00.000000",
-      "max_ts": "2026-06-05 03:00:00.000000"
+      "max_ts": "2026-07-28 14:33:27.381993"
     },
     "labels": {
-      "count": 69413,
+      "count": 76425,
       "min_ts": "2024-04-14 07:00:00.000000",
-      "max_ts": "2026-06-04 22:00:00.000000"
+      "max_ts": "2026-07-28 11:29:42.581059"
     },
     "raw_market_data": {
-      "count": 35124,
+      "count": 38682,
       "min_ts": "2024-04-13 22:00:00.000000",
-      "max_ts": "2026-06-05 03:00:00.000000"
+      "max_ts": "2026-07-28 14:33:27.381993"
     }
   },
   "harvest_window": {
     "calibration_window": 200,
     "scope_rows": 200,
-    "exact_identity_rows": 183,
-    "exact_bucket_rows": 131,
-    "non_bucket_identity_rows": 52,
+    "exact_identity_rows": 0,
+    "exact_bucket_rows": 0,
+    "non_bucket_identity_rows": 0,
     "minimum_support_rows": 50,
-    "rows_needed_to_minimum": 0,
-    "support_ready_by_count": true,
+    "rows_needed_to_minimum": 50,
+    "support_ready_by_count": false,
     "exact_bucket_metrics": {
-      "rows": 131,
-      "win_rate": 0.3053,
-      "target_counts": {
-        "0": 91,
-        "1": 40
-      },
-      "avg_pnl": -0.0072,
-      "avg_quality": -0.082,
-      "avg_drawdown_penalty": 0.3565,
-      "avg_time_underwater": 0.5779
+      "rows": 0,
+      "win_rate": null,
+      "target_counts": {},
+      "avg_pnl": null,
+      "avg_quality": null,
+      "avg_drawdown_penalty": null,
+      "avg_time_underwater": null
     },
-    "latest_exact_bucket_timestamp": "2026-06-04 04:00:00.000000",
-    "oldest_exact_bucket_timestamp": "2026-05-28 21:00:00.000000",
-    "sample_exact_bucket_timestamps": [
-      "2026-06-04 04:00:00.000000",
-      "2026-06-04 02:00:00.000000",
-      "2026-06-04 01:00:00.000000",
-      "2026-06-04 00:00:00.000000",
-      "2026-06-03 23:00:00.000000"
-    ],
+    "latest_exact_bucket_timestamp": null,
+    "oldest_exact_bucket_timestamp": null,
+    "sample_exact_bucket_timestamps": [],
     "symbol_alignment": {
       "join_policy": "timestamp_plus_canonical_symbol_latest_feature_and_label_id",
       "canonical_symbol_transform": "remove_slash",
-      "exact_bucket_symbol_join_modes": {
-        "canonical_symbol": 112,
-        "strict_symbol": 19
-      },
-      "exact_bucket_canonical_symbol_recovered_rows": 112,
-      "sample_recovered_pairs": [
-        {
-          "timestamp": "2026-06-04 04:00:00.000000",
-          "feature_symbol": "BTC/USDT",
-          "label_symbol": "BTCUSDT"
-        },
-        {
-          "timestamp": "2026-06-03 08:00:00.000000",
-          "feature_symbol": "BTC/USDT",
-          "label_symbol": "BTCUSDT"
-        },
-        {
-          "timestamp": "2026-06-03 07:00:00.000000",
-          "feature_symbol": "BTC/USDT",
-          "label_symbol": "BTCUSDT"
-        },
-        {
-          "timestamp": "2026-06-03 06:00:00.000000",
-          "feature_symbol": "BTC/USDT",
-          "label_symbol": "BTCUSDT"
-        },
-        {
-          "timestamp": "2026-06-03 05:00:00.000000",
-          "feature_symbol": "BTC/USDT",
-          "label_symbol": "BTCUSDT"
-        }
-      ],
+      "exact_bucket_symbol_join_modes": {},
+      "exact_bucket_canonical_symbol_recovered_rows": 0,
+      "sample_recovered_pairs": [],
       "evidence_role": "data_alignment_cleanup_not_deployment_clearance",
       "live_exposure_allowed": false
     },
-    "sample_non_bucket_identity_buckets": [
-      "BLOCK|bias200_below_min|q15"
-    ]
+    "sample_non_bucket_identity_buckets": []
   },
   "support_progress": {
-    "status": "exact_supported",
-    "reason": "current live exact bucket 已達 minimum support，可轉向 exact-supported deployment verify。",
-    "regression_basis": "current_identity",
-    "current_rows": 131,
-    "previous_rows": 131,
+    "status": "stalled_under_minimum",
+    "reason": "current live exact support 連續 heartbeat 停在同一數量，屬於 support accumulation 停滯。",
+    "regression_basis": "same_identity_same_semantic_signature",
+    "current_rows": 0,
+    "previous_rows": 0,
     "delta_vs_previous": 0,
-    "stagnant_run_count": 4,
-    "stalled_support_accumulation": false,
+    "stagnant_run_count": 2,
+    "stalled_support_accumulation": true,
     "semantic_signature_delta_vs_previous": 0,
-    "semantic_signature_stagnant_run_count": 4,
-    "semantic_signature_stalled_support_accumulation": false,
+    "semantic_signature_stagnant_run_count": 2,
+    "semantic_signature_stalled_support_accumulation": true,
     "previous_route_changed": false,
-    "previous_support_route_verdict": "exact_bucket_supported",
-    "previous_support_governance_route": "exact_live_bucket_supported"
+    "previous_support_route_verdict": "insufficient_support_everywhere",
+    "previous_support_governance_route": "exact_live_lane_proxy_available"
   },
   "verdict": {
-    "status": "exact_bucket_row_harvest_support_ready_remaining_gates",
-    "decision": "Current exact bucket rows meet minimum support; this artifact proves support movement only, so live buy/add still waits for model, venue, API guardrail, and bounded-canary gates.",
-    "current_exact_bucket_rows": 131,
-    "previous_rows": 131,
+    "status": "exact_bucket_row_harvest_no_current_rows",
+    "decision": "No current exact bucket rows are available; keep exact-row harvest or hard no-go as the forced branch.",
+    "current_exact_bucket_rows": 0,
+    "previous_rows": 0,
     "delta_vs_previous": 0,
     "semantic_signature_delta_vs_previous": 0,
-    "stagnant_run_count": 4,
-    "semantic_signature_stagnant_run_count": 4,
+    "stagnant_run_count": 2,
+    "semantic_signature_stagnant_run_count": 2,
     "minimum_support_rows": 50,
-    "gap_to_minimum": 0,
-    "rows_needed_to_minimum": 0,
-    "support_gate_ready": true,
+    "gap_to_minimum": 50,
+    "rows_needed_to_minimum": 50,
+    "support_gate_ready": false,
     "deployable": false,
     "live_exposure_allowed": false,
     "order_submission_enabled": false,
     "risk_on_order_enabled": false,
-    "primary_failed_gate": "remaining_live_gates",
-    "time_to_evidence_bucket": "ready_for_remaining_live_execution_gates",
-    "missing_capability_class": "Review",
-    "alternative_solution_required": false,
+    "primary_failed_gate": "current_live_support_gate",
+    "time_to_evidence_bucket": "unknown_until_exact_identity_rows_start_accumulating",
+    "missing_capability_class": "Signal/Support",
+    "alternative_solution_required": true,
     "row_harvest_evidence_role": "current_exact_support_movement_not_deployment_clearance"
   },
   "promotion_requirements": [

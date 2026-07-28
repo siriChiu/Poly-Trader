@@ -1,27 +1,27 @@
-# Circuit Breaker Audit（Heartbeat #adhoc）
-_generated_at: 2026-07-09T10:09:00.639599Z_
+# Circuit Breaker Audit（Heartbeat #58）
+_generated_at: 2026-07-28T14:46:05.991553Z_
 
 ## 結論
-- verdict: **breaker_clear**
-- summary: 1440m canonical live horizon 未觸發 breaker。
-- recommended_patch: 維持 horizon-aligned breaker，繼續追 live q15/q35 / support route。
-- top_level_release: ready=True / recent wins=15/50 / need=15 / gap=0
+- verdict: **canonical_breaker_active**
+- summary: 1440m canonical live horizon 仍觸發 breaker：['recent_win_rate']。
+- recommended_patch: 維持 breaker，改做 canonical tail root-cause / release-condition artifact。
+- top_level_release: ready=False / recent wins=13/50 / need=15 / gap=2
 
 ## Mixed scope（現況錯誤口徑）
-- triggered: **False** via []
-- streak: 0 / threshold 50
-- recent 50: win_rate=0.3 wins=15 losses=35
-- streak horizons: {}
+- triggered: **True** via ['recent_win_rate']
+- streak: 6 / threshold 50
+- recent 50: win_rate=0.28 wins=14 losses=36
+- streak horizons: {'240': 6}
 
 ## Aligned scope（1440m canonical live horizon）
-- triggered: **False** via []
-- release_ready: **True**
-- streak: 0 / threshold 50
-- recent 50: win_rate=0.3 wins=15 losses=35
+- triggered: **True** via ['recent_win_rate']
+- release_ready: **False**
+- streak: 35 / threshold 50
+- recent 50: win_rate=0.26 wins=13 losses=37
 
 ## Release condition
 - streak < 50
 - recent 50 win_rate >= 30%
-- aligned_scope_now: streak=0, win_rate=0.3
-- additional recent-window wins needed: 0
-- tail pathology: losses=35 / wins=15 / loss_share=0.7
+- aligned_scope_now: streak=35, win_rate=0.26
+- additional recent-window wins needed: 2
+- tail pathology: losses=37 / wins=13 / loss_share=0.74

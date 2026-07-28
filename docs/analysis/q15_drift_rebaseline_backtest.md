@@ -1,32 +1,32 @@
 # q15 drift-aware rebaseline backtest
 
-- generated_at: `2026-06-05T03:46:38.416907Z`
-- verdict: **current_identity_support_ready_rebaseline_not_needed**
-- decision: current exact support already meets minimum; rebaseline proof is not the primary gate, but live buy/add still waits for remaining gates.
+- generated_at: `2026-07-28T14:46:19.392264Z`
+- verdict: **no_rebaseline_candidate_found**
+- decision: No semantic/rebaseline candidate has enough evidence; keep exact-row harvest or hard no-go as the forced branch.
 - selected_candidate_id: `None`
 - selected_current_window_rows: **None**
 - selected_all_history_rows: **None**
-- current exact support: **131/50**
+- current exact support: **0/50**
 - live_exposure_allowed: **False**
 - order_submission_enabled: **False**
 
 ## Recent drift context
 
-- source_generated_at: `2026-06-05T03:46:07.357078+00:00`
+- source_generated_at: `2026-07-28T14:46:02.116873+00:00`
 - window: `100`
-- win_rate: `0.21`
-- dominant_regime: `bear` / share `0.94`
-- avg_pnl: `-0.0106` / avg_quality `-0.1998` / drawdown_penalty `0.4769`
+- win_rate: `0.63`
+- dominant_regime: `chop` / share `0.57`
+- avg_pnl: `0.0014` / avg_quality `0.2402` / drawdown_penalty `0.1315`
 
 ## Candidate matrix
 
 | candidate | status | all rows | current-window rows | relaxed fields | deployable |
 | --- | --- | ---: | ---: | --- | --- |
-| current_exact_identity_window | baseline_current_identity | 141 | 131 | — | False |
-| rebaseline_calibration_window_only | count_ready_metric_rejected | 141 | 131 | calibration_window | False |
-| semantic_entry_quality_family | count_ready_metric_rejected | 384 | 137 | calibration_window,entry_quality_label | False |
-| regime_gate_bucket_family | count_ready_metric_rejected | 559 | 137 | calibration_window,entry_quality_label,regime_label | False |
-| bucket_only_family | count_ready_metric_rejected | 559 | 137 | calibration_window,entry_quality_label,regime_label,regime_gate | False |
+| current_exact_identity_window | baseline_current_identity | 4 | 0 | — | False |
+| rebaseline_calibration_window_only | insufficient_rows | 4 | 0 | calibration_window | False |
+| semantic_entry_quality_family | insufficient_rows | 4 | 0 | calibration_window,entry_quality_label | False |
+| regime_gate_bucket_family | insufficient_rows | 4 | 0 | calibration_window,entry_quality_label,regime_label | False |
+| bucket_only_family | insufficient_rows | 4 | 0 | calibration_window,entry_quality_label,regime_label,regime_gate | False |
 
 ## Promotion requirements
 
