@@ -104,7 +104,7 @@ deployment_blocker = owner_approved_strategy_binding_required
 - `config.yaml > strategy_release`
 - `data/high_conviction_topk_oos_matrix.json`
 - `data/live_predict_probe.json`
-- `/api/model-leaderboard` 的 `high_conviction_topk`
+- `/api/models/leaderboard` 的 `high_conviction_topk`
 - `/api/status` 的 runtime closure fields
 - Strategy Lab 高信心 OOS 區塊
 

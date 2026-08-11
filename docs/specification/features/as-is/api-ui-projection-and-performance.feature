@@ -64,6 +64,15 @@ Feature: API aggregate、Strategy Lab與Execution UI projection
     Then 現行route/console helpers仍可推導新的readiness、fallback與copy
     And 同一gate可能在不同endpoint顯示不同primary blocker
 
+  @known_bug @generation @fallback
+  Scenario: fresh-by-wall-clock probe 可覆蓋不同identity的request-time prediction
+    Given request-time predictor已使用current feature timestamp與loaded model
+    And live_predict_probe在wall-clock TTL內
+    But probe沒有與current feature timestamp、model SHA及config revision綁定
+    When confidence API套用probe與q15 q35 overlays
+    Then 現行payload可能混合不同generation的欄位
+    And to-be identity mismatch必須回inconsistent或unavailable而不是靜默overlay
+
   @known_inconsistency
   Scenario: GET endpoint可能有heavy side effect
     Given leaderboard cache stale

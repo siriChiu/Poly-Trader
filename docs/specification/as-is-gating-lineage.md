@@ -21,15 +21,15 @@
 | Data continuity/freshness | collector、feature coverage、API sync | DB timestamps/source status | runtime status、API、JSON/docs | capability | 同一 freshness 在多處重算；no-collect heartbeat 可偷偷 maintenance write | DataReadinessService |
 | Feature eligibility | preprocessor/train/coverage scripts | feature rows/non-null counts | DB、coverage artifacts | evidence/capability | feature version 未鎖；missing 0/None/median 語義混合 | FeatureContract |
 | Label eligibility | labeling/train | 1440m rows/target non-null | labels DB | evidence | label definition 無 version；固定金字塔 target 與可變 strategy 可能 mismatch | LabelContract |
-| Model evidence | ModelLeaderboard/Top-K | walk-forward folds、ROI/DD/PF/trades | memory/disk/DB/JSON | advisory/release input | cache、request overlay、artifact freshness 多層；排名與 release 混用 | StrategyEvidenceService |
-| Exact support | predictor DQ + q15/q35 artifacts | current semantic bucket rows | predictor/Top-K/artifacts/docs | 現況同時作 blocker/advisory | owner release 已將統計支持降 advisory，但 predictor 仍可先令 layers=0；語義衝突 | EvidencePolicy（不直接碰訂單） |
+| Model evidence | ModelLeaderboard/Top-K | walk-forward folds、ROI/DD/PF/trades | memory/disk/DB/JSON | advisory/release input | cache、request overlay、artifact freshness 多層；owner模式本應advisory，但console又以`deployable_count > 0`建立hard model gate | StrategyEvidenceService |
+| Exact support | predictor DQ + q15/q35 artifacts | current semantic bucket rows | predictor/Top-K/artifacts/docs | 現況同時作 blocker/advisory | owner release 已將統計支持降 advisory；console仍要求`support_passed && cost_aware_passed`才canary ready，形成二次硬化 | EvidencePolicy（不直接碰訂單） |
 | Owner personal release | `personal_release.py` | config selector、OOS row | predictor/Top-K fields | release | `apply_runtime_release_policy` 未再次 selector-match；release status 可出現在不匹配 runtime 上 | ReleaseRegistry |
 | Runtime binding | personal release + strategy bundle + live runner | model/profile boolean；另一路 artifact SHA/schema | payload/bundle/files | deployment | 兩套 proof 未整合；personal binding 不驗 SHA/schema/regime/top-k | BundleRegistry |
 | Regime/entry quality | strategy_lab + predictor + live_runner | latest features | signal/profile/payload | market actionability | 同一公式多份；predictor有patch/overrides，runner 另算 baseline | DecisionKernel |
 | Decision quality/toxicity | predictor | historical labels/scopes/artifacts | allowed_layers/blocker | market capacity | 診斷、支持、trade floor、patch 同函式；artifact可 override DB-derived result | RiskCapacityPolicy |
 | Circuit breaker | predictor | recent canonical labels | signal/blocker/audit | hard risk | 由 labels 而非 actual realized executions 驅動；名稱像 execution breaker 但本質是 model outcome breaker | ModelHealthCircuitBreaker |
 | Microstructure/cost-aware edge | API status | microstructure artifact + config costs | API projection | observation-only | 在 API 組裝，未成為 order boundary；`order_submission_enabled=false` 是 copy，不是 enforcement | MarketExecutionQualityPolicy |
-| Venue readiness | metadata smoke/adapter health | config/env/CCXT/proofs | artifact/API | capability | artifact readiness與 adapter實際 call 分離；可能 stale | VenueCapabilityService |
+| Venue readiness | metadata smoke/adapter health | config/env/CCXT/proofs | artifact/API | capability | artifact readiness與 adapter實際 call 分離；console採用`runtime_ready` proof時未檢查 freshness | VenueCapabilityService |
 | Live config triple | ExecutionService | mode/live flag/dry_run/adapter dry_run | reject code | hard safety | 正確 fail-closed；應保留 | ExecutionAuthorizer |
 | Canary policy | ExecutionService + strategy bundle/API helper | enabled/allowlist/cap/kill switch | reject/readiness fields | hard safety | allowlist 為空時實作不拒絕，與「explicit allowlist」文案矛盾 | ExecutionAuthorizer |
 | Execution permit | ExecutionService | signed claims、scope、TTL、nonce DB | permit consumption/reject | hard safety | manual API/runner不傳 permit，沒有成功 live journey | PermitService |
@@ -98,7 +98,20 @@ To-be 每個 gate 必須標 `enforced_at`，避免只改 UI JSON 就以為安全
 
 payload 沒有共同 `generation_id/as_of/input_versions`，所以欄位各自 fresh 仍可能彼此不一致。
 
-### 4.2 Fallback 隱藏 capability failure
+`/predict/confidence` 會先 request-time 計算 predictor，再套用 `live_predict_probe`、q15、q35等artifact overlay；現行freshness主要依 wall-clock age，沒有要求 probe 與 request-time feature timestamp、model SHA、config revision同generation。
+
+### 4.2 Explicit zero 被 `or` fallback 覆蓋
+
+現行多處以truthiness而非presence決定fallback：
+
+- `console_overview.py` 的 `topk.deployable_count or shadow.deployable_count`，會讓Top-K明確 `0` 落回舊shadow正值；
+- `runtime_closure.py` 的 `allowed_layers_raw or allowed_layers`，會讓raw zero在copy/projection中消失；
+- personal release 對`max_layers_until_full_evidence`採最小1層，無法表達owner明確zero-cap；
+- evidence threshold 的 `value or default` 同樣無法區分「明確0」與「缺值」。
+
+To-be fallback必須用`is None`／presence判斷；`0`、`False`、空集合都是合法domain values，不得跨generation尋找較樂觀值。
+
+### 4.3 Fallback 隱藏 capability failure
 
 常見模式：
 
@@ -111,7 +124,7 @@ payload 沒有共同 `generation_id/as_of/input_versions`，所以欄位各自 f
 
 Fallback 對研究 UI 可用，但若沒有 `source`, `fallback_used`, `degraded_reason`，會污染 deployment判斷。
 
-### 4.3 Generated docs feedback loop
+### 4.4 Generated docs feedback loop
 
 `hb_parallel_runner.py` 根據 artifacts 覆寫 `ISSUES.md/ROADMAP.md/ORID_DECISIONS.md`；`AGENTS.md` 又要求 heartbeat agent 先讀它們。這形成：
 

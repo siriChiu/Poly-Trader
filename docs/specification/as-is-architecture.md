@@ -67,7 +67,7 @@ flowchart LR
 | Context | 現行 owner/files | 輸入 | 持久化/輸出 | 邊界問題 |
 |---|---|---|---|---|
 | Ingestion | `data_ingestion/collector.py`, source adapters | public/private APIs | raw DB、runtime status | collector 依賴多 source，source 缺失與中性值容易混淆 |
-| Feature Engineering | `feature_engine/preprocessor.py`, `server/senses.py` | raw DB、另行抓取的 4H OHLCV | `features_normalized` | 4H fetch hard-code BTC/USDT；error/default/None 語義不一致；feature version 未成為 training filter |
+| Feature Engineering | `feature_engine/preprocessor.py`, `server/senses.py` | raw DB、另行抓取的 4H OHLCV | `features_normalized` | 4H fetch hard-code BTC/USDT；歷史 backfill 重用目前最新 4H snapshot；error/default/None 語義不一致；feature version 未成為 training filter |
 | Labeling | `data_ingestion/labeling.py` | feature timestamps、raw prices | `labels` | 固定 20/30/50、-2/-5、24h target；label definition 沒有 version，重算會覆寫同列 |
 | Training | `model/train.py` | all feature rows、1440m labels | `xgb_model.pkl`, metrics | timestamp-nearest merge 未 by-symbol；未鎖 feature/label version；缺值填 0/median |
 | Model Evaluation | `backtesting/model_leaderboard.py`, API leaderboard helpers | joined frame、model candidates | cache/history/Top-K artifacts | request-time refresh、disk cache、background refresh、live overlay 多層真相 |
@@ -90,8 +90,9 @@ flowchart LR
 1. Collector 把多來源資料寫入 `RawMarketData`/`RawEvent`。
 2. Preprocessor 由 raw close/volume 計算 1m senses、技術指標、turning-point proxies。
 3. Preprocessor 可直接再向 OKX 抓 4H OHLCV；此路徑不是由 raw DB 的同一 snapshot 驅動。
-4. 4H sparse rows 在 training/inference 時以 backward `merge_asof`、6h tolerance 對齊 dense rows。
-5. 部分 missing sources 保持 `None`，部分 error path 寫中性 0/0.5；資料品質語義不一致。
+4. `backfill_missing_feature_rows()` 在 loop 前只 fetch 一次目前最新 4H OHLCV，然後對每個歷史缺口重用；4H helper又固定取 indicator array最後一值。因此歷史 row `T` 可能包含 `T` 之後的4H資訊，形成 point-in-time look-ahead。
+5. 正常 training 的 sparse 4H rows 以 backward `merge_asof`、6h tolerance 對齊 dense rows；這項正確對齊不會修復已被 backfill 寫入 row 內的未來資訊。
+6. 部分 missing sources 保持 `None`，部分 error path 寫中性 0/0.5；資料品質語義不一致。
 
 ### 4.2 Feature → label
 
@@ -167,16 +168,17 @@ flowchart LR
 
 ## 7. Structural risks
 
-1. **Identity mismatch**：研究候選、owner selector、predictor runtime model、saved strategy、bundle、shadow runner 可是不同模型。
-2. **Versionless data semantics**：feature/label definition 變更後仍共用 rows，training 未鎖 version。
-3. **Symbol leakage risk**：training timestamp-nearest merge 沒有 by-symbol partition。
-4. **Missingness pollution**：None、0、0.5、median 各自代表 outage/neutral/imputation，卻沒有 missingness mask/provenance。
-5. **Gate projection multiplication**：同一 support/readiness 在 predictor、personal release、Top-K、API、heartbeat、PM docs 再算。
-6. **No successful live journey**：order boundary 要 permit，但 manual route/runner 未提供；目前 live 是 fail-closed skeleton。
-7. **Non-atomic duplicate protection**：先查 count 再 insert，缺資料庫 unique/idempotency invariant。
-8. **No explicit quote-age gate in live runner**：collect failure會 HOLD，但讀 latest row 時未看到 max-age contract。
-9. **Current docs feedback loop**：generated narrative 可影響下次 agent action，形成 framework capture。
-10. **Performance as correctness**：大型 aggregate 若逾 probe timeout，UI 會把「未知」誤作「blocked」或觸發 stale fallback。
+1. **Historical look-ahead contamination**：feature backfill把現在最新4H snapshot套到歷史缺口；這是先於模組拆分的P0資料正確性問題。
+2. **Identity mismatch**：研究候選、owner selector、predictor runtime model、saved strategy、bundle、shadow runner 可是不同模型。
+3. **Versionless data semantics**：feature/label definition 變更後仍共用 rows，training 未鎖 version。
+4. **Symbol leakage risk**：training timestamp-nearest merge 沒有 by-symbol partition。
+5. **Missingness pollution**：None、0、0.5、median 各自代表 outage/neutral/imputation，卻沒有 missingness mask/provenance。
+6. **Gate projection multiplication**：同一 support/readiness 在 predictor、personal release、Top-K、API、heartbeat、PM docs 再算。
+7. **No successful live journey**：order boundary 要 permit，但 manual route/runner 未提供；目前 live 是 fail-closed skeleton。
+8. **Non-atomic duplicate protection**：先查 count 再 insert，缺資料庫 unique/idempotency invariant。
+9. **No explicit quote-age gate in live runner**：collect failure會 HOLD，但讀 latest row 時未看到 max-age contract。
+10. **Current docs feedback loop**：generated narrative 可影響下次 agent action，形成 framework capture。
+11. **Performance as correctness**：大型 aggregate 若逾 probe timeout，UI 會把「未知」誤作「blocked」或觸發 stale fallback。
 
 ## 8. Refactor principle
 

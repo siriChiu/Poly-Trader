@@ -103,6 +103,25 @@ Verification:
 
 ## Phase 2 — Version data and strategy identity
 
+### Task 2.0: Eliminate historical 4H look-ahead before model promotion
+
+Current defect:
+- `backfill_missing_feature_rows()` fetches the latest 4H OHLCV once and reuses it for historical gaps。
+- 4H extraction selects the final indicator value, so row `T` can receive information after `T`。
+
+Proposed changes:
+- introduce an `AsOfFeatureBuilder(cutoff=T)`；
+- source 1m/4H candles from a versioned snapshot bounded by `T`；
+- quarantine or rebuild previously backfilled rows whose point-in-time lineage cannot be proven。
+
+Tests:
+- every source candle timestamp is `<= feature.timestamp`；
+- current/future 4H candles cannot change a historical feature hash；
+- unavailable historical 4H data produces explicit missing provenance, not current-snapshot fallback。
+
+Exit criterion:
+- no backfilled row is eligible for deployable training/backtest evidence without point-in-time provenance。
+
 ### Task 2.1: Version feature/label contracts
 
 Proposed changes:

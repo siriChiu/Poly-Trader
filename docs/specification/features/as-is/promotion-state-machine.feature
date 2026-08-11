@@ -80,3 +80,27 @@ Feature: Strategy promotion與多維 readiness state
     When API組成aggregate
     Then 各dimension可能有不同as-of
     And 現行aggregate沒有單一immutablegeneration ID保證一致
+
+  @known_bug @fallback @generation
+  Scenario: Top-K explicit zero 被舊 shadow positive count 覆蓋
+    Given current Top-K deployable_count 明確是 0
+    And older high-conviction shadow deployable_count 大於 0
+    When execution overview 使用 truthy or fallback 組裝 model gate
+    Then 現行 projection 可能採用舊 shadow 正值
+    And model gate 可能被錯誤標成 passed
+    And to-be 必須保留 explicit zero 並拒絕跨 generation fallback
+
+  @known_bug @fallback
+  Scenario: raw allowed layers zero 在 runtime copy 中被其他值取代
+    Given allowed_layers_raw 明確是 0
+    And allowed_layers 是非零值
+    When runtime closure 使用 allowed_layers_raw or allowed_layers 顯示原始容量
+    Then 現行 copy可能顯示非零raw layers
+    And 這是 projection錯誤而不是market capacity變更
+
+  @known_ambiguity @owner_decision
+  Scenario: personal release policy 無法表達 zero layer cap
+    Given owner設定 max_layers_until_full_evidence 為 0
+    When personal release policy 正規化設定
+    Then 現行值被clamp為至少1層
+    And 是否允許owner release但完全禁止新增曝險需要to-be policy決定

@@ -41,7 +41,7 @@
 | `HEARTBEAT.md` | runbook+policy | no-collect卻可maintenance write；每輪patch/commit壓力；fast/slow責任混合 | 拆 Scheduler runbook 與 Governance policy；material delta才發布 |
 | `PM_HEARTBEAT.md` | PM policy/runbook | 與engineering heartbeat重複，forced-execution/72h容易誤當trade gate | 保留delivery policy但明示永不參與ExecutionAuthorization |
 | `strategy-decision-guide.md` | runbook+historical evidence | owner名為`mia`；2026-04模型結論嵌入evergreen | generic guide保留；特定結論移dated evidence；owner identity修正 |
-| `personal-release-policy.md` | safety/release policy+current snapshot | policy中寫34/50等「最新」值，已與runtime 24/50不符 | policy只留三層契約；current evidence由API/artifact提供 |
+| `personal-release-policy.md` | safety/release policy+current snapshot | policy中寫34/50等「最新」值，已與runtime 24/50不符；leaderboard endpoint曾寫成錯誤單數route | policy只留三層契約；current evidence由API/artifact提供 |
 | `project-closure-2026-07-19.md` | history | 有current語氣 | 移 `docs/history/`，加「不可作current truth」banner |
 | `pm/pm-status.md` | generated status | 198行/33k字，重複大量artifact欄位與next action | 用compact status DTO；detail連到artifact，不複製整份敘事 |
 | harness/PM Q&A docs | harness policy | tests把特定token/copy固化，容易讓架構難簡化 | 保留安全invariant tests；移除文字token等實作細節測試 |
@@ -84,6 +84,8 @@ data/artifacts/<artifact-type>/<generation-id>.json
 | DOC-08 | generated analysis未以日期/generation命名 | 不同semantic bucket世代混用 |
 | DOC-09 | docs topology checker只驗「在哪裡」，不驗「是什麼類型/權威」 | 文件放對資料夾仍可污染判斷 |
 | DOC-10 | tests大量assert humanized tokens/copy | 重構投影時容易把copy穩定誤作domain contract |
+| DOC-11 | `tests/test_repo_hygiene.py` 固定PRD內特定q15、0/50 blocker literals | 測試通過可能代表歷史snapshot被成功保留，而非evergreen PRD正確 |
+| DOC-12 | topology checker只分類`*.md`，可漏掉`docs/`內未知suffix或截斷檔 | malformed/stale docs-like file仍可能被agent發現與採信 |
 
 ## 4. Proposed documentation topology
 
@@ -123,19 +125,31 @@ data/
   latest/<type>.json              # pointer/manifest
 ```
 
-## 5. Authority hierarchy（proposed）
+## 5. Authority model（proposed）
 
-高到低：
+Authority不是一條可混用的總排序，必須分成兩條axis。
 
-1. **Order boundary enforcement**：ExecutionAuthorizer/DB unique invariants/venue responses。
-2. **Immutable registries**：strategy release、bundle、permit、run/order lifecycle。
-3. **Canonical DB facts**：帶schema/version/source的raw/features/labels/trades。
-4. **Immutable DecisionSnapshot**：同generation聚合的gate results。
-5. **API projections**：只能投影4，不可重算授權。
-6. **Generated artifacts/status**：帶TTL/provenance，stale即unknown/reference-only。
-7. **Docs/runbooks/history**：說明用途，永不授權live action。
+### 5.1 Normative / policy authority
 
-若兩個來源衝突：高層不一定「覆蓋」低層，而是回 `inconsistent_generation` 並fail-closed；禁止用 `or` fallback靜默選一個看起來比較完整的值。
+1. Owner對immutable strategy/release identity的明確決策。
+2. Versioned machine policy、schema與execution hard-gate implementation。
+3. Evergreen PRD/domain specification。
+4. Runbook/heartbeat procedure。
+5. Plan、dated analysis、historical snapshot。
+
+### 5.2 Observational / current-state authority
+
+1. 通過strict current-head驗證的venue/runtime/DB facts。
+2. 同一generation manifest下、fresh且schema-valid的machine artifacts。
+3. 由該manifest原子產生的DecisionSnapshot與API projection。
+4. Generated Markdown/UI status projection。
+5. Historical evidence、dated plan、Graphify output。
+
+Tests是契約驗證器，不是current runtime state；docs可以定義產品與policy語義，但不能偽造observational truth或簽發order authorization。
+
+在order enforcement lane內仍必須保持：ExecutionAuthorizer、DB unique invariants、permit與venue response是實際送單邊界；immutable release/bundle registry提供identity；API/UI/docs只投影。
+
+若來源衝突，較高authority也不應把另一份值靜默覆蓋成「成功」；應回 `inconsistent_generation` 並fail-closed。禁止用 `or` fallback選一個較完整或較樂觀值。
 
 ## 6. 文件整理執行順序
 

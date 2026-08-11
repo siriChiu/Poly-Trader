@@ -41,6 +41,25 @@ Feature: 市場資料、特徵與標籤的 lineage
     And 產生的 4H features 可能與 caller symbol 不同
     And 在 to-be multi-symbol 支援前應明確拒絕而非靜默混用
 
+  @known_bug @p0 @lookahead @safety
+  Scenario: 歷史 feature backfill 把目前最新 4H snapshot 套到過去缺口
+    Given 歷史 timestamp T 缺少 feature row
+    And 現在取得的 4H candles 包含 T 之後的市場資料
+    When backfill_missing_feature_rows 修補歷史缺口
+    Then 現行實作在整個 loop 前只 fetch 一次目前最新 4H OHLCV
+    And 每一筆歷史 row 都使用同一份 4H OHLCV
+    And 4H indicator helper 取 indicator array 的最後一值
+    And T 的 feature row 因此可能含有 T 之後的 4H 資訊
+    And 這批 backfill rows 在 point-in-time repair 完成前不得用於可部署 training 或 backtest evidence
+
+  @to_be_candidate @p0 @lookahead
+  Scenario: 歷史 feature repair 必須 point-in-time safe
+    Given 歷史 feature row 的 cutoff 是 T
+    When to-be AsOfFeatureBuilder 建立該 row
+    Then 每個 1m 與 4H source candle timestamp 都必須小於或等於 T
+    And 相同 source snapshot 與 definition version 必須產生相同 feature hash
+    And 找不到 cutoff-safe 4H history 時必須標 unavailable 而非取目前 snapshot
+
   Scenario: 4H sparse snapshot 以 backward as-of 對齊 dense rows
     Given 4H features 不是每一筆 dense timestamp 都有值
     When training 對齊 sparse 4H rows

@@ -39,19 +39,19 @@
 
 | Feature | Scenarios | 核心範圍 |
 |---|---:|---|
-| `data-feature-lineage.feature` | 14 | symbol、4H、missingness、feature/label versions、training join |
+| `data-feature-lineage.feature` | 16 | symbol、4H、point-in-time backfill、missingness、feature/label versions、training join |
 | `strategy-evidence-and-lab.feature` | 12 | OOS、ranking、saved strategies、cache/refresh |
 | `personal-release-and-runtime-binding.feature` | 11 | owner decision、support warning、exact bundle identity |
 | `current-signal-and-position-capacity.feature` | 11 | regime、entry quality、layers、DQ/technical caps |
 | `circuit-breaker-and-risk.feature` | 9 | model outcome breaker vs realized execution risk |
 | `execution-authorization.feature` | 16 | live triple、canary、permit、risk-off gaps |
-| `venue-order-lifecycle.feature` | 13 | normalization、ack/fill/cancel/reconcile、position attribution |
+| `venue-order-lifecycle.feature` | 14 | normalization、freshness、ack/fill/cancel/reconcile、position attribution |
 | `paper-shadow-and-worker.feature` | 12 | candidate identity、outcomes、duplicates、liveness |
-| `promotion-state-machine.feature` | 10 | evidence/release/binding/market/order dimensions |
+| `promotion-state-machine.feature` | 13 | evidence/release/binding/market/order dimensions、explicit-zero fallback |
 | `heartbeat-and-artifact-freshness.feature` | 11 | fast/slow lanes、TTL/semantic freshness、publication |
-| `api-ui-projection-and-performance.feature` | 12 | aggregate projection、latency、Strategy Lab/UI boundaries |
+| `api-ui-projection-and-performance.feature` | 13 | aggregate generation、latency、Strategy Lab/UI boundaries |
 | `documentation-and-ai-truth.feature` | 12 | authority、TTL、historical isolation、agent feedback |
-| **Total** | **143** | 12 bounded behavior groups |
+| **Total** | **150** | 12 bounded behavior groups |
 
 ## 5. BDD 狀態標籤
 

@@ -79,6 +79,14 @@ Feature: Venue capability 與 order lifecycle
     When API顯示venue readiness
     Then 不得推導live order lifecycle已ready
 
+  @known_bug @freshness
+  Scenario: execution overview 可採信沒有freshness條件的舊 venue proof
+    Given venue dry-run proof 曾記錄 runtime_ready true
+    And 該proof目前已過期
+    When execution overview依proof status與blockers計算venue gate
+    Then 現行計算沒有把proof freshness納入passed條件
+    And to-be 過期proof必須回STALE並fail closed
+
   @known_gap
   Scenario: current environment沒有完整real lifecycle evidence
     Given 目前real trade history與real lifecycle events為0
