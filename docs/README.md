@@ -144,3 +144,5 @@ python -m pytest tests/test_repo_hygiene.py -q
 - [`docs/specification/features/to-be/btc-usdt-phase-one.feature`](specification/features/to-be/btc-usdt-phase-one.feature) — owner-approved BTC-only Phase-1 scope BDD。
 
 Specification只能描述與約束行為。真實order authorization仍只能由runtime enforcement、immutable bundle、permit及venue lifecycle證據產生。
+
+歷史稽核快照：[`docs/analysis/dirty-wip-disposition-2026-08-11.md`](analysis/dirty-wip-disposition-2026-08-11.md)記錄refactor前dirty WIP的分類、備份與integrate/discard決策；它不是current runtime truth。

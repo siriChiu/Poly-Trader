@@ -84,15 +84,18 @@ Verification:
 - 每個core journey至少一個happy path、一個fail-closed path、一個stale/inconsistent path。
 - 每個gate對應source code與現有test或標為known gap。
 
-### Task 0.2: Freeze dirty WIP disposition
+### Task 0.2: Freeze dirty WIP disposition — COMPLETE
 
 Actions:
-1. 將原worktree dirty files分為code/docs/runtime artifacts。
-2. code WIP逐commit或stash；runtime artifacts不與domain refactor混commit。
-3. 只從可重現commit開始重構。
+1. 已將原worktree 52個tracked changes分為source/test、generated current-state與timestamp-only churn。
+2. 已建立repo外binary-capable patch、source-only patch、manifest與SHA256 checksums；原dirty worktree不動。
+3. Source intent只透過TDD重作於clean refactor worktree；generated artifacts不與domain refactor混commit。
+4. 重構只從owner-approved commit `1dc45084`開始。
 
 Verification:
-- `git status --short`可解釋；沒有未歸屬的tracked WIP。
+- 每個dirty file都有明確disposition，沒有未歸屬的tracked WIP。
+- Backup patches通過`git apply --check --cached`；`sha256sum -c`通過。
+- Audit：[`../analysis/dirty-wip-disposition-2026-08-11.md`](../analysis/dirty-wip-disposition-2026-08-11.md)。
 
 ## Phase 1 — Introduce typed domain contracts without behavior change
 
