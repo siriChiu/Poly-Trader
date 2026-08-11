@@ -116,7 +116,21 @@ E. 新增不可變 `DecisionSnapshot`，其他都是input/projection。
 
 ### Decision
 
-`PENDING_OWNER`
+**ACCEPTED — 2026-08-11**
+
+Owner選擇 **E：每次先產生一張完整狀態單，API、畫面與文件都只顯示同一張**。
+
+白話定義：不同時間與版本的設定、DB、JSON和probe不能拼在一起。每張狀態單都有唯一編號、時間與完整來源；不完整就不發布，過期就明確顯示不知道。
+
+- 技術名稱：immutable `DecisionSnapshot`。
+- API/UI/generated docs只讀同一active snapshot ID。
+- 明確的0與false不得被舊值覆蓋。
+- Snapshot不是Owner release、order permit或venue truth的替代品。
+- 每筆order仍需last-mile quote、kill switch、exposure、permit與idempotency檢查。
+
+ADR：[`../adr/ADR-0004-decision-snapshot-truth.md`](../adr/ADR-0004-decision-snapshot-truth.md)
+
+To-be BDD：[`features/to-be/decision-snapshot-truth.feature`](features/to-be/decision-snapshot-truth.feature)
 
 ---
 
