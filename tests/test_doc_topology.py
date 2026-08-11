@@ -30,6 +30,7 @@ def test_doc_topology_is_valid() -> None:
     assert payload["ok"] is True
     assert payload["violations"] == []
     assert "docs_index" in payload["buckets"]
+    assert "docs/adr" in payload["buckets"]
     assert "docs/analysis" in payload["buckets"]
     assert "docs/ai-collaboration" in payload["buckets"]
     assert "docs/ai-collaboration/harness" in payload["buckets"]
@@ -68,6 +69,7 @@ def test_docs_index_names_product_folders() -> None:
     text = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
 
     for token in [
+        "docs/adr/",
         "docs/ai-collaboration/",
         "docs/ai-collaboration/harness/",
         "docs/ai-collaboration/pm/",

@@ -25,6 +25,7 @@ ISSUES.md / ROADMAP.md / ORID_DECISIONS.md
 
 docs/
   ├─ README.md                  # 本文件：文件分類與關聯
+  ├─ adr/                       # immutable owner/architecture decision records
   ├─ ai-collaboration/          # AI 協作與 heartbeat governance 集中區
   ├─ analysis/                  # 可重跑分析、人讀摘要、artifact markdown companion
   ├─ plans/                     # 日期化設計與實作計畫
@@ -42,6 +43,7 @@ data/
 | Root agent discovery | `AGENTS.md` | 否 | 否 | 保留在 root 只為 agent runtime 自動發現；內容維持短 map，不變成手冊 |
 | AI collaboration center | `docs/ai-collaboration/*` | 部分 | 部分 | 所有 agent role、heartbeat、PM heartbeat、harness、Q&A、machine contract 集中於此 |
 | Current-state root | `ISSUES.md`, `ROADMAP.md`, `ORID_DECISIONS.md` | 是 | 是 | overwrite sync；不 append 歷史流水帳 |
+| `docs/adr/` | owner與architecture決策、context、consequences、supersedes chain | 否 | 否 | immutable；新決策以新ADR supersede，不覆寫歷史 |
 | `docs/analysis/` | 分析報告、probe markdown companion、模型/特徵摘要 | 部分 | 多數 | JSON truth 留在 `data/`，Markdown companion 放這裡 |
 | `docs/plans/` | 日期化設計/實作計畫 | 否 | 否 | 檔名用 `YYYY-MM-DD-*`；完成後不再複製成多份 |
 | `docs/specification/` | source-backed architecture、gate ownership、as-is/to-be BDD | 否 | 否 | as-is 與 proposed to-be 分開；spec 永不授權 live order |
@@ -118,5 +120,7 @@ python -m pytest tests/test_repo_hygiene.py -q
 - [`docs/specification/documentation-inventory.md`](specification/documentation-inventory.md) — authority/TTL分類與遷移建議。
 - [`docs/specification/open-questions.md`](specification/open-questions.md) — owner decision queue；一次只確認一題。
 - [`docs/plans/2026-08-11-bdd-led-refactor.md`](plans/2026-08-11-bdd-led-refactor.md) — 尚待BDD確認的strangler重構藍圖。
+- [`docs/adr/ADR-0001-live-canary-product-scope.md`](adr/ADR-0001-live-canary-product-scope.md) — 已接受的近期實戰完成定義。
+- [`docs/specification/features/to-be/live-canary-product-scope.feature`](specification/features/to-be/live-canary-product-scope.feature) — owner-approved Live Canary to-be BDD。
 
 Specification只能描述與約束行為。真實order authorization仍只能由runtime enforcement、immutable bundle、permit及venue lifecycle證據產生。

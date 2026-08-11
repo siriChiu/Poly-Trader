@@ -34,6 +34,8 @@
 4. [`documentation-inventory.md`](documentation-inventory.md) — 文件分類、權威層級、歷史污染與遷移建議。
 5. [`open-questions.md`](open-questions.md) — 必須由 owner 決定的產品邊界；實際對話一次只問一題。
 6. [`../plans/2026-08-11-bdd-led-refactor.md`](../plans/2026-08-11-bdd-led-refactor.md) — proposed refactor，需 BDD 確認後才執行。
+7. [`../adr/ADR-0001-live-canary-product-scope.md`](../adr/ADR-0001-live-canary-product-scope.md) — Q1已接受的近期實戰範圍。
+8. [`features/to-be/live-canary-product-scope.feature`](features/to-be/live-canary-product-scope.feature) — 第一份owner-approved to-be BDD。
 
 ## 4. BDD coverage
 
@@ -53,7 +55,20 @@
 | `documentation-and-ai-truth.feature` | 12 | authority、TTL、historical isolation、agent feedback |
 | **Total** | **150** | 12 bounded behavior groups |
 
-## 5. BDD 狀態標籤
+To-be owner-approved coverage：
+
+| Feature | Scenarios | Decision |
+|---|---:|---|
+| `features/to-be/live-canary-product-scope.feature` | 13 | ADR-0001 / Q1 accepted |
+
+## 5. Owner decision status
+
+| Question | Status | Decision |
+|---|---|---|
+| Q1 實戰完成層級 | **ACCEPTED** | 受監督、極小額、單層Live Canary |
+| Q2–Q10 | `PENDING_OWNER` | 一次只問一題 |
+
+## 6. BDD 狀態標籤
 
 | Tag | 意義 |
 |---|---|
@@ -64,7 +79,7 @@
 | `@generated_state` | 依賴時變 artifact；不得作 evergreen policy |
 | `@owner_decision` | 需要使用者裁決後才能形成 to-be BDD |
 
-## 6. 核心語彙
+## 7. 核心語彙
 
 - **StrategyEvidence**：OOS、walk-forward、ROI、drawdown、profit factor、trade count 等研究證據。
 - **PersonalRelease**：owner 接受策略證據風險供個人使用；不是 execution permit。
@@ -74,7 +89,7 @@
 - **DecisionSnapshot**：to-be 建議的單一、不可變、帶 provenance 的決策快照；目前尚未存在。
 - **Projection**：API/UI/Markdown 對 authoritative state 的衍生呈現，不能反向成為 release authority。
 
-## 7. 重構啟動條件
+## 8. 重構啟動條件
 
 在下列事項完成前，不修改交易核心：
 

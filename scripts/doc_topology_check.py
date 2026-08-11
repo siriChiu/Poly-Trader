@@ -60,6 +60,7 @@ FORBIDDEN_AI_COLLAB_LEGACY_PREFIXES = (
 )
 
 DOCS_DIRS = {
+    "docs/adr": "immutable architecture and owner decision records",
     "docs/ai-collaboration/harness": "engineering heartbeat harness map, Q&A gate, and machine contract",
     "docs/ai-collaboration/pm": "PM heartbeat harness and current PM status",
     "docs/ai-collaboration": "AI agent role, heartbeat governance, PM arbitration, and collaboration contracts",
@@ -69,6 +70,7 @@ DOCS_DIRS = {
 }
 
 REQUIRED_DOCS_README_TOKENS = [
+    "docs/adr/",
     "docs/ai-collaboration/",
     "docs/ai-collaboration/harness/",
     "docs/ai-collaboration/pm/",

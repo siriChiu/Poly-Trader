@@ -21,7 +21,19 @@ D. 完整自動live execution與order lifecycle。
 
 ### Decision
 
-`PENDING_OWNER`
+**ACCEPTED — 2026-08-11**
+
+Owner選擇 **C：極小額、單層、人工監督Live Canary**。
+
+- 近期實戰Definition of Done：受監督Live Canary。
+- Paper/Shadow：必要前置能力，不是最終milestone。
+- Full Auto Live：後續獨立milestone。
+- Q1不決定manual UI或受管worker的authorization入口；由Q9處理。
+- Hard execution safety不因本決策降低。
+
+ADR：[`../adr/ADR-0001-live-canary-product-scope.md`](../adr/ADR-0001-live-canary-product-scope.md)
+
+To-be BDD：[`features/to-be/live-canary-product-scope.feature`](features/to-be/live-canary-product-scope.feature)
 
 ---
 
