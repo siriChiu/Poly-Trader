@@ -67,7 +67,8 @@ To-be owner-approved coverage：
 | `features/to-be/immutable-deployment-bundle.feature` | 19 | ADR-0006 / Q6 accepted |
 | `features/to-be/exact-bundle-shadow-evidence.feature` | 15 | ADR-0007 / Q7 accepted |
 | `features/to-be/conservative-live-canary-risk.feature` | 20 | ADR-0008 / R1 accepted |
-| **Total** | **131** | 8 owner-approved feature groups |
+| `features/to-be/docs-ai-non-authoritative.feature` | 16 | ADR-0009 / Q8 accepted |
+| **Total** | **147** | 9 owner-approved feature groups |
 
 ## 5. Owner decision status
 
@@ -81,7 +82,8 @@ To-be owner-approved coverage：
 | Q6 Runtime binding | **ACCEPTED** | 完整immutable bundle；新版本同步驗證後由Owner決定切換 |
 | Q7 Shadow evidence identity | **ACCEPTED** | 只用exact bundle自己的成績；其他只能參考 |
 | R1 Live Canary risk | **ACCEPTED** | 25 USDT/0.5%、10 USDT/0.25%、2 failures的保守方案 |
-| Q8–Q10 | `PENDING_OWNER` | 一次只問一題 |
+| Q8 Docs/AI authority | **ACCEPTED** | 只能說明/提案；machine policy、正式紀錄與permit才可授權 |
+| Q9–Q10 | `PENDING_OWNER` | 一次只問一題 |
 
 ## 6. BDD 狀態標籤
 

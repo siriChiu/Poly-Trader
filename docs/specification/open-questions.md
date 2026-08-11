@@ -272,7 +272,20 @@ C. AI可在owner instruction後直接改runtime gate。
 
 ### Decision
 
-`PENDING_OWNER`
+**ACCEPTED — 2026-08-11**
+
+Owner選擇 **B：文件與AI只能解釋、提醒和提出修改；真正下單只相信正式設定、核准紀錄與單次許可**。
+
+- Markdown、AI summary、一般聊天與`ready=true`都不是execution authority。
+- Chat決策必須轉成authenticated formal record，才會影響live state。
+- AI可提出code/policy變更，但需tests、review、version與deployment流程。
+- Risk-on仍需exact bundle、fresh snapshot、hard safety與signed single-use permit。
+- AI/Docs與machine state衝突時，execution fail closed並修正projection，不改machine state迎合文字。
+- Kill switch的啟動/解除也是正式machine action，不靠一句文字。
+
+ADR：[`../adr/ADR-0009-docs-ai-non-authoritative.md`](../adr/ADR-0009-docs-ai-non-authoritative.md)
+
+To-be BDD：[`features/to-be/docs-ai-non-authoritative.feature`](features/to-be/docs-ai-non-authoritative.feature)
 
 ---
 
