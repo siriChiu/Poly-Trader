@@ -121,6 +121,8 @@ python -m pytest tests/test_repo_hygiene.py -q
 - [`docs/specification/open-questions.md`](specification/open-questions.md) — owner decision queue；一次只確認一題。
 - [`docs/plans/2026-08-11-bdd-led-refactor.md`](plans/2026-08-11-bdd-led-refactor.md) — 尚待BDD確認的strangler重構藍圖。
 - [`docs/adr/ADR-0001-live-canary-product-scope.md`](adr/ADR-0001-live-canary-product-scope.md) — 已接受的近期實戰完成定義。
+- [`docs/adr/ADR-0002-personal-release-lifecycle.md`](adr/ADR-0002-personal-release-lifecycle.md) — Owner release永久、manual-only revocation lifecycle。
 - [`docs/specification/features/to-be/live-canary-product-scope.feature`](specification/features/to-be/live-canary-product-scope.feature) — owner-approved Live Canary to-be BDD。
+- [`docs/specification/features/to-be/personal-release-lifecycle.feature`](specification/features/to-be/personal-release-lifecycle.feature) — owner-approved permanent/manual-revoke release BDD。
 
 Specification只能描述與約束行為。真實order authorization仍只能由runtime enforcement、immutable bundle、permit及venue lifecycle證據產生。

@@ -52,7 +52,18 @@ D. runtime evidence變差可自動撤銷。
 
 ### Decision
 
-`PENDING_OWNER`
+**ACCEPTED — 2026-08-11**
+
+Owner選擇 **A：永久有效，只有Owner手動撤銷**。
+
+- 本決策處理lifecycle，不決定完整identity欄位；identity由Q6確認。
+- Release record不因support、evidence、breaker、binding、market或venue狀態自動撤銷。
+- Technical/hard safety仍可令capacity=0並阻止risk-on。
+- 不同identity不自動繼承舊release；原release也不因mismatch被撤銷。
+
+ADR：[`../adr/ADR-0002-personal-release-lifecycle.md`](../adr/ADR-0002-personal-release-lifecycle.md)
+
+To-be BDD：[`features/to-be/personal-release-lifecycle.feature`](features/to-be/personal-release-lifecycle.feature)
 
 ---
 
