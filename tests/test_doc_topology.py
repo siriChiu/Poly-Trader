@@ -35,6 +35,7 @@ def test_doc_topology_is_valid() -> None:
     assert "docs/ai-collaboration/harness" in payload["buckets"]
     assert "docs/ai-collaboration/pm" in payload["buckets"]
     assert "docs/plans" in payload["buckets"]
+    assert "docs/specification" in payload["buckets"]
 
 
 def test_markdown_reports_do_not_live_under_data() -> None:
@@ -72,6 +73,7 @@ def test_docs_index_names_product_folders() -> None:
         "docs/ai-collaboration/pm/",
         "docs/analysis/",
         "docs/plans/",
+        "docs/specification/",
         "data/*.json",
     ]:
         assert token in text

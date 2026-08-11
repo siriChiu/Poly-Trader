@@ -65,6 +65,7 @@ DOCS_DIRS = {
     "docs/ai-collaboration": "AI agent role, heartbeat governance, PM arbitration, and collaboration contracts",
     "docs/analysis": "analysis reports and markdown companions for data/*.json artifacts",
     "docs/plans": "dated implementation plans and design blueprints",
+    "docs/specification": "source-backed architecture, gating lineage, and BDD specifications",
 }
 
 REQUIRED_DOCS_README_TOKENS = [
@@ -73,6 +74,7 @@ REQUIRED_DOCS_README_TOKENS = [
     "docs/ai-collaboration/pm/",
     "docs/analysis/",
     "docs/plans/",
+    "docs/specification/",
     "data/*.json",
     "data/*.md",
     "scripts/doc_topology_check.py",

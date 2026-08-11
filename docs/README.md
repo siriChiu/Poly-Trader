@@ -27,7 +27,8 @@ docs/
   ├─ README.md                  # 本文件：文件分類與關聯
   ├─ ai-collaboration/          # AI 協作與 heartbeat governance 集中區
   ├─ analysis/                  # 可重跑分析、人讀摘要、artifact markdown companion
-  └─ plans/                     # 日期化設計與實作計畫
+  ├─ plans/                     # 日期化設計與實作計畫
+  └─ specification/             # source-backed 架構、gating lineage、as-is/to-be BDD
 
 data/
   └─ *.json / *.db / runtime artifacts only；Markdown 報告不得放在 data/
@@ -43,6 +44,7 @@ data/
 | Current-state root | `ISSUES.md`, `ROADMAP.md`, `ORID_DECISIONS.md` | 是 | 是 | overwrite sync；不 append 歷史流水帳 |
 | `docs/analysis/` | 分析報告、probe markdown companion、模型/特徵摘要 | 部分 | 多數 | JSON truth 留在 `data/`，Markdown companion 放這裡 |
 | `docs/plans/` | 日期化設計/實作計畫 | 否 | 否 | 檔名用 `YYYY-MM-DD-*`；完成後不再複製成多份 |
+| `docs/specification/` | source-backed architecture、gate ownership、as-is/to-be BDD | 否 | 否 | as-is 與 proposed to-be 分開；spec 永不授權 live order |
 | `scripts/legacy_checks/README.md` | 歷史診斷腳本說明 | 否 | 否 | 只保留 legacy 區說明，不當正式 workflow 入口 |
 
 ## 3. AI 協作文件集中規則
@@ -106,3 +108,15 @@ python -m pytest tests/test_repo_hygiene.py -q
 4. **plans 不複製成 docs/analysis**：計畫是意圖，analysis 是證據，兩者分離。
 5. **current-state docs 只描述現在**：歷史由 git history、ignored artifacts 或 dated plans/analysis 保存。
 6. **大型 runtime state 另列 protected**：DB、venv、graphify、live models 由 cleanroom audit 列出，不自動刪。
+
+## 7. BDD 與重構規格
+
+- [`docs/specification/README.md`](specification/README.md) — 分析邊界、閱讀順序、BDD標籤與重構啟動條件。
+- [`docs/specification/as-is-architecture.md`](specification/as-is-architecture.md) — 現行bounded contexts、資料流、god modules與truth stores。
+- [`docs/specification/as-is-gating-lineage.md`](specification/as-is-gating-lineage.md) — gate owner、重複projection、fallback與deadlock。
+- [`docs/specification/features/as-is/`](specification/features/as-is/) — 可解析的Gherkin characterization。
+- [`docs/specification/documentation-inventory.md`](specification/documentation-inventory.md) — authority/TTL分類與遷移建議。
+- [`docs/specification/open-questions.md`](specification/open-questions.md) — owner decision queue；一次只確認一題。
+- [`docs/plans/2026-08-11-bdd-led-refactor.md`](plans/2026-08-11-bdd-led-refactor.md) — 尚待BDD確認的strangler重構藍圖。
+
+Specification只能描述與約束行為。真實order authorization仍只能由runtime enforcement、immutable bundle、permit及venue lifecycle證據產生。
