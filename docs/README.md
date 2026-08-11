@@ -124,9 +124,11 @@ python -m pytest tests/test_repo_hygiene.py -q
 - [`docs/adr/ADR-0002-personal-release-lifecycle.md`](adr/ADR-0002-personal-release-lifecycle.md) — Owner release永久、manual-only revocation lifecycle。
 - [`docs/adr/ADR-0003-exact-support-advisory.md`](adr/ADR-0003-exact-support-advisory.md) — Exact support只作信心警告，不阻止極小額canary。
 - [`docs/adr/ADR-0004-decision-snapshot-truth.md`](adr/ADR-0004-decision-snapshot-truth.md) — API/UI/docs共用同一張完整DecisionSnapshot。
+- [`docs/adr/ADR-0005-autonomous-model-improvement.md`](adr/ADR-0005-autonomous-model-improvement.md) — 自動重建、訓練、比較與shadow候選成長邊界。
 - [`docs/specification/features/to-be/live-canary-product-scope.feature`](specification/features/to-be/live-canary-product-scope.feature) — owner-approved Live Canary to-be BDD。
 - [`docs/specification/features/to-be/personal-release-lifecycle.feature`](specification/features/to-be/personal-release-lifecycle.feature) — owner-approved permanent/manual-revoke release BDD。
 - [`docs/specification/features/to-be/exact-support-advisory.feature`](specification/features/to-be/exact-support-advisory.feature) — owner-approved support advisory BDD。
 - [`docs/specification/features/to-be/decision-snapshot-truth.feature`](specification/features/to-be/decision-snapshot-truth.feature) — owner-approved single-state projection BDD。
+- [`docs/specification/features/to-be/autonomous-model-improvement.feature`](specification/features/to-be/autonomous-model-improvement.feature) — owner-approved autonomous model growth BDD。
 
 Specification只能描述與約束行為。真實order authorization仍只能由runtime enforcement、immutable bundle、permit及venue lifecycle證據產生。

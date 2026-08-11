@@ -149,7 +149,21 @@ D. heartbeat只排程domain jobs，不做policy/doc projection。
 
 ### Decision
 
-`PENDING_OWNER`
+**ACCEPTED — 2026-08-11**
+
+Owner選擇允許**自動重建資料、重新訓練與比較模型、更新報告和狀態，讓模型自行成長**。
+
+白話邊界：系統可自動訓練挑戰者；真正更好時可成為research/shadow新候選，但不能偷偷替換Live Canary模型。
+
+- 「更好」優先看成本後ROI、最大回撤、profit factor與穩定性，不只看accuracy。
+- 資料污染、look-ahead、label mismatch或不可重現時停止promotion。
+- 新模型是新identity，不繼承舊Owner release。
+- Heartbeat不自動修改source code、feature/label語義、交易規則或hard safety。
+- Report與狀態單可自動更新，但必須同generation。
+
+ADR：[`../adr/ADR-0005-autonomous-model-improvement.md`](../adr/ADR-0005-autonomous-model-improvement.md)
+
+To-be BDD：[`features/to-be/autonomous-model-improvement.feature`](features/to-be/autonomous-model-improvement.feature)
 
 ---
 

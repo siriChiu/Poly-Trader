@@ -63,7 +63,8 @@ To-be owner-approved coverage：
 | `features/to-be/personal-release-lifecycle.feature` | 13 | ADR-0002 / Q2 accepted |
 | `features/to-be/exact-support-advisory.feature` | 14 | ADR-0003 / Q3 accepted |
 | `features/to-be/decision-snapshot-truth.feature` | 16 | ADR-0004 / Q4 accepted |
-| **Total** | **56** | 4 owner-approved feature groups |
+| `features/to-be/autonomous-model-improvement.feature` | 21 | ADR-0005 / Q5 accepted |
+| **Total** | **77** | 5 owner-approved feature groups |
 
 ## 5. Owner decision status
 
@@ -73,7 +74,8 @@ To-be owner-approved coverage：
 | Q2 Owner release生命週期 | **ACCEPTED** | 永久有效；只有Owner手動撤銷 |
 | Q3 Exact support gate | **ACCEPTED** | 純信心警告；不阻止極小額單層canary |
 | Q4 Current truth | **ACCEPTED** | 一張完整狀態單供API/UI/docs共同顯示 |
-| Q5–Q10 | `PENDING_OWNER` | 一次只問一題 |
+| Q5 Heartbeat autonomy | **ACCEPTED** | 自動資料、訓練、比較、shadow候選與狀態更新；不自動改code/live bundle |
+| Q6–Q10 | `PENDING_OWNER` | 一次只問一題 |
 
 ## 6. BDD 狀態標籤
 
