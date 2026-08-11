@@ -65,7 +65,8 @@ To-be owner-approved coverage：
 | `features/to-be/decision-snapshot-truth.feature` | 16 | ADR-0004 / Q4 accepted |
 | `features/to-be/autonomous-model-improvement.feature` | 21 | ADR-0005 / Q5 accepted |
 | `features/to-be/immutable-deployment-bundle.feature` | 19 | ADR-0006 / Q6 accepted |
-| **Total** | **96** | 6 owner-approved feature groups |
+| `features/to-be/exact-bundle-shadow-evidence.feature` | 15 | ADR-0007 / Q7 accepted |
+| **Total** | **111** | 7 owner-approved feature groups |
 
 ## 5. Owner decision status
 
@@ -77,7 +78,8 @@ To-be owner-approved coverage：
 | Q4 Current truth | **ACCEPTED** | 一張完整狀態單供API/UI/docs共同顯示 |
 | Q5 Heartbeat autonomy | **ACCEPTED** | 自動資料、訓練、比較、shadow候選與狀態更新；不自動改code/live bundle |
 | Q6 Runtime binding | **ACCEPTED** | 完整immutable bundle；新版本同步驗證後由Owner決定切換 |
-| Q7–Q10 | `PENDING_OWNER` | 一次只問一題 |
+| Q7 Shadow evidence identity | **ACCEPTED** | 只用exact bundle自己的成績；其他只能參考 |
+| Q8–Q10 | `PENDING_OWNER` | 一次只問一題 |
 
 ## 6. BDD 狀態標籤
 

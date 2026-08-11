@@ -219,7 +219,22 @@ C. exact immutable bundle相同才可promotion；其他只作diagnostic/referenc
 
 ### Decision
 
-`PENDING_OWNER`
+**ACCEPTED — 2026-08-11**
+
+Owner選擇 **C：只能使用這個完整新版本自己的成績，其他模型只能參考**。
+
+白話定義：每個bundle都是獨立考生，不能拿別人的考卷替它加分。
+
+- Prediction、intent、outcome都必須帶exact bundle與snapshot identity。
+- 相同model class或feature profile仍不能共用promotion成績。
+- Bundle任何內容改變後，新版本從自己的valid evidence開始。
+- 舊成績保留為reference，不刪除但不計入新版本。
+- 缺少identity的legacy outcomes不可事後猜測歸屬。
+- Q3 support仍只作warning，但support rows也不能跨bundle借用。
+
+ADR：[`../adr/ADR-0007-exact-bundle-shadow-evidence.md`](../adr/ADR-0007-exact-bundle-shadow-evidence.md)
+
+To-be BDD：[`features/to-be/exact-bundle-shadow-evidence.feature`](features/to-be/exact-bundle-shadow-evidence.feature)
 
 ---
 
