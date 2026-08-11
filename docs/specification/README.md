@@ -68,7 +68,8 @@ To-be owner-approved coverage：
 | `features/to-be/exact-bundle-shadow-evidence.feature` | 15 | ADR-0007 / Q7 accepted |
 | `features/to-be/conservative-live-canary-risk.feature` | 20 | ADR-0008 / R1 accepted |
 | `features/to-be/docs-ai-non-authoritative.feature` | 16 | ADR-0009 / Q8 accepted |
-| **Total** | **147** | 9 owner-approved feature groups |
+| `features/to-be/manual-live-canary-permit.feature` | 22 | ADR-0010 / Q9 accepted |
+| **Total** | **169** | 10 owner-approved feature groups |
 
 ## 5. Owner decision status
 
@@ -83,7 +84,8 @@ To-be owner-approved coverage：
 | Q7 Shadow evidence identity | **ACCEPTED** | 只用exact bundle自己的成績；其他只能參考 |
 | R1 Live Canary risk | **ACCEPTED** | 25 USDT/0.5%、10 USDT/0.25%、2 failures的保守方案 |
 | Q8 Docs/AI authority | **ACCEPTED** | 只能說明/提案；machine policy、正式紀錄與permit才可授權 |
-| Q9–Q10 | `PENDING_OWNER` | 一次只問一題 |
+| Q9 Manual Live journey | **ACCEPTED** | UI preview＋Owner再次確認＋exact single-use permit |
+| Q10 | `PENDING_OWNER` | 最後一題 |
 
 ## 6. BDD 狀態標籤
 

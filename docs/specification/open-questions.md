@@ -307,7 +307,21 @@ C. manual route只作paper/shadow，live永遠外部手動。
 
 ### Decision
 
-`PENDING_OWNER`
+**ACCEPTED — 2026-08-11**
+
+Owner選擇 **B：畫面顯示完整模型、金額與風險，再次確認後取得只限這一筆的一次性許可**。
+
+- Preview顯示exact bundle、snapshot、venue/account、symbol、side、金額、費用、cap與風險。
+- Preview不簽permit、不送單。
+- Owner確認後Server重新檢查全部hard safety；狀態變更就要求重新確認。
+- Permit綁exact order、bundle、snapshot、cap、quote、TTL與single-use nonce。
+- Double-click/retry最多呼叫venue一次。
+- Ack不等於fill；UI追蹤partial/fill/cancel/reject/unknown與reconciliation。
+- AI不能代替Owner確認或簽permit。
+
+ADR：[`../adr/ADR-0010-manual-live-canary-permit.md`](../adr/ADR-0010-manual-live-canary-permit.md)
+
+To-be BDD：[`features/to-be/manual-live-canary-permit.feature`](features/to-be/manual-live-canary-permit.feature)
 
 ---
 

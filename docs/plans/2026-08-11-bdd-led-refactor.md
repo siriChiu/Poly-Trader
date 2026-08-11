@@ -1,7 +1,7 @@
 # BDD-led Domain Refactor Plan
 
 > 日期：2026-08-11
-> 狀態：**PROPOSED — Q1–Q8 + R1 ACCEPTED；Q9–Q10 WAITING FOR OWNER DECISIONS**
+> 狀態：**PROPOSED — Q1–Q9 + R1 ACCEPTED；Q10 WAITING FOR OWNER DECISION**
 > 基線：`9e973bba`
 > 原則：先characterization、再strangler；不以降低hard safety gate換取「變綠」。
 
@@ -52,7 +52,7 @@ Files:
 - `docs/specification/open-questions.md`
 
 Actions:
-1. Owner逐題確認Q1–Q10；Q1–Q8與補充風險決策R1已於2026-08-11接受。
+1. Owner逐題確認Q1–Q10；Q1–Q9與補充風險決策R1已於2026-08-11接受。
 2. 對每題建立ADR。
 3. 建立`features/to-be/`，不得修改as-is來冒充現況。
 
@@ -75,6 +75,8 @@ Accepted output:
 - `docs/specification/features/to-be/conservative-live-canary-risk.feature`
 - `docs/adr/ADR-0009-docs-ai-non-authoritative.md`
 - `docs/specification/features/to-be/docs-ai-non-authoritative.feature`
+- `docs/adr/ADR-0010-manual-live-canary-permit.md`
+- `docs/specification/features/to-be/manual-live-canary-permit.feature`
 
 Verification:
 - 每個core journey至少一個happy path、一個fail-closed path、一個stale/inconsistent path。
