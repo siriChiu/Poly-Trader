@@ -238,6 +238,26 @@ To-be BDD：[`features/to-be/exact-bundle-shadow-evidence.feature`](features/to-
 
 ---
 
+## R1 — Live Canary保守風險上限（補充Owner決策）
+
+### Decision
+
+**ACCEPTED — 2026-08-11**
+
+Owner選擇保守方案：
+
+- 每筆risk-on與全部Live Canary曝險：`min(25 USDT, account equity × 0.5%)`。
+- UTC單日實現虧損：`min(10 USDT, start-of-day equity × 0.25%)`後停止新增風險。
+- 連續2次真實送單失敗後停止新的risk-on。
+- 低於交易所minimum order時不交易，不自行提高金額。
+- Cancel、reduce、exit與reconcile仍可執行。
+
+ADR：[`../adr/ADR-0008-conservative-live-canary-risk.md`](../adr/ADR-0008-conservative-live-canary-risk.md)
+
+To-be BDD：[`features/to-be/conservative-live-canary-risk.feature`](features/to-be/conservative-live-canary-risk.feature)
+
+---
+
 ## Q8 — Docs/AI指令可否影響execution決策？
 
 ### 選項
