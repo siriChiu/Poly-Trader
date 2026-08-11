@@ -61,7 +61,8 @@ To-be owner-approved coverage：
 |---|---:|---|
 | `features/to-be/live-canary-product-scope.feature` | 13 | ADR-0001 / Q1 accepted |
 | `features/to-be/personal-release-lifecycle.feature` | 13 | ADR-0002 / Q2 accepted |
-| **Total** | **26** | 2 owner-approved feature groups |
+| `features/to-be/exact-support-advisory.feature` | 14 | ADR-0003 / Q3 accepted |
+| **Total** | **40** | 3 owner-approved feature groups |
 
 ## 5. Owner decision status
 
@@ -69,7 +70,8 @@ To-be owner-approved coverage：
 |---|---|---|
 | Q1 實戰完成層級 | **ACCEPTED** | 受監督、極小額、單層Live Canary |
 | Q2 Owner release生命週期 | **ACCEPTED** | 永久有效；只有Owner手動撤銷 |
-| Q3–Q10 | `PENDING_OWNER` | 一次只問一題 |
+| Q3 Exact support gate | **ACCEPTED** | 純信心警告；不阻止極小額單層canary |
+| Q4–Q10 | `PENDING_OWNER` | 一次只問一題 |
 
 ## 6. BDD 狀態標籤
 

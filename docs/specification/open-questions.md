@@ -82,7 +82,21 @@ D. 每筆order execution hard gate。
 
 ### Decision
 
-`PENDING_OWNER`
+**ACCEPTED — 2026-08-11**
+
+Owner選擇 **A：純Evidence Advisory**。
+
+白話定義：資料不足只顯示「類似案例較少、信心較低」，仍可照常做ADR-0001的極小額、單層Live Canary。
+
+- 不阻止Owner release。
+- 不把allowed layers改成0。
+- 不作每筆order hard gate。
+- Support達標也不自動放大金額、增加層數或開啟Full Auto。
+- Exact bundle、kill switch、breaker、permit、cap、venue與lifecycle safety仍全部強制。
+
+ADR：[`../adr/ADR-0003-exact-support-advisory.md`](../adr/ADR-0003-exact-support-advisory.md)
+
+To-be BDD：[`features/to-be/exact-support-advisory.feature`](features/to-be/exact-support-advisory.feature)
 
 ---
 
