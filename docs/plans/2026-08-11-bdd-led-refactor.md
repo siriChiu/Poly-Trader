@@ -1,7 +1,7 @@
 # BDD-led Domain Refactor Plan
 
 > 日期：2026-08-11
-> 狀態：**PROPOSED — Q1–Q9 + R1 ACCEPTED；Q10 WAITING FOR OWNER DECISION**
+> 狀態：**OWNER BDD APPROVED — Q1–Q10 + R1 COMPLETE；READY FOR PHASE 0.2**
 > 基線：`9e973bba`
 > 原則：先characterization、再strangler；不以降低hard safety gate換取「變綠」。
 
@@ -45,16 +45,16 @@ flowchart LR
 
 ## Phase 0 — Characterization baseline
 
-### Task 0.1: Approve as-is BDD
+### Task 0.1: Approve as-is/to-be BDD — COMPLETE
 
 Files:
 - `docs/specification/features/as-is/*.feature`
 - `docs/specification/open-questions.md`
 
 Actions:
-1. Owner逐題確認Q1–Q10；Q1–Q9與補充風險決策R1已於2026-08-11接受。
-2. 對每題建立ADR。
-3. 建立`features/to-be/`，不得修改as-is來冒充現況。
+1. Owner逐題確認Q1–Q10；Q1–Q10與補充風險決策R1已於2026-08-11接受。
+2. 已為每題建立ADR。
+3. 已建立`features/to-be/`，未修改as-is來冒充現況。
 
 Accepted output:
 - `docs/adr/ADR-0001-live-canary-product-scope.md`
@@ -77,6 +77,8 @@ Accepted output:
 - `docs/specification/features/to-be/docs-ai-non-authoritative.feature`
 - `docs/adr/ADR-0010-manual-live-canary-permit.md`
 - `docs/specification/features/to-be/manual-live-canary-permit.feature`
+- `docs/adr/ADR-0011-btc-usdt-phase-one.md`
+- `docs/specification/features/to-be/btc-usdt-phase-one.feature`
 
 Verification:
 - 每個core journey至少一個happy path、一個fail-closed path、一個stale/inconsistent path。

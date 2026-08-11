@@ -130,6 +130,7 @@ python -m pytest tests/test_repo_hygiene.py -q
 - [`docs/adr/ADR-0008-conservative-live-canary-risk.md`](adr/ADR-0008-conservative-live-canary-risk.md) — 保守Live Canary資金、日損與failure halt。
 - [`docs/adr/ADR-0009-docs-ai-non-authoritative.md`](adr/ADR-0009-docs-ai-non-authoritative.md) — 文件與AI不得直接授權真實下單。
 - [`docs/adr/ADR-0010-manual-live-canary-permit.md`](adr/ADR-0010-manual-live-canary-permit.md) — UI雙步確認與exact single-use permit。
+- [`docs/adr/ADR-0011-btc-usdt-phase-one.md`](adr/ADR-0011-btc-usdt-phase-one.md) — Phase 1只支援BTC/USDT並保留未來partition。
 - [`docs/specification/features/to-be/live-canary-product-scope.feature`](specification/features/to-be/live-canary-product-scope.feature) — owner-approved Live Canary to-be BDD。
 - [`docs/specification/features/to-be/personal-release-lifecycle.feature`](specification/features/to-be/personal-release-lifecycle.feature) — owner-approved permanent/manual-revoke release BDD。
 - [`docs/specification/features/to-be/exact-support-advisory.feature`](specification/features/to-be/exact-support-advisory.feature) — owner-approved support advisory BDD。
@@ -140,5 +141,6 @@ python -m pytest tests/test_repo_hygiene.py -q
 - [`docs/specification/features/to-be/conservative-live-canary-risk.feature`](specification/features/to-be/conservative-live-canary-risk.feature) — owner-approved conservative canary risk BDD。
 - [`docs/specification/features/to-be/docs-ai-non-authoritative.feature`](specification/features/to-be/docs-ai-non-authoritative.feature) — owner-approved docs/AI authority boundary BDD。
 - [`docs/specification/features/to-be/manual-live-canary-permit.feature`](specification/features/to-be/manual-live-canary-permit.feature) — owner-approved supervised manual canary BDD。
+- [`docs/specification/features/to-be/btc-usdt-phase-one.feature`](specification/features/to-be/btc-usdt-phase-one.feature) — owner-approved BTC-only Phase-1 scope BDD。
 
 Specification只能描述與約束行為。真實order authorization仍只能由runtime enforcement、immutable bundle、permit及venue lifecycle證據產生。

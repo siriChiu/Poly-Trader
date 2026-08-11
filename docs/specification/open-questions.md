@@ -343,4 +343,17 @@ C. 移除symbol抽象直到未來需要。
 
 ### Decision
 
-`PENDING_OWNER`
+**ACCEPTED — 2026-08-11**
+
+Owner選擇 **A：第一階段只允許BTC/USDT；其他幣明確拒絕，保留未來擴充能力**。
+
+- Canonical Phase-1 market是BTC/USDT spot。
+- 非BTC request在fetch、training、snapshot、preview、permit或venue side effect前拒絕。
+- 不得fallback到BTC、混用BTC 4H或跨symbol join。
+- Data、bundle、snapshot、intent與ledger仍保留explicit symbol partition。
+- Historical非BTC資料可保留作reference，但不進正式pipeline。
+- 未來新增symbol需新ADR/BDD與portfolio risk決策。
+
+ADR：[`../adr/ADR-0011-btc-usdt-phase-one.md`](../adr/ADR-0011-btc-usdt-phase-one.md)
+
+To-be BDD：[`features/to-be/btc-usdt-phase-one.feature`](features/to-be/btc-usdt-phase-one.feature)

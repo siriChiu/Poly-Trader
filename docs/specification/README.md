@@ -1,6 +1,6 @@
 # Poly-Trader BDD 與重構規格中心
 
-> 狀態：**AS-IS CHARACTERIZATION DRAFT**
+> 狀態：**AS-IS CHARACTERIZED；Q1–Q10 + R1 OWNER TO-BE APPROVED**
 > 觀測日期：2026-08-11
 > 穩定基線：`9e973bba9aa3c01aece12b18d1229f3e13c49e91`
 > 文件分支：`docs/bdd-baseline-20260811`
@@ -69,7 +69,8 @@ To-be owner-approved coverage：
 | `features/to-be/conservative-live-canary-risk.feature` | 20 | ADR-0008 / R1 accepted |
 | `features/to-be/docs-ai-non-authoritative.feature` | 16 | ADR-0009 / Q8 accepted |
 | `features/to-be/manual-live-canary-permit.feature` | 22 | ADR-0010 / Q9 accepted |
-| **Total** | **169** | 10 owner-approved feature groups |
+| `features/to-be/btc-usdt-phase-one.feature` | 19 | ADR-0011 / Q10 accepted |
+| **Total** | **188** | 11 owner-approved feature groups |
 
 ## 5. Owner decision status
 
@@ -85,7 +86,8 @@ To-be owner-approved coverage：
 | R1 Live Canary risk | **ACCEPTED** | 25 USDT/0.5%、10 USDT/0.25%、2 failures的保守方案 |
 | Q8 Docs/AI authority | **ACCEPTED** | 只能說明/提案；machine policy、正式紀錄與permit才可授權 |
 | Q9 Manual Live journey | **ACCEPTED** | UI preview＋Owner再次確認＋exact single-use permit |
-| Q10 | `PENDING_OWNER` | 最後一題 |
+| Q10 Symbol scope | **ACCEPTED** | Phase 1只支援BTC/USDT；其他明確拒絕，保留partition |
+| **All decisions** | **COMPLETE** | Q1–Q10與補充R1已全部核准 |
 
 ## 6. BDD 狀態標籤
 
