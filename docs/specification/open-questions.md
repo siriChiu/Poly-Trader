@@ -187,7 +187,21 @@ To-be BDD：[`features/to-be/autonomous-model-improvement.feature`](features/to-
 
 ### Decision
 
-`PENDING_OWNER`
+**ACCEPTED — 2026-08-11**
+
+Owner選擇**完整封裝**：任何模型、資料、指標、預測目標、參數或交易規則改變，都算新版本。
+
+Owner另確認：新模型先和舊模型同步模擬一段時間；判定新模型更優後通知Owner，由Owner決定是否切換Live Canary。
+
+- 技術名稱：immutable `DeploymentBundle`。
+- Runtime必須驗證完整manifest與content hashes，不能只相信path或profile name。
+- 安全override只能暫停或向下縮小cap，不能換模型、規則或放大風險。
+- 新bundle不繼承舊release、permit或live pointer。
+- Owner明確選擇後才atomic切換；舊訂單與持倉保留原bundle歸屬。
+
+ADR：[`../adr/ADR-0006-immutable-deployment-bundle.md`](../adr/ADR-0006-immutable-deployment-bundle.md)
+
+To-be BDD：[`features/to-be/immutable-deployment-bundle.feature`](features/to-be/immutable-deployment-bundle.feature)
 
 ---
 
